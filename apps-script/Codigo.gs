@@ -176,26 +176,8 @@ function testarInfinitePay() {
   });
 }
 
-// Diagnóstico 2: tenta vários nomes de campo para "parcelas sem juros".
-// Cada linha gera um link de R$ 1,00 (não cobra nada). Mande o registro para o
-// suporte técnico do site: pelo link dá para ver se a InfinitePay guardou o campo.
-function testarCamposParcelas() {
-  var candidatos = ['interest_free_installments', 'installments_without_interest', 'free_installments', 'max_interest_free_installments',
-    'absorbed_installments', 'assumed_installments', 'assume_fees_until', 'fee_absorption', 'fees_absorption', 'fee_payer',
-    'pass_fees', 'pass_through_fees', 'repass_fees', 'installments_fee_payer', 'nitro', 'payment_methods', 'capture_methods'];
-  candidatos.forEach(function (campo) {
-    var corpo = { handle: AJUSTES.infinitepayHandle, items: [{ quantity: 1, price: 100, description: 'Teste ' + campo }] };
-    corpo[campo] = /method/.test(campo) ? ['pix', 'credit_card'] : /payer|pass|repass|absorption/.test(campo) && campo !== 'fee_absorption' ? 'customer' : 3;
-    if (campo === 'fee_absorption' || campo === 'fees_absorption') corpo[campo] = { until_installment: 3 };
-    var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
-      method: 'post', contentType: 'application/json', payload: JSON.stringify(corpo), muteHttpExceptions: true,
-    });
-    var j = {};
-    try { j = JSON.parse(resp.getContentText()); } catch (e) { /* texto */ }
-    var lenc = String(j.url || '').split('lenc=')[1] || resp.getContentText().slice(0, 200);
-    Logger.log(campo + ' | HTTP ' + resp.getResponseCode() + ' | ' + lenc);
-  });
-}
+// Obs.: em 18/10/2026 testamos 19 nomes de campo para limitar parcelas/juros por link;
+// a InfinitePay descarta todos. A regra de juros fica nas configurações do Checkout.
 
 // ============================================================
 //  2) PORTA DE ENTRADA DO SITE
