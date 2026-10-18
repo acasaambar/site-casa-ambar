@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import AreaNav from '../components/AreaNav.jsx';
 import { Forma, IconeWhatsapp, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
-import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento, semJuros } from '../config.js';
+import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -48,6 +48,11 @@ export default function MeuPlano() {
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  const local = useLocation();
+  useEffect(() => {
+    if (dados && local.state?.rolar) setTimeout(() => document.getElementById(local.state.rolar)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  }, [dados, local.state]);
 
   async function irParaPagamento() {
     setErro('');
@@ -198,7 +203,7 @@ export default function MeuPlano() {
                     <div className="cardapio__linha cardapio__linha--cabeca" role="row">
                       <span role="columnheader">Frequência</span>
                       <span role="columnheader">Mensal<small>30 dias</small></span>
-                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros</small></span>
+                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros · com a atendente</small></span>
                     </div>
                     {frequencias.map((f) => {
                       const m = plano('mensal', f);
@@ -228,11 +233,19 @@ export default function MeuPlano() {
 
                   <footer className="cardapio__rodape">
                     <Sol tamanho={16} />
-                    <span>Toque no valor para escolher · Avulsa e mensal: 1x sem juros · Trimestral: até 3x sem juros · Todos em até 12x com juros</span>
+                    <span>Toque no valor para escolher · Avulsa e mensal: 1x sem juros ou até 12x com juros · Trimestral: até 3x sem juros com a atendente</span>
                   </footer>
                 </div>
               )}
             </section>
+
+            {/* ---------- WELLHUB ---------- */}
+            {dados.wellhub && dados.wellhub.status !== 'desligado' && (
+              <section className="plano__secao" id="wellhub">
+                <h2 className="titulo-secao"><Sol tamanho={14} /> Wellhub</h2>
+                <Wellhub info={dados.wellhub} token={token} aoAtivar={carregar} />
+              </section>
+            )}
 
             {/* ---------- PAGAMENTOS ---------- */}
             <section className="plano__secao">
@@ -305,23 +318,115 @@ export default function MeuPlano() {
               <li className="compra__condicao">
                 <span>Pagamento</span>
                 <strong>
-                  {condicaoPagamento(escolhido)}
-                  {semJuros(escolhido) > 1 && <em> · {semJuros(escolhido)}x de {real(escolhido.preco / semJuros(escolhido))}</em>}
+                  {escolhido.tipo === 'trimestral' ? `Até 3x sem juros de ${real(escolhido.preco / 3)}` : condicaoPagamento(escolhido)}
                 </strong>
               </li>
             </ul>
-            <button type="button" className="botao botao--cheio compra__ir" disabled={indo} onClick={irParaPagamento}>
-              {indo ? 'Abrindo pagamento…' : 'Ir para o pagamento'}
-            </button>
-            <ol className="compra__passos">
-              <li>Você vai para a página segura da InfinitePay.</li>
-              <li>Escolha Pix ou cartão e conclua o pagamento.</li>
-              <li>Toque em <strong>Continuar</strong> para voltar à Casa Âmbar.</li>
-            </ol>
+            {escolhido.tipo === 'trimestral' ? (
+              <>
+                <a
+                  className="botao botao--cheio compra__ir com-icone"
+                  href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(
+                    `Olá! Quero contratar o plano ${escolhido.nome} (${real(escolhido.preco)}) em até 3x sem juros. Pode gerar meu link de pagamento?`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <IconeWhatsapp /> Falar com a atendente
+                </a>
+                <ol className="compra__passos">
+                  <li>A atendente gera o seu link em até <strong>3x sem juros</strong>.</li>
+                  <li>Ou, se preferir, pague na recepção na sua primeira aula.</li>
+                  <li>Assim que o pagamento for confirmado, o plano aparece aqui.</li>
+                </ol>
+              </>
+            ) : (
+              <>
+                <button type="button" className="botao botao--cheio compra__ir" disabled={indo} onClick={irParaPagamento}>
+                  {indo ? 'Abrindo pagamento…' : 'Ir para o pagamento'}
+                </button>
+                <ol className="compra__passos">
+                  <li>Você vai para a página segura da InfinitePay.</li>
+                  <li>Escolha Pix ou cartão e conclua o pagamento.</li>
+                  <li>Toque em <strong>Continuar</strong> para voltar à Casa Âmbar.</li>
+                </ol>
+              </>
+            )}
             <button type="button" className="link-sair" disabled={indo} onClick={() => setEscolhido(null)}>Voltar</button>
           </div>
         </div>
       )}
     </main>
+  );
+}
+
+// Cartão do Wellhub: a aluna informa o ID e passa a reservar sem pagar no site
+function Wellhub({ info, token, aoAtivar }) {
+  const [id, setId] = useState(info.id || '');
+  const [confirmo, setConfirmo] = useState(false);
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const ativo = info.status === 'pendente' || info.status === 'confirmado';
+
+  async function ativar(e) {
+    e.preventDefault();
+    setErro('');
+    setSalvando(true);
+    try {
+      await api.ativarWellhub(token, id, confirmo);
+      await aoAtivar();
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (info.status === 'bloqueado') {
+    return (
+      <div className="wellhub wellhub--aviso">
+        <p>Não conseguimos confirmar o seu Wellhub. Fale com a recepção pelo WhatsApp {CONFIG.telefone}.</p>
+      </div>
+    );
+  }
+
+  if (ativo) {
+    return (
+      <div className="wellhub wellhub--ativo">
+        <div className="wellhub__selo" aria-hidden="true">W</div>
+        <div className="wellhub__texto">
+          <strong>Wellhub ativo {info.status === 'pendente' && <span className="status status--pendente">aguardando confirmação</span>}</strong>
+          <p>
+            Você pode reservar {info.modalidades.join(' e ')} sem pagar pelo site: na reserva, escolha <em>Usar meu Wellhub</em>.
+            Ao chegar, faça o <strong>check-in no app Wellhub</strong>. Sem o check-in, a aula é cobrada como avulsa.
+          </p>
+          <span className="wellhub__id">ID Wellhub · {info.id}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form className="wellhub" onSubmit={ativar}>
+      <div className="wellhub__selo" aria-hidden="true">W</div>
+      <div className="wellhub__texto">
+        <strong>Tem Wellhub {info.planoMinimo} ou superior?</strong>
+        <p>A Casa Âmbar é parceira do Wellhub. Informe seu ID e reserve {info.modalidades.join(' e ')} usando o seu plano.</p>
+        <div className="form wellhub__form">
+          <label>
+            ID Wellhub <span className="opcional">no app Wellhub, em Perfil</span>
+            <input type="text" inputMode="numeric" value={id} onChange={(e) => setId(e.target.value.replace(/\D/g, '').slice(0, 20))} placeholder="0000000000000" />
+          </label>
+          <label className="termo">
+            <input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />
+            <span>Meu plano Wellhub é {info.planoMinimo} ou superior e farei o check-in no app ao chegar.</span>
+          </label>
+          {erro && <p className="erro" role="alert">{erro}</p>}
+          <button type="submit" className="botao botao--cheio" disabled={salvando || !id || !confirmo}>
+            {salvando ? 'Ativando…' : 'Ativar Wellhub'}
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }

@@ -42,6 +42,19 @@ Cada ficha também vira um **PDF** na pasta do Google Drive **"Casa Âmbar · An
 
 **Dados de saúde são sensíveis (LGPD):** não compartilhe a planilha nem a pasta com quem não precisa. Se um aluno pedir a exclusão, apague a linha dele na aba Anamneses e o PDF na pasta.
 
+### Planos pagos no balcão (trimestral e outros)
+
+O plano trimestral (até 3x sem juros) é feito com a atendente. Depois de receber, lance o plano na aba **Creditos** preenchendo só 3 colunas:
+`cpf` (só números), `plano_id` (ex.: `yoga-trimestral-2x`, igual à aba Planos) e `inicio` (ex.: `2026-10-20`).
+O sistema completa o resto da linha sozinho na próxima vez que a aluna abrir o site.
+
+### Wellhub
+
+A aluna ativa o Wellhub em **Meu plano** informando o ID Wellhub. Ela já pode reservar (status `pendente`) e, na reserva, escolhe **Usar meu Wellhub**.
+Ao chegar, ela faz o **check-in no app Wellhub** (é o que garante o repasse para a Casa Âmbar).
+Na aba **Alunos**, coluna `wellhub`, a recepção marca `SIM` depois do primeiro check-in validado, ou `NÃO` para bloquear.
+Reservas Wellhub aparecem na aba Reservas com `credito_id = WELLHUB`. Limite: 1 aula por dia (ajustável em `AJUSTES.wellhub` no Codigo.gs).
+
 ## Publicação
 
 Todo envio para a branch `main` publica o site no GitHub Pages pelo workflow `.github/workflows/deploy.yml`.

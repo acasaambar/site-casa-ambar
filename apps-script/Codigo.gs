@@ -45,11 +45,19 @@ var AJUSTES = {
   siteUrl: 'https://acasaambar.github.io/site-casa-ambar/',
   apiUrl: 'https://script.google.com/macros/s/AKfycbyifKgzuxAU0V-RR639J3vs1opngMDOPWpLXMEWg7LkgB4bpyoVy4yqRXuLu7_v_DWx/exec',
   reservaPendenteMin: 20, // tapete fica guardado por X minutos enquanto a aluna paga
+  // Wellhub (parceiro a partir do Gold+): quem tem o plano reserva pelo site
+  // e faz o check-in no app Wellhub ao chegar.
+  wellhub: {
+    ativo: true,
+    modalidades: ['Yoga', 'Pilates'],
+    reservasPorDia: 1, // o Wellhub permite 1 check-in por dia no mesmo parceiro
+    planoMinimo: 'Gold+',
+  },
 };
 
 var ABAS = {
   Grade: ['ativo', 'modalidade', 'dia_semana', 'hora', 'professor', 'capacidade'],
-  Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo'],
+  Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo', 'wellhub', 'wellhub_id', 'wellhub_desde'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -213,6 +221,7 @@ function doPost(e) {
       meuPlano: meuPlano,
       comprar: comprar,
       confirmarPagamento: confirmarPagamento,
+      ativarWellhub: ativarWellhub,
     };
     var fn = acoes[corpo.acao];
     if (!fn) return responder(false, null, 'Ação desconhecida.');
@@ -237,7 +246,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v11 (juros por plano)';
+var VERSAO = '2026-10-18 · v12 (Wellhub + trimestral com atendente)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -321,14 +330,18 @@ function buscarAluno(cpf) {
   var linhas = aba('Alunos').getDataRange().getValues();
   var cab = linhas[0];
   for (var i = 1; i < linhas.length; i++) {
-    if (normCpf(linhas[i][0]) === normCpf(cpf)) return objeto(cab, linhas[i]);
+    if (normCpf(linhas[i][0]) === normCpf(cpf)) {
+      var a = objeto(cab, linhas[i]);
+      a._linha = i + 1;
+      return a;
+    }
   }
   return null;
 }
 
 function publico(a) {
   var cpf = normCpf(a.cpf);
-  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), anamnese: !!linhaAnamnese(cpf) };
+  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), anamnese: !!linhaAnamnese(cpf), wellhub: statusWellhub(a) };
 }
 
 function hashSenha(senha, sal) {
@@ -446,11 +459,22 @@ function reservar(d) {
     var id = 'R' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
     var credito = escolherCredito(cpf, aula, reservas);
 
+    if (!credito && d.usarWellhub) {
+      var podeW = podeUsarWellhub(aluno, aula, reservas);
+      if (!podeW.ok) throw new Error(podeW.motivo);
+      aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+        'WELLHUB', '', '']);
+      SpreadsheetApp.flush();
+      return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null,
+        status: 'reservado', credito: 'Wellhub', wellhub: true };
+    }
+
     if (!credito) {
       var avulsa = buscarPlano(aula.modalidade.toLowerCase() + '-avulsa');
       if (!d.pagarAvulsa || !avulsa) {
         throw erroCod('Você não tem aulas de ' + aula.modalidade + ' disponíveis.', 'SEM_CREDITO', {
           avulsa: avulsa ? planoPublico(avulsa) : null,
+          wellhub: { status: statusWellhub(aluno), pode: podeUsarWellhub(aluno, aula, reservas) },
         });
       }
       // guarda o tapete por alguns minutos e gera o pagamento da aula avulsa
@@ -522,7 +546,7 @@ function minhasReservas(d) {
     partesAula(r);
     lista.push({
       id: r.id, aulaId: r.aula_id, data: r.data, hora: r.hora,
-      modalidade: r.modalidade, professor: r.professor, tapete: r.tapete ? Number(r.tapete) : null, status: r.status,
+      modalidade: r.modalidade, professor: r.professor, tapete: r.tapete ? Number(r.tapete) : null, status: r.status, wellhub: String(r.credito_id) === 'WELLHUB',
     });
   }
   return lista.sort(function (a, b) { return (a.data + a.hora).localeCompare(b.data + b.hora); });
@@ -733,8 +757,37 @@ function planoPublico(p) {
   return { id: p.id, modalidade: p.modalidade, tipo: p.tipo, nome: p.nome, aulasSemana: p.aulas_semana, aulasTotal: p.aulas_total, validadeDias: p.validade_dias, preco: p.preco, descricao: p.descricao, semJurosAte: semJurosAte(p) };
 }
 
+// A recepção pode lançar um plano pago no balcão preenchendo só: cpf, plano_id e inicio.
+// O resto da linha (id, descrição, aulas, fim...) é completado automaticamente.
+function completarCreditosManuais(abaC, linhas) {
+  var cab = linhas[0];
+  var col = function (n) { return cab.indexOf(n); };
+  for (var i = 1; i < linhas.length; i++) {
+    var c = objeto(cab, linhas[i]);
+    if (c.id || !c.cpf || !c.plano_id) continue;
+    var plano = buscarPlano(String(c.plano_id).trim());
+    if (!plano) continue;
+    var inicio = c.inicio ? dataTexto(c.inicio) : hojeTexto();
+    var aluno = buscarAluno(normCpf(c.cpf));
+    var valores = {
+      id: 'M' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + i,
+      cpf: normCpf(c.cpf), nome: c.nome || (aluno ? aluno.nome : ''), plano_id: plano.id, descricao: plano.nome, modalidade: plano.modalidade,
+      tipo: plano.tipo, aulas_semana: plano.aulas_semana, aulas_total: plano.aulas_total, inicio: inicio,
+      fim: c.fim ? dataTexto(c.fim) : somarDias(inicio, plano.validade_dias - 1), origem: c.origem || 'recepção', ativo: c.ativo || 'SIM',
+    };
+    Object.keys(valores).forEach(function (k) {
+      if (col(k) >= 0) {
+        abaC.getRange(i + 1, col(k) + 1).setValue(valores[k]);
+        linhas[i][col(k)] = valores[k];
+      }
+    });
+  }
+  return linhas;
+}
+
 function creditosDo(cpf) {
-  var linhas = aba('Creditos').getDataRange().getValues();
+  var abaC = aba('Creditos');
+  var linhas = completarCreditosManuais(abaC, abaC.getDataRange().getValues());
   var cab = linhas[0];
   var lista = [];
   for (var i = 1; i < linhas.length; i++) {
@@ -818,13 +871,17 @@ function meuPlano(d) {
       pagoEm: String(p.pago_em || ''), metodo: p.metodo, parcelas: p.parcelas, recibo: p.recibo, link: p.status === 'pendente' ? p.link : '' });
   }
   pagamentos.reverse();
-  return { catalogo: listarPlanos().map(planoPublico), creditos: creditos, pagamentos: pagamentos };
+  return { catalogo: listarPlanos().map(planoPublico), creditos: creditos, pagamentos: pagamentos,
+    wellhub: { status: statusWellhub(aluno), id: String(aluno.wellhub_id || ''), modalidades: AJUSTES.wellhub.modalidades, planoMinimo: AJUSTES.wellhub.planoMinimo } };
 }
 
 function comprar(d) {
   var aluno = alunoDaSessao(d.token);
   var plano = buscarPlano(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
+  if (String(plano.tipo) === 'trimestral') {
+    throw erroCod('O plano trimestral em até 3x sem juros é feito com a nossa atendente.', 'TRIMESTRAL_ATENDENTE');
+  }
   return criarPagamento(aluno, plano, {});
 }
 
@@ -983,7 +1040,50 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
 }
 
 // ============================================================
-//  8) UTILIDADES
+//  8) WELLHUB
+//  A aluna informa o ID Wellhub dela no site. Enquanto a recepção não confirma,
+//  o status fica "pendente" (já pode reservar). A recepção muda na aba Alunos,
+//  coluna wellhub: SIM (confirmado) ou NÃO (bloqueado).
+// ============================================================
+function statusWellhub(a) {
+  if (!AJUSTES.wellhub.ativo) return 'desligado';
+  var v = String((a && a.wellhub) || '').trim().toUpperCase();
+  if (v === 'SIM') return 'confirmado';
+  if (v === 'NÃO' || v === 'NAO') return 'bloqueado';
+  if (v === 'PENDENTE') return 'pendente';
+  return 'nao_informado';
+}
+
+function podeUsarWellhub(aluno, aula, reservas) {
+  var st = statusWellhub(aluno);
+  if (st === 'desligado') return { ok: false, motivo: 'Reservas pelo Wellhub não estão disponíveis no momento.' };
+  if (st === 'nao_informado') return { ok: false, motivo: 'Ative o Wellhub em Meu plano para reservar com ele.' };
+  if (st === 'bloqueado') return { ok: false, motivo: 'Seu Wellhub não foi confirmado. Fale com a recepção.' };
+  if (AJUSTES.wellhub.modalidades.indexOf(aula.modalidade) < 0) return { ok: false, motivo: aula.modalidade + ' não está disponível pelo Wellhub.' };
+  var cpf = normCpf(aluno.cpf);
+  var noDia = reservas.filter(function (r) {
+    return normCpf(r.cpf) === cpf && String(r.credito_id) === 'WELLHUB' && partesAula(r).data === aula.data;
+  }).length;
+  if (noDia >= AJUSTES.wellhub.reservasPorDia) return { ok: false, motivo: 'Pelo Wellhub é possível ' + AJUSTES.wellhub.reservasPorDia + ' aula por dia.' };
+  return { ok: true };
+}
+
+function ativarWellhub(d) {
+  var aluno = alunoDaSessao(d.token);
+  var id = soDigitos(d.wellhubId);
+  if (id.length < 6 || id.length > 20) throw new Error('Confira o seu ID Wellhub (fica no app Wellhub, no seu perfil).');
+  if (!d.confirmo) throw new Error('Confirme que seu plano Wellhub é ' + AJUSTES.wellhub.planoMinimo + ' ou superior.');
+  if (statusWellhub(aluno) === 'bloqueado') throw new Error('Seu Wellhub não foi confirmado. Fale com a recepção.');
+  var s = aba('Alunos');
+  var col = function (c) { return coluna('Alunos', c); };
+  if (statusWellhub(aluno) !== 'confirmado') s.getRange(aluno._linha, col('wellhub')).setValue('pendente');
+  s.getRange(aluno._linha, col('wellhub_id')).setNumberFormat('@').setValue(id);
+  s.getRange(aluno._linha, col('wellhub_desde')).setValue(agoraTexto());
+  return { status: statusWellhub(buscarAluno(aluno.cpf)), id: id };
+}
+
+// ============================================================
+//  9) UTILIDADES
 // ============================================================
 function aba(nome) {
   var ss = planilha();

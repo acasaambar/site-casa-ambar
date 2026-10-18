@@ -52,6 +52,22 @@ export default function Reservar() {
   const yoga = aula.modalidade === 'Yoga';
   const livres = aula.capacidade - aula.ocupadosQtd;
 
+  async function usarWellhub() {
+    setPagando(true);
+    setErro('');
+    try {
+      const r = await api.reservar(token, aula.id, yoga ? escolhido : null, false, true);
+      setSemCredito(null);
+      setFeito(r);
+    } catch (e) {
+      setSemCredito(null);
+      setErro(e.message);
+      carregar();
+    } finally {
+      setPagando(false);
+    }
+  }
+
   async function pagarAvulsa() {
     setPagando(true);
     setErro('');
@@ -213,8 +229,16 @@ export default function Reservar() {
         <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="sc-titulo">
           <div className="confirmado__caixa sem-credito">
             <Forma nome="presenca" tamanho={56} cor="var(--terracota)" />
-            <h2 id="sc-titulo" className="display-m">Falta só o pagamento</h2>
+            <h2 id="sc-titulo" className="display-m">{semCredito.wellhub?.pode?.ok ? 'Como quer reservar?' : 'Falta só o pagamento'}</h2>
             <p>Você ainda não tem aulas de {aula.modalidade} disponíveis no seu plano.</p>
+            {semCredito.wellhub?.pode?.ok && (
+              <button type="button" className="botao botao--wellhub sem-credito__pagar" disabled={pagando} onClick={usarWellhub}>
+                {pagando ? 'Reservando…' : 'Usar meu Wellhub'}
+              </button>
+            )}
+            {semCredito.wellhub && !semCredito.wellhub.pode?.ok && semCredito.wellhub.status !== 'nao_informado' && semCredito.wellhub.status !== 'desligado' && (
+              <p className="confirmado__nota">{semCredito.wellhub.pode?.motivo}</p>
+            )}
             {semCredito.avulsa && (
               <button type="button" className="botao botao--cheio sem-credito__pagar" disabled={pagando} onClick={pagarAvulsa}>
                 {pagando
@@ -228,6 +252,9 @@ export default function Reservar() {
             </p>
             <div className="confirmado__botoes">
               <Link className="botao botao--linha" to="/meu-plano">Ver planos mensais e trimestrais</Link>
+              {semCredito.wellhub?.status === 'nao_informado' && (
+                <Link className="link-acao" to="/meu-plano" state={{ rolar: 'wellhub' }}>Tenho Wellhub Gold+ · ativar</Link>
+              )}
               <button type="button" className="link-sair" onClick={() => setSemCredito(null)}>Voltar</button>
             </div>
           </div>
@@ -246,7 +273,11 @@ export default function Reservar() {
               </div>
             )}
             <p>{dataExtensa(aula.data)} · {formatarHora(aula.hora)} · {aula.professor}</p>
-            {feito.credito && <p className="confirmado__nota">Descontada de: {feito.credito}</p>}
+            {feito.wellhub ? (
+              <p className="aviso">Reserva pelo Wellhub: ao chegar, faça o <strong>check-in no app Wellhub</strong>.</p>
+            ) : (
+              feito.credito && <p className="confirmado__nota">Descontada de: {feito.credito}</p>
+            )}
             <p className="confirmado__nota">O check-in abre {CONFIG.checkinAbreMinAntes} minutos antes da aula.</p>
             <div className="confirmado__botoes">
               <Link className="botao botao--cheio" to="/minhas-reservas">Minhas reservas</Link>

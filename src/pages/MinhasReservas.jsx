@@ -90,6 +90,7 @@ export default function MinhasReservas() {
                   <h2 className="display-p">{dataExtensa(r.data)}</h2>
                   <p>{formatarHora(r.hora)} às {formatarHora(horaFim(r.hora))}</p>
                   <p className="bilhete__prof">com {r.professor}</p>
+                  {r.wellhub && <span className="selo-wellhub">Wellhub · check-in no app ao chegar</span>}
                 </div>
                 <div className="bilhete__lado">
                   {r.tapete ? (

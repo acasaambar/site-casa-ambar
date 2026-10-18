@@ -43,7 +43,7 @@ export const api = {
   sair: (token) => chamar('sair', { token }),
   aulas: (token) => chamar('aulas', { token }),
   aula: (token, aulaId) => chamar('aula', { token, aulaId }),
-  reservar: (token, aulaId, tapete, pagarAvulsa = false) => chamar('reservar', { token, aulaId, tapete, pagarAvulsa }),
+  reservar: (token, aulaId, tapete, pagarAvulsa = false, usarWellhub = false) => chamar('reservar', { token, aulaId, tapete, pagarAvulsa, usarWellhub }),
   cancelar: (token, reservaId) => chamar('cancelar', { token, reservaId }),
   checkin: (token, reservaId) => chamar('checkin', { token, reservaId }),
   minhasReservas: (token) => chamar('minhasReservas', { token }),
@@ -51,6 +51,7 @@ export const api = {
   meuPlano: (token) => chamar('meuPlano', { token }),
   comprar: (token, planoId) => chamar('comprar', { token, planoId }),
   confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
+  ativarWellhub: (token, wellhubId, confirmo) => chamar('ativarWellhub', { token, wellhubId, confirmo }),
 };
 
 // ============================================================
@@ -243,9 +244,20 @@ async function demo(acao, d) {
         cpf: a.cpf, tapete, status: 'reservado', criadoEm: new Date().toISOString(),
       };
       const credito = demoEscolherCredito(a.cpf, x, reservas);
+      const wh = LS.ler('ambar_demo_wellhub', {})[a.cpf];
+      const whPode = !wh ? { ok: false, motivo: 'Ative o Wellhub em Meu plano para reservar com ele.' }
+        : reservas.some((y) => y.cpf === a.cpf && y.credito === 'WELLHUB' && y.data === x.data && y.status !== 'cancelado')
+          ? { ok: false, motivo: 'Pelo Wellhub é possível 1 aula por dia.' } : { ok: true };
+      if (!credito && d.usarWellhub) {
+        if (!whPode.ok) throw new Error(whPode.motivo);
+        r.credito = 'WELLHUB';
+        reservas.push(r);
+        LS.gravar('ambar_demo_reservas', reservas);
+        return { ...r, credito: 'Wellhub', wellhub: true };
+      }
       if (!credito) {
         const avulsa = PLANOS_DEMO.find((p) => p.id === x.modalidade.toLowerCase() + '-avulsa');
-        if (!d.pagarAvulsa) throw erroApi(`Você não tem aulas de ${x.modalidade} disponíveis.`, 'SEM_CREDITO', { avulsa });
+        if (!d.pagarAvulsa) throw erroApi(`Você não tem aulas de ${x.modalidade} disponíveis.`, 'SEM_CREDITO', { avulsa, wellhub: { status: wh ? 'pendente' : 'nao_informado', pode: whPode } });
         const pg = demoCriarPagamento(a, avulsa, { reservaId: r.id });
         reservas.push({ ...r, status: 'pendente', pagamento: pg.order_nsu, expira: Date.now() + 20 * 60e3 });
         LS.gravar('ambar_demo_reservas', reservas);
@@ -297,13 +309,24 @@ async function demo(acao, d) {
           return { ...c, usadas, limite, restantes: Math.max(0, limite - usadas) };
         });
       const pagamentos = LS.ler('ambar_demo_pagamentos', []).filter((p) => p.cpf === a.cpf).reverse();
-      return { catalogo: PLANOS_DEMO, creditos, pagamentos };
+      const whId = LS.ler('ambar_demo_wellhub', {})[a.cpf];
+      return { catalogo: PLANOS_DEMO, creditos, pagamentos, wellhub: { status: whId ? 'pendente' : 'nao_informado', id: whId || '', modalidades: ['Yoga', 'Pilates'], planoMinimo: 'Gold+' } };
     }
     case 'comprar': {
       const a = sessao(d.token);
       const plano = PLANOS_DEMO.find((p) => p.id === d.planoId);
       if (!plano) throw new Error('Plano não encontrado.');
+      if (plano.tipo === 'trimestral') throw erroApi('O plano trimestral em até 3x sem juros é feito com a nossa atendente.', 'TRIMESTRAL_ATENDENTE');
       return demoCriarPagamento(a, plano, {});
+    }
+    case 'ativarWellhub': {
+      const a = sessao(d.token);
+      if (String(d.wellhubId || '').replace(/\D/g, '').length < 6) throw new Error('Confira o seu ID Wellhub (fica no app Wellhub, no seu perfil).');
+      if (!d.confirmo) throw new Error('Confirme que seu plano Wellhub é Gold+ ou superior.');
+      const todos = LS.ler('ambar_demo_wellhub', {});
+      todos[a.cpf] = String(d.wellhubId);
+      LS.gravar('ambar_demo_wellhub', todos);
+      return { status: 'pendente', id: todos[a.cpf] };
     }
     case 'confirmarPagamento': {
       const a = sessao(d.token);
@@ -340,6 +363,7 @@ async function demo(acao, d) {
       const a = sessao(d.token);
       return reservas
         .filter((r) => r.cpf === a.cpf && r.status !== 'cancelado' && r.status !== 'pendente')
+        .map((r) => ({ ...r, wellhub: r.credito === 'WELLHUB' }))
         .sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
     }
     default:
