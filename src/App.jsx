@@ -18,7 +18,11 @@ function Protegida({ children }) {
 
 function TopoAoNavegar() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  useEffect(() => {
+    // chaves obrigatórias: no Chrome novo o scrollTo devolve uma Promise,
+    // e o React tentaria usá-la como função de limpeza (erro "l is not a function")
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 

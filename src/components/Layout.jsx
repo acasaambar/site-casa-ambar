@@ -18,7 +18,9 @@ export function Header() {
     window.addEventListener('scroll', f, { passive: true });
     return () => window.removeEventListener('scroll', f);
   }, []);
-  useEffect(() => setAberto(false), [pathname]);
+  useEffect(() => {
+    setAberto(false);
+  }, [pathname]);
 
   const transparente = naHome && !rolou && !aberto;
 
