@@ -98,7 +98,7 @@ export function condicaoPagamento(plano) {
   const n = semJuros(plano);
   return n > 1
     ? `Pix, ou cartão em até ${n}x sem juros (até ${PARCELAS_MAX}x com juros)`
-    : `Pix ou cartão 1x sem juros (até ${PARCELAS_MAX}x com juros)`;
+    : `Pix ou cartão 1x sem juros (2x a ${PARCELAS_MAX}x com juros)`;
 }
 
 // Avisar para renovar quando faltarem X dias para o plano vencer

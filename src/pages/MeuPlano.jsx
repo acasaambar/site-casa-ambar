@@ -203,7 +203,7 @@ export default function MeuPlano() {
                     <div className="cardapio__linha cardapio__linha--cabeca" role="row">
                       <span role="columnheader">Frequência</span>
                       <span role="columnheader">Mensal<small>30 dias</small></span>
-                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros · com a atendente</small></span>
+                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros{dados.trimestralOnline ? '' : ' · com a atendente'}</small></span>
                     </div>
                     {frequencias.map((f) => {
                       const m = plano('mensal', f);
@@ -233,7 +233,7 @@ export default function MeuPlano() {
 
                   <footer className="cardapio__rodape">
                     <Sol tamanho={16} />
-                    <span>Toque no valor para escolher · Avulsa e mensal: 1x sem juros ou até 12x com juros · Trimestral: até 3x sem juros com a atendente</span>
+                    <span>Toque no valor para escolher · Avulsa e mensal: 1x sem juros · Trimestral: até 3x sem juros · Todos em até 12x no cartão</span>
                   </footer>
                 </div>
               )}
@@ -318,11 +318,11 @@ export default function MeuPlano() {
               <li className="compra__condicao">
                 <span>Pagamento</span>
                 <strong>
-                  {escolhido.tipo === 'trimestral' ? `Até 3x sem juros de ${real(escolhido.preco / 3)}` : condicaoPagamento(escolhido)}
+                  {escolhido.tipo === 'trimestral' ? `Pix ou até 3x sem juros de ${real(escolhido.preco / 3)} (até 12x com juros)` : condicaoPagamento(escolhido)}
                 </strong>
               </li>
             </ul>
-            {escolhido.tipo === 'trimestral' ? (
+            {escolhido.tipo === 'trimestral' && !dados?.trimestralOnline ? (
               <>
                 <a
                   className="botao botao--cheio compra__ir com-icone"

@@ -32,6 +32,14 @@ function planilha() {
   return _planilha;
 }
 
+// -------------------- CHAVE DA INFINITEPAY --------------------
+// A API Key NÃO fica no código (o GitHub é público). Ela fica em:
+// Apps Script → Configurações do projeto (engrenagem) → Propriedades do script
+//   Propriedade: INFINITEPAY_API_KEY    Valor: a chave gerada no Checkout da InfinitePay
+function chaveInfinitePay() {
+  return PropertiesService.getScriptProperties().getProperty('INFINITEPAY_API_KEY') || '';
+}
+
 // -------------------- AJUSTES --------------------
 var AJUSTES = {
   diasVisiveis: 7, // quantos dias aparecem na agenda
@@ -174,18 +182,23 @@ function testarInfinitePay() {
     ['4. + webhook_url', Object.assign({}, base, { order_nsu: nsu + 'c', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl })],
     ['5. + customer', Object.assign({}, base, { order_nsu: nsu + 'd', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl,
       customer: { name: 'Teste Casa Ambar', phone_number: '+5585991856528' } })],
-    // obs.: testamos max_installments/installments em 18/10/2026: a InfinitePay descarta esses campos.
+    // regra por link (exige a API Key nas Propriedades do script)
+    ['6. com chave · 1x sem juros', Object.assign({}, base, { order_nsu: nsu + 'e', options: { assured_installments: 1 } }), true],
+    ['7. com chave · até 3x sem juros', Object.assign({}, base, { order_nsu: nsu + 'f', options: { assured_installments: 3 } }), true],
   ];
+  var chave = chaveInfinitePay();
+  Logger.log(chave ? 'API Key encontrada (termina em …' + chave.slice(-4) + ').' : 'ATENÇÃO: API Key não configurada (INFINITEPAY_API_KEY). Testes 6 e 7 vão sem chave.');
   variantes.forEach(function (v) {
     var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
       method: 'post', contentType: 'application/json', payload: JSON.stringify(v[1]), muteHttpExceptions: true,
+      headers: v[2] && chave ? { 'X-Api-Key': chave } : {},
     });
     Logger.log(v[0] + ' → HTTP ' + resp.getResponseCode() + ' · ' + resp.getContentText().slice(0, 400));
   });
 }
 
-// Obs.: em 18/10/2026 testamos 19 nomes de campo para limitar parcelas/juros por link;
-// a InfinitePay descarta todos. A regra de juros fica nas configurações do Checkout.
+// Obs.: sem API Key a InfinitePay descarta campos extras. Com a chave (X-Api-Key),
+// options.assured_installments define as parcelas sem juros de cada link (resposta do suporte, 18/10/2026).
 
 // ============================================================
 //  2) PORTA DE ENTRADA DO SITE
@@ -246,7 +259,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v12 (Wellhub + trimestral com atendente)';
+var VERSAO = '2026-10-18 · v13 (parcelas sem juros por plano)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -474,7 +487,8 @@ function reservar(d) {
       if (!d.pagarAvulsa || !avulsa) {
         throw erroCod('Você não tem aulas de ' + aula.modalidade + ' disponíveis.', 'SEM_CREDITO', {
           avulsa: avulsa ? planoPublico(avulsa) : null,
-          wellhub: { status: statusWellhub(aluno), pode: podeUsarWellhub(aluno, aula, reservas) },
+          trimestralOnline: !!chaveInfinitePay(),
+    wellhub: { status: statusWellhub(aluno), pode: podeUsarWellhub(aluno, aula, reservas) },
         });
       }
       // guarda o tapete por alguns minutos e gera o pagamento da aula avulsa
@@ -872,6 +886,7 @@ function meuPlano(d) {
   }
   pagamentos.reverse();
   return { catalogo: listarPlanos().map(planoPublico), creditos: creditos, pagamentos: pagamentos,
+    trimestralOnline: !!chaveInfinitePay(),
     wellhub: { status: statusWellhub(aluno), id: String(aluno.wellhub_id || ''), modalidades: AJUSTES.wellhub.modalidades, planoMinimo: AJUSTES.wellhub.planoMinimo } };
 }
 
@@ -879,7 +894,7 @@ function comprar(d) {
   var aluno = alunoDaSessao(d.token);
   var plano = buscarPlano(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
-  if (String(plano.tipo) === 'trimestral') {
+  if (String(plano.tipo) === 'trimestral' && !chaveInfinitePay()) {
     throw erroCod('O plano trimestral em até 3x sem juros é feito com a nossa atendente.', 'TRIMESTRAL_ATENDENTE');
   }
   return criarPagamento(aluno, plano, {});
@@ -904,9 +919,17 @@ function infinitepayCriarLink(plano, aluno, orderNsu) {
     webhook_url: AJUSTES.apiUrl,
     customer: { name: aluno.nome, phone_number: whats ? '+55' + whats : undefined, email: aluno.email || undefined },
   };
+  var chave = chaveInfinitePay();
+  var cabecalhos = {};
+  if (chave) {
+    // regra por link: até quantas parcelas a Casa Âmbar assume os juros
+    corpo.options = { assured_installments: semJurosAte(plano) };
+    cabecalhos['X-Api-Key'] = chave;
+  }
   var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
     method: 'post',
     contentType: 'application/json',
+    headers: cabecalhos,
     payload: JSON.stringify(corpo),
     muteHttpExceptions: true,
   });

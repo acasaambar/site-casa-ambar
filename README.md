@@ -42,6 +42,16 @@ Cada ficha também vira um **PDF** na pasta do Google Drive **"Casa Âmbar · An
 
 **Dados de saúde são sensíveis (LGPD):** não compartilhe a planilha nem a pasta com quem não precisa. Se um aluno pedir a exclusão, apague a linha dele na aba Anamneses e o PDF na pasta.
 
+### Parcelas sem juros por plano (InfinitePay)
+
+Com a **API Key** da InfinitePay configurada, cada link de pagamento leva sua regra (`options.assured_installments`):
+avulsa e mensal **1x sem juros**; trimestral **até 3x sem juros**; acima disso, juros por conta da aluna, até 12x.
+A coluna `sem_juros_ate` da aba Planos muda a regra de um plano.
+
+A chave **nunca** vai para o código (o GitHub é público). Ela fica no Apps Script em
+**Configurações do projeto → Propriedades do script → `INFINITEPAY_API_KEY`**.
+Sem a chave, o trimestral volta a ser vendido só pela atendente.
+
 ### Planos pagos no balcão (trimestral e outros)
 
 O plano trimestral (até 3x sem juros) é feito com a atendente. Depois de receber, lance o plano na aba **Creditos** preenchendo só 3 colunas:
