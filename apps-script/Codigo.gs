@@ -50,7 +50,7 @@ var AJUSTES = {
   fuso: 'America/Fortaleza',
   // Pagamentos (InfinitePay · Checkout Integrado)
   infinitepayHandle: 'acasaambar', // InfiniteTag sem o $
-  siteUrl: 'https://acasaambar.github.io/site-casa-ambar/',
+  siteUrl: 'https://www.acasambar.com.br/',
   apiUrl: 'https://script.google.com/macros/s/AKfycbyifKgzuxAU0V-RR639J3vs1opngMDOPWpLXMEWg7LkgB4bpyoVy4yqRXuLu7_v_DWx/exec',
   reservaPendenteMin: 20, // tapete fica guardado por X minutos enquanto a aluna paga
   // Wellhub (parceiro a partir do Gold+): quem tem o plano reserva pelo site
@@ -259,7 +259,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v13 (parcelas sem juros por plano)';
+var VERSAO = '2026-10-18 · v14 (domínio www.acasambar.com.br)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });

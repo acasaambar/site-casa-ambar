@@ -64,7 +64,7 @@ export const GRADE = [
 ];
 
 // Endereço público do site (para onde a InfinitePay devolve a aluna)
-export const SITE_URL = 'https://acasaambar.github.io/site-casa-ambar/';
+export const SITE_URL = 'https://www.acasambar.com.br/';
 
 // Catálogo de planos (no site oficial ele vem da aba "Planos" da planilha;
 // esta lista é usada no modo demonstração)
