@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth.jsx';
 import { Logo, Forma, img } from '../components/Marca.jsx';
 import { mascaraCPF, mascaraTelefone, cpfValido, soDigitos } from '../lib/util.js';
 import { MODO_DEMO } from '../lib/api.js';
+import { CONFIG } from '../config.js';
 
 export default function Entrar() {
   const { entrar, cadastrar } = useAuth();
@@ -112,7 +113,7 @@ export default function Entrar() {
           </form>
 
           {modo === 'entrar' && (
-            <p className="entrar__ajuda">Esqueceu a senha? Fale com a recepção pelo WhatsApp.</p>
+            <p className="entrar__ajuda">Esqueceu a senha? <a href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent('Olá! Esqueci minha senha da área do aluno.')}`} target="_blank" rel="noreferrer">Fale com a recepção</a>.</p>
           )}
           {MODO_DEMO && (
             <p className="entrar__demo">

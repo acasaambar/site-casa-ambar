@@ -784,3 +784,6 @@ strong { font-weight: 500; }
 .bilhete__lado strong, .confirmado__tapete strong { font-size: 52px; }
 .pilates-horas p { font-size: 20px; letter-spacing: 0.02em; }
 @media (max-width: 560px) { .aula__hora strong { font-size: 26px; } }
+
+.com-icone { display: inline-flex; align-items: center; gap: 10px; }
+.entrar__ajuda a { color: var(--terracota); }

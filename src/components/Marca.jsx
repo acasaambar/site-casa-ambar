@@ -74,6 +74,25 @@ export function Selo({ tamanho = 160, className = '' }) {
   );
 }
 
+export function IconeInstagram({ tamanho = 18 }) {
+  return (
+    <svg width={tamanho} height={tamanho} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4.2" />
+      <circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconeWhatsapp({ tamanho = 18 }) {
+  return (
+    <svg width={tamanho} height={tamanho} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20l1.2-3.9A8.5 8.5 0 1 1 8.2 19z" />
+      <path d="M9 8.6c0 3.3 3 6.4 6.4 6.4l1.1-1.6-2-1-.9.9c-1-.4-2.1-1.5-2.5-2.5l.9-.9-1-2-1.6 1.1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function Seta({ className = '' }) {
   return (
     <svg className={className} width="18" height="22" viewBox="0 0 18 22" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">

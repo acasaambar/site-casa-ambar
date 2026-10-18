@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Logo, Selo, Sol } from './Marca.jsx';
+import { Logo, Selo, Sol, IconeInstagram, IconeWhatsapp } from './Marca.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { CONFIG } from '../config.js';
 import { MODO_DEMO } from '../lib/api.js';
@@ -80,12 +80,16 @@ export function Footer() {
         <div className="rodape__col">
           <h2 className="rotulo">Visite</h2>
           <a href={CONFIG.mapa} target="_blank" rel="noreferrer">{CONFIG.endereco}</a>
-          <span>{CONFIG.horario}</span>
+          {CONFIG.horario && <span>{CONFIG.horario}</span>}
         </div>
         <div className="rodape__col">
           <h2 className="rotulo">Fale com a gente</h2>
-          <a href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer">WhatsApp</a>
-          <a href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer">@{CONFIG.instagram}</a>
+          <a className="com-icone" href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer">
+            <IconeWhatsapp /> {CONFIG.telefone}
+          </a>
+          <a className="com-icone" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer">
+            <IconeInstagram /> @{CONFIG.instagram}
+          </a>
         </div>
         <div className="rodape__col">
           <h2 className="rotulo">Área do aluno</h2>

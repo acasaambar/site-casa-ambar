@@ -67,7 +67,7 @@ function configurarPlanilha() {
       .forEach(function (g) { linhas.push(['SIM', 'Yoga', g[0], g[1], g[2], 12]); });
     [1, 2, 3, 4, 5].forEach(function (d) {
       ['06:00', '07:00', '08:00', '09:00', '16:00', '17:00', '18:00', '19:00'].forEach(function (h) {
-        linhas.push(['SIM', 'Pilates', d, h, '[Professor(a) de Pilates]', 4]);
+        linhas.push(['SIM', 'Pilates', d, h, Number(h.slice(0, 2)) < 12 ? 'Kalliny' : 'Sara', 4]);
       });
     });
     grade.getRange(2, 1, linhas.length, linhas[0].length).setValues(linhas);

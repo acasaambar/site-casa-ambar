@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Logo, Sol, Forma, Monograma, Seta, img } from '../components/Marca.jsx';
+import { Logo, Sol, Forma, Monograma, Seta, IconeInstagram, IconeWhatsapp, img } from '../components/Marca.jsx';
 import { CONFIG, CUIDADOS, GRADE, PRECOS_AULAS } from '../config.js';
 import { DIAS_CURTOS, formatarHora } from '../lib/util.js';
 
@@ -152,11 +152,11 @@ export default function Home() {
               </header>
               <div className="pilates-horas">
                 <div>
-                  <span className="rotulo">Manhã</span>
+                  <span className="rotulo">Manhã · com Kalliny</span>
                   <p>6h · 7h · 8h · 9h</p>
                 </div>
                 <div>
-                  <span className="rotulo">Tarde e noite</span>
+                  <span className="rotulo">Tarde · com Sara</span>
                   <p>16h · 17h · 18h · 19h</p>
                 </div>
               </div>
@@ -181,7 +181,7 @@ export default function Home() {
             <h2 className="display-m">Rituais de cuidado</h2>
             <p>Estética facial, corporal, capilar e fisioterapia. Agende pelo WhatsApp e a nossa equipe encontra o melhor horário para você.</p>
             <a className="botao" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent('Olá! Quero agendar um cuidado na Casa Âmbar.')}`} target="_blank" rel="noreferrer">
-              Agendar pelo WhatsApp
+              <IconeWhatsapp /> Agendar pelo WhatsApp
             </a>
           </div>
           <div className="cuidados__lista">
@@ -216,10 +216,11 @@ export default function Home() {
             <span className="rotulo-espacado cor-terracota">Crescimento contínuo e presença viva</span>
             <h2 className="display-m">Uma casa na Aldeota para desacelerar</h2>
             <p>{CONFIG.endereco}</p>
-            <p>{CONFIG.horario}</p>
+            {CONFIG.horario && <p>{CONFIG.horario}</p>}
+            <p><a className="com-icone" href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer"><IconeWhatsapp /> {CONFIG.telefone}</a></p>
             <div className="casa__botoes">
               <a className="botao" href={CONFIG.mapa} target="_blank" rel="noreferrer">Como chegar</a>
-              <a className="botao botao--linha" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer">@{CONFIG.instagram}</a>
+              <a className="botao botao--linha" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer"><IconeInstagram /> @{CONFIG.instagram}</a>
             </div>
           </div>
         </div>
