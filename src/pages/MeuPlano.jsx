@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { abrirAbaPagamento, fecharAba, seguirParaPagamento } from '../lib/pagamento.js';
 import { useAuth } from '../lib/auth.jsx';
 import AreaNav from '../components/AreaNav.jsx';
 import { Forma, IconeWhatsapp, Sol } from '../components/Marca.jsx';
@@ -57,10 +58,12 @@ export default function MeuPlano() {
   async function irParaPagamento() {
     setErro('');
     setIndo(true);
+    const aba = abrirAbaPagamento();
     try {
       const pg = await api.comprar(token, escolhido.id);
-      window.location.href = pg.link;
+      seguirParaPagamento(aba, pg, nav);
     } catch (e) {
+      fecharAba(aba);
       setErro(e.message);
       setIndo(false);
       setEscolhido(null);
@@ -267,7 +270,7 @@ export default function MeuPlano() {
                       <span className="pagamento__valor">{real(p.valor)}</span>
                       <span className={`status status--${p.status}`}>{p.status === 'pago' ? 'Pago' : p.status === 'pendente' ? 'Pendente' : p.status}</span>
                       <div className="pagamento__acoes">
-                        {p.status === 'pendente' && p.link && <a className="link-acao" href={p.link}>Pagar agora</a>}
+                        {p.status === 'pendente' && p.link && <a className="link-acao" href={p.link} target="_blank" rel="noreferrer">Pagar agora</a>}
                         {p.recibo && <a className="link-acao" href={p.recibo} target="_blank" rel="noreferrer">Comprovante</a>}
                         {p.status === 'pago' && <a className="link-acao link-acao--suave" href={estorno(p)} target="_blank" rel="noreferrer">Cancelar ou pedir estorno</a>}
                       </div>
@@ -346,9 +349,9 @@ export default function MeuPlano() {
                   {indo ? 'Abrindo pagamento…' : 'Ir para o pagamento'}
                 </button>
                 <ol className="compra__passos">
-                  <li>Você vai para a página segura da InfinitePay.</li>
+                  <li>O pagamento seguro da InfinitePay abre em uma <strong>nova aba</strong>.</li>
                   <li>Escolha Pix ou cartão e conclua o pagamento.</li>
-                  <li>Toque em <strong>Continuar</strong> para voltar à Casa Âmbar.</li>
+                  <li>Esta página do site continua aberta e confirma sozinha.</li>
                 </ol>
               </>
             )}

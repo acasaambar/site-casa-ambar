@@ -23,6 +23,14 @@ export default function Pagamento() {
   const [res, setRes] = useState(null);
   const [erro, setErro] = useState('');
   const tentativas = useRef(0);
+  // esta aba foi aberta pelo site para pagar (a aba do site continua aberta)
+  const [abertaPeloSite] = useState(() => {
+    try {
+      return !!window.opener && !window.opener.closed;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     if (!retorno) return undefined;
@@ -34,9 +42,11 @@ export default function Pagamento() {
         if (parar) return;
         setRes(r);
         // ainda não confirmado: a InfinitePay pode avisar alguns segundos depois
-        if (r.status !== 'pago' && tentativas.current < 15) {
+        // aguardando o pagamento na outra aba: confere por até 15 minutos
+        const limite = retorno.aguardando ? 180 : 15;
+        if (r.status !== 'pago' && tentativas.current < limite) {
           tentativas.current += 1;
-          timer = setTimeout(conferir, 4000);
+          timer = setTimeout(conferir, 5000);
         } else if (r.status === 'pago') {
           try {
             sessionStorage.removeItem('ambar_retorno');
@@ -65,7 +75,25 @@ export default function Pagamento() {
     <main className="app">
       <div className="largura app__corpo">
         <div className="pagamento-retorno">
-          {!res && !erro && (
+          {!pago && !erro && retorno.aguardando && (
+            <>
+              <Sol tamanho={54} className="cor-caramelo girando" />
+              <span className="rotulo-espacado cor-terracota">Pagamento em andamento</span>
+              <h1 className="display-m">Conclua o pagamento na nova aba</h1>
+              <p>
+                O pagamento seguro da InfinitePay abriu em outra aba. Assim que você pagar, esta página confirma sozinha.
+                {tentativas.current >= 180 && ' Se já pagou e não apareceu, fale com a recepção.'}
+              </p>
+              <div className="pagamento-retorno__botoes">
+                {retorno.link && (
+                  <a className="botao botao--cheio" href={retorno.link} target="_blank" rel="noreferrer">Abrir o pagamento de novo</a>
+                )}
+                <Link className="botao botao--linha" to="/meu-plano">Ir para Meu plano</Link>
+              </div>
+            </>
+          )}
+
+          {!res && !erro && !retorno.aguardando && (
             <>
               <Sol tamanho={54} className="cor-caramelo girando" />
               <h1 className="display-m">Confirmando seu pagamento</h1>
@@ -82,7 +110,7 @@ export default function Pagamento() {
             </>
           )}
 
-          {res && !pago && (
+          {res && !pago && !retorno.aguardando && (
             <>
               <Sol tamanho={54} className="cor-caramelo girando" />
               <h1 className="display-m">Aguardando a confirmação</h1>
@@ -123,9 +151,15 @@ export default function Pagamento() {
 
               <div className="pagamento-retorno__botoes">
                 {res.recibo && <a className="botao botao--linha" href={res.recibo} target="_blank" rel="noreferrer">Ver comprovante</a>}
-                <Link className="botao botao--cheio" to={reservaOk ? '/minhas-reservas' : '/aulas'}>
-                  {reservaOk ? 'Minhas reservas' : 'Reservar aula'}
-                </Link>
+                {abertaPeloSite ? (
+                  <button type="button" className="botao botao--cheio" onClick={() => window.close()}>
+                    Fechar esta aba e voltar ao site
+                  </button>
+                ) : (
+                  <Link className="botao botao--cheio" to={reservaOk ? '/minhas-reservas' : '/aulas'}>
+                    {reservaOk ? 'Minhas reservas' : 'Reservar aula'}
+                  </Link>
+                )}
               </div>
             </>
           )}

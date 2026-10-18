@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { abrirAbaPagamento, fecharAba, seguirParaPagamento } from '../lib/pagamento.js';
 import { useAuth } from '../lib/auth.jsx';
 import Tapete from '../components/Tapete.jsx';
 import Aparelho from '../components/Reformer.jsx';
@@ -71,10 +72,12 @@ export default function Reservar() {
   async function pagarAvulsa() {
     setPagando(true);
     setErro('');
+    const aba = abrirAbaPagamento();
     try {
       const r = await api.reservar(token, aula.id, yoga ? escolhido : null, true);
-      window.location.href = r.pagamento.link;
+      seguirParaPagamento(aba, r.pagamento, nav);
     } catch (e) {
+      fecharAba(aba);
       setSemCredito(null);
       setErro(e.message);
       setPagando(false);
@@ -248,7 +251,7 @@ export default function Reservar() {
             )}
             <p className="confirmado__nota">
               {yoga && escolhido ? `O tapete ${escolhido} fica guardado por 20 minutos enquanto você paga. ` : ''}
-              Pix ou cartão 1x sem juros (ou até 12x com juros), pela InfinitePay. Ao concluir, toque em “Continuar” para voltar.
+              Pix ou cartão 1x sem juros (ou até 12x com juros), pela InfinitePay. O pagamento abre em uma nova aba.
             </p>
             <div className="confirmado__botoes">
               <Link className="botao botao--linha" to="/meu-plano">Ver planos mensais e trimestrais</Link>
