@@ -45,7 +45,7 @@ export default function Entrar() {
   return (
     <main className="entrar">
       <aside className="entrar__arte">
-        <img src={img('yoga.jpg')} alt="" aria-hidden="true" />
+        <img className="entrar__foto" src={img('yoga.jpg')} alt="" aria-hidden="true" />
         <div className="entrar__veu" />
         <div className="entrar__arte-conteudo">
           <Logo variante="creme" largura={150} />

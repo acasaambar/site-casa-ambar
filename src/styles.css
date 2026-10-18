@@ -414,7 +414,7 @@ strong { font-weight: 500; }
    ============================================================ */
 .entrar { display: grid; grid-template-columns: 1fr 1fr; min-height: calc(100svh - 70px); }
 .entrar__arte { position: relative; background: var(--verde); color: var(--creme); overflow: hidden; }
-.entrar__arte img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(0.7) sepia(0.2); }
+.entrar__foto { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(0.7) sepia(0.2); }
 .entrar__veu { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(47, 56, 33, 0.55), rgba(47, 56, 33, 0.9)); }
 .entrar__arte-conteudo { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 48px 24px; text-align: center; }
 .entrar__formas { display: flex; gap: 22px; margin-top: 26px; opacity: 0.9; }
