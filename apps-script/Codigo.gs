@@ -147,6 +147,13 @@ function configurarPlanilha() {
   Logger.log('Planilha configurada! Abas: ' + ss.getSheets().map(function (a) { return a.getName(); }).join(', '));
 }
 
+// Execute esta função uma vez para autorizar os pagamentos (InfinitePay).
+// Ela pede ao Google a permissão "Conectar a um serviço externo".
+function autorizarPagamentos() {
+  var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', { method: 'get', muteHttpExceptions: true });
+  Logger.log('Conexão com a InfinitePay liberada (resposta ' + resp.getResponseCode() + '). Pode fechar esta aba.');
+}
+
 // ============================================================
 //  2) PORTA DE ENTRADA DO SITE
 // ============================================================
@@ -205,7 +212,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v6 (catálogo automático)';
+var VERSAO = '2026-10-18 · v7 (permissões explícitas)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
