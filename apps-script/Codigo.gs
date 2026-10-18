@@ -154,6 +154,27 @@ function autorizarPagamentos() {
   Logger.log('Conexão com a InfinitePay liberada (resposta ' + resp.getResponseCode() + '). Pode fechar esta aba.');
 }
 
+// Diagnóstico: testa a criação de um link de R$ 1,00 de várias formas e mostra
+// a resposta exata da InfinitePay no registro de execução. Não cobra nada.
+function testarInfinitePay() {
+  var base = { handle: AJUSTES.infinitepayHandle, items: [{ quantity: 1, price: 100, description: 'Teste Casa Ambar' }] };
+  var nsu = 'TESTE' + Date.now();
+  var variantes = [
+    ['1. mínimo (handle + item)', base],
+    ['2. + order_nsu', Object.assign({}, base, { order_nsu: nsu })],
+    ['3. + redirect_url', Object.assign({}, base, { order_nsu: nsu + 'b', redirect_url: AJUSTES.siteUrl })],
+    ['4. + webhook_url', Object.assign({}, base, { order_nsu: nsu + 'c', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl })],
+    ['5. + customer', Object.assign({}, base, { order_nsu: nsu + 'd', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl,
+      customer: { name: 'Teste Casa Ambar', phone_number: '+5585991856528' } })],
+  ];
+  variantes.forEach(function (v) {
+    var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
+      method: 'post', contentType: 'application/json', payload: JSON.stringify(v[1]), muteHttpExceptions: true,
+    });
+    Logger.log(v[0] + ' → HTTP ' + resp.getResponseCode() + ' · ' + resp.getContentText().slice(0, 400));
+  });
+}
+
 // ============================================================
 //  2) PORTA DE ENTRADA DO SITE
 // ============================================================
@@ -212,7 +233,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v7 (permissões explícitas)';
+var VERSAO = '2026-10-18 · v8 (diagnóstico InfinitePay)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -802,7 +823,7 @@ function infinitepayCriarLink(plano, aluno, orderNsu) {
   var texto = resp.getContentText();
   if (resp.getResponseCode() >= 300) {
     Logger.log('InfinitePay links ' + resp.getResponseCode() + ': ' + texto);
-    throw new Error('Não foi possível gerar o pagamento agora. Tente de novo em instantes.');
+    throw new Error('Não foi possível gerar o pagamento agora (código ' + resp.getResponseCode() + '). Tente de novo em instantes ou fale com a recepção.');
   }
   var j = {};
   try { j = JSON.parse(texto); } catch (e) { /* resposta em texto */ }
