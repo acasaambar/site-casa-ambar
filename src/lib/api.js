@@ -20,7 +20,12 @@ async function chamar(acao, dados = {}) {
   } catch {
     throw new Error('Sem conexão. Verifique sua internet e tente de novo.');
   }
-  const json = await resp.json();
+  let json;
+  try {
+    json = await resp.json();
+  } catch {
+    throw new Error('O sistema de reservas não respondeu. Tente de novo em instantes.');
+  }
   if (!json.ok) throw new Error(json.erro || 'Algo deu errado. Tente de novo.');
   return json.dados;
 }

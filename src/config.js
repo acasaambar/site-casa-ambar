@@ -7,7 +7,7 @@ export const CONFIG = {
   // Cole aqui a URL do Web App do Apps Script (termina em /exec).
   // Enquanto estiver vazio, o site roda em MODO DEMONSTRAÇÃO
   // (dados salvos só no navegador, para apresentar e testar).
-  API_URL: '',
+  API_URL: 'https://script.google.com/macros/s/AKfycbyifKgzuxAU0V-RR639J3vs1opngMDOPWpLXMEWg7LkgB4bpyoVy4yqRXuLu7_v_DWx/exec',
 
   nome: 'Casa Âmbar',
   endereco: 'Rua Eduardo Salgado, 448 · Aldeota · Fortaleza',
