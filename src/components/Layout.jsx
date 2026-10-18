@@ -39,6 +39,7 @@ export function Header() {
             <>
               <NavLink to="/aulas">Aulas</NavLink>
               <NavLink to="/minhas-reservas">Minhas reservas</NavLink>
+              <NavLink to="/meu-plano">Meu plano</NavLink>
             </>
           ) : null}
         </nav>

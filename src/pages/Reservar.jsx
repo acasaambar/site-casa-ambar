@@ -29,6 +29,8 @@ export default function Reservar() {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(null);
+  const [semCredito, setSemCredito] = useState(null);
+  const [pagando, setPagando] = useState(false);
 
   const carregar = useCallback(() => {
     return api.aula(token, id).then(setAula).catch((e) => {
@@ -50,6 +52,20 @@ export default function Reservar() {
   const yoga = aula.modalidade === 'Yoga';
   const livres = aula.capacidade - aula.ocupadosQtd;
 
+  async function pagarAvulsa() {
+    setPagando(true);
+    setErro('');
+    try {
+      const r = await api.reservar(token, aula.id, yoga ? escolhido : null, true);
+      window.location.href = r.pagamento.link;
+    } catch (e) {
+      setSemCredito(null);
+      setErro(e.message);
+      setPagando(false);
+      carregar();
+    }
+  }
+
   async function confirmar() {
     setErro('');
     setEnviando(true);
@@ -57,6 +73,10 @@ export default function Reservar() {
       const r = await api.reservar(token, aula.id, yoga ? escolhido : null);
       setFeito(r);
     } catch (e) {
+      if (e.codigo === 'SEM_CREDITO') {
+        setSemCredito(e.dados || {});
+        return;
+      }
       if (/ficha de saúde/i.test(e.message)) return nav('/ficha-saude', { state: { de: `/aula/${encodeURIComponent(id)}` } });
       setErro(e.message);
       setEscolhido(null);
@@ -187,6 +207,31 @@ export default function Reservar() {
         </div>
       </div>
 
+      {semCredito && (
+        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="sc-titulo">
+          <div className="confirmado__caixa sem-credito">
+            <Forma nome="presenca" tamanho={56} cor="var(--terracota)" />
+            <h2 id="sc-titulo" className="display-m">Falta só o pagamento</h2>
+            <p>Você ainda não tem aulas de {aula.modalidade} disponíveis no seu plano.</p>
+            {semCredito.avulsa && (
+              <button type="button" className="botao botao--cheio sem-credito__pagar" disabled={pagando} onClick={pagarAvulsa}>
+                {pagando
+                  ? 'Abrindo pagamento…'
+                  : `Pagar esta aula · ${Number(semCredito.avulsa.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+              </button>
+            )}
+            <p className="confirmado__nota">
+              {yoga && escolhido ? `O tapete ${escolhido} fica guardado por 20 minutos enquanto você paga. ` : ''}
+              Pix ou cartão, pela InfinitePay.
+            </p>
+            <div className="confirmado__botoes">
+              <Link className="botao botao--linha" to="/meu-plano">Ver planos mensais e trimestrais</Link>
+              <button type="button" className="link-sair" onClick={() => setSemCredito(null)}>Voltar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {feito && (
         <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="ok-titulo">
           <div className="confirmado__caixa">
@@ -199,6 +244,7 @@ export default function Reservar() {
               </div>
             )}
             <p>{dataExtensa(aula.data)} · {formatarHora(aula.hora)} · {aula.professor}</p>
+            {feito.credito && <p className="confirmado__nota">Descontada de: {feito.credito}</p>}
             <p className="confirmado__nota">O check-in abre {CONFIG.checkinAbreMinAntes} minutos antes da aula.</p>
             <div className="confirmado__botoes">
               <Link className="botao botao--cheio" to="/minhas-reservas">Minhas reservas</Link>

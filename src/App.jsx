@@ -9,6 +9,8 @@ import Reservar from './pages/Reservar.jsx';
 import MinhasReservas from './pages/MinhasReservas.jsx';
 import ErroTela from './components/ErroTela.jsx';
 import FichaSaude from './pages/FichaSaude.jsx';
+import MeuPlano from './pages/MeuPlano.jsx';
+import Pagamento from './pages/Pagamento.jsx';
 import WhatsFlutuante from './components/WhatsFlutuante.jsx';
 
 function Protegida({ children }) {
@@ -45,6 +47,8 @@ export default function App() {
           <Route path="/entrar" element={<Entrar />} />
           <Route path="/aulas" element={<Protegida><Aulas /></Protegida>} />
           <Route path="/aula/:id" element={<Protegida><Reservar /></Protegida>} />
+          <Route path="/meu-plano" element={<Protegida><MeuPlano /></Protegida>} />
+          <Route path="/pagamento" element={<Protegida><Pagamento /></Protegida>} />
           <Route path="/ficha-saude" element={<Protegida><FichaSaude /></Protegida>} />
           <Route path="/minhas-reservas" element={<Protegida><MinhasReservas /></Protegida>} />
           <Route path="*" element={<Navigate to="/" replace />} />

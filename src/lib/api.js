@@ -2,10 +2,17 @@
 //  API — conversa com o Apps Script (Google Sheets).
 //  Sem API_URL configurada, usa o modo demonstração.
 // ============================================================
-import { CONFIG, GRADE } from '../config.js';
+import { CONFIG, GRADE, PLANOS_DEMO } from '../config.js';
 import { soDigitos, isoData, idDaAula, inicioDaAula } from './util.js';
 
 export const MODO_DEMO = !CONFIG.API_URL;
+
+function erroApi(msg, codigo, dados) {
+  const e = new Error(msg);
+  e.codigo = codigo || null;
+  e.dados = dados || null;
+  return e;
+}
 
 async function chamar(acao, dados = {}) {
   if (MODO_DEMO) return demo(acao, dados);
@@ -26,7 +33,7 @@ async function chamar(acao, dados = {}) {
   } catch {
     throw new Error('O sistema de reservas não respondeu. Tente de novo em instantes.');
   }
-  if (!json.ok) throw new Error(json.erro || 'Algo deu errado. Tente de novo.');
+  if (!json.ok) throw erroApi(json.erro || 'Algo deu errado. Tente de novo.', json.codigo, json.dados);
   return json.dados;
 }
 
@@ -36,11 +43,14 @@ export const api = {
   sair: (token) => chamar('sair', { token }),
   aulas: (token) => chamar('aulas', { token }),
   aula: (token, aulaId) => chamar('aula', { token, aulaId }),
-  reservar: (token, aulaId, tapete) => chamar('reservar', { token, aulaId, tapete }),
+  reservar: (token, aulaId, tapete, pagarAvulsa = false) => chamar('reservar', { token, aulaId, tapete, pagarAvulsa }),
   cancelar: (token, reservaId) => chamar('cancelar', { token, reservaId }),
   checkin: (token, reservaId) => chamar('checkin', { token, reservaId }),
   minhasReservas: (token) => chamar('minhasReservas', { token }),
   salvarAnamnese: (token, ficha) => chamar('salvarAnamnese', { token, ficha }),
+  meuPlano: (token) => chamar('meuPlano', { token }),
+  comprar: (token, planoId) => chamar('comprar', { token, planoId }),
+  confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
 };
 
 // ============================================================
@@ -92,6 +102,36 @@ function ocupacaoFicticia(aula) {
   return lugares.slice(0, qtd);
 }
 
+function semanaDe(data) {
+  const d = dataDeIsoUTC(data);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+function dataDeIsoUTC(iso) {
+  const [y, m, dd] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, dd));
+}
+function demoUso(c, reservas, dataRef) {
+  const minhas = reservas.filter((r) => r.credito === c.id && r.status !== 'cancelado');
+  if (c.aulasSemana > 0) return minhas.filter((r) => semanaDe(r.data) === semanaDe(dataRef)).length;
+  return minhas.length;
+}
+function demoEscolherCredito(cpf, aula, reservas) {
+  const validos = LS.ler('ambar_demo_creditos', [])
+    .filter((c) => c.cpf === cpf && c.modalidade === aula.modalidade && c.inicio <= aula.data && aula.data <= c.fim)
+    .sort((a, b) => (a.aulasSemana > 0 ? 0 : 1) - (b.aulasSemana > 0 ? 0 : 1) || a.fim.localeCompare(b.fim));
+  return validos.find((c) => demoUso(c, reservas, aula.data) < (c.aulasSemana > 0 ? c.aulasSemana : c.aulasTotal)) || null;
+}
+function demoCriarPagamento(aluno, plano, extras) {
+  const orderNsu = 'P' + Date.now().toString(36).toUpperCase();
+  const link = `${location.origin}${location.pathname}?pagamento=${orderNsu}&demo=1`;
+  const pagamentos = LS.ler('ambar_demo_pagamentos', []);
+  pagamentos.push({ orderNsu, cpf: aluno.cpf, planoId: plano.id, descricao: plano.nome, valor: plano.preco, status: 'pendente',
+    criadoEm: new Date().toISOString(), link, reservaId: extras.reservaId || '' });
+  LS.gravar('ambar_demo_pagamentos', pagamentos);
+  return { order_nsu: orderNsu, link, valor: plano.preco, descricao: plano.nome };
+}
+
 function gerarAulas() {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
@@ -116,8 +156,8 @@ function sessao(token) {
 }
 
 function montarAula(aula, reservas, cpf) {
-  const daAula = reservas.filter((r) => r.aulaId === aula.id && r.status !== 'cancelado');
-  const minha = daAula.find((r) => r.cpf === cpf);
+  const daAula = reservas.filter((r) => r.aulaId === aula.id && r.status !== 'cancelado' && !(r.status === 'pendente' && r.expira < Date.now()));
+  const minha = daAula.find((r) => r.cpf === cpf && r.status !== 'pendente');
   const outros = ocupacaoFicticia(aula).filter((n) => !daAula.some((r) => r.tapete === n));
   const ocupados = [...outros, ...daAula.map((r) => r.tapete)];
   return {
@@ -186,6 +226,8 @@ async function demo(acao, d) {
       if (!x) throw new Error('Aula não encontrada.');
       if (inicioDaAula(x) < new Date()) throw new Error('Esta aula já começou.');
       if (!publico(a).anamnese) throw new Error('Preencha sua ficha de saúde antes de reservar.');
+      // descarta tentativa anterior de pagar esta aula
+      reservas.forEach((r) => { if (r.aulaId === x.id && r.cpf === a.cpf && r.status === 'pendente') r.status = 'cancelado'; });
       const m = montarAula(x, reservas, a.cpf);
       if (m.minhaReserva) throw new Error('Você já tem reserva nesta aula.');
       if (m.ocupadosQtd >= x.capacidade) throw new Error('Aula lotada.');
@@ -200,6 +242,16 @@ async function demo(acao, d) {
         aulaId: x.id, data: x.data, hora: x.hora, modalidade: x.modalidade, professor: x.professor,
         cpf: a.cpf, tapete, status: 'reservado', criadoEm: new Date().toISOString(),
       };
+      const credito = demoEscolherCredito(a.cpf, x, reservas);
+      if (!credito) {
+        const avulsa = PLANOS_DEMO.find((p) => p.id === x.modalidade.toLowerCase() + '-avulsa');
+        if (!d.pagarAvulsa) throw erroApi(`Você não tem aulas de ${x.modalidade} disponíveis.`, 'SEM_CREDITO', { avulsa });
+        const pg = demoCriarPagamento(a, avulsa, { reservaId: r.id });
+        reservas.push({ ...r, status: 'pendente', pagamento: pg.order_nsu, expira: Date.now() + 20 * 60e3 });
+        LS.gravar('ambar_demo_reservas', reservas);
+        return { pagamento: pg };
+      }
+      r.credito = credito.id;
       reservas.push(r);
       LS.gravar('ambar_demo_reservas', reservas);
       return r;
@@ -234,10 +286,60 @@ async function demo(acao, d) {
       LS.gravar('ambar_demo_fichas', fichas);
       return { ok: true, alerta: [1, 2, 3, 4, 5, 6, 7].some((n) => f['parq_' + n] === 'sim') };
     }
+    case 'meuPlano': {
+      const a = sessao(d.token);
+      const hoje = isoData(new Date());
+      const creditos = LS.ler('ambar_demo_creditos', [])
+        .filter((c) => c.cpf === a.cpf && c.fim >= hoje)
+        .map((c) => {
+          const limite = c.aulasSemana > 0 ? c.aulasSemana : c.aulasTotal;
+          const usadas = demoUso(c, reservas, hoje);
+          return { ...c, usadas, limite, restantes: Math.max(0, limite - usadas) };
+        });
+      const pagamentos = LS.ler('ambar_demo_pagamentos', []).filter((p) => p.cpf === a.cpf).reverse();
+      return { catalogo: PLANOS_DEMO, creditos, pagamentos };
+    }
+    case 'comprar': {
+      const a = sessao(d.token);
+      const plano = PLANOS_DEMO.find((p) => p.id === d.planoId);
+      if (!plano) throw new Error('Plano não encontrado.');
+      return demoCriarPagamento(a, plano, {});
+    }
+    case 'confirmarPagamento': {
+      const a = sessao(d.token);
+      const pagamentos = LS.ler('ambar_demo_pagamentos', []);
+      const pg = pagamentos.find((p) => p.orderNsu === d.orderNsu && p.cpf === a.cpf);
+      if (!pg) throw new Error('Pagamento não encontrado.');
+      let reserva = null;
+      if (pg.status !== 'pago' && d.demo) {
+        pg.status = 'pago';
+        pg.pagoEm = new Date().toISOString();
+        pg.metodo = 'Pix';
+        pg.parcelas = 1;
+        pg.recibo = '';
+        pg.link = '';
+        const plano = PLANOS_DEMO.find((p) => p.id === pg.planoId);
+        const hoje = isoData(new Date());
+        const fim = new Date();
+        fim.setDate(fim.getDate() + plano.validadeDias - 1);
+        const creditos = LS.ler('ambar_demo_creditos', []);
+        const credito = { id: 'C' + pg.orderNsu.slice(1), cpf: a.cpf, planoId: plano.id, descricao: plano.nome, modalidade: plano.modalidade, tipo: plano.tipo,
+          aulasSemana: plano.aulasSemana, aulasTotal: plano.aulasTotal, inicio: hoje, fim: isoData(fim) };
+        creditos.push(credito);
+        LS.gravar('ambar_demo_creditos', creditos);
+        const r = reservas.find((x) => x.id === pg.reservaId);
+        if (r) { r.status = 'reservado'; r.credito = credito.id; delete r.expira; }
+        LS.gravar('ambar_demo_reservas', reservas);
+        LS.gravar('ambar_demo_pagamentos', pagamentos);
+      }
+      const r = reservas.find((x) => x.id === pg.reservaId);
+      if (r) reserva = { id: r.id, status: r.status, data: r.data, hora: r.hora, modalidade: r.modalidade, professor: r.professor, tapete: r.tapete };
+      return { status: pg.status, descricao: pg.descricao, valor: pg.valor, recibo: pg.recibo, reserva };
+    }
     case 'minhasReservas': {
       const a = sessao(d.token);
       return reservas
-        .filter((r) => r.cpf === a.cpf && r.status !== 'cancelado')
+        .filter((r) => r.cpf === a.cpf && r.status !== 'cancelado' && r.status !== 'pendente')
         .sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
     }
     default:

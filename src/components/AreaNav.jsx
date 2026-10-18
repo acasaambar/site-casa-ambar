@@ -23,6 +23,16 @@ const ITENS = [
     ),
   },
   {
+    to: '/meu-plano',
+    texto: 'Meu plano',
+    icone: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <rect x="3" y="6" width="18" height="13" rx="2" />
+        <path d="M3 10h18M7 15h4" />
+      </svg>
+    ),
+  },
+  {
     to: '/ficha-saude',
     texto: 'Ficha de saúde',
     icone: (

@@ -60,6 +60,33 @@ export const GRADE = [
   ),
 ];
 
+// Endereço público do site (para onde a InfinitePay devolve a aluna)
+export const SITE_URL = 'https://acasaambar.github.io/site-casa-ambar/';
+
+// Catálogo de planos (no site oficial ele vem da aba "Planos" da planilha;
+// esta lista é usada no modo demonstração)
+export const PLANOS_DEMO = [
+  ['yoga-avulsa', 'Yoga', 'avulsa', 'Yoga · aula avulsa', 0, 1, 60, 63, 'Uma aula, válida por 60 dias'],
+  ['yoga-mensal-1x', 'Yoga', 'mensal', 'Yoga · 1x na semana', 1, 0, 30, 200, 'Plano mensal'],
+  ['yoga-mensal-2x', 'Yoga', 'mensal', 'Yoga · 2x na semana', 2, 0, 30, 350, 'Plano mensal'],
+  ['yoga-mensal-3x', 'Yoga', 'mensal', 'Yoga · 3x na semana', 3, 0, 30, 480, 'Plano mensal'],
+  ['yoga-mensal-4x', 'Yoga', 'mensal', 'Yoga · 4x na semana', 4, 0, 30, 580, 'Plano mensal'],
+  ['yoga-trimestral-1x', 'Yoga', 'trimestral', 'Yoga · 1x na semana · trimestral', 1, 0, 90, 561, '3 meses (R$ 187/mês)'],
+  ['yoga-trimestral-2x', 'Yoga', 'trimestral', 'Yoga · 2x na semana · trimestral', 2, 0, 90, 978, '3 meses (R$ 326/mês)'],
+  ['yoga-trimestral-3x', 'Yoga', 'trimestral', 'Yoga · 3x na semana · trimestral', 3, 0, 90, 1344, '3 meses (R$ 448/mês)'],
+  ['yoga-trimestral-4x', 'Yoga', 'trimestral', 'Yoga · 4x na semana · trimestral', 4, 0, 90, 1626, '3 meses (R$ 542/mês)'],
+  ['pilates-avulsa', 'Pilates', 'avulsa', 'Pilates · aula avulsa', 0, 1, 60, 75, 'Uma aula, válida por 60 dias'],
+  ['pilates-mensal-2x', 'Pilates', 'mensal', 'Pilates · 2x na semana', 2, 0, 30, 380, 'Plano mensal'],
+  ['pilates-mensal-3x', 'Pilates', 'mensal', 'Pilates · 3x na semana', 3, 0, 30, 480, 'Plano mensal'],
+  ['pilates-trimestral-2x', 'Pilates', 'trimestral', 'Pilates · 2x na semana · trimestral', 2, 0, 90, 1065, '3 meses (R$ 355/mês)'],
+  ['pilates-trimestral-3x', 'Pilates', 'trimestral', 'Pilates · 3x na semana · trimestral', 3, 0, 90, 1347, '3 meses (R$ 449/mês)'],
+].map(([id, modalidade, tipo, nome, aulasSemana, aulasTotal, validadeDias, preco, descricao]) => ({
+  id, modalidade, tipo, nome, aulasSemana, aulasTotal, validadeDias, preco, descricao,
+}));
+
+// Avisar para renovar quando faltarem X dias para o plano vencer
+export const AVISO_RENOVAR_DIAS = 7;
+
 export const PRECOS_AULAS = {
   Yoga: [
     ['Aula avulsa', 'R$ 63'],
