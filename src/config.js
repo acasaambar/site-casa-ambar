@@ -7,7 +7,10 @@ export const CONFIG = {
   // Cole aqui a URL do Web App do Apps Script (termina em /exec).
   // Enquanto estiver vazio, o site roda em MODO DEMONSTRAÇÃO
   // (dados salvos só no navegador, para apresentar e testar).
-  API_URL: 'https://script.google.com/macros/s/AKfycbyifKgzuxAU0V-RR639J3vs1opngMDOPWpLXMEWg7LkgB4bpyoVy4yqRXuLu7_v_DWx/exec',
+  // Para testar sem mexer na planilha: VITE_DEMO=1 npm run dev
+  API_URL: import.meta.env.VITE_DEMO
+    ? ''
+    : 'https://script.google.com/macros/s/AKfycbyifKgzuxAU0V-RR639J3vs1opngMDOPWpLXMEWg7LkgB4bpyoVy4yqRXuLu7_v_DWx/exec',
 
   nome: 'Casa Âmbar',
   endereco: 'Rua Eduardo Salgado, 448 · Aldeota · Fortaleza',

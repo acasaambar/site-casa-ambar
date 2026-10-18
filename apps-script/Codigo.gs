@@ -48,7 +48,25 @@ var ABAS = {
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
+  Anamneses: ['cpf', 'nome', 'preenchida_em', 'data_nascimento', 'emergencia_nome', 'emergencia_parentesco', 'emergencia_telefone', 'plano_saude',
+    'parq_1', 'parq_2', 'parq_3', 'parq_4', 'parq_5', 'parq_6', 'parq_7', 'parq_algum_sim',
+    'comorbidades', 'comorbidade_outra', 'gestante', 'gestante_semanas', 'cirurgias', 'lesoes', 'medicamentos', 'alergias',
+    'atividade_regular', 'observacoes', 'declaracao', 'consentimento', 'pdf'],
 };
+
+// Nome da pasta do Google Drive onde ficam os PDFs das fichas de saúde
+var PASTA_ANAMNESES = 'Casa Âmbar · Anamneses';
+
+// Perguntas do PAR-Q (as mesmas do site), usadas no PDF
+var PARQ_TEXTOS = [
+  'Algum médico já disse que você possui algum problema de coração e que só deveria realizar atividade física supervisionada por profissionais de saúde?',
+  'Você sente dores no peito quando pratica atividade física?',
+  'No último mês, você sentiu dores no peito quando praticou atividade física?',
+  'Você apresenta desequilíbrio devido a tontura e/ou perda da consciência?',
+  'Você possui algum problema ósseo ou articular que poderia piorar com atividade física?',
+  'Você toma atualmente algum medicamento para pressão arterial e/ou problema de coração?',
+  'Sabe de alguma outra razão pela qual você não deve praticar atividade física?',
+];
 
 // ============================================================
 //  1) CONFIGURAÇÃO INICIAL — execute uma vez
@@ -68,6 +86,8 @@ function configurarPlanilha() {
   ss.getSheetByName('Reservas').getRange('A:H').setNumberFormat('@');
   ss.getSheetByName('Grade').getRange('D:D').setNumberFormat('@');
   ss.getSheetByName('Bloqueios').getRange('A:B').setNumberFormat('@');
+  ss.getSheetByName('Anamneses').getRange('A:G').setNumberFormat('@');
+  pastaAnamneses(); // cria a pasta no Drive, se ainda não existir
 
   var grade = ss.getSheetByName('Grade');
   if (grade.getLastRow() === 1) {
@@ -108,6 +128,7 @@ function doPost(e) {
       cancelar: cancelar,
       checkin: fazerCheckin,
       minhasReservas: minhasReservas,
+      salvarAnamnese: salvarAnamnese,
     };
     var fn = acoes[corpo.acao];
     if (!fn) return responder(false, null, 'Ação desconhecida.');
@@ -205,7 +226,8 @@ function buscarAluno(cpf) {
 }
 
 function publico(a) {
-  return { nome: a.nome, cpf: String(a.cpf), whatsapp: String(a.whatsapp) };
+  var cpf = soDigitos(a.cpf).padStart(11, '0');
+  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), anamnese: !!linhaAnamnese(cpf) };
 }
 
 function hashSenha(senha, sal) {
@@ -296,6 +318,7 @@ function reservar(d) {
   var aula = gerarAulas().filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada.');
   if (inicio(aula) < new Date()) throw new Error('Esta aula já começou.');
+  if (!linhaAnamnese(soDigitos(aluno.cpf).padStart(11, '0'))) throw new Error('Preencha sua ficha de saúde antes de reservar.');
 
   var trava = LockService.getScriptLock();
   trava.waitLock(20000);
@@ -363,7 +386,145 @@ function minhasReservas(d) {
 }
 
 // ============================================================
-//  6) UTILIDADES
+//  6) FICHA DE SAÚDE (ANAMNESE)
+//  Salva uma linha na aba "Anamneses" (uma por aluno, a mais recente)
+//  e um PDF na pasta do Drive "Casa Âmbar · Anamneses".
+// ============================================================
+function salvarAnamnese(d) {
+  var aluno = alunoDaSessao(d.token);
+  var f = d.ficha || {};
+  var cpf = soDigitos(aluno.cpf).padStart(11, '0');
+
+  if (!f.emergencia_nome || soDigitos(f.emergencia_telefone).length < 10) throw new Error('Informe o contato de emergência com telefone.');
+  for (var i = 1; i <= 7; i++) {
+    if (f['parq_' + i] !== 'sim' && f['parq_' + i] !== 'nao') throw new Error('Responda todas as perguntas do questionário.');
+  }
+  if (!f.declaracao || !f.consentimento) throw new Error('É preciso marcar a declaração e o consentimento.');
+
+  var algumSim = [1, 2, 3, 4, 5, 6, 7].some(function (n) { return f['parq_' + n] === 'sim'; });
+  var limpar = function (v) { return String(v == null ? '' : v).slice(0, 1000); };
+  var valores = {
+    cpf: cpf,
+    nome: aluno.nome,
+    preenchida_em: agoraTexto(),
+    data_nascimento: limpar(f.data_nascimento),
+    emergencia_nome: limpar(f.emergencia_nome),
+    emergencia_parentesco: limpar(f.emergencia_parentesco),
+    emergencia_telefone: soDigitos(f.emergencia_telefone),
+    plano_saude: limpar(f.plano_saude),
+    parq_algum_sim: algumSim ? 'SIM' : 'NÃO',
+    comorbidades: (f.comorbidades || []).map(limpar).join(', '),
+    comorbidade_outra: limpar(f.comorbidade_outra),
+    gestante: limpar(f.gestante),
+    gestante_semanas: limpar(f.gestante_semanas),
+    cirurgias: limpar(f.cirurgias),
+    lesoes: limpar(f.lesoes),
+    medicamentos: limpar(f.medicamentos),
+    alergias: limpar(f.alergias),
+    atividade_regular: limpar(f.atividade_regular),
+    observacoes: limpar(f.observacoes),
+    declaracao: 'SIM',
+    consentimento: 'SIM',
+  };
+  for (var n = 1; n <= 7; n++) valores['parq_' + n] = f['parq_' + n] === 'sim' ? 'SIM' : 'NÃO';
+
+  // PDF no Drive
+  try {
+    valores.pdf = gerarPdfAnamnese(valores);
+  } catch (err) {
+    valores.pdf = 'erro ao gerar PDF: ' + err.message;
+  }
+
+  var linha = ABAS.Anamneses.map(function (c) { return valores[c] == null ? '' : valores[c]; });
+  var trava = LockService.getScriptLock();
+  trava.waitLock(15000);
+  try {
+    var s = aba('Anamneses');
+    var existente = linhaAnamnese(cpf);
+    if (existente) s.getRange(existente, 1, 1, linha.length).setValues([linha]);
+    else s.appendRow(linha);
+  } finally {
+    trava.releaseLock();
+  }
+  return { ok: true, alerta: algumSim };
+}
+
+function linhaAnamnese(cpf) {
+  var s = planilha().getSheetByName('Anamneses');
+  if (!s || s.getLastRow() < 2) return 0;
+  var cpfs = s.getRange(2, 1, s.getLastRow() - 1, 1).getValues();
+  for (var i = 0; i < cpfs.length; i++) {
+    if (soDigitos(cpfs[i][0]).padStart(11, '0') === cpf) return i + 2;
+  }
+  return 0;
+}
+
+function pastaAnamneses() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('PASTA_ANAMNESES_ID');
+  if (id) {
+    try { return DriveApp.getFolderById(id); } catch (e) { /* pasta apagada: cria outra */ }
+  }
+  var it = DriveApp.getFoldersByName(PASTA_ANAMNESES);
+  var pasta = it.hasNext() ? it.next() : DriveApp.createFolder(PASTA_ANAMNESES);
+  props.setProperty('PASTA_ANAMNESES_ID', pasta.getId());
+  return pasta;
+}
+
+function gerarPdfAnamnese(v) {
+  var esc = function (t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  var linhaInfo = function (rotulo, valor) {
+    return '<tr><th>' + rotulo + '</th><td>' + (esc(valor) || '<span class="vazio">não informado</span>') + '</td></tr>';
+  };
+  var cpfFmt = v.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  var tel = v.emergencia_telefone.replace(/(\d{2})(\d{4,5})(\d{4})/, '($1) $2-$3');
+  var parq = PARQ_TEXTOS.map(function (t, i) {
+    var r = v['parq_' + (i + 1)];
+    return '<tr><td>' + (i + 1) + '. ' + esc(t) + '</td><td class="resp ' + (r === 'SIM' ? 'sim' : '') + '">' + r + '</td></tr>';
+  }).join('');
+
+  var html =
+    '<html><head><meta charset="utf-8"><style>' +
+    'body{font-family:Helvetica,Arial,sans-serif;color:#2F3821;font-size:11px;margin:28px}' +
+    'h1{font-size:20px;letter-spacing:4px;margin:0;font-weight:normal}' +
+    'h2{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#7E3717;margin:22px 0 6px;border-bottom:1px solid #A6845E;padding-bottom:4px}' +
+    '.topo{border-bottom:2px solid #2F3821;padding-bottom:10px;margin-bottom:6px}.sub{color:#6F784D;font-size:10px;letter-spacing:2px}' +
+    'table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #E9DDC5;vertical-align:top}' +
+    'th{width:34%;color:#5B6046;font-weight:normal}.resp{width:44px;text-align:center;font-weight:bold}.sim{color:#7E3717}' +
+    '.alerta{background:#F3DCD0;color:#6E2A10;padding:8px 10px;margin-top:8px}.vazio{color:#A6A08C}' +
+    '.assin{margin-top:46px;display:flex}.assin div{border-top:1px solid #2F3821;width:46%;padding-top:4px;font-size:10px;margin-right:8%}' +
+    '</style></head><body>' +
+    '<div class="topo"><h1>CASA ÂMBAR</h1><div class="sub">FICHA DE SAÚDE · ANAMNESE</div></div>' +
+    '<p>Preenchida pelo aluno no site em ' + esc(v.preenchida_em) + '.</p>' +
+    '<h2>Aluno</h2><table>' + linhaInfo('Nome', v.nome) + linhaInfo('CPF', cpfFmt) + linhaInfo('Data de nascimento', v.data_nascimento) + linhaInfo('Plano de saúde', v.plano_saude) + '</table>' +
+    '<h2>Contato de emergência</h2><table>' + linhaInfo('Nome', v.emergencia_nome) + linhaInfo('Parentesco', v.emergencia_parentesco) + linhaInfo('Telefone', tel) + '</table>' +
+    '<h2>Questionário de prontidão para atividade física (PAR-Q)</h2><table>' + parq + '</table>' +
+    (v.parq_algum_sim === 'SIM' ? '<div class="alerta">Há resposta SIM no PAR-Q: recomenda-se liberação médica antes de iniciar as atividades.</div>' : '') +
+    '<h2>Histórico de saúde</h2><table>' +
+    linhaInfo('Condições de saúde', [v.comorbidades, v.comorbidade_outra].filter(String).join(', ')) +
+    linhaInfo('Gestante', v.gestante + (v.gestante_semanas ? ' · ' + v.gestante_semanas + ' semanas' : '')) +
+    linhaInfo('Cirurgias (últimos 12 meses)', v.cirurgias) +
+    linhaInfo('Lesões ou dores atuais', v.lesoes) +
+    linhaInfo('Medicamentos de uso contínuo', v.medicamentos) +
+    linhaInfo('Alergias', v.alergias) +
+    linhaInfo('Pratica atividade física regularmente', v.atividade_regular) +
+    linhaInfo('Observações para a professora', v.observacoes) + '</table>' +
+    '<h2>Declarações</h2><p>O aluno declarou que as informações acima são verdadeiras e autorizou a Casa Âmbar a armazená-las ' +
+    'exclusivamente para a sua segurança durante as práticas, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018).</p>' +
+    '<div class="assin"><div>Assinatura do aluno</div><div>Data</div></div>' +
+    '</body></html>';
+
+  var nomeArquivo = 'Anamnese · ' + v.nome + ' · ' + v.cpf + '.pdf';
+  var pasta = pastaAnamneses();
+  // substitui a ficha anterior do mesmo aluno
+  var antigos = pasta.searchFiles("title contains '" + v.cpf + "'");
+  while (antigos.hasNext()) antigos.next().setTrashed(true);
+  var pdf = Utilities.newBlob(html, 'text/html', 'ficha.html').getAs('application/pdf').setName(nomeArquivo);
+  return pasta.createFile(pdf).getUrl();
+}
+
+// ============================================================
+//  7) UTILIDADES
 // ============================================================
 function aba(nome) {
   var s = planilha().getSheetByName(nome);

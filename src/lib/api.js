@@ -40,6 +40,7 @@ export const api = {
   cancelar: (token, reservaId) => chamar('cancelar', { token, reservaId }),
   checkin: (token, reservaId) => chamar('checkin', { token, reservaId }),
   minhasReservas: (token) => chamar('minhasReservas', { token }),
+  salvarAnamnese: (token, ficha) => chamar('salvarAnamnese', { token, ficha }),
 };
 
 // ============================================================
@@ -150,7 +151,8 @@ async function demo(acao, d) {
     LS.gravar('ambar_demo_sessoes', s);
     return t;
   };
-  const publico = (a) => ({ nome: a.nome, cpf: a.cpf, whatsapp: a.whatsapp });
+  const fichas = LS.ler('ambar_demo_fichas', {});
+  const publico = (a) => ({ nome: a.nome, cpf: a.cpf, whatsapp: a.whatsapp, anamnese: !!fichas[a.cpf] || a.cpf === '12345678909' });
 
   switch (acao) {
     case 'cadastrar': {
@@ -183,6 +185,7 @@ async function demo(acao, d) {
       const x = gerarAulas().find((y) => y.id === d.aulaId);
       if (!x) throw new Error('Aula não encontrada.');
       if (inicioDaAula(x) < new Date()) throw new Error('Esta aula já começou.');
+      if (!publico(a).anamnese) throw new Error('Preencha sua ficha de saúde antes de reservar.');
       const m = montarAula(x, reservas, a.cpf);
       if (m.minhaReserva) throw new Error('Você já tem reserva nesta aula.');
       if (m.ocupadosQtd >= x.capacidade) throw new Error('Aula lotada.');
@@ -222,6 +225,14 @@ async function demo(acao, d) {
       r.checkinEm = new Date().toISOString();
       LS.gravar('ambar_demo_reservas', reservas);
       return r;
+    }
+    case 'salvarAnamnese': {
+      const a = sessao(d.token);
+      const f = d.ficha || {};
+      if (!f.declaracao || !f.consentimento) throw new Error('É preciso marcar a declaração e o consentimento.');
+      fichas[a.cpf] = { ...f, preenchidaEm: new Date().toISOString() };
+      LS.gravar('ambar_demo_fichas', fichas);
+      return { ok: true, alerta: [1, 2, 3, 4, 5, 6, 7].some((n) => f['parq_' + n] === 'sim') };
     }
     case 'minhasReservas': {
       const a = sessao(d.token);

@@ -25,17 +25,26 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const entrar = useCallback(async (cpf, senha) => guardar(await api.entrar({ cpf, senha })), [guardar]);
-  const cadastrar = useCallback(async (dados) => guardar(await api.cadastrar(dados)), [guardar]);
+  const entrar = useCallback(async (cpf, senha) => {
+    const s = await api.entrar({ cpf, senha });
+    guardar(s);
+    return s;
+  }, [guardar]);
+  const cadastrar = useCallback(async (dados) => {
+    const s = await api.cadastrar(dados);
+    guardar(s);
+    return s;
+  }, [guardar]);
   const sair = useCallback(() => {
     if (sessao?.token) api.sair(sessao.token).catch(() => {});
     guardar(null);
   }, [sessao, guardar]);
 
   const expirou = useCallback(() => guardar(null), [guardar]);
+  const atualizarAluno = useCallback((dados) => guardar(sessao ? { ...sessao, aluno: { ...sessao.aluno, ...dados } } : null), [sessao, guardar]);
 
   return (
-    <AuthCtx.Provider value={{ token: sessao?.token, aluno: sessao?.aluno, entrar, cadastrar, sair, expirou }}>
+    <AuthCtx.Provider value={{ token: sessao?.token, aluno: sessao?.aluno, entrar, cadastrar, sair, expirou, atualizarAluno }}>
       {children}
     </AuthCtx.Provider>
   );

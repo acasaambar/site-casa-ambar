@@ -33,6 +33,14 @@ Enquanto `API_URL` em `src/config.js` estiver vazio, o site funciona em **modo d
 - **Alunos**: cadastros. A senha fica criptografada. `ativo = NÃO` bloqueia o acesso.
 - **Reservas**: uma linha por reserva, com tapete e status (`reservado`, `check-in`, `cancelado`).
 - **Sessoes**: logins ativos (não precisa mexer).
+- **Anamneses**: a ficha de saúde de cada aluno (uma linha por aluno, sempre a mais recente). A coluna `pdf` tem o link do PDF.
+
+### Ficha de saúde (anamnese)
+
+Depois de criar a conta, o aluno preenche a ficha em 3 etapas: contato de emergência, questionário PAR-Q e histórico de saúde, com consentimento LGPD. Sem ficha não é possível reservar.
+Cada ficha também vira um **PDF** na pasta do Google Drive **"Casa Âmbar · Anamneses"**, criada automaticamente.
+
+**Dados de saúde são sensíveis (LGPD):** não compartilhe a planilha nem a pasta com quem não precisa. Se um aluno pedir a exclusão, apague a linha dele na aba Anamneses e o PDF na pasta.
 
 ## Publicação
 

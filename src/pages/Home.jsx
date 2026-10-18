@@ -164,6 +164,48 @@ export default function Home() {
             </article>
           </div>
           <p className="nota-plano">Planos trimestrais com valor reduzido. Consulte na recepção.</p>
+
+          <ol className="como">
+            {[
+              ['Crie sua conta', 'Com CPF e senha, e uma ficha de saúde rápida para a professora te conhecer.'],
+              ['Escolha aula e tapete', 'Veja horários, professora e vagas livres. No Yoga, escolha o número do seu tapete.'],
+              ['Faça o check-in', 'Ao chegar, confirme sua presença pelo celular. Seu tapete estará te esperando.'],
+            ].map(([t, d], i) => (
+              <li key={t} className="revelar" style={{ transitionDelay: `${i * 120}ms` }}>
+                <span className="como__num">0{i + 1}</span>
+                <strong>{t}</strong>
+                <p>{d}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* ---------- EQUIPE ---------- */}
+      <section className="secao secao--papel equipe">
+        <div className="largura">
+          <div className="equipe__cabeca revelar">
+            <span className="rotulo-espacado cor-terracota">Quem conduz</span>
+            <h2 className="display-m">Nossas professoras</h2>
+          </div>
+          <ul className="equipe__lista">
+            {[
+              ['Ana Paula', 'Yoga', 'seg, qua e sex · manhãs e sáb', 'equilibrio', 'var(--oliva)'],
+              ['Hanna', 'Yoga', 'seg e qua · 18h30', 'sutileza', 'var(--oliva)'],
+              ['Kalliny', 'Pilates', 'seg a sex · 6h às 10h', 'presenca', 'var(--terracota)'],
+              ['Sara', 'Pilates', 'seg a sex · 16h às 20h', 'equilibrio', 'var(--terracota)'],
+            ].map(([nome, mod, quando, forma, cor], i) => (
+              <li key={nome} className="prof revelar" style={{ transitionDelay: `${i * 100}ms` }}>
+                <div className="prof__selo" style={{ '--cor': cor }}>
+                  <span className="prof__inicial">{nome[0]}</span>
+                  <Forma nome={forma} tamanho={34} cor="var(--creme)" className="prof__forma" />
+                </div>
+                <strong className="display-p">{nome}</strong>
+                <span className="rotulo" style={{ color: cor }}>{mod}</span>
+                <span className="prof__quando">{quando}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

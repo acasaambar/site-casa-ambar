@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import Tapete from '../components/Tapete.jsx';
@@ -10,7 +10,7 @@ import { dataExtensa, formatarHora, horaFim } from '../lib/util.js';
 
 export default function Reservar() {
   const { id } = useParams();
-  const { token, expirou } = useAuth();
+  const { token, aluno, expirou } = useAuth();
   const nav = useNavigate();
   const [aula, setAula] = useState(null);
   const [escolhido, setEscolhido] = useState(null);
@@ -31,6 +31,8 @@ export default function Reservar() {
     carregar();
   }, [carregar]);
 
+  if (aluno && !aluno.anamnese) return <Navigate to="/ficha-saude" replace state={{ de: `/aula/${encodeURIComponent(id)}` }} />;
+
   if (!aula) return <main className="app"><div className="largura app__corpo">{erro ? <p className="erro">{erro}</p> : <Carregando />}</div></main>;
 
   const yoga = aula.modalidade === 'Yoga';
@@ -43,6 +45,7 @@ export default function Reservar() {
       const r = await api.reservar(token, aula.id, yoga ? escolhido : null);
       setFeito(r);
     } catch (e) {
+      if (/ficha de saúde/i.test(e.message)) return nav('/ficha-saude', { state: { de: `/aula/${encodeURIComponent(id)}` } });
       setErro(e.message);
       setEscolhido(null);
       carregar();

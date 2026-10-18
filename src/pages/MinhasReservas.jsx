@@ -135,7 +135,11 @@ export default function MinhasReservas() {
           </section>
         )}
 
-        {aluno && <p className="logado-como">Conectado como {aluno.nome}</p>}
+        {aluno && (
+          <p className="logado-como">
+            Conectado como {aluno.nome} · <Link to="/ficha-saude" state={{ de: '/minhas-reservas' }}>{aluno.anamnese ? 'Atualizar ficha de saúde' : 'Preencher ficha de saúde'}</Link>
+          </p>
+        )}
       </div>
     </main>
   );
