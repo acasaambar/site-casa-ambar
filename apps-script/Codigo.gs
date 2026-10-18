@@ -87,6 +87,7 @@ function configurarPlanilha() {
   ss.getSheetByName('Grade').getRange('D:D').setNumberFormat('@');
   ss.getSheetByName('Bloqueios').getRange('A:B').setNumberFormat('@');
   ss.getSheetByName('Anamneses').getRange('A:G').setNumberFormat('@');
+  ss.getSheetByName('Sessoes').getRange('A:B').setNumberFormat('@');
   pastaAnamneses(); // cria a pasta no Drive, se ainda não existir
 
   var grade = ss.getSheetByName('Grade');
@@ -139,7 +140,7 @@ function doPost(e) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · ficha de saúde v2';
+var VERSAO = '2026-10-18 · ficha de saúde v3 (CPF com zero)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -195,7 +196,7 @@ function sair(d) {
 function criarSessao(cpf) {
   var token = Utilities.getUuid() + Utilities.getUuid().slice(0, 8);
   var expira = new Date(Date.now() + AJUSTES.validadeSessaoDias * 86400000);
-  aba('Sessoes').appendRow([token, cpf, agoraTexto(), expira.toISOString()]);
+  aba('Sessoes').appendRow([token, normCpf(cpf), agoraTexto(), expira.toISOString()]);
   return token;
 }
 
@@ -207,7 +208,7 @@ function alunoDaSessao(token) {
     var linhas = aba('Sessoes').getDataRange().getValues();
     for (var i = 1; i < linhas.length; i++) {
       if (linhas[i][0] === token && new Date(linhas[i][3]) > new Date()) {
-        cpf = String(linhas[i][1]);
+        cpf = normCpf(linhas[i][1]);
         break;
       }
     }
@@ -223,13 +224,13 @@ function buscarAluno(cpf) {
   var linhas = aba('Alunos').getDataRange().getValues();
   var cab = linhas[0];
   for (var i = 1; i < linhas.length; i++) {
-    if (soDigitos(linhas[i][0]).padStart(11, '0') === cpf) return objeto(cab, linhas[i]);
+    if (normCpf(linhas[i][0]) === normCpf(cpf)) return objeto(cab, linhas[i]);
   }
   return null;
 }
 
 function publico(a) {
-  var cpf = soDigitos(a.cpf).padStart(11, '0');
+  var cpf = normCpf(a.cpf);
   return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), anamnese: !!linhaAnamnese(cpf) };
 }
 
@@ -293,7 +294,7 @@ function reservasAtivas() {
 
 function montarAula(aula, reservas, cpf) {
   var daAula = reservas.filter(function (r) { return r.aula_id === aula.id; });
-  var minha = daAula.filter(function (r) { return String(r.cpf) === cpf; })[0];
+  var minha = daAula.filter(function (r) { return normCpf(r.cpf) === normCpf(cpf); })[0];
   aula.ocupados = aula.modalidade === 'Yoga' ? daAula.map(function (r) { return Number(r.tapete); }) : [];
   aula.ocupadosQtd = daAula.length;
   aula.minhaReserva = minha ? { id: minha.id, tapete: minha.tapete ? Number(minha.tapete) : null } : null;
@@ -303,14 +304,14 @@ function montarAula(aula, reservas, cpf) {
 function listarAulas(d) {
   var aluno = alunoDaSessao(d.token);
   var reservas = reservasAtivas();
-  return gerarAulas().map(function (a) { return montarAula(a, reservas, String(aluno.cpf)); });
+  return gerarAulas().map(function (a) { return montarAula(a, reservas, normCpf(aluno.cpf)); });
 }
 
 function detalharAula(d) {
   var aluno = alunoDaSessao(d.token);
   var aula = gerarAulas().filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada.');
-  return montarAula(aula, reservasAtivas(), String(aluno.cpf));
+  return montarAula(aula, reservasAtivas(), normCpf(aluno.cpf));
 }
 
 // ============================================================
@@ -321,12 +322,12 @@ function reservar(d) {
   var aula = gerarAulas().filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada.');
   if (inicio(aula) < new Date()) throw new Error('Esta aula já começou.');
-  if (!linhaAnamnese(soDigitos(aluno.cpf).padStart(11, '0'))) throw new Error('Preencha sua ficha de saúde antes de reservar.');
+  if (!linhaAnamnese(normCpf(aluno.cpf))) throw new Error('Preencha sua ficha de saúde antes de reservar.');
 
   var trava = LockService.getScriptLock();
   trava.waitLock(20000);
   try {
-    var m = montarAula(aula, reservasAtivas(), String(aluno.cpf));
+    var m = montarAula(aula, reservasAtivas(), normCpf(aluno.cpf));
     if (m.minhaReserva) throw new Error('Você já tem reserva nesta aula.');
     if (m.ocupadosQtd >= aula.capacidade) throw new Error('Aula lotada.');
     var tapete = '';
@@ -336,7 +337,7 @@ function reservar(d) {
       if (m.ocupados.indexOf(tapete) >= 0) throw new Error('O tapete ' + tapete + ' acabou de ser reservado. Escolha outro.');
     }
     var id = 'R' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
-    aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, String(aluno.cpf), aluno.nome, tapete, 'reservado', agoraTexto(), '', '']);
+    aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, normCpf(aluno.cpf), aluno.nome, tapete, 'reservado', agoraTexto(), '', '']);
     SpreadsheetApp.flush();
     return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null, status: 'reservado' };
   } finally {
@@ -346,7 +347,7 @@ function reservar(d) {
 
 function acharMinhaReserva(d) {
   var aluno = alunoDaSessao(d.token);
-  var r = reservasAtivas().filter(function (x) { return x.id === d.reservaId && String(x.cpf) === String(aluno.cpf); })[0];
+  var r = reservasAtivas().filter(function (x) { return x.id === d.reservaId && normCpf(x.cpf) === normCpf(aluno.cpf); })[0];
   if (!r) throw new Error('Reserva não encontrada.');
   return r;
 }
@@ -379,7 +380,7 @@ function minhasReservas(d) {
   var lista = [];
   for (var i = 1; i < linhas.length; i++) {
     var r = objeto(cab, linhas[i]);
-    if (String(r.cpf) !== String(aluno.cpf) || r.status === 'cancelado') continue;
+    if (normCpf(r.cpf) !== normCpf(aluno.cpf) || r.status === 'cancelado') continue;
     lista.push({
       id: r.id, aulaId: r.aula_id, data: dataTexto(r.data), hora: horaTexto(r.hora),
       modalidade: r.modalidade, professor: r.professor, tapete: r.tapete ? Number(r.tapete) : null, status: r.status,
@@ -396,7 +397,7 @@ function minhasReservas(d) {
 function salvarAnamnese(d) {
   var aluno = alunoDaSessao(d.token);
   var f = d.ficha || {};
-  var cpf = soDigitos(aluno.cpf).padStart(11, '0');
+  var cpf = normCpf(aluno.cpf);
 
   if (!f.emergencia_nome || soDigitos(f.emergencia_telefone).length < 10) throw new Error('Informe o contato de emergência com telefone.');
   for (var i = 1; i <= 7; i++) {
@@ -457,7 +458,7 @@ function linhaAnamnese(cpf) {
   if (!s || s.getLastRow() < 2) return 0;
   var cpfs = s.getRange(2, 1, s.getLastRow() - 1, 1).getValues();
   for (var i = 0; i < cpfs.length; i++) {
-    if (soDigitos(cpfs[i][0]).padStart(11, '0') === cpf) return i + 2;
+    if (normCpf(cpfs[i][0]) === normCpf(cpf)) return i + 2;
   }
   return 0;
 }
@@ -538,7 +539,7 @@ function aba(nome) {
     s.appendRow(ABAS[nome]);
     s.getRange(1, 1, 1, ABAS[nome].length).setFontWeight('bold').setBackground('#2F3821').setFontColor('#E9DDC5');
     s.setFrozenRows(1);
-    s.getRange('A:G').setNumberFormat('@');
+    s.getRange(nome === 'Sessoes' ? 'A:B' : 'A:G').setNumberFormat('@');
   }
   if (!s) throw new Error('Aba "' + nome + '" não encontrada. Execute configurarPlanilha.');
   return s;
@@ -556,6 +557,11 @@ function objeto(cab, linha) {
 
 function soDigitos(v) {
   return String(v || '').replace(/\D/g, '');
+}
+
+// CPF sempre com 11 dígitos (a planilha pode apagar o zero da frente)
+function normCpf(v) {
+  return soDigitos(v).padStart(11, '0');
 }
 
 function cpfValido(c) {
