@@ -3,10 +3,22 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import Tapete from '../components/Tapete.jsx';
+import Reformer from '../components/Reformer.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
 import { SALA_YOGA, CONFIG } from '../config.js';
 import { dataExtensa, formatarHora, horaFim } from '../lib/util.js';
+
+// distribui as vagas ocupadas entre os aparelhos (sempre igual para a mesma aula)
+function ocupadosPilates(aula) {
+  const total = aula.capacidade;
+  const ocup = Math.min(aula.ocupadosQtd, total);
+  let h = 0;
+  for (const c of aula.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const ordem = [...Array(total).keys()].sort((a, b) => ((a * 7 + h) % 11) - ((b * 7 + h) % 11));
+  const marcados = new Set(ordem.slice(0, ocup));
+  return [...Array(total)].map((_, i) => marcados.has(i));
+}
 
 export default function Reservar() {
   const { id } = useParams();
@@ -118,9 +130,37 @@ export default function Reservar() {
           </>
         ) : (
           <div className="pilates-reserva">
-            <Forma nome="equilibrio" tamanho={84} cor="var(--oliva)" />
-            <p className="display-p">{livres} de {aula.capacidade} vagas livres</p>
-            <p>No Pilates o lugar é organizado pela professora na hora da aula.</p>
+            <div className="estudio">
+              <div className="estudio__frente">
+                <span className="estudio__espelho" aria-hidden="true" />
+                <span className="rotulo">frente · {aula.professor}</span>
+              </div>
+              <div className="estudio__piso">
+                {ocupadosPilates(aula).map((ocupado, i) => <Reformer key={i} numero={i + 1} ocupado={ocupado} />)}
+              </div>
+            </div>
+
+            <aside className="detalhes">
+              <span className="rotulo-espacado cor-terracota">Pilates</span>
+              <p className="detalhes__vagas">
+                <strong>{livres}</strong> de {aula.capacidade} aparelhos livres
+              </p>
+              <dl className="detalhes__lista">
+                <div><dt>Professora</dt><dd>{aula.professor}</dd></div>
+                <div><dt>Dia</dt><dd>{dataExtensa(aula.data)}</dd></div>
+                <div><dt>Horário</dt><dd>{formatarHora(aula.hora)} às {formatarHora(horaFim(aula.hora, aula.duracao || 60))}</dd></div>
+                <div><dt>Duração</dt><dd>{aula.duracao || 60} minutos</dd></div>
+              </dl>
+              <div className="detalhes__dicas">
+                <span className="rotulo">Para a sua aula</span>
+                <ul>
+                  <li><Forma nome="presenca" tamanho={18} cor="var(--caramelo)" /> Chegue 10 minutos antes</li>
+                  <li><Forma nome="equilibrio" tamanho={18} cor="var(--caramelo)" /> Use meia antiderrapante</li>
+                  <li><Forma nome="sutileza" tamanho={18} cor="var(--caramelo)" /> Traga sua garrafinha de água</li>
+                </ul>
+              </div>
+              <p className="detalhes__nota">A professora organiza os aparelhos no início da aula.</p>
+            </aside>
           </div>
         )}
       </div>

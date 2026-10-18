@@ -140,7 +140,7 @@ function doPost(e) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · ficha de saúde v3 (CPF com zero)';
+var VERSAO = '2026-10-18 · v4 (datas no fuso certo)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -345,11 +345,24 @@ function reservar(d) {
   }
 }
 
+// aula_id = "2026-10-19_06:00_pilates": fonte segura da data e da hora
+function partesAula(r) {
+  var p = String(r.aula_id || '').split('_');
+  if (p.length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(p[0])) {
+    r.data = p[0];
+    r.hora = p[1];
+  } else {
+    r.data = dataTexto(r.data);
+    r.hora = horaTexto(r.hora);
+  }
+  return r;
+}
+
 function acharMinhaReserva(d) {
   var aluno = alunoDaSessao(d.token);
   var r = reservasAtivas().filter(function (x) { return x.id === d.reservaId && normCpf(x.cpf) === normCpf(aluno.cpf); })[0];
   if (!r) throw new Error('Reserva não encontrada.');
-  return r;
+  return partesAula(r);
 }
 
 function cancelar(d) {
@@ -381,8 +394,9 @@ function minhasReservas(d) {
   for (var i = 1; i < linhas.length; i++) {
     var r = objeto(cab, linhas[i]);
     if (normCpf(r.cpf) !== normCpf(aluno.cpf) || r.status === 'cancelado') continue;
+    partesAula(r);
     lista.push({
-      id: r.id, aulaId: r.aula_id, data: dataTexto(r.data), hora: horaTexto(r.hora),
+      id: r.id, aulaId: r.aula_id, data: r.data, hora: r.hora,
       modalidade: r.modalidade, professor: r.professor, tapete: r.tapete ? Number(r.tapete) : null, status: r.status,
     });
   }
@@ -579,13 +593,19 @@ function agoraTexto() {
   return Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyyy-MM-dd HH:mm:ss');
 }
 
+// A planilha converte "2026-10-19" e "06:00" em data/hora no fuso DELA.
+// Para ler de volta o valor digitado, formatamos no mesmo fuso da planilha.
+function fusoPlanilha() {
+  try { return planilha().getSpreadsheetTimeZone() || AJUSTES.fuso; } catch (e) { return AJUSTES.fuso; }
+}
+
 function dataTexto(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, AJUSTES.fuso, 'yyyy-MM-dd');
+  if (v instanceof Date) return Utilities.formatDate(v, fusoPlanilha(), 'yyyy-MM-dd');
   return String(v).slice(0, 10);
 }
 
 function horaTexto(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, AJUSTES.fuso, 'HH:mm');
+  if (v instanceof Date) return Utilities.formatDate(v, fusoPlanilha(), 'HH:mm');
   var s = String(v).trim();
   if (!s) return '';
   var p = s.split(':');

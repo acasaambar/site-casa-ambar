@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import AreaNav from '../components/AreaNav.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { DIAS_CURTOS, MESES, dataDeIso, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
@@ -38,9 +39,15 @@ export default function Aulas() {
         <div className="largura">
           <span className="rotulo-espacado cor-caramelo">Área do aluno</span>
           <h1 className="display-m">Olá, {aluno?.nome.split(' ')[0]}. Qual aula hoje?</h1>
+          {(aulas || []).some((x) => x.minhaReserva) && (
+            <Link to="/minhas-reservas" className="atalho-reservas">
+              Você tem {(aulas || []).filter((x) => x.minhaReserva).length} aula(s) reservada(s) · ver minhas reservas →
+            </Link>
+          )}
         </div>
       </div>
 
+      <AreaNav />
       <div className="largura app__corpo">
         {erro && <p className="erro" role="alert">{erro}</p>}
         {!aulas && !erro && <Carregando />}

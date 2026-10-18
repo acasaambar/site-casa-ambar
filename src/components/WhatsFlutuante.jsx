@@ -16,11 +16,12 @@ export default function WhatsFlutuante() {
 
   // na tela de reserva existe a barra de confirmar embaixo: o botão sobe
   const elevado = pathname.startsWith('/aula/');
+  const naArea = ['/aulas', '/minhas-reservas', '/ficha-saude'].includes(pathname);
   const texto = encodeURIComponent('Olá, Casa Âmbar! Vim pelo site e gostaria de mais informações.');
 
   return (
     <a
-      className={`whats ${visivel ? 'whats--visivel' : ''} ${elevado ? 'whats--elevado' : ''}`}
+      className={`whats ${visivel ? 'whats--visivel' : ''} ${elevado ? 'whats--elevado' : ''} ${naArea ? 'whats--area' : ''}`}
       href={`https://wa.me/${CONFIG.whatsapp}?text=${texto}`}
       target="_blank"
       rel="noreferrer"

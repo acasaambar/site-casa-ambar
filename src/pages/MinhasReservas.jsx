@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import AreaNav from '../components/AreaNav.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Forma, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
@@ -62,6 +63,7 @@ export default function MinhasReservas() {
         </div>
       </div>
 
+      <AreaNav />
       <div className="largura app__corpo">
         {erro && <p className="erro" role="alert">{erro}</p>}
         {!lista && !erro && <Carregando />}

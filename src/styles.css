@@ -693,8 +693,7 @@ strong { font-weight: 500; }
 .legenda__meu { background: var(--terracota); box-shadow: 0 0 0 2px var(--ambar); }
 .legenda__ocupado { background: #B7AE99; }
 
-.pilates-reserva { max-width: 480px; margin: 20px auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 48px 28px; border-radius: var(--raio); background: var(--branco); box-shadow: var(--sombra); }
-.pilates-reserva p:last-child { margin: 0; color: var(--tinta-suave); font-size: 13px; }
+
 
 .barra-confirmar {
   position: fixed;
@@ -984,3 +983,139 @@ strong { font-weight: 500; }
 .girando-lento { animation: girar 30s linear infinite; }
 .logado-como a { color: var(--terracota); }
 .erro--destaque { font-size: 14px; padding: 16px 18px; border: 1px solid #C98B6E; }
+
+/* ============================================================
+   NAVEGAÇÃO DA ÁREA DO ALUNO
+   ============================================================ */
+.area-nav { background: var(--verde); border-top: 1px solid rgba(233, 221, 197, 0.12); }
+.area-nav__in { max-width: var(--largura); margin: 0 auto; padding: 0 24px; display: flex; gap: 6px; }
+.area-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 0 18px;
+  color: #CFC6B0;
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: color var(--rapido), border-color var(--rapido), background var(--rapido);
+}
+.area-nav__item:hover { color: var(--creme); background: rgba(233, 221, 197, 0.05); }
+.area-nav__item.active { color: var(--creme); border-color: var(--ambar); }
+.atalho-reservas {
+  display: inline-flex;
+  margin-top: 18px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(233, 221, 197, 0.12);
+  color: var(--creme);
+  font-size: 13px;
+  text-decoration: none;
+  border: 1px solid rgba(233, 221, 197, 0.25);
+}
+.atalho-reservas:hover { background: rgba(233, 221, 197, 0.2); }
+@media (max-width: 760px) {
+  /* no celular vira uma barra fixa embaixo, como em aplicativo */
+  .area-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    border-top: 1px solid rgba(233, 221, 197, 0.18);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -12px 30px -18px rgba(0, 0, 0, 0.5);
+  }
+  .area-nav__in { padding: 0; gap: 0; }
+  .area-nav__item {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 64px;
+    padding: 6px 4px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-align: center;
+    border-bottom: 0;
+    border-top: 2px solid transparent;
+  }
+  .area-nav__item.active { border-top-color: var(--ambar); background: rgba(233, 221, 197, 0.06); }
+  .app { padding-bottom: 110px; }
+  .whats--area { bottom: 84px; }
+}
+
+/* ============================================================
+   RESERVA DE PILATES: ESTÚDIO COM APARELHOS
+   ============================================================ */
+.pilates-reserva { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.estudio {
+  border-radius: 26px;
+  overflow: hidden;
+  background-color: #C49A69;
+  background-image:
+    linear-gradient(180deg, rgba(255, 236, 200, 0.18), rgba(60, 30, 10, 0.12)),
+    repeating-linear-gradient(90deg, rgba(70, 38, 14, 0.22) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 20px, rgba(0, 0, 0, 0.05) 20px 44px, rgba(255, 255, 255, 0.04) 44px 64px),
+    repeating-linear-gradient(0deg, transparent 0 210px, rgba(70, 38, 14, 0.25) 210px 211px, transparent 211px 340px);
+  box-shadow: 0 30px 60px -36px rgba(47, 30, 12, 0.7), 0 0 0 10px #E3D7BE, 0 0 0 11px rgba(47, 56, 33, 0.15);
+}
+.estudio__frente {
+  position: relative;
+  height: 92px;
+  background: linear-gradient(180deg, #2A2A22, #3C3A2C 70%, #4A4231);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  color: #F6EBD5;
+}
+.estudio__espelho {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 14px;
+  height: 46px;
+  border-radius: 6px;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.05) 0 30%, rgba(255, 255, 255, 0.22) 38%, rgba(255, 255, 255, 0.05) 46% 70%, rgba(255, 255, 255, 0.16) 76%, rgba(255, 255, 255, 0.04) 82%);
+  border: 1px solid rgba(233, 221, 197, 0.25);
+}
+.estudio__frente .rotulo { font-size: 10px; position: relative; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }
+.estudio__piso { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 28px; padding: 30px 34px 34px; }
+.reformer { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.reformer svg { width: 100%; max-width: 170px; height: auto; display: block; overflow: visible; }
+.reformer figcaption { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(47, 30, 12, 0.7); }
+.reformer--ocupado figcaption { color: rgba(60, 50, 40, 0.5); }
+
+.detalhes {
+  background: var(--branco);
+  border-radius: 24px;
+  padding: 30px 28px;
+  box-shadow: var(--sombra);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: sticky;
+  top: 100px;
+}
+.detalhes .rotulo-espacado { font-size: 11px; letter-spacing: 0.4em; }
+.detalhes__vagas { margin: 0; font-size: 16px; color: var(--tinta-suave); }
+.detalhes__vagas strong { font-family: var(--mono); font-weight: 300; font-size: 44px; color: var(--verde); margin-right: 6px; line-height: 1; }
+.detalhes__lista { margin: 0; display: flex; flex-direction: column; border-top: 1px solid rgba(47, 56, 33, 0.12); }
+.detalhes__lista div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(47, 56, 33, 0.12); }
+.detalhes__lista dt { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--tinta-suave); padding-top: 3px; }
+.detalhes__lista dd { margin: 0; font-size: 15px; font-weight: 500; text-align: right; }
+.detalhes__dicas { background: var(--papel); border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.detalhes__dicas .rotulo { color: var(--terracota); }
+.detalhes__dicas ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.detalhes__dicas li { display: flex; align-items: center; gap: 12px; }
+.detalhes__nota { margin: 0; font-size: 13px; color: var(--tinta-suave); }
+@media (max-width: 860px) {
+  .pilates-reserva { grid-template-columns: 1fr; }
+  .detalhes { position: static; }
+  .estudio__piso { gap: 16px 18px; padding: 24px 18px 26px; }
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import AreaNav from '../components/AreaNav.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Forma, Sol } from '../components/Marca.jsx';
 import { PARQ, COMORBIDADES, PARENTESCO, FICHA_VAZIA } from '../anamnese.js';
@@ -108,6 +109,7 @@ export default function FichaSaude() {
         </div>
       </div>
 
+      {!local.state?.novo && <AreaNav />}
       <div className="largura app__corpo ficha">
         <ol className="passos" aria-label="Etapas">
           {ETAPAS.map((e, i) => (
