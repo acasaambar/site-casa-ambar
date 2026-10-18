@@ -186,7 +186,13 @@ function doPost(e) {
     if (!fn) return responder(false, null, 'Ação desconhecida.');
     return responder(true, fn(corpo));
   } catch (err) {
-    return responder(false, err.dados || null, err.message || String(err), err.codigo);
+    var msg = err.message || String(err);
+    // falta de autorização do Google: mostra uma mensagem simples para a aluna
+    if (/permiss|authoriz|autoriza/i.test(msg)) {
+      Logger.log('Falta autorização: ' + msg);
+      msg = 'Esta função está sendo ativada pela Casa Âmbar. Tente de novo mais tarde ou fale com a recepção.';
+    }
+    return responder(false, err.dados || null, msg, err.codigo);
   }
 }
 
