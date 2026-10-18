@@ -6,4 +6,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   base: './',
+  // compatível também com iPhones e Macs com Safari mais antigo
+  build: { target: ['es2020', 'safari14', 'chrome87', 'firefox78'] },
 });

@@ -58,7 +58,7 @@ export function Logo({ variante = 'verde', largura = 64, className = '' }) {
 
 // Selo circular "CASA ÂMBAR" com o sol no centro.
 export function Selo({ tamanho = 160, className = '' }) {
-  const id = useId().replace(/:/g, '');
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <svg className={className} width={tamanho} height={tamanho} viewBox="0 0 200 200" aria-hidden="true">
       <defs>

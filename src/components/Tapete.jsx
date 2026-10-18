@@ -12,7 +12,7 @@ const CORES = {
  * estado: 'livre' | 'meu' | 'ocupado'
  */
 export default function Tapete({ numero, estado = 'livre', onClick, desabilitado }) {
-  const uid = useId().replace(/:/g, '');
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const c = CORES[estado];
   const ocupado = estado === 'ocupado';
   const rotulo = `Tapete ${numero}, ${ocupado ? 'ocupado' : estado === 'meu' ? 'escolhido por você' : 'livre'}`;

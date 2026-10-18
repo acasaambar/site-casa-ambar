@@ -7,6 +7,7 @@ import Entrar from './pages/Entrar.jsx';
 import Aulas from './pages/Aulas.jsx';
 import Reservar from './pages/Reservar.jsx';
 import MinhasReservas from './pages/MinhasReservas.jsx';
+import ErroTela from './components/ErroTela.jsx';
 
 function Protegida({ children }) {
   const { token } = useAuth();
@@ -21,12 +22,18 @@ function TopoAoNavegar() {
   return null;
 }
 
+function Paginas({ children }) {
+  const { pathname } = useLocation();
+  return <ErroTela key={pathname}>{children}</ErroTela>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <HashRouter>
         <TopoAoNavegar />
         <Header />
+        <Paginas>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/entrar" element={<Entrar />} />
@@ -35,6 +42,7 @@ export default function App() {
           <Route path="/minhas-reservas" element={<Protegida><MinhasReservas /></Protegida>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Paginas>
         <Footer />
       </HashRouter>
     </AuthProvider>

@@ -9,9 +9,12 @@ import '@fontsource/ibm-plex-mono/400-italic.css';
 import '@fontsource/pinyon-script/400.css';
 import './styles.css';
 import App from './App.jsx';
+import ErroTela from './components/ErroTela.jsx';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ErroTela>
+      <App />
+    </ErroTela>
   </StrictMode>
 );
