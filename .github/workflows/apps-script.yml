@@ -1,0 +1,68 @@
+name: Publicar Apps Script
+
+# Envia o código de apps-script/ para o Google Apps Script e atualiza a
+# implantação do App da Web (a URL /exec continua a mesma).
+# Roda sozinho quando algo dentro de apps-script/ muda na branch main.
+#
+# Precisa de 3 segredos em Settings → Secrets and variables → Actions:
+#   CLASPRC_JSON   conteúdo do arquivo ~/.clasprc.json (gerado pelo "clasp login")
+#   SCRIPT_ID      ID do projeto (Apps Script → Configurações do projeto → ID do script)
+#   DEPLOYMENT_ID  ID da implantação (Implantar → Gerenciar implantações → ID da implantação)
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps-script/**']
+  workflow_dispatch:
+
+concurrency:
+  group: apps-script
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Conferir segredos
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          faltando=""
+          [ -z "$CLASPRC_JSON" ] && faltando="$faltando CLASPRC_JSON"
+          [ -z "$SCRIPT_ID" ] && faltando="$faltando SCRIPT_ID"
+          [ -z "$DEPLOYMENT_ID" ] && faltando="$faltando DEPLOYMENT_ID"
+          if [ -n "$faltando" ]; then
+            echo "::error::Faltam os segredos:$faltando (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+
+      - name: Preparar credenciais do clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"apps-script"}' "$SCRIPT_ID" > .clasp.json
+
+      - name: Enviar código
+        run: npx --yes @google/clasp@2.4.2 push --force
+
+      - name: Atualizar implantação (mesma URL)
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          npx --yes @google/clasp@2.4.2 deploy \
+            --deploymentId "$DEPLOYMENT_ID" \
+            --description "Automático · ${GITHUB_SHA::7} · $(date -u +%Y-%m-%d)"
+
+      - name: Apagar credenciais
+        if: always()
+        run: rm -f ~/.clasprc.json .clasp.json

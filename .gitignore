@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# credenciais do clasp (nunca enviar)
+.clasp.json
+.clasprc.json
