@@ -139,7 +139,7 @@ function doPost(e) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · ficha de saúde';
+var VERSAO = '2026-10-18 · ficha de saúde v2';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -453,7 +453,7 @@ function salvarAnamnese(d) {
 }
 
 function linhaAnamnese(cpf) {
-  var s = planilha().getSheetByName('Anamneses');
+  var s = aba('Anamneses');
   if (!s || s.getLastRow() < 2) return 0;
   var cpfs = s.getRange(2, 1, s.getLastRow() - 1, 1).getValues();
   for (var i = 0; i < cpfs.length; i++) {
@@ -530,7 +530,16 @@ function gerarPdfAnamnese(v) {
 //  7) UTILIDADES
 // ============================================================
 function aba(nome) {
-  var s = planilha().getSheetByName(nome);
+  var ss = planilha();
+  var s = ss.getSheetByName(nome);
+  if (!s && ABAS[nome]) {
+    // aba nova (ex.: Anamneses) ainda não criada: cria com o cabeçalho
+    s = ss.insertSheet(nome);
+    s.appendRow(ABAS[nome]);
+    s.getRange(1, 1, 1, ABAS[nome].length).setFontWeight('bold').setBackground('#2F3821').setFontColor('#E9DDC5');
+    s.setFrozenRows(1);
+    s.getRange('A:G').setNumberFormat('@');
+  }
   if (!s) throw new Error('Aba "' + nome + '" não encontrada. Execute configurarPlanilha.');
   return s;
 }

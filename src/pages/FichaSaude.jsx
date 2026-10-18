@@ -272,7 +272,7 @@ export default function FichaSaude() {
             </>
           )}
 
-          {erro && <p className="erro" role="alert">{erro}</p>}
+          {erro && <p className="erro erro--destaque" role="alert" ref={(el) => el && el.scrollIntoView({ behavior: 'smooth', block: 'center' })}>{erro}</p>}
 
           <div className="ficha__botoes">
             {etapa > 0 ? (

@@ -983,3 +983,4 @@ strong { font-weight: 500; }
 .ficha-ok p { margin: 0; color: var(--tinta-suave); }
 .girando-lento { animation: girar 30s linear infinite; }
 .logado-como a { color: var(--terracota); }
+.erro--destaque { font-size: 14px; padding: 16px 18px; border: 1px solid #C98B6E; }
