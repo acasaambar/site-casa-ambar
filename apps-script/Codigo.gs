@@ -166,10 +166,7 @@ function testarInfinitePay() {
     ['4. + webhook_url', Object.assign({}, base, { order_nsu: nsu + 'c', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl })],
     ['5. + customer', Object.assign({}, base, { order_nsu: nsu + 'd', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl,
       customer: { name: 'Teste Casa Ambar', phone_number: '+5585991856528' } })],
-    // tentativas de limitar parcelas (campos não documentados pela InfinitePay)
-    ['6. max_installments = 1', Object.assign({}, base, { order_nsu: nsu + 'e', max_installments: 1 })],
-    ['7. installments = 1', Object.assign({}, base, { order_nsu: nsu + 'f', installments: 1 })],
-    ['8. max_installments = 3', Object.assign({}, base, { order_nsu: nsu + 'g', max_installments: 3 })],
+    // obs.: testamos max_installments/installments em 18/10/2026: a InfinitePay descarta esses campos.
   ];
   variantes.forEach(function (v) {
     var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
