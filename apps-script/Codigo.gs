@@ -199,7 +199,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v5 (pagamentos InfinitePay)';
+var VERSAO = '2026-10-18 · v6 (catálogo automático)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -636,7 +636,14 @@ function numero(v) {
 }
 
 function listarPlanos() {
-  var linhas = aba('Planos').getDataRange().getValues();
+  var abaPlanos = aba('Planos');
+  // aba vazia (criada automaticamente): preenche com o catálogo padrão
+  if (abaPlanos.getLastRow() < 2) {
+    abaPlanos.getRange('A:E').setNumberFormat('@');
+    abaPlanos.getRange(2, 1, CATALOGO_INICIAL.length, CATALOGO_INICIAL[0].length).setValues(CATALOGO_INICIAL);
+    SpreadsheetApp.flush();
+  }
+  var linhas = abaPlanos.getDataRange().getValues();
   var cab = linhas[0];
   var lista = [];
   for (var i = 1; i < linhas.length; i++) {

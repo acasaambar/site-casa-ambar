@@ -3,12 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import AreaNav from '../components/AreaNav.jsx';
-import { Forma, IconeWhatsapp } from '../components/Marca.jsx';
+import { Forma, IconeWhatsapp, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
 import { CONFIG, AVISO_RENOVAR_DIAS } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const realCurto = (v) => {
+  const n = Number(v || 0);
+  return Number.isInteger(n) ? `R$ ${n.toLocaleString('pt-BR')}` : real(n);
+};
 const dataCurta = (iso) => {
   if (!iso) return '';
   const d = iso.length > 10 ? new Date(iso.replace(' ', 'T')) : dataDeIso(iso);
@@ -16,11 +20,10 @@ const dataCurta = (iso) => {
 };
 const diasAte = (iso) => Math.round((dataDeIso(iso) - new Date(new Date().toDateString())) / 86400000);
 
-const TIPOS = [
-  ['avulsa', 'Aula avulsa', 'Para experimentar ou para semanas diferentes.'],
-  ['mensal', 'Plano mensal', 'Sua frequência garantida por 30 dias.'],
-  ['trimestral', 'Plano trimestral', 'O melhor valor por aula, por 3 meses.'],
-];
+const MODALIDADES = {
+  Yoga: { cor: 'yoga', detalhe: '12 tapetes · com Ana Paula e Hanna', forma: 'equilibrio' },
+  Pilates: { cor: 'pilates', detalhe: '4 aparelhos · com Kalliny e Sara', forma: 'presenca' },
+};
 
 export default function MeuPlano() {
   const { token, expirou } = useAuth();
@@ -28,7 +31,8 @@ export default function MeuPlano() {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState('');
   const [modalidade, setModalidade] = useState('Yoga');
-  const [comprando, setComprando] = useState('');
+  const [escolhido, setEscolhido] = useState(null);
+  const [indo, setIndo] = useState(false);
 
   const carregar = useCallback(
     () =>
@@ -45,20 +49,25 @@ export default function MeuPlano() {
     carregar();
   }, [carregar]);
 
-  async function comprar(plano) {
+  async function irParaPagamento() {
     setErro('');
-    setComprando(plano.id);
+    setIndo(true);
     try {
-      const pg = await api.comprar(token, plano.id);
+      const pg = await api.comprar(token, escolhido.id);
       window.location.href = pg.link;
     } catch (e) {
       setErro(e.message);
-      setComprando('');
+      setIndo(false);
+      setEscolhido(null);
     }
   }
 
-  // aulas avulsas já usadas saem da lista; planos aparecem até vencer
+  const catalogo = dados?.catalogo || [];
   const ativos = (dados?.creditos || []).filter((c) => c.tipo !== 'avulsa' || c.restantes > 0);
+  const daModalidade = catalogo.filter((p) => p.modalidade === modalidade);
+  const avulsa = daModalidade.find((p) => p.tipo === 'avulsa');
+  const frequencias = [...new Set(daModalidade.filter((p) => p.tipo !== 'avulsa').map((p) => p.aulasSemana))].sort((a, b) => a - b);
+  const plano = (tipo, freq) => daModalidade.find((p) => p.tipo === tipo && p.aulasSemana === freq);
 
   const estorno = (p) =>
     `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(
@@ -71,6 +80,7 @@ export default function MeuPlano() {
         <div className="largura">
           <span className="rotulo-espacado cor-caramelo">Área do aluno</span>
           <h1 className="display-m">Meu plano</h1>
+          <p className="app__sub">Sua prática no seu ritmo. Escolha uma aula avulsa ou um plano e reserve quando quiser.</p>
         </div>
       </div>
       <AreaNav />
@@ -83,104 +93,152 @@ export default function MeuPlano() {
           <>
             {/* ---------- PLANO ATIVO ---------- */}
             <section className="plano__secao">
-              <h2 className="rotulo-espacado">Seu plano agora</h2>
+              <h2 className="titulo-secao"><Sol tamanho={14} /> Seu plano agora</h2>
               {ativos.length === 0 ? (
-                <div className="plano__vazio">
-                  <Forma nome="equilibrio" tamanho={56} cor="var(--caramelo)" />
-                  <p>Você ainda não tem plano ativo. Escolha abaixo uma aula avulsa ou um plano.</p>
+                <div className="boas-vindas">
+                  <div className="boas-vindas__texto">
+                    <span className="rotulo-espacado">Comece sua prática</span>
+                    <p className="display-p">Você ainda não tem um plano ativo</p>
+                    <p>Experimente com uma aula avulsa ou garanta sua frequência com um plano mensal ou trimestral.</p>
+                  </div>
+                  <div className="boas-vindas__formas" aria-hidden="true">
+                    <Forma nome="presenca" tamanho={58} cor="var(--creme)" />
+                    <Forma nome="equilibrio" tamanho={58} cor="var(--caramelo)" />
+                    <Forma nome="sutileza" tamanho={58} cor="var(--creme)" />
+                  </div>
                 </div>
               ) : (
-                <ul className="creditos">
-                  {ativos.map((c) => {
-                    const faltam = diasAte(c.fim);
-                    const renovar = c.tipo !== 'avulsa' && faltam <= AVISO_RENOVAR_DIAS;
-                    const plano = dados.catalogo.find((p) => p.id === c.planoId);
-                    return (
-                      <li key={c.id} className={`credito credito--${String(c.modalidade).toLowerCase()}`}>
-                        <div className="credito__topo">
-                          <span className="rotulo">{c.modalidade}</span>
-                          <span className="credito__validade">válido até {dataCurta(c.fim)}</span>
-                        </div>
-                        <strong className="credito__nome">{c.descricao}</strong>
-                        <div className="credito__uso" role="img" aria-label={`${c.usadas} de ${c.limite} aulas usadas`}>
-                          {[...Array(c.limite)].map((_, i) => <i key={i} className={i < c.usadas ? 'usada' : ''} />)}
-                        </div>
-                        <p className="credito__texto">
-                          {c.aulasSemana > 0
-                            ? `Esta semana: ${c.usadas} de ${c.limite} aulas reservadas`
-                            : `${c.restantes} ${c.restantes === 1 ? 'aula disponível' : 'aulas disponíveis'}`}
-                        </p>
-                        {renovar && (
-                          <div className="credito__renovar">
-                            <span>{faltam <= 0 ? 'Vence hoje' : `Vence em ${faltam} ${faltam === 1 ? 'dia' : 'dias'}`}</span>
-                            {plano && (
-                              <button type="button" className="botao botao--ambar botao--pequeno" disabled={!!comprando} onClick={() => comprar(plano)}>
-                                {comprando === plano.id ? 'Abrindo…' : `Renovar · ${real(plano.preco)}`}
-                              </button>
-                            )}
+                <>
+                  <ul className="creditos">
+                    {ativos.map((c) => {
+                      const faltam = diasAte(c.fim);
+                      const renovar = c.tipo !== 'avulsa' && faltam <= AVISO_RENOVAR_DIAS;
+                      const p = catalogo.find((x) => x.id === c.planoId);
+                      return (
+                        <li key={c.id} className={`credito credito--${String(c.modalidade).toLowerCase()}`}>
+                          <Sol tamanho={70} className="credito__sol" />
+                          <div className="credito__topo">
+                            <span className="rotulo">{c.modalidade}</span>
+                            <span className="credito__validade">até {dataCurta(c.fim)}</span>
                           </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {ativos.length > 0 && (
-                <Link to="/aulas" className="botao botao--cheio plano__reservar">Reservar uma aula</Link>
+                          <strong className="credito__nome">{c.descricao.replace(/^(Yoga|Pilates) · /, '')}</strong>
+                          <div className="credito__uso" role="img" aria-label={`${c.usadas} de ${c.limite} aulas usadas`}>
+                            {[...Array(c.limite)].map((_, i) => <i key={i} className={i < c.usadas ? 'usada' : ''} />)}
+                          </div>
+                          <p className="credito__texto">
+                            {c.aulasSemana > 0
+                              ? `Esta semana: ${c.usadas} de ${c.limite} aulas`
+                              : `${c.restantes} ${c.restantes === 1 ? 'aula disponível' : 'aulas disponíveis'}`}
+                          </p>
+                          {renovar && p && (
+                            <div className="credito__renovar">
+                              <span>{faltam <= 0 ? 'Vence hoje' : `Vence em ${faltam} ${faltam === 1 ? 'dia' : 'dias'}`}</span>
+                              <button type="button" className="botao botao--ambar botao--pequeno" onClick={() => setEscolhido(p)}>
+                                Renovar
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <Link to="/aulas" className="botao botao--cheio plano__reservar">Reservar uma aula</Link>
+                </>
               )}
             </section>
 
-            {/* ---------- COMPRAR ---------- */}
+            {/* ---------- CARDÁPIO DE PLANOS ---------- */}
             <section className="plano__secao">
-              <div className="plano__cabeca">
-                <h2 className="rotulo-espacado">Planos e aulas</h2>
-                <div className="filtros" role="tablist" aria-label="Modalidade">
-                  {['Yoga', 'Pilates'].map((m) => (
-                    <button key={m} type="button" role="tab" aria-pressed={modalidade === m} onClick={() => setModalidade(m)}>{m}</button>
-                  ))}
-                </div>
+              <h2 className="titulo-secao"><Sol tamanho={14} /> Planos e aulas</h2>
+
+              <div className="modalidades" role="tablist" aria-label="Modalidade">
+                {Object.entries(MODALIDADES).map(([nome, m]) => (
+                  <button
+                    key={nome}
+                    type="button"
+                    role="tab"
+                    aria-selected={modalidade === nome}
+                    className={`modalidade modalidade--${m.cor}`}
+                    onClick={() => setModalidade(nome)}
+                  >
+                    <Forma nome={m.forma} tamanho={44} cor="currentColor" />
+                    <span className="modalidade__nome">{nome}</span>
+                    <span className="modalidade__det">{m.detalhe}</span>
+                    <span className="modalidade__marca" aria-hidden="true">✓</span>
+                  </button>
+                ))}
               </div>
 
-              {TIPOS.map(([tipo, titulo, sub]) => {
-                const itens = dados.catalogo.filter((p) => p.modalidade === modalidade && p.tipo === tipo);
-                if (!itens.length) return null;
-                return (
-                  <div key={tipo} className="catalogo">
-                    <div className="catalogo__titulo">
-                      <h3 className="display-p">{titulo}</h3>
-                      <p>{sub}</p>
+              {daModalidade.length === 0 ? (
+                <div className="plano__vazio">
+                  <p>Os planos estão sendo atualizados. Para comprar agora, fale com a recepção pelo WhatsApp {CONFIG.telefone}.</p>
+                </div>
+              ) : (
+                <div className={`cardapio cardapio--${MODALIDADES[modalidade].cor}`}>
+                  <header className="cardapio__cabeca">
+                    <span className="rotulo-espacado">Casa Âmbar</span>
+                    <h3 className="display-m">{modalidade}</h3>
+                    <p className="script">harmonia em estado natural</p>
+                  </header>
+
+                  {avulsa && (
+                    <div className="cardapio__avulsa">
+                      <div>
+                        <strong className="cardapio__item">Aula avulsa</strong>
+                        <span className="cardapio__nota">Válida por {avulsa.validadeDias} dias · ideal para experimentar</span>
+                      </div>
+                      <span className="cardapio__pontos" aria-hidden="true" />
+                      <button type="button" className="preco" onClick={() => setEscolhido(avulsa)}>
+                        {realCurto(avulsa.preco)}
+                      </button>
                     </div>
-                    <ul className="catalogo__lista">
-                      {itens.map((p) => {
-                        const freq = p.aulasSemana > 0 ? `${p.aulasSemana}x na semana` : '1 aula';
-                        return (
-                          <li key={p.id} className={`oferta ${tipo === 'trimestral' ? 'oferta--destaque' : ''}`}>
-                            {tipo === 'trimestral' && <span className="oferta__selo">melhor valor</span>}
-                            <span className="oferta__freq">{freq}</span>
-                            <strong className="oferta__preco">{real(p.preco)}</strong>
-                            <span className="oferta__det">
-                              {tipo === 'mensal' && 'por 30 dias'}
-                              {tipo === 'trimestral' && `em até 3x de ${real(p.preco / 3)} no cartão`}
-                              {tipo === 'avulsa' && `válida por ${p.validadeDias} dias`}
-                            </span>
-                            <button type="button" className="botao botao--cheio botao--pequeno" disabled={!!comprando} onClick={() => comprar(p)}>
-                              {comprando === p.id ? 'Abrindo…' : 'Comprar'}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                  )}
+
+                  <div className="cardapio__tabela" role="table" aria-label={`Planos de ${modalidade}`}>
+                    <div className="cardapio__linha cardapio__linha--cabeca" role="row">
+                      <span role="columnheader">Frequência</span>
+                      <span role="columnheader">Mensal<small>30 dias</small></span>
+                      <span role="columnheader">Trimestral<small>3 meses · até 3x no cartão</small></span>
+                    </div>
+                    {frequencias.map((f) => {
+                      const m = plano('mensal', f);
+                      const t = plano('trimestral', f);
+                      return (
+                        <div key={f} className="cardapio__linha" role="row">
+                          <span role="rowheader" className="cardapio__item">{f}x na semana</span>
+                          <span role="cell" className="cardapio__celula" data-rotulo="Mensal">
+                            {m ? (
+                              <button type="button" className="preco" onClick={() => setEscolhido(m)}>{realCurto(m.preco)}</button>
+                            ) : <span className="cardapio__traco">—</span>}
+                          </span>
+                          <span role="cell" className="cardapio__celula" data-rotulo="Trimestral">
+                            {t ? (
+                              <button type="button" className="preco preco--destaque" onClick={() => setEscolhido(t)}>
+                                {realCurto(t.preco / 3)}<small>/mês</small>
+                              </button>
+                            ) : <span className="cardapio__traco">—</span>}
+                            {t && m && t.preco / 3 < m.preco && (
+                              <span className="cardapio__economia">economize {realCurto(m.preco * 3 - t.preco)}</span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-              <p className="plano__formas">Pagamento seguro pela InfinitePay · Pix ou cartão de crédito.</p>
+
+                  <footer className="cardapio__rodape">
+                    <Sol tamanho={16} />
+                    <span>Toque no valor para escolher · Pix ou cartão de crédito pela InfinitePay</span>
+                  </footer>
+                </div>
+              )}
             </section>
 
             {/* ---------- PAGAMENTOS ---------- */}
             <section className="plano__secao">
-              <h2 className="rotulo-espacado">Meus pagamentos</h2>
+              <h2 className="titulo-secao"><Sol tamanho={14} /> Meus pagamentos</h2>
               {dados.pagamentos.length === 0 ? (
-                <p className="plano__nada">Nenhum pagamento ainda.</p>
+                <p className="plano__nada">Seus pagamentos aparecem aqui, com o comprovante.</p>
               ) : (
                 <ul className="pagamentos">
                   {dados.pagamentos.map((p) => (
@@ -219,6 +277,43 @@ export default function MeuPlano() {
           </>
         )}
       </div>
+
+      {/* ---------- CONFIRMAÇÃO ANTES DE PAGAR ---------- */}
+      {escolhido && (
+        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="compra-titulo" onClick={(e) => e.target === e.currentTarget && !indo && setEscolhido(null)}>
+          <div className="confirmado__caixa compra">
+            <Sol tamanho={44} className="cor-caramelo" />
+            <span className="rotulo-espacado cor-terracota">{escolhido.modalidade}</span>
+            <h2 id="compra-titulo" className="display-m">{escolhido.nome.replace(/^(Yoga|Pilates) · /, '').replace(' · trimestral', '')}</h2>
+            <ul className="compra__resumo">
+              <li>
+                <span>Tipo</span>
+                <strong>{escolhido.tipo === 'avulsa' ? 'Aula avulsa' : escolhido.tipo === 'mensal' ? 'Plano mensal' : 'Plano trimestral'}</strong>
+              </li>
+              <li>
+                <span>Aulas</span>
+                <strong>{escolhido.aulasSemana > 0 ? `até ${escolhido.aulasSemana} por semana` : '1 aula'}</strong>
+              </li>
+              <li>
+                <span>Validade</span>
+                <strong>{escolhido.validadeDias} dias a partir do pagamento</strong>
+              </li>
+              <li className="compra__total">
+                <span>Total</span>
+                <strong>{real(escolhido.preco)}</strong>
+              </li>
+              {escolhido.tipo === 'trimestral' && (
+                <li><span /><em>ou até 3x de {real(escolhido.preco / 3)} no cartão</em></li>
+              )}
+            </ul>
+            <button type="button" className="botao botao--cheio compra__ir" disabled={indo} onClick={irParaPagamento}>
+              {indo ? 'Abrindo pagamento…' : 'Ir para o pagamento'}
+            </button>
+            <p className="confirmado__nota">O pagamento acontece na página segura da InfinitePay. Ao concluir, você volta para cá.</p>
+            <button type="button" className="link-sair" disabled={indo} onClick={() => setEscolhido(null)}>Voltar</button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
