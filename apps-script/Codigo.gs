@@ -5,8 +5,10 @@
  * ============================================================
  *
  *  COMO INSTALAR (uma vez só):
- *  1. Crie uma planilha nova no Google Sheets (conta da Casa Âmbar).
- *  2. Menu Extensões → Apps Script. Apague o que houver e cole este arquivo inteiro.
+ *  1. Crie uma planilha nova no Google Sheets (conta da Casa Âmbar) e coloque
+ *     o ID dela em PLANILHA_ID, logo abaixo.
+ *  2. Em script.google.com (ou Extensões → Apps Script), apague o que houver
+ *     e cole este arquivo inteiro.
  *  3. No menu da esquerda, clique na engrenagem (Configurações do projeto)
  *     e marque "Mostrar arquivo de manifesto appsscript.json".
  *     Abra o appsscript.json e troque o conteúdo pelo arquivo appsscript.json da pasta.
@@ -19,6 +21,16 @@
  *  Sempre que mudar este código: Implantar → Gerenciar implantações →
  *  editar (lápis) → Versão: Nova versão → Implantar. A URL continua a mesma.
  */
+
+// -------------------- PLANILHA --------------------
+// ID da planilha (o trecho da URL entre /d/ e /edit)
+var PLANILHA_ID = '1FM-mNF_w0FSS48rhEYp54dRrgwANpIbtTEK2nmWewdo';
+
+var _planilha = null;
+function planilha() {
+  if (!_planilha) _planilha = SpreadsheetApp.openById(PLANILHA_ID);
+  return _planilha;
+}
 
 // -------------------- AJUSTES --------------------
 var AJUSTES = {
@@ -42,7 +54,7 @@ var ABAS = {
 //  1) CONFIGURAÇÃO INICIAL — execute uma vez
 // ============================================================
 function configurarPlanilha() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = planilha();
   Object.keys(ABAS).forEach(function (nome) {
     var aba = ss.getSheetByName(nome) || ss.insertSheet(nome);
     if (aba.getLastRow() === 0) {
@@ -72,7 +84,7 @@ function configurarPlanilha() {
     });
     grade.getRange(2, 1, linhas.length, linhas[0].length).setValues(linhas);
   }
-  SpreadsheetApp.getUi && Logger.log('Planilha configurada!');
+  Logger.log('Planilha configurada! Abas: ' + ss.getSheets().map(function (a) { return a.getName(); }).join(', '));
 }
 
 // ============================================================
@@ -354,7 +366,7 @@ function minhasReservas(d) {
 //  6) UTILIDADES
 // ============================================================
 function aba(nome) {
-  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nome);
+  var s = planilha().getSheetByName(nome);
   if (!s) throw new Error('Aba "' + nome + '" não encontrada. Execute configurarPlanilha.');
   return s;
 }
