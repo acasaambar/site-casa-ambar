@@ -26,7 +26,7 @@ export default function Tapete({ numero, estado = 'livre', onClick, desabilitado
       aria-pressed={estado === 'meu'}
       aria-label={rotulo}
     >
-      <svg viewBox="0 0 120 280" role="presentation">
+      <svg viewBox="0 0 120 240" role="presentation">
         <defs>
           <linearGradient id={`g${uid}`} x1="0" x2="1" y1="0" y2="0">
             <stop offset="0" stopColor={c.escuro} />
@@ -58,17 +58,17 @@ export default function Tapete({ numero, estado = 'livre', onClick, desabilitado
 
         {/* corpo do tapete */}
         <g filter={`url(#s${uid})`}>
-          <rect x="10" y="10" width="100" height="260" rx="9" fill={`url(#g${uid})`} />
+          <rect x="10" y="10" width="100" height="220" rx="9" fill={`url(#g${uid})`} />
         </g>
-        <rect x="10" y="10" width="100" height="260" rx="9" fill={`url(#t${uid})`} />
-        <rect x="10" y="10" width="100" height="260" rx="9" fill={`url(#l${uid})`} />
+        <rect x="10" y="10" width="100" height="220" rx="9" fill={`url(#t${uid})`} />
+        <rect x="10" y="10" width="100" height="220" rx="9" fill={`url(#l${uid})`} />
         {/* borda costurada */}
-        <rect x="15" y="15" width="90" height="250" rx="6" fill="none" stroke={c.numero} strokeOpacity="0.22" strokeWidth="1" strokeDasharray="3 3" />
+        <rect x="15" y="15" width="90" height="210" rx="6" fill="none" stroke={c.numero} strokeOpacity="0.22" strokeWidth="1" strokeDasharray="3 3" />
         {/* linha de alinhamento central */}
-        <line x1="60" y1="70" x2="60" y2="210" stroke={c.numero} strokeOpacity="0.14" strokeWidth="1.2" />
+        <line x1="60" y1="70" x2="60" y2="170" stroke={c.numero} strokeOpacity="0.14" strokeWidth="1.2" />
 
         {/* número impresso */}
-        <text x="60" y="232" textAnchor="middle" fill={c.numero} fontSize="38" style={{ fontFamily: "var(--mono)", fontWeight: 300 }}>
+        <text x="60" y="206" textAnchor="middle" fill={c.numero} fontSize="40" style={{ fontFamily: "var(--mono)", fontWeight: 300 }}>
           {numero}
         </text>
 
@@ -81,7 +81,7 @@ export default function Tapete({ numero, estado = 'livre', onClick, desabilitado
 
         {/* bloco de cortiça (livre e meu) ou toalha dobrada (ocupado) */}
         {ocupado ? (
-          <g transform="translate(26 92)">
+          <g transform="translate(26 84)">
             <rect x="0" y="0" width="68" height="44" rx="5" fill="#EFE6D3" />
             <rect x="0" y="0" width="68" height="44" rx="5" fill="none" stroke="#C9BDA2" strokeWidth="1" />
             <line x1="0" y1="14" x2="68" y2="14" stroke="#D8CDB4" strokeWidth="2" />

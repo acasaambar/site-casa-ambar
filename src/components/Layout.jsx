@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Logo, Selo, Sol, IconeInstagram, IconeWhatsapp } from './Marca.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { CONFIG } from '../config.js';
@@ -7,7 +7,8 @@ import { MODO_DEMO } from '../lib/api.js';
 
 export function Header() {
   const { pathname } = useLocation();
-  const { aluno } = useAuth();
+  const { aluno, sair } = useAuth();
+  const navegar = useNavigate();
   const naHome = pathname === '/';
   const [rolou, setRolou] = useState(false);
   const [aberto, setAberto] = useState(false);
@@ -40,6 +41,7 @@ export function Header() {
               <NavLink to="/aulas">Aulas</NavLink>
               <NavLink to="/minhas-reservas">Minhas reservas</NavLink>
               <NavLink to="/meu-plano">Meu plano</NavLink>
+              <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { e.preventDefault(); sair(); navegar('/'); }}>Sair</a>
             </>
           ) : null}
         </nav>

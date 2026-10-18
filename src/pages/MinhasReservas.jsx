@@ -9,7 +9,7 @@ import { CONFIG } from '../config.js';
 import { dataExtensa, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
 
 export default function MinhasReservas() {
-  const { token, aluno, sair, expirou } = useAuth();
+  const { token, aluno, expirou } = useAuth();
   const nav = useNavigate();
   const [lista, setLista] = useState(null);
   const [erro, setErro] = useState('');
@@ -59,7 +59,7 @@ export default function MinhasReservas() {
             <span className="rotulo-espacado cor-caramelo">Área do aluno</span>
             <h1 className="display-m">Minhas reservas</h1>
           </div>
-          <button type="button" className="link-sair" onClick={() => { sair(); nav('/'); }}>Sair</button>
+
         </div>
       </div>
 

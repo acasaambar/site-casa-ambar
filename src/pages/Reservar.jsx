@@ -3,10 +3,10 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import Tapete from '../components/Tapete.jsx';
-import Reformer from '../components/Reformer.jsx';
+import Aparelho from '../components/Reformer.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
-import { SALA_YOGA, CONFIG } from '../config.js';
+import { SALA_YOGA, CONFIG, APARELHOS_PILATES } from '../config.js';
 import { dataExtensa, formatarHora, horaFim } from '../lib/util.js';
 
 // distribui as vagas ocupadas entre os aparelhos (sempre igual para a mesma aula)
@@ -123,7 +123,7 @@ export default function Reservar() {
         {yoga ? (
           <>
             <p className="instrucao">Toque no tapete onde você quer praticar.</p>
-            <div className="sala">
+            <div className={`sala ${SALA_YOGA.colunas === 2 ? 'sala--duas' : ''}`}>
               <div className="sala__frente">
                 <div className="sala__plantas" aria-hidden="true">
                   {[...Array(9)].map((_, i) => <span key={i} style={{ '--i': i, '--s': [0.8, 0.95, 1.05][i % 3] }} />)}
@@ -133,7 +133,7 @@ export default function Reservar() {
                   <span className="rotulo">frente · {aula.professor}</span>
                 </div>
               </div>
-              <div className="sala__piso" style={{ gridTemplateColumns: `repeat(${SALA_YOGA.colunas}, minmax(0, 1fr))` }}>
+              <div className={`sala__piso ${SALA_YOGA.colunas === 2 ? 'sala__piso--duas' : ''}`} style={{ gridTemplateColumns: `repeat(${SALA_YOGA.colunas}, minmax(0, 1fr))` }}>
                 {[...Array(aula.capacidade)].map((_, i) => {
                   const n = i + 1;
                   const estado = aula.ocupados.includes(n) ? 'ocupado' : escolhido === n ? 'meu' : 'livre';
@@ -156,7 +156,9 @@ export default function Reservar() {
                 <span className="rotulo">frente · {aula.professor}</span>
               </div>
               <div className="estudio__piso">
-                {ocupadosPilates(aula).map((ocupado, i) => <Reformer key={i} numero={i + 1} ocupado={ocupado} />)}
+                {ocupadosPilates(aula).map((ocupado, i) => (
+                  <Aparelho key={i} numero={i + 1} tipo={APARELHOS_PILATES[i % APARELHOS_PILATES.length]} ocupado={ocupado} />
+                ))}
               </div>
             </div>
 

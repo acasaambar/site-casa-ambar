@@ -26,12 +26,15 @@ export const CONFIG = {
   diasVisiveis: 7, // quantos dias aparecem na agenda
 };
 
-// Sala de yoga: 12 tapetes, 3 colunas × 4 fileiras.
-// A fileira 1 é a mais perto da professora.
+// Sala de yoga: 12 tapetes, 2 colunas × 6 fileiras, com corredor no meio.
+// O tapete 1 é o mais perto da professora (à esquerda), o 2 ao lado (à direita).
 export const SALA_YOGA = {
-  colunas: 3,
+  colunas: 2,
   tapetes: 12,
 };
+
+// Aparelhos do estúdio de Pilates (um de cada, na ordem do número)
+export const APARELHOS_PILATES = ['Reformer', 'Cadillac', 'Chair', 'Ladder Barrel'];
 
 // Grade fixa de aulas (usada no modo demonstração e para
 // preencher a aba "Grade" da planilha na primeira configuração).
@@ -66,7 +69,7 @@ export const SITE_URL = 'https://acasaambar.github.io/site-casa-ambar/';
 // Catálogo de planos (no site oficial ele vem da aba "Planos" da planilha;
 // esta lista é usada no modo demonstração)
 export const PLANOS_DEMO = [
-  ['yoga-avulsa', 'Yoga', 'avulsa', 'Yoga · aula avulsa', 0, 1, 60, 63, 'Uma aula, válida por 60 dias'],
+  ['yoga-avulsa', 'Yoga', 'avulsa', 'Yoga · aula avulsa', 0, 1, 30, 63, 'Uma aula, válida por 30 dias'],
   ['yoga-mensal-1x', 'Yoga', 'mensal', 'Yoga · 1x na semana', 1, 0, 30, 200, 'Plano mensal'],
   ['yoga-mensal-2x', 'Yoga', 'mensal', 'Yoga · 2x na semana', 2, 0, 30, 350, 'Plano mensal'],
   ['yoga-mensal-3x', 'Yoga', 'mensal', 'Yoga · 3x na semana', 3, 0, 30, 480, 'Plano mensal'],
@@ -75,7 +78,7 @@ export const PLANOS_DEMO = [
   ['yoga-trimestral-2x', 'Yoga', 'trimestral', 'Yoga · 2x na semana · trimestral', 2, 0, 90, 978, '3 meses (R$ 326/mês)'],
   ['yoga-trimestral-3x', 'Yoga', 'trimestral', 'Yoga · 3x na semana · trimestral', 3, 0, 90, 1344, '3 meses (R$ 448/mês)'],
   ['yoga-trimestral-4x', 'Yoga', 'trimestral', 'Yoga · 4x na semana · trimestral', 4, 0, 90, 1626, '3 meses (R$ 542/mês)'],
-  ['pilates-avulsa', 'Pilates', 'avulsa', 'Pilates · aula avulsa', 0, 1, 60, 75, 'Uma aula, válida por 60 dias'],
+  ['pilates-avulsa', 'Pilates', 'avulsa', 'Pilates · aula avulsa', 0, 1, 30, 75, 'Uma aula, válida por 30 dias'],
   ['pilates-mensal-2x', 'Pilates', 'mensal', 'Pilates · 2x na semana', 2, 0, 30, 380, 'Plano mensal'],
   ['pilates-mensal-3x', 'Pilates', 'mensal', 'Pilates · 3x na semana', 3, 0, 30, 480, 'Plano mensal'],
   ['pilates-trimestral-2x', 'Pilates', 'trimestral', 'Pilates · 2x na semana · trimestral', 2, 0, 90, 1065, '3 meses (R$ 355/mês)'],

@@ -67,7 +67,7 @@ var ABAS = {
 
 // Catálogo inicial (vai para a aba Planos na configuração)
 var CATALOGO_INICIAL = [
-  ['yoga-avulsa', 'SIM', 'Yoga', 'avulsa', 'Yoga · aula avulsa', 0, 1, 60, 63, 'Uma aula, válida por 60 dias'],
+  ['yoga-avulsa', 'SIM', 'Yoga', 'avulsa', 'Yoga · aula avulsa', 0, 1, 30, 63, 'Uma aula, válida por 30 dias'],
   ['yoga-mensal-1x', 'SIM', 'Yoga', 'mensal', 'Yoga · 1x na semana', 1, 0, 30, 200, 'Plano mensal'],
   ['yoga-mensal-2x', 'SIM', 'Yoga', 'mensal', 'Yoga · 2x na semana', 2, 0, 30, 350, 'Plano mensal'],
   ['yoga-mensal-3x', 'SIM', 'Yoga', 'mensal', 'Yoga · 3x na semana', 3, 0, 30, 480, 'Plano mensal'],
@@ -76,7 +76,7 @@ var CATALOGO_INICIAL = [
   ['yoga-trimestral-2x', 'SIM', 'Yoga', 'trimestral', 'Yoga · 2x na semana · trimestral', 2, 0, 90, 978, '3 meses (R$ 326/mês)'],
   ['yoga-trimestral-3x', 'SIM', 'Yoga', 'trimestral', 'Yoga · 3x na semana · trimestral', 3, 0, 90, 1344, '3 meses (R$ 448/mês)'],
   ['yoga-trimestral-4x', 'SIM', 'Yoga', 'trimestral', 'Yoga · 4x na semana · trimestral', 4, 0, 90, 1626, '3 meses (R$ 542/mês)'],
-  ['pilates-avulsa', 'SIM', 'Pilates', 'avulsa', 'Pilates · aula avulsa', 0, 1, 60, 75, 'Uma aula, válida por 60 dias'],
+  ['pilates-avulsa', 'SIM', 'Pilates', 'avulsa', 'Pilates · aula avulsa', 0, 1, 30, 75, 'Uma aula, válida por 30 dias'],
   ['pilates-mensal-2x', 'SIM', 'Pilates', 'mensal', 'Pilates · 2x na semana', 2, 0, 30, 380, 'Plano mensal'],
   ['pilates-mensal-3x', 'SIM', 'Pilates', 'mensal', 'Pilates · 3x na semana', 3, 0, 30, 480, 'Plano mensal'],
   ['pilates-trimestral-2x', 'SIM', 'Pilates', 'trimestral', 'Pilates · 2x na semana · trimestral', 2, 0, 90, 1065, '3 meses (R$ 355/mês)'],
@@ -233,7 +233,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v8 (diagnóstico InfinitePay)';
+var VERSAO = '2026-10-18 · v9 (avulsa 30 dias)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -677,6 +677,20 @@ function listarPlanos() {
     abaPlanos.getRange(2, 1, CATALOGO_INICIAL.length, CATALOGO_INICIAL[0].length).setValues(CATALOGO_INICIAL);
     SpreadsheetApp.flush();
   }
+  // ajuste único: aula avulsa passou a valer 30 dias (antes 60)
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('AVULSA_30_DIAS')) {
+    var dadosPlanos = abaPlanos.getDataRange().getValues();
+    var cabP = dadosPlanos[0];
+    var colTipo = cabP.indexOf('tipo'), colVal = cabP.indexOf('validade_dias'), colDesc = cabP.indexOf('descricao');
+    for (var k = 1; k < dadosPlanos.length; k++) {
+      if (String(dadosPlanos[k][colTipo]) === 'avulsa' && Number(dadosPlanos[k][colVal]) === 60) {
+        abaPlanos.getRange(k + 1, colVal + 1).setValue(30);
+        abaPlanos.getRange(k + 1, colDesc + 1).setValue('Uma aula, válida por 30 dias');
+      }
+    }
+    props.setProperty('AVULSA_30_DIAS', 'ok');
+  }
   var linhas = abaPlanos.getDataRange().getValues();
   var cab = linhas[0];
   var lista = [];
@@ -906,7 +920,7 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     s.getRange(pg._linha, col('slug')).setValue(String(slug));
 
     // crédito novo
-    var plano = buscarPlano(pg.plano_id) || { id: pg.plano_id, nome: pg.descricao, modalidade: '', tipo: 'avulsa', aulas_semana: 0, aulas_total: 1, validade_dias: 60 };
+    var plano = buscarPlano(pg.plano_id) || { id: pg.plano_id, nome: pg.descricao, modalidade: '', tipo: 'avulsa', aulas_semana: 0, aulas_total: 1, validade_dias: 30 };
     var hoje = hojeTexto();
     var creditoId = 'C' + orderNsu.slice(1);
     aba('Creditos').appendRow([creditoId, normCpf(pg.cpf), pg.nome, plano.id, plano.nome, plano.modalidade, plano.tipo, plano.aulas_semana, plano.aulas_total,
