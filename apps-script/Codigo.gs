@@ -138,8 +138,11 @@ function doPost(e) {
   }
 }
 
+// Versão do código (muda a cada atualização publicada)
+var VERSAO = '2026-10-18 · ficha de saúde';
+
 function doGet() {
-  return responder(true, { status: 'Casa Âmbar API no ar' });
+  return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
 }
 
 function responder(ok, dados, erro) {
