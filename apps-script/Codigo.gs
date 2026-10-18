@@ -58,7 +58,7 @@ var ABAS = {
     'comorbidades', 'comorbidade_outra', 'gestante', 'gestante_semanas', 'cirurgias', 'lesoes', 'medicamentos', 'alergias',
     'atividade_regular', 'observacoes', 'declaracao', 'consentimento', 'pdf'],
   // Catálogo do que se vende no site (edite preços e planos aqui)
-  Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao', 'parcelas_max'],
+  Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao', 'sem_juros_ate'],
   Pagamentos: ['order_nsu', 'cpf', 'nome', 'plano_id', 'descricao', 'valor', 'status', 'link', 'criado_em', 'pago_em', 'metodo', 'parcelas',
     'valor_pago', 'transaction_nsu', 'slug', 'recibo', 'reserva_id', 'aula_id', 'tapete', 'observacao'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
@@ -176,6 +176,27 @@ function testarInfinitePay() {
   });
 }
 
+// Diagnóstico 2: tenta vários nomes de campo para "parcelas sem juros".
+// Cada linha gera um link de R$ 1,00 (não cobra nada). Mande o registro para o
+// suporte técnico do site: pelo link dá para ver se a InfinitePay guardou o campo.
+function testarCamposParcelas() {
+  var candidatos = ['interest_free_installments', 'installments_without_interest', 'free_installments', 'max_interest_free_installments',
+    'absorbed_installments', 'assumed_installments', 'assume_fees_until', 'fee_absorption', 'fees_absorption', 'fee_payer',
+    'pass_fees', 'pass_through_fees', 'repass_fees', 'installments_fee_payer', 'nitro', 'payment_methods', 'capture_methods'];
+  candidatos.forEach(function (campo) {
+    var corpo = { handle: AJUSTES.infinitepayHandle, items: [{ quantity: 1, price: 100, description: 'Teste ' + campo }] };
+    corpo[campo] = /method/.test(campo) ? ['pix', 'credit_card'] : /payer|pass|repass|absorption/.test(campo) && campo !== 'fee_absorption' ? 'customer' : 3;
+    if (campo === 'fee_absorption' || campo === 'fees_absorption') corpo[campo] = { until_installment: 3 };
+    var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
+      method: 'post', contentType: 'application/json', payload: JSON.stringify(corpo), muteHttpExceptions: true,
+    });
+    var j = {};
+    try { j = JSON.parse(resp.getContentText()); } catch (e) { /* texto */ }
+    var lenc = String(j.url || '').split('lenc=')[1] || resp.getContentText().slice(0, 200);
+    Logger.log(campo + ' | HTTP ' + resp.getResponseCode() + ' | ' + lenc);
+  });
+}
+
 // ============================================================
 //  2) PORTA DE ENTRADA DO SITE
 // ============================================================
@@ -234,7 +255,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v10 (regras de parcelamento)';
+var VERSAO = '2026-10-18 · v11 (juros por plano)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -702,7 +723,7 @@ function listarPlanos() {
     p.aulas_semana = numero(p.aulas_semana);
     p.aulas_total = numero(p.aulas_total);
     p.validade_dias = numero(p.validade_dias) || 30;
-    p.parcelas_max = parcelasMax(p);
+    p.sem_juros_ate = semJurosAte(p);
     lista.push(p);
   }
   return lista;
@@ -712,21 +733,22 @@ function buscarPlano(id) {
   return listarPlanos().filter(function (p) { return p.id === id; })[0] || null;
 }
 
-// Regra da casa: trimestral até 3x no cartão; avulsa e mensal só à vista.
-// A coluna parcelas_max da aba Planos, se preenchida, vale no lugar desta regra.
-function parcelasMax(p) {
-  var n = numero(p.parcelas_max);
+// Regra da casa: todos podem parcelar em até 12x no cartão.
+// Sem juros: avulsa e mensal só em 1x; trimestral até 3x. Acima disso, com juros.
+// A coluna sem_juros_ate da aba Planos, se preenchida, vale no lugar desta regra.
+function semJurosAte(p) {
+  var n = numero(p.sem_juros_ate);
   if (n >= 1) return n;
   return String(p.tipo) === 'trimestral' ? 3 : 1;
 }
 
 function condicaoPagamento(p) {
-  var n = parcelasMax(p);
-  return n > 1 ? 'até ' + n + 'x no cartão' : 'à vista';
+  var n = semJurosAte(p);
+  return n > 1 ? 'até ' + n + 'x sem juros' : '1x sem juros';
 }
 
 function planoPublico(p) {
-  return { id: p.id, modalidade: p.modalidade, tipo: p.tipo, nome: p.nome, aulasSemana: p.aulas_semana, aulasTotal: p.aulas_total, validadeDias: p.validade_dias, preco: p.preco, descricao: p.descricao, parcelasMax: parcelasMax(p) };
+  return { id: p.id, modalidade: p.modalidade, tipo: p.tipo, nome: p.nome, aulasSemana: p.aulas_semana, aulasTotal: p.aulas_total, validadeDias: p.validade_dias, preco: p.preco, descricao: p.descricao, semJurosAte: semJurosAte(p) };
 }
 
 function creditosDo(cpf) {
@@ -931,8 +953,13 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     s.getRange(pg._linha, col('metodo')).setValue(conf.capture_method === 'pix' ? 'Pix' : conf.capture_method === 'credit_card' ? 'Cartão' : String(conf.capture_method || ''));
     s.getRange(pg._linha, col('parcelas')).setValue(conf.installments || 1);
     var planoRegra = buscarPlano(pg.plano_id);
-    if (planoRegra && Number(conf.installments || 1) > parcelasMax(planoRegra)) {
-      s.getRange(pg._linha, col('observacao')).setValue('ATENÇÃO: pago em ' + conf.installments + 'x (permitido: ' + condicaoPagamento(planoRegra) + '). Conferir com a aluna.');
+    // parcelou dentro do "sem juros" deste plano, mas a InfinitePay cobrou juros da aluna:
+    // avisa a recepção quanto devolver (valor pago − valor do plano)
+    var parcelasPagas = Number(conf.installments || 1);
+    var jurosPagos = (Number(conf.paid_amount || conf.amount) - Number(conf.amount)) / 100;
+    if (planoRegra && parcelasPagas > 1 && parcelasPagas <= semJurosAte(planoRegra) && jurosPagos > 0.009) {
+      s.getRange(pg._linha, col('observacao')).setValue('DEVOLVER R$ ' + jurosPagos.toFixed(2).replace('.', ',') + ' de juros à aluna: pagou em ' +
+        parcelasPagas + 'x, que é sem juros neste plano.');
     }
     s.getRange(pg._linha, col('valor_pago')).setValue(Number(conf.paid_amount || conf.amount) / 100);
     s.getRange(pg._linha, col('transaction_nsu')).setValue(String(transactionNsu));

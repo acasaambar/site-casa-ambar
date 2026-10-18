@@ -224,7 +224,7 @@ export default function Reservar() {
             )}
             <p className="confirmado__nota">
               {yoga && escolhido ? `O tapete ${escolhido} fica guardado por 20 minutos enquanto você paga. ` : ''}
-              À vista no Pix ou cartão em 1x, pela InfinitePay. Ao concluir, toque em “Continuar” para voltar.
+              Pix ou cartão 1x sem juros (ou até 12x com juros), pela InfinitePay. Ao concluir, toque em “Continuar” para voltar.
             </p>
             <div className="confirmado__botoes">
               <Link className="botao botao--linha" to="/meu-plano">Ver planos mensais e trimestrais</Link>

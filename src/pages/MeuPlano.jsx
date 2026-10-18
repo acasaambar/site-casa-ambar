@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth.jsx';
 import AreaNav from '../components/AreaNav.jsx';
 import { Forma, IconeWhatsapp, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
-import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
+import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento, semJuros } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -198,7 +198,7 @@ export default function MeuPlano() {
                     <div className="cardapio__linha cardapio__linha--cabeca" role="row">
                       <span role="columnheader">Frequência</span>
                       <span role="columnheader">Mensal<small>30 dias</small></span>
-                      <span role="columnheader">Trimestral<small>3 meses · até 3x no cartão</small></span>
+                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros</small></span>
                     </div>
                     {frequencias.map((f) => {
                       const m = plano('mensal', f);
@@ -228,7 +228,7 @@ export default function MeuPlano() {
 
                   <footer className="cardapio__rodape">
                     <Sol tamanho={16} />
-                    <span>Toque no valor para escolher · Avulsa e mensal à vista · Trimestral em até 3x no cartão</span>
+                    <span>Toque no valor para escolher · Avulsa e mensal: 1x sem juros · Trimestral: até 3x sem juros · Todos em até 12x com juros</span>
                   </footer>
                 </div>
               )}
@@ -306,7 +306,7 @@ export default function MeuPlano() {
                 <span>Pagamento</span>
                 <strong>
                   {condicaoPagamento(escolhido)}
-                  {(escolhido.parcelasMax || 1) > 1 && <em> · {escolhido.parcelasMax}x de {real(escolhido.preco / escolhido.parcelasMax)}</em>}
+                  {semJuros(escolhido) > 1 && <em> · {semJuros(escolhido)}x de {real(escolhido.preco / semJuros(escolhido))}</em>}
                 </strong>
               </li>
             </ul>
