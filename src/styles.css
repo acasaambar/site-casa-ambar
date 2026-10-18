@@ -1450,3 +1450,8 @@ strong { font-weight: 500; }
 /* aparelhos de Pilates: mesma altura e legenda sempre à vista */
 .estudio__piso { align-items: start; }
 .reformer svg { max-width: 150px; }
+
+.compra__condicao strong { font-family: var(--mono); font-size: 13px; }
+.compra__condicao em { font-style: normal; color: var(--terracota); }
+.compra__passos { margin: 6px 0 0; padding: 14px 18px 14px 34px; width: 100%; text-align: left; background: var(--creme); border-radius: 14px; font-size: 12px; line-height: 1.7; color: var(--tinta-suave); }
+.compra__passos strong { color: var(--verde); font-weight: 600; }

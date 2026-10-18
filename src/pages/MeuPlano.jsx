@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth.jsx';
 import AreaNav from '../components/AreaNav.jsx';
 import { Forma, IconeWhatsapp, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
-import { CONFIG, AVISO_RENOVAR_DIAS } from '../config.js';
+import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -228,7 +228,7 @@ export default function MeuPlano() {
 
                   <footer className="cardapio__rodape">
                     <Sol tamanho={16} />
-                    <span>Toque no valor para escolher · Pix ou cartão de crédito pela InfinitePay</span>
+                    <span>Toque no valor para escolher · Avulsa e mensal à vista · Trimestral em até 3x no cartão</span>
                   </footer>
                 </div>
               )}
@@ -302,14 +302,22 @@ export default function MeuPlano() {
                 <span>Total</span>
                 <strong>{real(escolhido.preco)}</strong>
               </li>
-              {escolhido.tipo === 'trimestral' && (
-                <li><span /><em>ou até 3x de {real(escolhido.preco / 3)} no cartão</em></li>
-              )}
+              <li className="compra__condicao">
+                <span>Pagamento</span>
+                <strong>
+                  {condicaoPagamento(escolhido)}
+                  {(escolhido.parcelasMax || 1) > 1 && <em> · {escolhido.parcelasMax}x de {real(escolhido.preco / escolhido.parcelasMax)}</em>}
+                </strong>
+              </li>
             </ul>
             <button type="button" className="botao botao--cheio compra__ir" disabled={indo} onClick={irParaPagamento}>
               {indo ? 'Abrindo pagamento…' : 'Ir para o pagamento'}
             </button>
-            <p className="confirmado__nota">O pagamento acontece na página segura da InfinitePay. Ao concluir, você volta para cá.</p>
+            <ol className="compra__passos">
+              <li>Você vai para a página segura da InfinitePay.</li>
+              <li>Escolha Pix ou cartão e conclua o pagamento.</li>
+              <li>Toque em <strong>Continuar</strong> para voltar à Casa Âmbar.</li>
+            </ol>
             <button type="button" className="link-sair" disabled={indo} onClick={() => setEscolhido(null)}>Voltar</button>
           </div>
         </div>

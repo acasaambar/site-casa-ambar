@@ -85,7 +85,14 @@ export const PLANOS_DEMO = [
   ['pilates-trimestral-3x', 'Pilates', 'trimestral', 'Pilates · 3x na semana · trimestral', 3, 0, 90, 1347, '3 meses (R$ 449/mês)'],
 ].map(([id, modalidade, tipo, nome, aulasSemana, aulasTotal, validadeDias, preco, descricao]) => ({
   id, modalidade, tipo, nome, aulasSemana, aulasTotal, validadeDias, preco, descricao,
+  parcelasMax: tipo === 'trimestral' ? 3 : 1,
 }));
+
+// Texto da condição de pagamento de cada plano
+export function condicaoPagamento(plano) {
+  const n = Number(plano?.parcelasMax) || (plano?.tipo === 'trimestral' ? 3 : 1);
+  return n > 1 ? `Pix ou cartão de crédito em até ${n}x` : 'À vista: Pix ou cartão de crédito em 1x';
+}
 
 // Avisar para renovar quando faltarem X dias para o plano vencer
 export const AVISO_RENOVAR_DIAS = 7;

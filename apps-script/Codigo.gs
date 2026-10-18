@@ -58,7 +58,7 @@ var ABAS = {
     'comorbidades', 'comorbidade_outra', 'gestante', 'gestante_semanas', 'cirurgias', 'lesoes', 'medicamentos', 'alergias',
     'atividade_regular', 'observacoes', 'declaracao', 'consentimento', 'pdf'],
   // Catálogo do que se vende no site (edite preços e planos aqui)
-  Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao'],
+  Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao', 'parcelas_max'],
   Pagamentos: ['order_nsu', 'cpf', 'nome', 'plano_id', 'descricao', 'valor', 'status', 'link', 'criado_em', 'pago_em', 'metodo', 'parcelas',
     'valor_pago', 'transaction_nsu', 'slug', 'recibo', 'reserva_id', 'aula_id', 'tapete', 'observacao'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
@@ -166,6 +166,10 @@ function testarInfinitePay() {
     ['4. + webhook_url', Object.assign({}, base, { order_nsu: nsu + 'c', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl })],
     ['5. + customer', Object.assign({}, base, { order_nsu: nsu + 'd', redirect_url: AJUSTES.siteUrl, webhook_url: AJUSTES.apiUrl,
       customer: { name: 'Teste Casa Ambar', phone_number: '+5585991856528' } })],
+    // tentativas de limitar parcelas (campos não documentados pela InfinitePay)
+    ['6. max_installments = 1', Object.assign({}, base, { order_nsu: nsu + 'e', max_installments: 1 })],
+    ['7. installments = 1', Object.assign({}, base, { order_nsu: nsu + 'f', installments: 1 })],
+    ['8. max_installments = 3', Object.assign({}, base, { order_nsu: nsu + 'g', max_installments: 3 })],
   ];
   variantes.forEach(function (v) {
     var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
@@ -233,7 +237,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v9 (avulsa 30 dias)';
+var VERSAO = '2026-10-18 · v10 (regras de parcelamento)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -701,6 +705,7 @@ function listarPlanos() {
     p.aulas_semana = numero(p.aulas_semana);
     p.aulas_total = numero(p.aulas_total);
     p.validade_dias = numero(p.validade_dias) || 30;
+    p.parcelas_max = parcelasMax(p);
     lista.push(p);
   }
   return lista;
@@ -710,8 +715,21 @@ function buscarPlano(id) {
   return listarPlanos().filter(function (p) { return p.id === id; })[0] || null;
 }
 
+// Regra da casa: trimestral até 3x no cartão; avulsa e mensal só à vista.
+// A coluna parcelas_max da aba Planos, se preenchida, vale no lugar desta regra.
+function parcelasMax(p) {
+  var n = numero(p.parcelas_max);
+  if (n >= 1) return n;
+  return String(p.tipo) === 'trimestral' ? 3 : 1;
+}
+
+function condicaoPagamento(p) {
+  var n = parcelasMax(p);
+  return n > 1 ? 'até ' + n + 'x no cartão' : 'à vista';
+}
+
 function planoPublico(p) {
-  return { id: p.id, modalidade: p.modalidade, tipo: p.tipo, nome: p.nome, aulasSemana: p.aulas_semana, aulasTotal: p.aulas_total, validadeDias: p.validade_dias, preco: p.preco, descricao: p.descricao };
+  return { id: p.id, modalidade: p.modalidade, tipo: p.tipo, nome: p.nome, aulasSemana: p.aulas_semana, aulasTotal: p.aulas_total, validadeDias: p.validade_dias, preco: p.preco, descricao: p.descricao, parcelasMax: parcelasMax(p) };
 }
 
 function creditosDo(cpf) {
@@ -822,7 +840,7 @@ function infinitepayCriarLink(plano, aluno, orderNsu) {
   var whats = soDigitos(aluno.whatsapp);
   var corpo = {
     handle: AJUSTES.infinitepayHandle,
-    items: [{ quantity: 1, price: Math.round(plano.preco * 100), description: plano.nome }],
+    items: [{ quantity: 1, price: Math.round(plano.preco * 100), description: plano.nome + ' (' + condicaoPagamento(plano) + ')' }],
     order_nsu: orderNsu,
     redirect_url: AJUSTES.siteUrl + '?pagamento=' + orderNsu,
     webhook_url: AJUSTES.apiUrl,
@@ -915,6 +933,10 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     s.getRange(pg._linha, col('pago_em')).setValue(agoraTexto());
     s.getRange(pg._linha, col('metodo')).setValue(conf.capture_method === 'pix' ? 'Pix' : conf.capture_method === 'credit_card' ? 'Cartão' : String(conf.capture_method || ''));
     s.getRange(pg._linha, col('parcelas')).setValue(conf.installments || 1);
+    var planoRegra = buscarPlano(pg.plano_id);
+    if (planoRegra && Number(conf.installments || 1) > parcelasMax(planoRegra)) {
+      s.getRange(pg._linha, col('observacao')).setValue('ATENÇÃO: pago em ' + conf.installments + 'x (permitido: ' + condicaoPagamento(planoRegra) + '). Conferir com a aluna.');
+    }
     s.getRange(pg._linha, col('valor_pago')).setValue(Number(conf.paid_amount || conf.amount) / 100);
     s.getRange(pg._linha, col('transaction_nsu')).setValue(String(transactionNsu));
     s.getRange(pg._linha, col('slug')).setValue(String(slug));
