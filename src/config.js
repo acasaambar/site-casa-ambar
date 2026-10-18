@@ -15,7 +15,7 @@ export const CONFIG = {
   instagram: 'acasaambar',
   whatsapp: '5585991856528', // só números, com 55 + DDD
   telefone: '(85) 99185-6528',
-  horario: '', // ex.: 'Seg a sex, 6h às 20h · Sáb, 7h às 12h' (vazio = não aparece)
+  horario: 'Seg a sex, 6h às 20h · Sáb, 7h às 12h · Dom, fechado', // vazio = não aparece
 
   // Regras das reservas
   checkinAbreMinAntes: 30, // check-in libera X minutos antes da aula
