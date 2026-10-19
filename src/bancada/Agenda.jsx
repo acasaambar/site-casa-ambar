@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -16,7 +16,7 @@ export default function Agenda() {
   const [agendar, setAgendar] = useState(null);
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
-  const [vista, setVista] = useState(local.state?.vista || 'aulas');
+  const [vista, setVista] = useState(local.state?.abrir ? 'aulas' : 'dia');
   const { dados, erro, carregando, recarregar, setDados } = useDados('agenda', { de: dia, dias: 1 });
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
 
@@ -79,8 +79,8 @@ export default function Agenda() {
 
       <div className="b-agenda__vista">
         <div className="b-segmento" role="tablist" aria-label="O que mostrar">
-          <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas</button>
-          <button type="button" role="tab" aria-selected={vista === 'servicos'} onClick={() => setVista('servicos')}>Serviços</button>
+          <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}>Agenda do dia</button>
+          <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas e presença</button>
         </div>
         {vista === 'aulas' && (
           <div className="b-filtros">
@@ -91,7 +91,14 @@ export default function Agenda() {
         )}
       </div>
 
-      {vista === 'servicos' && <AgendaServicos dia={dia} />}
+      {vista === 'dia' && (
+        <AgendaServicos dia={dia} aulas={dados || []} aoAbrirAula={(a) => {
+          setFiltro('Todas');
+          setAbertas({ [a.id]: true });
+          setVista('aulas');
+          setTimeout(() => document.getElementById('aula-' + a.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+        }} />
+      )}
       {vista === 'aulas' && (<>
 
       <Erro>{erro || aviso}</Erro>
@@ -103,7 +110,7 @@ export default function Agenda() {
           const aberta = !!abertas[a.id];
           const presentes = a.reservas.filter((r) => r.status === 'check-in').length;
           return (
-            <article key={a.id} className={`b-aula b-aula--${a.modalidade.toLowerCase()}${aberta ? ' b-aula--aberta' : ''}`}>
+            <article key={a.id} id={'aula-' + a.id} className={`b-aula b-aula--${a.modalidade.toLowerCase()}${aberta ? ' b-aula--aberta' : ''}`}>
               <button type="button" className="b-aula__topo" aria-expanded={aberta} onClick={() => setAbertas((x) => ({ ...x, [a.id]: !aberta }))}>
                 <strong className="b-aula__hora">{hora(a.hora)}</strong>
                 <span className="b-aula__info">
@@ -195,6 +202,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
   const [tapete, setTapete] = useState(null);
   const [forma, setForma] = useState('credito');
   const [metodo, setMetodo] = useState('Pix');
+  const [bandeira, setBandeira] = useState('');
   const [encaixe, setEncaixe] = useState(false);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -206,7 +214,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('agendar', { aulaId: aula.id, cpf: aluno.cpf, tapete, forma, metodo, encaixe });
+      await chamar('agendar', { aulaId: aula.id, cpf: aluno.cpf, tapete, forma, metodo, bandeira, encaixe });
       aoAgendar();
     } catch (e) {
       setErro(e.message);
@@ -260,13 +268,14 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
               <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
             </label>
           )}
+          {forma === 'avulsa' && <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />}
           {lotada && (
             <label className="b-check">
               <input type="checkbox" checked={encaixe} onChange={(e) => setEncaixe(e.target.checked)} /> Aula lotada: fazer encaixe mesmo assim
             </label>
           )}
           <Erro>{erro}</Erro>
-          <button type="button" className="botao botao--cheio" disabled={enviando || (yoga && !tapete) || (lotada && !encaixe)} onClick={confirmar}>
+          <button type="button" className="botao botao--cheio" disabled={enviando || (yoga && !tapete) || (lotada && !encaixe) || (forma === 'avulsa' && faltaBandeira(metodo, bandeira))} onClick={confirmar}>
             {enviando ? 'Agendando…' : yoga && !tapete ? 'Escolha o tapete' : 'Confirmar agendamento'}
           </button>
         </div>

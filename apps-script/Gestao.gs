@@ -11,9 +11,20 @@ var CATEGORIAS_PRODUTO = ['Revenda (home care)', 'Insumo de cabine', 'Descartáv
 var CATEGORIAS_DESPESA = ['Aluguel e condomínio', 'Água, luz e internet', 'Salários e pró-labore', 'Comissões', 'Produtos e insumos', 'Marketing',
   'Manutenção', 'Impostos e taxas', 'Sistemas e assinaturas', 'Outros'];
 var METODOS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Vale-presente'];
+// bandeira do cartão (para conferir com o extrato da maquininha)
+var BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
+function ehCartao(metodo) { return metodo === 'Cartão de crédito' || metodo === 'Cartão de débito'; }
+function bandeiraDe(metodo, bandeira, obrigatoria) {
+  if (!ehCartao(metodo)) return '';
+  var b = String(bandeira || '').trim();
+  if (BANDEIRAS.indexOf(b) >= 0) return b;
+  if (obrigatoria || b) throw new Error('Escolha a bandeira do cartão (' + metodo.toLowerCase() + ').');
+  return '';
+}
 
+// código único: data e hora + 5 letras sorteadas (dois cadastros no mesmo segundo não se repetem)
 function novoId(prefixo) {
-  return prefixo + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
+  return prefixo + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Utilities.getUuid().replace(/-/g, '').slice(0, 5).toUpperCase();
 }
 function dinheiro(v) { return Math.round(numero(v) * 100) / 100; }
 function ativoSim(v) { return String(v).toUpperCase() !== 'NÃO'; }
@@ -972,7 +983,7 @@ function bancada_fecharComanda(d, m) {
       var metodo = METODOS_PAGAMENTO.indexOf(p.metodo) >= 0 ? p.metodo : '';
       if (!metodo) throw new Error('Forma de pagamento inválida.');
       return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
-        codigo: metodo === 'Vale-presente' ? codigoLimpo(p.codigo) : '' };
+        codigo: metodo === 'Vale-presente' ? codigoLimpo(p.codigo) : '', bandeira: bandeiraDe(metodo, p.bandeira, true) };
     }).filter(function (p) { return p.valor > 0; });
     var pago = dinheiro(pags.reduce(function (s, p) { return s + p.valor; }, 0));
     if (Math.abs(pago - total) > 0.01) throw new Error('Os pagamentos somam ' + brl(pago) + ', mas a comanda é de ' + brl(total) + '.');
@@ -992,7 +1003,8 @@ function bancada_fecharComanda(d, m) {
     var metodosDistintos = reais.map(function (p) { return p.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
     var metodo = metodosDistintos.length === 1 ? metodosDistintos[0] : metodosDistintos.length ? 'Misto' : vale ? 'Vale-presente' : 'Cortesia';
     var parcelas = Math.max.apply(null, [1].concat(reais.map(function (p) { return p.parcelas; })));
-    var obsPag = 'Comanda ' + cm.id + (pags.length > 1 ? ' · ' + pags.map(function (p) { return p.metodo + ' ' + brl(p.valor); }).join(' + ') : '');
+    var bandeiras = reais.map(function (p) { return p.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
+    var obsPag = 'Comanda ' + cm.id + (pags.length > 1 ? ' · ' + pags.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '');
     var hoje = hojeTexto();
     calc.forEach(function (it, idx) {
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
@@ -1021,7 +1033,7 @@ function bancada_fecharComanda(d, m) {
         descricao: it.tipo === 'produto' ? 'Produto · ' + it.nome + (it.qtd > 1 ? ' × ' + it.qtd : '') : it.nome, valor: valorLinha, status: 'pendente',
         criado_em: agoraTexto(), valor_original: dinheiro(it.preco * it.qtd), desconto: dinheiro(it.desconto + (it.vale ? 0 : valeUsado)), cupom: it.cupom, vale: valeCod,
         vale_usado: valeUsado, origem: 'balcão', registrado_por: m.email, observacao: obsPag, promocao: it.promocao, comanda: cm.id, tipo_item: it.tipo,
-        profissional: it.profissional });
+        profissional: it.profissional, bandeira: bandeiras });
       SpreadsheetApp.flush();
       var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: parcelas, valor_pago: valorLinha, inicio: it.data || hoje,
         origemCredito: 'comanda', observacao: obsPag, semCredito: it.tipo === 'produto' });

@@ -88,7 +88,7 @@ function aplicarAjustesSalvos() {
 var ABAS = {
   Grade: ['ativo', 'modalidade', 'dia_semana', 'hora', 'professor', 'capacidade'],
   Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'origem_cadastro',
-    'nascimento', 'marketing'],
+    'nascimento', 'marketing', 'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'como_conheceu'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms', 'lembrete'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -100,7 +100,7 @@ var ABAS = {
   Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao', 'sem_juros_ate'],
   Pagamentos: ['order_nsu', 'cpf', 'nome', 'plano_id', 'descricao', 'valor', 'status', 'link', 'criado_em', 'pago_em', 'metodo', 'parcelas',
     'valor_pago', 'transaction_nsu', 'slug', 'recibo', 'reserva_id', 'aula_id', 'tapete', 'observacao',
-    'valor_original', 'desconto', 'cupom', 'vale', 'vale_usado', 'origem', 'registrado_por', 'promocao', 'comanda', 'tipo_item', 'profissional'],
+    'valor_original', 'desconto', 'cupom', 'vale', 'vale_usado', 'origem', 'registrado_por', 'promocao', 'comanda', 'tipo_item', 'profissional', 'bandeira'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
   // ---- bancada interna ----
@@ -115,7 +115,7 @@ var ABAS = {
   // ---- serviços (estética, fisioterapia...) agendados pela bancada ----
   Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo'],
   Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
-  Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos'],
+  Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos', 'horarios', 'especiais'],
   Professoras: ['nome', 'ativo', 'pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde', 'atualizado_em'],
   Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',
     'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em', 'lembrete', 'comanda'],
@@ -365,7 +365,7 @@ function cadastrar(d) {
     if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro. Use "Entrar".');
     var sal = Utilities.getUuid();
     adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email).trim().toLowerCase(),
-      senha_hash: hashSenhaV2(d.senha, sal), sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site' });
+      senha_hash: hashSenhaV2(d.senha, sal), sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site', como_conheceu: textoComoConheceu(d.comoConheceu) });
   } finally {
     trava.releaseLock();
   }
@@ -582,7 +582,7 @@ function reservar(d) {
       if (!tapete || tapete < 1 || tapete > aula.capacidade) throw new Error('Escolha um tapete.');
       if (m.ocupados.indexOf(tapete) >= 0) throw new Error('O tapete ' + tapete + ' acabou de ser reservado. Escolha outro.');
     }
-    var id = 'R' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    var id = novoId('R');
     var credito = escolherCredito(cpf, aula, reservas);
 
     if (!credito && d.usarWellhub) {

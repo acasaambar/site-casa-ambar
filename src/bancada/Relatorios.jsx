@@ -121,6 +121,12 @@ function Financeiro({ f, de, ate }) {
       <div className="b-duas">
         <Grafico titulo="Formas de pagamento" csv={csvItens('formas-pagamento', f.porForma)}>
           <BarrasH itens={f.porForma.map((i) => ({ ...i, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+          {f.porBandeira?.length > 0 && (
+            <>
+              <h3 className="b-subtitulo">Cartões por bandeira</h3>
+              <BarrasH itens={f.porBandeira.map((i) => ({ ...i, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+            </>
+          )}
         </Grafico>
         <Grafico titulo="Site × balcão" sub={f.porParcelas.length ? 'Cartão: ' + f.porParcelas.map((p) => `${p.nome} (${p.qtd})`).join(' · ') : ''}>
           <BarrasH itens={f.porOrigem.map((i) => ({ ...i, nome: i.nome === 'site' ? 'Pelo site' : 'No balcão', detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
@@ -206,6 +212,23 @@ function Alunos({ a }) {
         <Kpi rotulo="Renovação" valor={pct(a.renovacao.taxa)} detalhe={`${a.renovacao.renovaram} de ${a.renovacao.terminaram} planos que venceram`} />
         <Kpi rotulo="Sem ficha de saúde" valor={a.semFicha} tom={a.semFicha ? 'aviso' : ''} detalhe={`${a.wellhub} usam Wellhub`} />
       </section>
+      <div className="b-duas">
+        <Grafico titulo="Como nos conheceram" sub={`Clientes novos no período · ${a.comoConheceramTodos.filter((c) => c.nome !== 'Não informado').reduce((s, c) => s + c.qtd, 0)} de ${a.total} já responderam`}>
+          {a.comoConheceram.length
+            ? <BarrasH itens={a.comoConheceram.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} />
+            : <p className="b-suave">Nenhum cliente novo no período.</p>}
+        </Grafico>
+        <Grafico titulo="Vendas por canal" sub="Quanto cada canal trouxe no período (pelo que a cliente respondeu)">
+          {a.vendasPorCanal.length
+            ? <BarrasH itens={a.vendasPorCanal.map((c) => ({ nome: c.nome, valor: c.valor }))} formato={realCurto} />
+            : <p className="b-suave">Sem vendas no período.</p>}
+        </Grafico>
+      </div>
+      <Grafico titulo="Bairros das clientes" sub={`${a.comEndereco} de ${a.total} clientes com endereço completo (para nota fiscal)`}>
+        {a.bairros.length
+          ? <BarrasH itens={a.bairros.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} limite={15} />
+          : <p className="b-suave">Ainda ninguém com bairro cadastrado. Preencha o endereço em Clientes → editar.</p>}
+      </Grafico>
       <Grafico titulo="Novos cadastros por mês" sub="Últimos 12 meses">
         <Colunas serie={a.novosPorMes.map((m) => ({ chave: m.chave, valor: m.qtd }))} rotuloX={rotuloSerie(true)} formato={(v) => `${v} aluno${v === 1 ? '' : 's'}`} altura={190} />
       </Grafico>

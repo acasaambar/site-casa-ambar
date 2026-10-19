@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth.jsx';
 import { Logo, Forma, img } from '../components/Marca.jsx';
 import { mascaraCPF, mascaraTelefone, cpfValido, soDigitos } from '../lib/util.js';
 import { MODO_DEMO } from '../lib/api.js';
+import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
+import { COMO_CONHECEU } from '../lib/clientes.js';
 
 export function problemaSenha(s) {
   if (String(s).length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
@@ -17,7 +19,7 @@ export default function Entrar() {
   const local = useLocation();
   const destino = local.state?.de || '/aulas';
   const [modo, setModo] = useState('entrar');
-  const [f, setF] = useState({ cpf: '', senha: '', nome: '', whatsapp: '', email: '', senha2: '' });
+  const [f, setF] = useState({ cpf: '', senha: '', nome: '', whatsapp: '', email: '', senha2: '', comoConheceu: '' });
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -43,7 +45,7 @@ export default function Entrar() {
       const s =
         modo === 'entrar'
           ? await entrar(soDigitos(f.cpf), f.senha)
-          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha });
+          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu });
       // sem ficha de saúde: preenche antes de seguir
       if (!s.aluno.anamnese) nav('/ficha-saude', { replace: true, state: { de: destino, novo: modo === 'cadastro' } });
       else nav(destino, { replace: true });
@@ -104,17 +106,26 @@ export default function Entrar() {
                   <input type="email" autoComplete="email" required {...campo('email')} />
                   <span className="dica-campo">Usado para recuperar a senha.</span>
                 </label>
+                <label>
+                  Como nos conheceu?
+                  <select {...campo('comoConheceu')}>
+                    <option value="">Escolha (opcional)</option>
+                    {COMO_CONHECEU.map((o) => <option key={o}>{o}</option>)}
+                    <option>Outro</option>
+                  </select>
+                </label>
               </>
             )}
             <label>
               Senha
-              <input type="password" autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} required {...campo('senha')} />
-              {modo === 'cadastro' && <span className="dica-campo">Mínimo de 8 caracteres, com letras e números.</span>}
+              <CampoSenha autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} required {...campo('senha')} />
+              {modo === 'cadastro' && !f.senha && <span className="dica-campo">Mínimo de 8 caracteres, com letras e números.</span>}
             </label>
             {modo === 'cadastro' && (
               <label>
                 Confirmar senha
-                <input type="password" autoComplete="new-password" required {...campo('senha2')} />
+                <CampoSenha autoComplete="new-password" required {...campo('senha2')} />
+                <ConfereSenha senha={f.senha} confirmacao={f.senha2} />
               </label>
             )}
 

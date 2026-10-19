@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioModal } from './Prontuario.jsx';
+import { HorarioSemanal, DiasEspeciais, horariosIniciais, resumoHorario } from './Horarios.jsx';
 
 // Cor de cada área de cuidado (tons da marca)
 export const COR_CATEGORIA = {
@@ -23,15 +24,24 @@ const STATUS = {
 };
 const PAGAMENTO = { no_dia: 'paga no dia', pacote: 'pacote', pago: 'pago', cortesia: 'cortesia' };
 const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay'];
-const INICIO_DIA = 6 * 60, FIM_DIA = 20 * 60, PX = 1.15; // pixels por minuto
 
 const min = (h) => { const [a, b] = String(h).split(':').map(Number); return a * 60 + (b || 0); };
 const fimDe = (a) => { const t = min(a.hora) + a.duracao; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
 
 // ============================================================
-//  AGENDA DE SERVIÇOS (um dia)
+//  AGENDA DO DIA (como no Avec): todo mundo lado a lado, horários nas linhas
+//  Colunas: profissionais de estética e fisioterapia (com o horário de cada uma)
+//  e professoras de Pilates e Yoga (com as aulas do dia).
 // ============================================================
-export function AgendaServicos({ dia }) {
+const SLOT = 30, ALT = 46; // 30 min por linha, 46 px por linha
+const GRUPOS = [['estetica', 'Estética'], ['fisio', 'Fisioterapia'], ['pilates', 'Pilates'], ['yoga', 'Yoga']];
+const grupoDe = (categorias = []) => (categorias.some((c) => c.startsWith('Estética')) ? 'estetica' : categorias.includes('Fisioterapia') ? 'fisio' : 'estetica');
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const lerLocal = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k)) ?? padrao; } catch { return padrao; } };
+const gravarLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
+const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
+
+export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
   const { membro } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const { dados, erro, carregando, recarregar } = useDados('atendimentos', { de: dia, dias: 1 });
@@ -42,107 +52,160 @@ export function AgendaServicos({ dia }) {
   const [folga, setFolga] = useState(null);
   const [comanda, setComanda] = useState(null);
   const [prontuario, setProntuario] = useState(null);
+  const [ocultos, setOcultos] = useState(() => lerLocal('ambar_agenda_ocultos', []));
+  const [visiveis, setVisiveis] = useState(() => lerLocal('ambar_agenda_colunas', typeof window !== 'undefined' && window.innerWidth < 600 ? 2 : window.innerWidth < 1100 ? 3 : 5));
+  const [agora, setAgora] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setAgora(new Date()), 60000); return () => clearInterval(t); }, []);
 
-  const lista = dados?.atendimentos || [];
+  const lista = useMemo(() => dados?.atendimentos || [], [dados]);
   const folgas = dados?.folgas || [];
-  const colunas = useMemo(() => {
-    const nomes = new Set([...(dados?.profissionais || [])]);
-    lista.forEach((a) => nomes.add(a.profissional));
-    return [...nomes];
-  }, [dados, lista]);
 
-  const agora = new Date();
+  // colunas: quem atende serviços + professoras com aula no dia
+  const colunas = useMemo(() => {
+    const cols = [];
+    (dados?.equipe || []).forEach((e) => cols.push({ nome: e.nome, tipo: 'servico', grupo: grupoDe(e.categorias), detalhe: e.categorias.join(', ') || 'Serviços', turnos: e.turnos.map(([a, b]) => [min(a), min(b)]) }));
+    lista.forEach((a) => { if (!cols.some((c) => c.nome === a.profissional)) cols.push({ nome: a.profissional, tipo: 'servico', grupo: grupoDe([a.categoria]), detalhe: a.categoria, turnos: null }); });
+    const prof = {};
+    aulas.forEach((a) => { (prof[a.professor] = prof[a.professor] || new Set()).add(a.modalidade); });
+    Object.entries(prof).forEach(([nome, mods]) => {
+      const m = [...mods];
+      const ja = cols.find((c) => c.nome === nome);
+      if (ja) { ja.aulas = true; return; }
+      cols.push({ nome, tipo: 'aula', grupo: m.includes('Pilates') ? 'pilates' : 'yoga', detalhe: m.join(' e '), turnos: null, aulas: true });
+    });
+    const ordem = GRUPOS.map(([g]) => g);
+    return cols.sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo) || a.nome.localeCompare(b.nome));
+  }, [dados, lista, aulas]);
+  const mostradas = colunas.filter((c) => !ocultos.includes(c.grupo));
+
+  // faixa de horas: das 6h às 20h, ou mais se alguém começa antes / termina depois
+  const [INI, FIM] = useMemo(() => {
+    let a = 6 * 60, b = 20 * 60;
+    colunas.forEach((c) => (c.turnos || []).forEach(([x, y]) => { a = Math.min(a, x); b = Math.max(b, y); }));
+    lista.forEach((x) => { a = Math.min(a, min(x.hora)); b = Math.max(b, min(x.hora) + x.duracao); });
+    aulas.forEach((x) => { a = Math.min(a, min(x.hora)); b = Math.max(b, min(x.hora) + (x.duracao || 60)); });
+    return [Math.floor(a / 60) * 60, Math.ceil(b / 60) * 60];
+  }, [colunas, lista, aulas]);
+  const PX = ALT / SLOT;
+  const altura = (FIM - INI) * PX;
+  const y = (m) => (m - INI) * PX;
   const minutoAgora = agora.getHours() * 60 + agora.getMinutes();
   const ehHoje = dia === hojeIso();
+
+  const alternarGrupo = (g) => {
+    const n = ocultos.includes(g) ? ocultos.filter((x) => x !== g) : [...ocultos, g];
+    setOcultos(n); gravarLocal('ambar_agenda_ocultos', n);
+  };
+  const mudarVisiveis = (n) => { setVisiveis(n); gravarLocal('ambar_agenda_colunas', n); };
+  const contagem = (g) => colunas.filter((c) => c.grupo === g).length;
+
+  // partes fora do horário de quem atende serviços
+  const fora = (c) => {
+    if (!c.turnos) return [];
+    const livres = [...c.turnos].sort((a, b) => a[0] - b[0]);
+    const r = [];
+    let p = INI;
+    livres.forEach(([a, b]) => { if (a > p) r.push([p, Math.min(a, FIM)]); p = Math.max(p, b); });
+    if (p < FIM) r.push([p, FIM]);
+    return r;
+  };
 
   if (carregando && !dados) return <Carregando />;
   return (
     <>
       <Erro>{erro}</Erro>
-      {balcao && (
-        <div className="s-barra">
-          <p className="b-suave">{lista.length ? `${lista.length} atendimento${lista.length > 1 ? 's' : ''} neste dia` : 'Nenhum atendimento neste dia'}</p>
-          <span className="b-botoes">
+      <div className="ag-barra">
+        <div className="ag-grupos" role="group" aria-label="Mostrar na agenda">
+          {GRUPOS.filter(([g]) => contagem(g)).map(([g, t]) => (
+            <button key={g} type="button" className={`ag-grupo ag-grupo--${g}`} aria-pressed={!ocultos.includes(g)} onClick={() => alternarGrupo(g)}>
+              <i aria-hidden="true" />{t}<small>{contagem(g)}</small>
+            </button>
+          ))}
+        </div>
+        <div className="ag-colunas" role="group" aria-label="Colunas na tela">
+          <span>Colunas</span>
+          {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
+        </div>
+        {balcao && (
+          <span className="b-botoes ag-acoes">
             <button type="button" className="botao botao--linha botao--p" onClick={() => setBloquear({ data: dia })}>Bloquear horário</button>
             <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo({ data: dia })}>Agendar serviço</button>
           </span>
-        </div>
-      )}
+        )}
+      </div>
+
       {colunas.length === 0 && (
-        <Vazio titulo="Cadastre as profissionais" forma="presenca">
-          {pode(membro, 'admin') ? 'Em Catálogo → Profissionais, cadastre quem atende cada serviço e o horário de cada uma.' : 'Peça à administração para cadastrar as profissionais em Catálogo.'}
+        <Vazio titulo="Ninguém atende neste dia" forma="presenca">
+          {pode(membro, 'admin') ? 'Cadastre as profissionais em Catálogo → Profissionais e as aulas em Catálogo → Grade de aulas.' : 'Peça à administração para cadastrar as profissionais em Catálogo.'}
         </Vazio>
       )}
 
-      {colunas.length > 0 && (
-        <div className="s-linha" style={{ '--colunas': colunas.length }}>
-          <div className="s-linha__topo">
-            <span />
-            {colunas.map((c) => <strong key={c}>{c}</strong>)}
-          </div>
-          <div className="s-linha__corpo" style={{ height: (FIM_DIA - INICIO_DIA) * PX }}>
-            <div className="s-linha__horas" aria-hidden="true">
-              {Array.from({ length: (FIM_DIA - INICIO_DIA) / 60 + 1 }, (_, i) => (
-                <span key={i} style={{ top: i * 60 * PX }}>{INICIO_DIA / 60 + i}h</span>
-              ))}
+      {mostradas.length > 0 && (
+        <div className="ag" style={{ '--visiveis': Math.min(visiveis, mostradas.length) }}>
+          <div className="ag-grade" style={{ '--n': mostradas.length, '--alt': `${ALT}px` }}>
+            <div className="ag-canto" aria-hidden="true" />
+            {mostradas.map((c) => (
+              <div key={c.nome} className={`ag-cab ag-cab--${c.grupo}`} title={`${c.nome} · ${c.detalhe}`}>
+                <span className="ag-cab__foto" aria-hidden="true">{iniciais(c.nome)}</span>
+                <span className="ag-cab__nome"><strong>{c.nome}</strong><small>{c.detalhe}</small></span>
+              </div>
+            ))}
+
+            <div className="ag-horas" style={{ height: altura }} aria-hidden="true">
+              {Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
+                const m = INI + i * SLOT;
+                return <span key={m} className={m % 60 ? 'meia' : ''} style={{ top: i * ALT }}>{hhmm(m)}</span>;
+              })}
             </div>
-            {colunas.map((c) => (
-              <div key={c} className="s-coluna" aria-label={`Agenda de ${c}`}>
-                {Array.from({ length: (FIM_DIA - INICIO_DIA) / 60 }, (_, i) => (
-                  <button key={i} type="button" className="s-coluna__hora" style={{ top: i * 60 * PX, height: 60 * PX }} disabled={!balcao}
-                    aria-label={`Agendar com ${c} às ${INICIO_DIA / 60 + i}h`}
-                    onClick={() => setNovo({ data: dia, profissional: c, hora: `${String(INICIO_DIA / 60 + i).padStart(2, '0')}:00` })} />
-                ))}
-                {folgas.filter((f) => f.profissional === c).map((f) => {
-                  const ini = f.diaTodo ? INICIO_DIA : Math.max(min(f.inicio), INICIO_DIA);
-                  const fim = f.diaTodo ? FIM_DIA : Math.min(min(f.fim), FIM_DIA);
-                  if (fim <= ini) return null;
+
+            {mostradas.map((c) => (
+              <div key={c.nome} className={`ag-col${c.tipo === 'aula' ? ' ag-col--aula' : ''}`} style={{ height: altura }} aria-label={`Agenda de ${c.nome}`}>
+                {fora(c).map(([a, b]) => <div key={a} className="ag-fora" style={{ top: y(a), height: (b - a) * PX }} title="Fora do horário de atendimento" />)}
+                {c.tipo === 'servico' && balcao && Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
+                  const m = INI + i * SLOT;
+                  const livre = !c.turnos || c.turnos.some(([a, b]) => m >= a && m < b);
+                  return livre && (
+                    <button key={m} type="button" className="ag-vago" style={{ top: i * ALT, height: ALT }} aria-label={`Agendar com ${c.nome} às ${hora(hhmm(m))}`}
+                      onClick={() => setNovo({ data: dia, profissional: c.nome, hora: hhmm(m) })}><span>+ {hora(hhmm(m))}</span></button>
+                  );
+                })}
+                {folgas.filter((f) => f.profissional === c.nome).map((f) => {
+                  const a = f.diaTodo ? INI : Math.max(min(f.inicio), INI);
+                  const b = f.diaTodo ? FIM : Math.min(min(f.fim), FIM);
+                  if (b <= a) return null;
                   return (
-                    <button key={f.id} type="button" className="s-folga" style={{ top: (ini - INICIO_DIA) * PX, height: (fim - ini) * PX }} disabled={!balcao}
+                    <button key={f.id} type="button" className="s-folga ag-folga" style={{ top: y(a), height: (b - a) * PX }} disabled={!balcao}
                       onClick={() => setFolga(f)} title={`${f.motivo}${f.diaTodo ? ' · dia todo' : ` · ${hora(f.inicio)}–${hora(f.fim)}`}`}>
                       <span>{f.motivo}</span>
                     </button>
                   );
                 })}
-                {lista.filter((a) => a.profissional === c).map((a) => (
+                {aulas.filter((a) => a.professor === c.nome).map((a) => {
+                  const dur = a.duracao || 60;
+                  return (
+                    <button key={a.id} type="button" className={`ag-bloco ag-bloco--aula ag-bloco--${a.modalidade.toLowerCase()}`}
+                      style={{ top: y(min(a.hora)) + 2, height: dur * PX - 4 }} onClick={() => aoAbrirAula?.(a)}>
+                      <span className="ag-bloco__hora">{hora(a.hora)}–{hora(hhmm(min(a.hora) + dur))}</span>
+                      <strong>{a.modalidade}</strong>
+                      <span className="ag-bloco__info">{a.ocupadosQtd} de {a.capacidade} alunas</span>
+                    </button>
+                  );
+                })}
+                {lista.filter((a) => a.profissional === c.nome).map((a) => (
                   <button key={a.id} type="button" onClick={() => setAberto(a)}
-                    className={`s-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} s-bloco--${a.status}`}
-                    style={{ top: (min(a.hora) - INICIO_DIA) * PX, height: Math.max(a.duracao * PX - 3, 26) }}>
-                    <span className="s-bloco__hora">{hora(a.hora)}–{hora(fimDe(a))}</span>
+                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}`}
+                    style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }}>
+                    <span className="ag-bloco__hora">{hora(a.hora)}–{hora(fimDe(a))}{a.status === 'atendido' ? ' · ✓' : a.status === 'confirmado' ? ' · confirmado' : ''}</span>
                     <strong>{a.nome}</strong>
-                    {a.duracao >= 35 && <span className="s-bloco__serv">{a.servico}</span>}
+                    {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
                   </button>
                 ))}
+                {ehHoje && minutoAgora > INI && minutoAgora < FIM && <div className="ag-agora" style={{ top: y(minutoAgora) }} aria-hidden="true" />}
               </div>
             ))}
-            {ehHoje && minutoAgora > INICIO_DIA && minutoAgora < FIM_DIA && (
-              <div className="s-agora" style={{ top: (minutoAgora - INICIO_DIA) * PX }} aria-hidden="true"><i /></div>
-            )}
           </div>
         </div>
       )}
-
-      {/* no celular: lista em ordem de horário */}
-      <ul className="s-lista">
-        {folgas.map((f) => (
-          <li key={f.id}>
-            <button type="button" className="s-item s-item--folga" onClick={() => balcao && setFolga(f)}>
-              <span className="s-item__hora">{f.diaTodo ? '—' : hora(f.inicio)}</span>
-              <span className="s-item__quem"><strong>{f.profissional} · {f.motivo}</strong><span>{f.diaTodo ? 'dia todo' : `até ${hora(f.fim)}`}</span></span>
-              <Tag tom="apagado">bloqueado</Tag>
-            </button>
-          </li>
-        ))}
-        {lista.map((a) => (
-          <li key={a.id}>
-            <button type="button" className={`s-item s-item--${COR_CATEGORIA[a.categoria] || 'facial'}`} onClick={() => setAberto(a)}>
-              <span className="s-item__hora">{hora(a.hora)}</span>
-              <span className="s-item__quem"><strong>{a.nome}</strong><span>{a.servico} · {a.profissional}</span></span>
-              <Tag tom={STATUS[a.status]?.[1]}>{STATUS[a.status]?.[0]}</Tag>
-            </button>
-          </li>
-        ))}
-      </ul>
 
       {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={() => { setNovo(null); recarregar(); }} />}
       {aberto && <DetalheAtendimento a={aberto} aoFechar={() => setAberto(null)} aoMudar={() => { setAberto(null); recarregar(); }}
@@ -173,6 +236,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const [modoCliente, setModoCliente] = useState('busca');
   const [pagamento, setPagamento] = useState(re ? re.pagamento : 'no_dia');
   const [metodo, setMetodo] = useState('Pix');
+  const [bandeira, setBandeira] = useState('');
   const [pacote, setPacote] = useState(null);
   const [obs, setObs] = useState(re ? re.obs : '');
   const [erro, setErro] = useState('');
@@ -205,7 +269,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
     setEnviando(true);
     try {
       await chamar('agendarServico', {
-        servicoId, profissional, data, hora: horaSel, obs, pagamento, metodo,
+        servicoId, profissional, data, hora: horaSel, obs, pagamento, metodo, bandeira,
         cpf: cliente?.cpf || undefined,
         cliente: cliente?.cpf ? undefined : cliente ? { nome: cliente.nome, whatsapp: cliente.whatsapp } : { ...semCadastro, whatsapp: soDigitos(semCadastro.whatsapp) },
         reagendarId: re?.id,
@@ -311,9 +375,10 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">Recebido por</span>
             <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select></label>
         )}
+        {pagamento === 'pago' && !re && <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />}
         <label className="b-campo"><span className="rotulo">Observação para a profissional</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente)} onClick={salvar}>
+        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaBandeira(metodo, bandeira))} onClick={salvar}>
           {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
         </button>
       </div>
@@ -404,6 +469,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
   const { membro, chamar } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [metodo, setMetodo] = useState('Pix');
+  const [bandeira, setBandeira] = useState('');
   const [erro, setErro] = useState('');
   const st = STATUS[a.status] || [a.status, 'neutro'];
   const mudar = async (status, extra = {}) => {
@@ -443,7 +509,8 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
             <div className="s-receber">
               <label className="b-campo"><span className="rotulo">Atendido · recebido por</span>
                 <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select></label>
-              <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido', { metodo })}>Marcar atendido</BotaoAcao>
+              <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
+              <BotaoAcao className="botao botao--cheio botao--p" disabled={faltaBandeira(metodo, bandeira)} acao={() => mudar('atendido', { metodo, bandeira })}>Marcar atendido</BotaoAcao>
             </div>
           ) : (
             <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido')}>Marcar atendido</BotaoAcao>
@@ -613,7 +680,6 @@ export function Profissionais() {
   const [editar, setEditar] = useState(null);
   if (carregando && !dados) return <Carregando />;
   if (!dados) return <Erro>{erro}</Erro>;
-  const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   return (
     <>
       <div className="b-barra-acoes">
@@ -626,13 +692,13 @@ export function Profissionais() {
           <li key={p.nome} className={p.ativo ? '' : 'inativo'}>
             <div className="b-equipe__ini" aria-hidden="true">{p.nome.slice(0, 1)}</div>
             <div><strong>{p.nome}</strong><span className="b-suave">{p.servicos?.length ? `${p.servicos.length} serviço${p.servicos.length === 1 ? '' : 's'} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'todas as áreas'}</span></div>
-            <span className="b-suave">{p.dias.map((d) => dias[d]).join(' ')}</span>
-            <span className="b-suave">{p.inicio && p.fim ? `${hora(p.inicio)} às ${hora(p.fim)}` : 'horário da casa'}{p.comissao ? ` · comissão padrão ${p.comissao}%` : ''}</span>
+            <span className="b-suave">{resumoHorario(p)}{Object.keys(p.especiais || {}).length ? ` · ${Object.keys(p.especiais).length} dia(s) especial(is)` : ''}</span>
+            <span className="b-suave">{p.comissao ? `comissão padrão ${p.comissao}%` : 'sem comissão padrão'}</span>
             <button type="button" className="link-acao" onClick={() => setEditar({ ...p, nomeOriginal: p.nome })}>editar</button>
           </li>
         ))}
       </ul>
-      {editar && <EditarProfissional p={editar} categorias={dados.categorias} servicos={dados.servicos} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
+      {editar && <EditarProfissional p={editar} categorias={dados.categorias} servicos={dados.servicos} casa={dados.horarioCasa} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
     </>
   );
 }
@@ -640,18 +706,17 @@ export function Profissionais() {
 // faz o serviço? Com lista de serviços (como no Avec), vale a lista; senão, a área
 const fazServico = (p, serv) => (p.servicos?.length ? p.servicos.some((c) => c.id === serv.id) : !p.categorias.length || p.categorias.includes(serv.categoria));
 
-function EditarProfissional({ p, categorias, servicos, aoFechar, aoSalvar }) {
+function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
   const [f, setF] = useState(() => {
     // serviços que ela faz: { id: { comissao, duracao } } (vazio = vale o padrão)
     const marcados = {};
     if (p.servicos?.length) p.servicos.forEach((c) => { marcados[c.id] = { comissao: c.comissao == null ? '' : String(c.comissao), duracao: c.duracao ? String(c.duracao) : '' }; });
     else if (p.nome) servicos.filter((s) => s.ativo && fazServico(p, s)).forEach((s) => { marcados[s.id] = { comissao: '', duracao: '' }; });
-    return { nome: p.nome || '', nomeOriginal: p.nomeOriginal, dias: p.dias || [], inicio: p.inicio || '', fim: p.fim || '', ativo: p.ativo !== false,
+    return { nome: p.nome || '', nomeOriginal: p.nomeOriginal, horarios: horariosIniciais(p, casa), especiais: p.especiais || {}, ativo: p.ativo !== false,
       comissao: p.comissao ? String(p.comissao) : '', comissaoProduto: p.comissaoProduto ? String(p.comissaoProduto) : '', servicos: marcados };
   });
   const [erro, setErro] = useState('');
-  const alterna = (k, v) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   const marcar = (lista, sim) => setF((x) => {
     const m = { ...x.servicos };
     lista.forEach((s) => { if (sim) m[s.id] = m[s.id] || { comissao: '', duracao: '' }; else delete m[s.id]; });
@@ -665,6 +730,7 @@ function EditarProfissional({ p, categorias, servicos, aoFechar, aoSalvar }) {
   async function salvar() {
     setErro('');
     if (!qtd) { setErro('Marque pelo menos um serviço que ela faz.'); return; }
+    if (!Object.keys(f.horarios).length) { setErro('Marque pelo menos um dia de atendimento.'); return; }
     const lista = Object.entries(f.servicos).map(([id, c]) => ({ id, comissao: c.comissao === '' ? '' : num(c.comissao), duracao: c.duracao === '' ? '' : num(c.duracao) }));
     try {
       aoSalvar(await chamar('salvarProfissional', { profissional: { ...f, servicos: lista, comissao: num(f.comissao), comissaoProduto: num(f.comissaoProduto) } }));
@@ -675,19 +741,8 @@ function EditarProfissional({ p, categorias, servicos, aoFechar, aoSalvar }) {
     <Modal rotulo="Profissional" titulo={p.nome || 'Nova profissional'} aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
-        <fieldset className="b-opcoes">
-          <legend className="rotulo">Dias de atendimento</legend>
-          <div className="b-filtros">
-            {[1, 2, 3, 4, 5, 6].map((d) => (
-              <button key={d} type="button" className={`b-chip${f.dias.includes(d) ? ' b-chip--ativo' : ''}`} onClick={() => alterna('dias', d)}>{DIAS_LONGOS[d]}</button>
-            ))}
-          </div>
-        </fieldset>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Começa às</span><input type="time" value={f.inicio} onChange={(e) => setF({ ...f, inicio: e.target.value })} /></label>
-          <label className="b-campo"><span className="rotulo">Termina às</span><input type="time" value={f.fim} onChange={(e) => setF({ ...f, fim: e.target.value })} /></label>
-        </div>
-        <p className="b-suave">Sem horário, vale o da casa: seg a sex 6h–20h, sáb 7h–12h.</p>
+        <HorarioSemanal valor={f.horarios} aoMudar={(h) => setF((x) => ({ ...x, horarios: h }))} />
+        <DiasEspeciais valor={f.especiais} aoMudar={(e) => setF((x) => ({ ...x, especiais: e }))} />
         <div className="b-linha2">
           <label className="b-campo"><span className="rotulo">Comissão padrão nos serviços (%)</span><input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 40" /></label>
           <label className="b-campo"><span className="rotulo">Comissão nos produtos (%)</span><input inputMode="decimal" value={f.comissaoProduto} onChange={(e) => setF({ ...f, comissaoProduto: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 10" /></label>

@@ -174,7 +174,7 @@ ok(r.ok && r.dados.financeiro.porModalidade.some((x) => x.nome === 'Produtos'), 
 console.log('— cupom em comanda conta 1 uso');
 r = chamar('b_salvarComanda', { token: rec, comanda: { cpf: '52998224725', itens: [{ tipo: 'produto', id: protetor, qtd: 1 }, { tipo: 'servico', id: 'drenagem', profissional: 'Lia Esteticista' }], codigo: 'VIP20' } });
 ok(r.ok && r.dados.total === Math.round((120 * 0.8 + 199 * 0.8) * 100) / 100, 'cupom aplicado em todos os itens', r);
-r = chamar('b_fecharComanda', { token: rec, id: r.dados.id, pagamentos: [{ metodo: 'Cartão de crédito', valor: r.dados.total, parcelas: 2 }] });
+r = chamar('b_fecharComanda', { token: rec, id: r.dados.id, pagamentos: [{ metodo: 'Cartão de crédito', valor: r.dados.total, parcelas: 2, bandeira: 'Visa' }] });
 ok(r.ok, 'comanda com cupom fechada', r);
 r = chamar('b_simularPreco', { token: rec, planoId: 'drenagem', cpf: '52998224725', codigo: 'VIP20' });
 ok(!r.ok && /já usou/.test(r.erro), 'limite de 1 uso por cliente respeitado (a comanda contou 1)', r);
@@ -293,6 +293,81 @@ ok(r.ok && r.dados.duracao === 40, 'sem tempo próprio, vale o do serviço', r);
 chamar('b_atualizarAtendimento', { token: rec, id: r.dados.id, status: 'atendido' });
 kMara = ctx.lerAba('Comissoes').find((c) => c.ref === r.dados.id);
 ok(kMara && kMara.pct === 25, 'sem comissão própria, vale a padrão dela (25%)', kMara);
+
+console.log('— cadastro do cliente: endereço e "Como nos conheceu?"');
+{
+  const end = { cep: '60150160', endereco: 'Rua Eduardo Salgado', numero: '448', complemento: 'Sala 2', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'ce' };
+  r = chamar('b_novoAluno', { token: rec, nome: 'Clara Endereço', whatsapp: '85998887777', comoConheceu: 'Instagram', endereco: end });
+  ok(r.ok, 'cliente novo com endereço', r);
+  let a = chamar('b_aluno', { token: rec, cpf: r.dados.cpf }).dados;
+  ok(a.comoConheceu === 'Instagram' && a.endereco.cep === '60150-160' && a.endereco.uf === 'CE' && a.endereco.numero === '448' && a.endereco.bairro === 'Aldeota', 'endereço salvo e formatado', a.endereco);
+  r = chamar('b_salvarAluno', { token: rec, cpf: a.cpf, dados: { endereco: { complemento: 'Apto 101' }, comoConheceu: 'Indicação de alguém' } });
+  ok(r.ok && r.dados.endereco.complemento === 'Apto 101' && r.dados.endereco.endereco === 'Rua Eduardo Salgado' && r.dados.comoConheceu === 'Indicação de alguém', 'editar um campo não apaga o resto', r.dados && r.dados.endereco);
+  r = chamar('b_salvarAluno', { token: rec, cpf: a.cpf, dados: { endereco: { cep: '1234' } } });
+  ok(!r.ok && /8 números/.test(r.erro), 'CEP incompleto é recusado', r);
+  r = chamar('cadastrar', { cpf: '71428793860', nome: 'Site Conheceu', whatsapp: '85991114444', email: 'site.c@gmail.com', senha: 'aluna2026', comoConheceu: 'Google' });
+  ok(r.ok && ctx.buscarAluno('71428793860').como_conheceu === 'Google', 'cadastro do site guarda como conheceu', r);
+  r = chamar('b_importarClientes', { token: adm, linhas: [{ nome: 'Importada Avec', whatsapp: '85997776666', cep: '60.170-001', endereco: 'Av. Santos Dumont', numero: '100', bairro: 'Meireles', cidade: 'Fortaleza', uf: 'CE', comoConheceu: 'Wellhub' }] });
+  const imp = ctx.lerAba('Alunos').find((x) => x.nome === 'Importada Avec');
+  ok(r.ok && imp && imp.cep === '60170-001' && imp.bairro === 'Meireles' && imp.como_conheceu === 'Wellhub', 'importação traz endereço e como conheceu', imp);
+  r = chamar('b_relatorio', { token: adm, de: ctx.somarDias(hoje, -30), ate: hoje });
+  const al = r.ok && r.dados.alunos;
+  ok(al && al.comoConheceram.some((c) => c.nome === 'Google') && al.comoConheceram.some((c) => c.nome === 'Indicação de alguém') && al.bairros.some((b) => b.nome === 'Aldeota') && al.comEndereco >= 2,
+    'relatório mostra canais e bairros', al && [al.comoConheceram, al.bairros, al.comEndereco]);
+}
+
+console.log('— bandeira do cartão nos pagamentos');
+{
+  let cm = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Bandeira Teste', whatsapp: '85990004444' }, itens: [{ tipo: 'produto', id: protetor, qtd: 1 }] } });
+  ok(cm.ok, 'comanda aberta', cm);
+  cm = cm.dados;
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Cartão de crédito', valor: cm.total, parcelas: 2 }] });
+  ok(!r.ok && /bandeira/.test(r.erro), 'cartão sem bandeira é recusado', r);
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Cartão de débito', valor: 20, bandeira: 'Elo' }, { metodo: 'Cartão de crédito', valor: cm.total - 20, parcelas: 2, bandeira: 'Visa' }] });
+  ok(r.ok && r.dados.pagamentos.map((p) => p.bandeira).join() === 'Elo,Visa', 'comanda guarda a bandeira de cada cartão', r);
+  const pg = ctx.lerAba('Pagamentos').filter((p) => p.comanda === cm.id);
+  ok(pg.length && pg.every((p) => p.bandeira === 'Elo + Visa') && /Elo/.test(pg[0].observacao), 'a venda registra as bandeiras', pg.map((p) => p.bandeira));
+  r = chamar('b_vender', { token: rec, cpf: '11144477735', planoId: 'yoga-avulsa', metodo: 'Cartão de débito', bandeira: 'Mastercard' });
+  const pv = chamar('b_pagamentos', { token: adm }).dados;
+  const lista = Array.isArray(pv) ? pv : pv.lista || pv.pagamentos || [];
+  ok(r.ok && lista.some((p) => p.bandeira === 'Mastercard'), 'venda no balcão com bandeira aparece em Vendas', r);
+  r = chamar('b_vender', { token: rec, cpf: '11144477735', planoId: 'yoga-avulsa', metodo: 'Cartão de débito', bandeira: 'Inventada' });
+  ok(!r.ok && /bandeira/.test(r.erro), 'bandeira fora da lista é recusada', r);
+  r = chamar('b_relatorio', { token: adm, de: ctx.somarDias(hoje, -1), ate: hoje });
+  ok(r.ok && r.dados.financeiro.porBandeira.some((b) => b.nome === 'Mastercard'), 'relatório por bandeira', r.dados && r.dados.financeiro.porBandeira);
+}
+
+console.log('— horários flexíveis da profissional (turnos por dia e datas especiais)');
+{
+  // próxima segunda e próximo sábado
+  const prox = (dow) => { let d = ctx.somarDias(hoje, 1); while (new Date(d + 'T12:00:00Z').getUTCDay() !== dow) d = ctx.somarDias(d, 1); return d; };
+  const seg = prox(1), sab = prox(6), sab2 = ctx.somarDias(sab, 7);
+  const base = { nome: 'Nina Turnos', comissao: 30, servicos: [{ id: 'drenagem' }] };
+  r = chamar('b_salvarProfissional', { token: adm, profissional: { ...base, horarios: { 1: [['08:00', '12:00'], ['14:00', '18:00']], 6: [['08:00', '11:00']] }, especiais: { [sab2]: [['13:00', '17:00']] } } });
+  const nina = r.ok && r.dados.profissionais.find((p) => p.nome === 'Nina Turnos');
+  ok(nina && nina.horarios['1'].length === 2 && nina.dias.join() === '1,6' && nina.especiais[sab2], 'dois turnos na segunda, sábado curto e um sábado especial', r);
+  r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Nina Turnos', data: seg });
+  ok(r.ok && r.dados.horarios.includes('08:00') && r.dados.horarios.includes('11:00') && !r.dados.horarios.includes('11:15') && !r.dados.horarios.includes('12:30') && r.dados.horarios.includes('14:00') && r.dados.horarios.at(-1) === '17:00',
+    'horários livres respeitam o intervalo do almoço', r.dados && r.dados.horarios);
+  r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Nina Turnos', data: sab });
+  ok(r.ok && r.dados.horarios.at(-1) === '10:00', 'sábado só até as 11h', r.dados && r.dados.horarios);
+  r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Nina Turnos', data: sab2 });
+  ok(r.ok && r.dados.horarios[0] === '13:00' && r.dados.horarios.at(-1) === '16:00', 'sábado especial: 13h às 17h (fora do horário da casa)', r.dados && r.dados.horarios);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Nina Turnos', data: seg, hora: '12:00', cliente: { nome: 'Teste Turno', whatsapp: '85991230000' } });
+  ok(!r.ok && /Fora do horário/.test(r.erro), 'não agenda no intervalo', r);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Nina Turnos', data: seg, hora: '14:00', cliente: { nome: 'Teste Turno', whatsapp: '85991230000' } });
+  ok(r.ok, 'agenda no segundo turno', r);
+  r = chamar('b_atendimentos', { token: rec, de: seg, dias: 1 });
+  const eqN = r.ok && r.dados.equipe.find((e) => e.nome === 'Nina Turnos');
+  ok(eqN && eqN.turnos.length === 2 && eqN.turnos[1][0] === '14:00', 'agenda do dia traz os turnos', eqN);
+  r = chamar('b_salvarProfissional', { token: adm, profissional: { ...base, nomeOriginal: 'Nina Turnos', horarios: { 1: [['08:00', '12:00'], ['11:00', '15:00']] } } });
+  ok(!r.ok && /sobrep/.test(r.erro), 'turnos sobrepostos são recusados', r);
+  r = chamar('b_salvarProfissional', { token: adm, profissional: { ...base, nomeOriginal: 'Nina Turnos', horarios: {} } });
+  ok(!r.ok && /pelo menos um dia/.test(r.erro), 'sem nenhum dia é recusado', r);
+  r = chamar('b_salvarProfissional', { token: adm, profissional: { ...base, nomeOriginal: 'Nina Turnos', horarios: { 1: [['08:00', '12:00']] }, especiais: { [seg]: [] } } });
+  r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Nina Turnos', data: seg });
+  ok(r.ok && r.dados.horarios.length === 0, 'data especial vazia = não atende nesse dia', r.dados);
+}
 
 console.log('— pagamento das professoras de aula (Pilates %, Yoga por aula)');
 {

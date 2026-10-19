@@ -5,6 +5,7 @@ import { Logo, Forma, Sol, IconeWhatsapp, img } from '../components/Marca.jsx';
 import { mascaraCPF, cpfValido, soDigitos } from '../lib/util.js';
 import { CONFIG } from '../config.js';
 import { problemaSenha } from './Entrar.jsx';
+import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
 
 function Moldura({ children }) {
   return (
@@ -150,14 +151,15 @@ export function NovaSenha() {
           <form onSubmit={enviar} noValidate className="form">
             <label>
               Nova senha
-              <input type="password" autoComplete="new-password" value={s1} onChange={(e) => setS1(e.target.value)} />
+              <CampoSenha autoComplete="new-password" value={s1} onChange={(e) => setS1(e.target.value)} />
             </label>
             <ul className="regras-senha" aria-label="Requisitos da senha">
               {regras.map(([r, ok]) => <li key={r} className={ok ? 'ok' : ''}>{ok ? '✓' : '·'} {r}</li>)}
             </ul>
             <label>
               Repita a senha
-              <input type="password" autoComplete="new-password" value={s2} onChange={(e) => setS2(e.target.value)} />
+              <CampoSenha autoComplete="new-password" value={s2} onChange={(e) => setS2(e.target.value)} />
+              <ConfereSenha senha={s1} confirmacao={s2} regras={false} />
             </label>
             {erro && <p className="erro" role="alert">{erro}</p>}
             <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar senha'}</button>

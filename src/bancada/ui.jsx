@@ -4,6 +4,24 @@ import { useBancada } from './sessao.jsx';
 import { mascaraCPF } from '../lib/util.js';
 import { lembrar, temNaMemoria, guardarNaMemoria, buscar, acompanhar } from './memoria.js';
 
+// ---------- bandeira do cartão (para conferir com o extrato da maquininha) ----------
+export const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
+export const ehCartao = (m) => m === 'Cartão de crédito' || m === 'Cartão de débito';
+export const faltaBandeira = (metodo, bandeira) => ehCartao(metodo) && !bandeira;
+
+export function CampoBandeira({ metodo, valor, aoMudar, className = 'b-campo' }) {
+  if (!ehCartao(metodo)) return null;
+  return (
+    <label className={className}>
+      <span className="rotulo">Bandeira do cartão</span>
+      <select value={valor} onChange={(e) => aoMudar(e.target.value)} aria-invalid={!valor} required>
+        <option value="">Escolha…</option>
+        {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
+      </select>
+    </label>
+  );
+}
+
 // ---------- formatos ----------
 export const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const realCurto = (v) => {

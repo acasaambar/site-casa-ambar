@@ -442,12 +442,12 @@ function bancada_agendar(d, m) {
     } else if (forma === 'avulsa') {
       var avulsa = buscarPlano(aula.modalidade.toLowerCase() + '-avulsa');
       if (!avulsa) throw new Error('Não há aula avulsa de ' + aula.modalidade + ' no catálogo.');
-      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, valor: d.valor, codigo: d.codigo, inicio: aula.data, obs: 'aula ' + aula.id }, m);
+      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, inicio: aula.data, obs: 'aula ' + aula.id }, m);
       creditoId = venda.creditoId; descricao = avulsa.nome + ' · ' + venda.metodo;
     } else {
       throw new Error('Forma inválida.');
     }
-    var id = 'R' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
+    var id = novoId('R');
     aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
       creditoId, '', '']));
     SpreadsheetApp.flush();
@@ -546,6 +546,8 @@ function bancada_aluno(d) {
     .sort(function (x, y) { return (y.data + y.hora).localeCompare(x.data + x.hora); });
   r.historico = historicoCliente(cpf);
   r.nascimento = String(a.nascimento || '').slice(0, 10);
+  r.endereco = enderecoPublico(a);
+  r.comoConheceu = String(a.como_conheceu || '');
   r.marketing = String(a.marketing).toUpperCase() !== 'NÃO';
   r.fichaEstetica = !!linhaFichaEstetica(cpf);
   r.evolucoes = evolucoesDe(cpf).length;
@@ -590,6 +592,8 @@ function bancada_salvarAluno(d, m) {
   if (x.obs != null) mud.obs_internas = String(x.obs).slice(0, 1000);
   if (x.nascimento != null) mud.nascimento = /^\d{4}-\d{2}-\d{2}$/.test(String(x.nascimento)) ? x.nascimento : '';
   if (x.marketing != null) mud.marketing = x.marketing ? '' : 'NÃO';
+  if (x.endereco) Object.assign(mud, enderecoDe(x.endereco));
+  if (x.comoConheceu != null) mud.como_conheceu = textoComoConheceu(x.comoConheceu);
   atualizarLinha('Alunos', a._linha, mud);
   registrar(m, 'editou aluno', a.nome + ' · ' + Object.keys(mud).join(', '));
   if (x.cpf && soDigitos(x.cpf) !== normCpf(a.cpf)) {
@@ -607,20 +611,23 @@ function bancada_novoAluno(d, m) {
   if (soDigitos(d.whatsapp).length < 10) throw new Error('Informe o WhatsApp com DDD.');
   if (d.email && !emailValido(d.email)) throw new Error('E-mail inválido.');
   var nasc = /^\d{4}-\d{2}-\d{2}$/.test(String(d.nascimento || '')) ? d.nascimento : '';
+  var extra = enderecoDe(d.endereco);
+  if (d.comoConheceu) extra.como_conheceu = textoComoConheceu(d.comoConheceu);
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 15000);
   try {
     if (cpf) {
       if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro.');
-      adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email || '').trim().toLowerCase(),
-        senha_hash: '', sal: '', criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'bancada', nascimento: nasc });
+      adicionarLinha('Alunos', Object.assign({ cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email || '').trim().toLowerCase(),
+        senha_hash: '', sal: '', criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'bancada', nascimento: nasc }, extra));
     } else {
       var w = normWhats(d.whatsapp);
       var ja = lerAba('Alunos').filter(function (a) { return a.cpf && normWhats(a.whatsapp) === w && ativoSim(a.ativo); })[0];
       if (ja) throw erroCod('Já existe cadastro com este WhatsApp: ' + ja.nome + '.', 'DUPLICADO', { cpf: normCpf(ja.cpf) });
       var nova = clienteSemCpf(String(d.nome).trim(), w, d.email, 'bancada (sem CPF)');
       cpf = normCpf(nova.cpf);
-      if (nasc) atualizarLinha('Alunos', nova._linha, { nascimento: nasc });
+      if (nasc) extra.nascimento = nasc;
+      if (Object.keys(extra).length) atualizarLinha('Alunos', nova._linha, extra);
     }
   } finally {
     trava.releaseLock();
@@ -663,7 +670,7 @@ function pagamentoPublico(p) {
     valorOriginal: numero(p.valor_original) || numero(p.valor), desconto: numero(p.desconto), cupom: String(p.cupom || ''), vale: String(p.vale || ''),
     status: p.status, criadoEm: String(p.criado_em || ''), pagoEm: String(p.pago_em || ''), metodo: String(p.metodo || ''), parcelas: p.parcelas,
     valorPago: numero(p.valor_pago), origem: String(p.origem || 'site'), observacao: String(p.observacao || ''), recibo: String(p.recibo || ''),
-    registradoPor: String(p.registrado_por || '') };
+    registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || '') };
 }
 
 // Venda registrada pela recepção (já recebida: Pix, dinheiro, cartão na maquininha...)
@@ -671,6 +678,7 @@ function registrarVenda(aluno, plano, o, membro) {
   var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay'];
   var metodo = metodos.indexOf(o.metodo) >= 0 ? o.metodo : '';
   if (!metodo) throw new Error('Escolha como foi pago.');
+  var bandeira = bandeiraDe(metodo, o.bandeira, false);
   if (!plano) throw new Error('Item de venda não encontrado.');
   var cpf = soDigitos(aluno.cpf) ? normCpf(aluno.cpf) : '';
   var calc = calcularPreco(plano, cpf, o.codigo, { canal: 'bancada', data: /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto() });
@@ -687,7 +695,8 @@ function registrarVenda(aluno, plano, o, membro) {
   var nsu = novoNsu('B');
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: valor, status: 'pendente',
     criado_em: agoraTexto(), valor_original: plano.preco, desconto: desconto, cupom: calc.cupom, vale: calc.vale, vale_usado: calc.valeUsado,
-    origem: 'balcão', registrado_por: membro.email, observacao: String(o.obs || '').slice(0, 300), promocao: promocao, tipo_item: plano.tipo === 'servico' || plano.tipo === 'pacote' ? plano.tipo : 'plano' });
+    origem: 'balcão', registrado_por: membro.email, observacao: String(o.obs || '').slice(0, 300), promocao: promocao, tipo_item: plano.tipo === 'servico' || plano.tipo === 'pacote' ? plano.tipo : 'plano',
+    bandeira: bandeira });
   SpreadsheetApp.flush();
   var inicioC = /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto();
   var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: Number(o.parcelas) || 1, valor_pago: valor, inicio: inicioC,

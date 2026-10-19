@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, dataBR, linkWhats, primeiro,
+import { useDados, BANDEIRAS, ehCartao, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, dataBR, linkWhats, primeiro,
   telFmt, numBR, METODOS } from './ui.jsx';
 import { mascaraTelefone } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -89,7 +89,7 @@ function Fechadas({ aoAbrir }) {
                   <td data-rotulo="Fechada">{dataBR(c.fechadaEm)} {hora(c.fechadaEm.slice(11, 16))}</td>
                   <td data-rotulo="Cliente">{c.nome}</td>
                   <td data-rotulo="Itens">{c.itens.map((i) => i.nome + (i.qtd > 1 ? ` × ${i.qtd}` : '')).join(' · ')}</td>
-                  <td data-rotulo="Pagamento">{c.pagamentos.map((p) => p.metodo).join(' + ') || '—'}</td>
+                  <td data-rotulo="Pagamento">{c.pagamentos.map((p) => `${p.metodo}${p.bandeira ? ` ${p.bandeira}` : ''}`).join(' + ') || '—'}</td>
                   <td data-rotulo="Total" className="num">{real(c.total)}</td>
                 </tr>
               ))}
@@ -231,7 +231,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
         <div className="cm-papel">
           <div className="cm-papel__topo">
             <span className="cm-papel__casa">Casa Âmbar</span>
-            <span className="b-suave">{c ? `nº ${c.id.slice(-6)}` : 'nova'}</span>
+            <span className="b-suave">{c ? `nº ${c.id.slice(-5)}` : 'nova'}</span>
           </div>
           {nomeCliente && <p className="cm-papel__cliente">{nomeCliente}</p>}
           {itens.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda.</p>}
@@ -289,7 +289,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
             <strong className="cm-totais__valor">{salvando ? '…' : real(c?.total || 0)}</strong>
           </div>
           {fechada && c.pagamentos.length > 0 && (
-            <p className="cm-papel__pago">Pago com {c.pagamentos.map((p) => `${p.metodo}${p.parcelas > 1 ? ` ${p.parcelas}x` : ''} ${real(p.valor)}`).join(' + ')} · {dataBR(c.fechadaEm)} por {c.fechadaPor}</p>
+            <p className="cm-papel__pago">Pago com {c.pagamentos.map((p) => `${p.metodo}${p.bandeira ? ` ${p.bandeira}` : ''}${p.parcelas > 1 ? ` ${p.parcelas}x` : ''} ${real(p.valor)}`).join(' + ')} · {dataBR(c.fechadaEm)} por {c.fechadaPor}</p>
           )}
         </div>
 
@@ -343,7 +343,7 @@ function ValorCombinado({ inicial, aoSalvar, aoCancelar }) {
 
 function Pagamento({ c, aoVoltar, aoFechar }) {
   const { chamar } = useBancada();
-  const [linhas, setLinhas] = useState([{ metodo: 'Pix', valor: String(c.total.toFixed(2)).replace('.', ','), parcelas: 1, codigo: '' }]);
+  const [linhas, setLinhas] = useState([{ metodo: 'Pix', valor: String(c.total.toFixed(2)).replace('.', ','), parcelas: 1, codigo: '', bandeira: '' }]);
   const [erro, setErro] = useState('');
   const soma = linhas.reduce((s, l) => s + numBR(l.valor), 0);
   const falta = Math.round((c.total - soma) * 100) / 100;
@@ -363,6 +363,12 @@ function Pagamento({ c, aoVoltar, aoFechar }) {
               {Array.from({ length: 12 }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}x</option>)}
             </select>
           )}
+          {ehCartao(l.metodo) && (
+            <select className="cm-pagar__extra" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={!l.bandeira}>
+              <option value="">Bandeira…</option>
+              {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
+            </select>
+          )}
           {l.metodo === 'Vale-presente' && <input className="cm-pagar__extra" value={l.codigo} onChange={(e) => mudar(i, { codigo: e.target.value.toUpperCase() })} placeholder="AMBAR-XXXX-XXXX" aria-label="Código do vale" />}
           {linhas.length > 1 && <button type="button" className="cm-item__tirar cm-pagar__tirar" aria-label="Tirar forma" onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>}
         </div>
@@ -372,7 +378,7 @@ function Pagamento({ c, aoVoltar, aoFechar }) {
           <span className={falta > 0 ? 'b-alerta-txt' : 'b-suave'}>{falta > 0 ? `Faltam ${real(falta)}` : `Passou ${real(-falta)}`}</span>
         ) : <span className="b-suave">Valores conferem.</span>}
         {falta > 0.009 && (
-          <button type="button" className="link-acao" onClick={() => setLinhas([...linhas, { metodo: linhas[0].metodo === 'Pix' ? 'Cartão de crédito' : 'Pix', valor: String(falta.toFixed(2)).replace('.', ','), parcelas: 1, codigo: '' }])}>
+          <button type="button" className="link-acao" onClick={() => setLinhas([...linhas, { metodo: linhas[0].metodo === 'Pix' ? 'Cartão de crédito' : 'Pix', valor: String(falta.toFixed(2)).replace('.', ','), parcelas: 1, codigo: '', bandeira: '' }])}>
             + dividir: outra forma com {real(falta)}
           </button>
         )}
@@ -380,7 +386,8 @@ function Pagamento({ c, aoVoltar, aoFechar }) {
       {troco && <TrocoCalc valor={numBR(troco.valor)} />}
       <Erro>{erro}</Erro>
       <div className="cm-acoes">
-        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009} acao={async () => {
+        {linhas.some((l) => faltaBandeira(l.metodo, l.bandeira)) && <span className="b-alerta-txt">Escolha a bandeira do cartão.</span>}
+        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || linhas.some((l) => faltaBandeira(l.metodo, l.bandeira))} acao={async () => {
           setErro('');
           try {
             aoFechar(await chamar('fecharComanda', { id: c.id, pagamentos: linhas.map((l) => ({ ...l, valor: numBR(l.valor) })) }));

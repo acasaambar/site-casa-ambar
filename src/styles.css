@@ -1667,3 +1667,17 @@ a.rodape__item:hover > svg { color: var(--creme); }
 /* carregando a bancada (arquivo separado) */
 .b-carregando-tela { min-height: 100vh; min-height: 100dvh; display: grid; place-content: center; font-size: 13px; color: var(--tinta-suave); background: var(--papel); }
 .preco__de { font-size: 0.7em; opacity: 0.55; margin-right: 2px; }
+
+/* campo de senha com "mostrar senha" */
+.senha { position: relative; display: block; width: 100%; }
+.senha > input { width: 100%; padding-right: 52px !important; }
+.senha__ver {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; display: grid; place-items: center;
+  border: 0; border-radius: 10px; background: none; color: #5E6150; cursor: pointer;
+}
+.senha__ver:hover, .senha__ver[aria-pressed='true'] { color: #2F3821; background: rgba(47, 56, 33, 0.07); }
+.senha__ver:focus-visible { outline: 2px solid #6F784D; outline-offset: 1px; }
+.senha__regras { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: #7A5A3E; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.senha__regras li { display: inline-flex; gap: 6px; align-items: center; }
+.senha__regras li.ok { color: #3E5A22; }
+.senha__regras li span { font-weight: 700; }

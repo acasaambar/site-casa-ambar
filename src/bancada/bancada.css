@@ -1121,3 +1121,247 @@
 .pa-campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .pa-campos input { font-size: 16px; }
 .b-ok { margin: 0; padding: 12px 16px; border-radius: 14px; background: rgba(111, 120, 77, 0.14); color: #3E4A22; font-size: 13px; }
+
+/* profissional: horário por dia (turnos) e dias especiais */
+.hr { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }
+.hr > p { margin: 0; font-size: 12.5px; }
+.hr-dias { list-style: none; margin: 0; padding: 0; border: 1px solid var(--b-linha); border-radius: 16px; background: var(--b-linho); overflow: hidden; }
+.hr-dia { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 14px; min-height: 58px; }
+.hr-dia + .hr-dia { border-top: 1px solid var(--b-linha); }
+.hr-dia--especial { grid-template-columns: 170px minmax(0, 1fr) auto; }
+.hr-dia__nome { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--b-tinta); cursor: pointer; }
+.hr-dia__nome input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--b-tinta); margin: 0; flex: none; }
+.hr-dia__data { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; }
+.hr-dia__data small { font-size: 12px; color: var(--b-suave); }
+.hr-dia--fora .hr-dia__nome span { color: var(--b-suave); }
+.hr-folga { font-size: 13px; color: var(--b-suave); }
+.hr-turnos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hr-turno { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; border-radius: 12px; background: #FFFDF6; border: 1px solid rgba(47, 56, 33, 0.18); }
+.hr-turno > span { font-size: 12.5px; color: var(--b-suave); }
+.hr-turno input, .hr-dia__data input { border: 0; background: none; font-family: var(--mono); font-size: 16px; color: var(--b-tinta); padding: 4px 2px; min-height: 34px; }
+.hr-dia__data input { border: 1px solid rgba(47, 56, 33, 0.18); border-radius: 10px; background: #FFFDF6; padding: 4px 8px; font-size: 15px; max-width: 100%; }
+.hr-turno input:focus-visible, .hr-dia__data input:focus-visible { outline: 2px solid var(--oliva); outline-offset: 1px; border-radius: 8px; }
+.hr-tirar { width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(126, 55, 23, 0.1); color: var(--b-terracota); font-size: 18px; line-height: 1; cursor: pointer; flex: none; }
+.hr-tirar:hover { background: rgba(126, 55, 23, 0.18); }
+.hr-mais { border: 1px dashed rgba(47, 56, 33, 0.35); background: none; border-radius: 12px; padding: 8px 12px; font: inherit; font-size: 13px; color: var(--b-tinta); cursor: pointer; }
+.hr-mais:hover { background: rgba(166, 132, 94, 0.1); }
+.hr-esp { display: grid; gap: 8px; min-width: 0; }
+.hr-esp__folga { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.hr-esp__folga input { width: 16px; height: 16px; accent-color: var(--b-terracota); }
+.hr-copiar, .hr-novo { justify-self: start; }
+@media (max-width: 560px) {
+  .hr-dia, .hr-dia--especial { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px; }
+  .hr-dia--especial { grid-template-columns: minmax(0, 1fr) auto; }
+  .hr-dia--especial .hr-esp { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* ============================================================
+   AGENDA DO DIA (como no Avec): profissionais lado a lado, horários nas linhas
+   ============================================================ */
+.ag-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-bottom: 14px; }
+.ag-acoes { margin-left: auto; }
+.ag-grupos { display: flex; flex-wrap: wrap; gap: 8px; }
+.ag-grupo {
+  --g: var(--c-facial); display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid rgba(47, 56, 33, 0.2); background: var(--b-linho); font: inherit; font-size: 14px; color: var(--b-tinta); cursor: pointer;
+}
+.ag-grupo i { width: 10px; height: 10px; border-radius: 50%; background: var(--g); }
+.ag-grupo small { font-size: 12px; color: var(--b-suave); }
+.ag-grupo[aria-pressed='false'] { background: transparent; color: var(--b-suave); border-style: dashed; }
+.ag-grupo[aria-pressed='false'] i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--g); }
+.ag-grupo--fisio, .ag-cab--fisio { --g: var(--c-fisio); }
+.ag-grupo--pilates, .ag-cab--pilates { --g: var(--c-pilates); }
+.ag-grupo--yoga, .ag-cab--yoga { --g: var(--c-yoga); }
+.ag-cab--estetica { --g: var(--c-facial); }
+.ag-colunas { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(47, 56, 33, 0.06); font-size: 13px; }
+.ag-colunas span { padding: 0 8px 0 10px; color: var(--b-suave); }
+.ag-colunas button { min-width: 36px; min-height: 32px; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 14px; color: var(--b-tinta); cursor: pointer; }
+.ag-colunas button[aria-pressed='true'] { background: var(--b-tinta); color: var(--b-areia); }
+
+.ag {
+  border: 1px solid var(--b-linha); border-radius: 22px; background: var(--b-linho); overflow: auto; overscroll-behavior: contain;
+  max-height: max(520px, calc(100dvh - 300px)); container-type: inline-size; -webkit-overflow-scrolling: touch;
+}
+.ag-grade {
+  --hora: 64px; display: grid; position: relative;
+  grid-template-columns: var(--hora) repeat(var(--n), max(150px, calc((100cqw - var(--hora)) / var(--visiveis))));
+}
+.ag-canto, .ag-cab { position: sticky; top: 0; z-index: 6; background: #F7F2E4; border-bottom: 1px solid var(--b-linha); }
+.ag-canto { left: 0; z-index: 8; border-right: 1px solid var(--b-linha); }
+.ag-cab { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 12px 10px; border-left: 1px solid var(--b-linha); box-shadow: inset 0 4px 0 var(--g); }
+.ag-cab__foto { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--g); color: #FFFDF6; font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+.ag-cab__nome { display: grid; min-width: 0; line-height: 1.25; }
+.ag-cab__nome strong { font-size: 14.5px; font-weight: 600; color: var(--b-tinta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-cab__nome small { font-size: 12px; color: var(--b-suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.ag-horas { position: sticky; left: 0; z-index: 4; background: #F7F2E4; border-right: 1px solid var(--b-linha); }
+.ag-horas span { position: absolute; left: 0; right: 8px; height: var(--alt); display: flex; align-items: center; justify-content: flex-end; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--b-tinta); }
+.ag-horas span.meia { font-size: 11.5px; font-weight: 400; color: var(--b-suave); }
+.ag-col {
+  position: relative; border-left: 1px solid var(--b-linha);
+  background-image: linear-gradient(to bottom, rgba(47, 56, 33, 0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(47, 56, 33, 0.06) 1px, transparent 1px);
+  background-size: 100% calc(var(--alt) * 2), 100% var(--alt);
+}
+.ag-col--aula { background-color: rgba(166, 132, 94, 0.04); }
+.ag-fora { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, rgba(126, 55, 23, 0.13) 0 7px, rgba(126, 55, 23, 0.05) 7px 14px); pointer-events: none; }
+.ag-vago { position: absolute; left: 0; right: 0; border: 0; background: none; cursor: pointer; padding: 0 10px; text-align: left; }
+.ag-vago span { opacity: 0; font-size: 12.5px; color: var(--b-tinta); transition: opacity var(--rapido); }
+.ag-vago:hover, .ag-vago:focus-visible { background: rgba(111, 120, 77, 0.1); outline: none; }
+.ag-vago:hover span, .ag-vago:focus-visible span { opacity: 1; }
+.ag-bloco {
+  position: absolute; left: 4px; right: 4px; z-index: 2; display: flex; flex-direction: column; gap: 1px; overflow: hidden; padding: 5px 9px; text-align: left;
+  border: 0; border-left: 4px solid var(--cor); border-radius: 10px; background: color-mix(in srgb, var(--cor) 17%, #FFFDF6); color: var(--b-tinta);
+  font-family: var(--mono); cursor: pointer; transition: box-shadow var(--rapido), transform var(--rapido);
+}
+.ag-bloco:hover, .ag-bloco:focus-visible { box-shadow: 0 10px 22px -14px rgba(47, 56, 33, 0.7); transform: translateY(-1px); z-index: 3; outline: none; }
+.ag-bloco__hora { font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--cor) 70%, #1F2516); }
+.ag-bloco strong { font-size: 13.5px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-bloco__info { font-size: 12px; color: #4F523F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-bloco--aula { border-left-width: 0; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cor) 55%, transparent); }
+.ag-bloco--yoga { --cor: var(--c-yoga); }
+.ag-bloco--pilates { --cor: var(--c-pilates); }
+.ag-bloco--atendido { background: color-mix(in srgb, var(--cor) 8%, #FFFDF6); }
+.ag-bloco--falta { opacity: 0.6; background: repeating-linear-gradient(135deg, #F3E2DA 0 6px, #FFFDF6 6px 12px); }
+.ag-folga { left: 4px; right: 4px; z-index: 2; }
+.ag-agora { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--ambar); z-index: 3; pointer-events: none; }
+@media (max-width: 720px) {
+  .ag-acoes { margin-left: 0; width: 100%; }
+  .ag-acoes .botao { flex: 1; }
+  .ag-grade { --hora: 54px; }
+  .ag { max-height: calc(100dvh - 210px); border-radius: 18px; }
+}
+.ag-grupo--yoga, .ag-cab--yoga, .ag-bloco--yoga { --g: #3F6159; --cor: #3F6159; }
+@media (max-width: 720px) {
+  .ag-barra { gap: 10px; }
+  .ag-grupos { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; width: 100%; padding-bottom: 2px; }
+  .ag-grupos::-webkit-scrollbar { display: none; }
+  .ag-grupo { flex: none; }
+}
+
+/* cliente: endereço (com CEP) e "Como nos conheceu?" */
+.cc-endereco { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
+.cc-endereco legend small { color: var(--b-suave); font-size: 12px; }
+.cc-grade { display: grid; gap: 10px 12px; grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr) 110px; grid-template-areas: 'cep rua rua num' 'comp comp bairro bairro' 'cidade cidade cidade uf'; }
+.cc-cep { grid-area: cep; position: relative; } .cc-rua { grid-area: rua; } .cc-num { grid-area: num; } .cc-comp { grid-area: comp; }
+.cc-bairro { grid-area: bairro; } .cc-cidade { grid-area: cidade; } .cc-uf { grid-area: uf; }
+.cc-dica { position: absolute; right: 10px; bottom: 14px; font-size: 12px; color: var(--b-suave); }
+.cc-aviso { margin: 0; font-size: 13px; color: var(--b-terracota); }
+.cc-como { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+@media (max-width: 560px) {
+  .cc-grade { grid-template-columns: minmax(0, 1fr) 96px; grid-template-areas: 'cep cep' 'rua num' 'comp comp' 'bairro bairro' 'cidade uf'; }
+}
+
+/* ============================================================
+   DESENHO 4 · leitura fácil (pedido da equipe)
+   Texto em IBM Plex Sans (larga e firme, da mesma família da Mono).
+   Números, horas e nomes saem da Italiana fina e ficam em Plex Sans seminegrito.
+   A Italiana fica só nos títulos grandes (identidade da marca).
+   ============================================================ */
+.bancada {
+  --texto: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --titulo: 'Italiana', 'Didot', 'Bodoni 72', serif;
+  --codigo: 'IBM Plex Mono', ui-monospace, monospace;
+  --display: var(--texto);
+  --mono: var(--texto);
+  --b-suave: #535647;
+  --tinta-suave: #535647;
+  font-family: var(--texto); font-size: 15px; line-height: 1.5; color: var(--b-tinta);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.bancada input, .bancada select, .bancada textarea, .bancada button { font-family: var(--texto); }
+.bancada .b-suave { color: var(--b-suave); }
+
+/* títulos grandes continuam em Italiana */
+.b-titulo, .inicio__saudacao, .b-modal__titulo { font-family: var(--titulo); font-weight: 400; letter-spacing: 0; }
+.pr__selo strong, .b-vale-cartao__presente, .pr__topo h3 { font-family: var(--titulo); }
+
+/* códigos (vale, cupom) em mono, com espaço entre as letras */
+.b-vale__cod strong, .b-cupom, .b-vale-cartao__codigo { font-family: var(--codigo); }
+
+/* rótulos e textos pequenos: maiores e mais escuros */
+.bancada .rotulo, .b-modal .rotulo { font-size: 13px; font-weight: 500; color: #4A4D3F; letter-spacing: 0; }
+.b-kpi__rotulo { font-size: 13px; font-weight: 500; color: #4A4D3F; }
+.b-kpi__detalhe { font-size: 13px; }
+.b-tag { font-size: 12.5px; font-weight: 500; }
+.b-tabela th { font-size: 13px; font-weight: 600; color: #4A4D3F; }
+.b-tabela td { font-size: 14.5px; }
+.b-menu__item { font-size: 15px; color: rgba(240, 232, 214, 0.86); }
+.b-menu__titulo { font-size: 12px; font-weight: 600; }
+.botao { font-family: var(--texto); font-weight: 600; letter-spacing: 0.01em; text-transform: none; }
+.botao--p { font-size: 14px; }
+.link-acao { font-weight: 500; }
+
+/* números, horas e nomes: seminegrito, algarismos alinhados */
+.b-kpi__valor, .b-proximas__hora, .b-tira strong, .b-aula__hora, .b-equipe__ini, .pedra strong, .seguir__hora, .s-item__hora,
+.s-detalhe__quando strong, .s-cat__titulo, .s-cat__preco, .b-subtitulo, .b-mes strong, .cm-nota__quem, .cm-nota__pe strong, .cm-papel__cliente,
+.cm-item__valor strong, .cm-totais__valor, .cm-pagar__titulo, .cm-troco__linha strong, .est__qtd strong, .desp__dia strong, .desp__valor,
+.k-pessoa__valor, .cp__num, .cp__contagem strong, .lb__hora, .pt-titulo, .pt-linha__data strong, .hist__ano, .pa-cartao__topo strong,
+.b-cartao__titulo, .b-vazio strong, .b-atalho strong, .linha__horas span, .s-linha__topo strong, .s-linha__horas span {
+  font-family: var(--texto); font-weight: 600; letter-spacing: -0.01em; text-transform: none; font-variant-numeric: tabular-nums;
+}
+.b-kpi__valor { font-size: min(32px, 15cqi); }
+@media (max-width: 560px) { .b-kpi__valor { font-size: min(26px, 15cqi); } }
+.b-cartao__titulo { font-size: 19px; }
+.b-subtitulo, .pt-titulo, .s-cat__titulo, .pa-cartao__topo strong { font-size: 19px; }
+.b-tira strong { font-size: 20px; }
+.b-aula__hora, .seguir__hora, .b-proximas__hora { font-size: 22px; }
+.s-item__hora, .lb__hora { font-size: 19px; }
+.s-detalhe__quando strong { font-size: 30px; }
+.b-vazio strong { font-size: 18px; }
+.b-atalho strong { font-size: 17px; }
+.k-pessoa__valor { font-size: 26px; }
+.desp__dia strong { font-size: 22px; }
+.desp__valor, .s-cat__preco, .est__qtd strong { font-size: 18px; }
+.b-mes strong { font-size: 17px; }
+.pedra strong { font-size: 14px; }
+.linha__horas span { font-size: 13px; font-weight: 500; }
+.hist__ano { font-size: 20px; }
+.pt-linha__data strong { font-size: 24px; }
+.cp__contagem strong { font-size: 22px; }
+
+/* comanda: nomes e valores bem visíveis */
+.cm-nota__quem { font-size: 19px; line-height: 1.25; color: var(--b-tinta); }
+.cm-nota__pe strong { font-size: 20px; color: var(--b-tinta); }
+.cm-nota, .cm-papel { font-size: 15px; color: var(--b-tinta); }
+.cm-papel__cliente { font-size: 20px; }
+.cm-item__valor strong { font-size: 17px; }
+.cm-totais__valor { font-size: 34px; letter-spacing: -0.02em; }
+.cm-pagar__titulo { font-size: 19px; }
+.cm-troco__linha strong { font-size: 19px; }
+.cm-nota__itens { font-size: 14px; color: #4A4D3F; }
+.cm-papel__pago { font-size: 14px; color: #4A4D3F; }
+.cm-item__nome strong { font-size: 15.5px; font-weight: 600; }
+.cm-item__nome .b-suave { font-size: 13px; }
+.cm-item__prof { font-size: 14px; min-height: 38px; }
+.cm-item__valor s, .cm-item__valor .link-acao { font-size: 13px; }
+.cm-busca__grupo { font-size: 13px; font-weight: 600; }
+.cm-pagar__linha select, .cm-pagar__linha input { font-size: 16px; }
+
+/* mínimo legível: nada de texto de 10–11 px nem LETRAS MAIÚSCULAS espaçadas */
+.b-eu span, .b-chip span, .b-campo .rotulo, .b-opcoes legend, .b-opcoes small, .b-total span, .b-busca__status, .b-busca__lista span,
+.b-tira span, .b-aula__num small, .b-tapetes legend, .b-ficha__item .rotulo, .b-tabela th, .b-vale__cod .rotulo, .b-vale-cartao__val,
+.g-calor th, .g-calor td, .pedra span, .s-bloco__hora, .s-bloco__serv, .desp__dia small, .cp-publico span, .cp-fila li small,
+.pt-foto--erro, .pt-linha__data small, .s-folga span, .s-comanda small, .cm-nota__pe .b-suave, .pf-num span, .ag-horas span.meia {
+  font-size: 13px; letter-spacing: 0; text-transform: none;
+}
+.b-tira span { font-size: 13px; font-weight: 500; }
+.b-aula__num small, .cm-nota__pe .b-suave, .s-bloco__hora, .s-bloco__serv { color: #4A4D3F; }
+.pedra span { font-size: 12px; }
+.ag-horas span.meia { font-size: 12px; }
+.g-eixo { font-size: 12px; fill: #4A4D3F; }
+.b-agenda__nav .botao--p:nth-child(2) { font-size: 14px; }
+.b-lateral__marca .rotulo { color: #D2B38A; font-size: 13px; }
+.b-menu__titulo { color: #C9A97F; }
+
+/* login da equipe: mesma leitura fácil */
+.b-login { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+.b-login .form label { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; color: #3A402C; }
+.b-login .form input { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 16px; }
+.b-login .rotulo-espacado { letter-spacing: 0.04em; text-transform: none; font-size: 14px; font-weight: 600; }
+.b-login .botao { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.01em; text-transform: none; font-size: 15px; }
+.b-login__sub { font-size: 15px; }
+.b-tabela .b-suave, .b-tabela td .b-bloco { font-size: 13.5px; }
+.bancada .b-cartao p.b-suave, .bancada .b-barra-acoes p.b-suave, .bancada > .b-conteudo p.b-suave { font-size: 14px; }
+.seguir__item strong { font-size: 15px; }
+.seguir__item span { font-size: 13.5px; }
+.pr__topo h3 { font-family: var(--texto); font-weight: 600; font-size: 19px; letter-spacing: -0.01em; }

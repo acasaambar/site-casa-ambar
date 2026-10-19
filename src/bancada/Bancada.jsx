@@ -4,6 +4,7 @@ import { SessaoBancada, useBancada, pode } from './sessao.jsx';
 import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
 import { Atualizando, preCarregar } from './ui.jsx';
+import { CampoSenha } from '../components/CampoSenha.jsx';
 import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
 import { Alunos, AlunoDetalhe } from './Alunos.jsx';
@@ -16,6 +17,10 @@ import Relatorios from './Relatorios.jsx';
 import Grade from './Grade.jsx';
 import Equipe from './Equipe.jsx';
 import Ajustes from './Ajustes.jsx';
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/500.css';
+import '@fontsource/ibm-plex-sans/600.css';
+import '@fontsource/ibm-plex-sans/700.css';
 import './bancada.css';
 
 const PAPEL = { admin: 'Administração', recepcao: 'Recepção', professora: 'Professora · profissional' };
@@ -218,7 +223,7 @@ function Login() {
             {!esqueci && (
               <label>
                 Senha
-                <input type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+                <CampoSenha autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} required />
               </label>
             )}
             {erro && <p className="erro" role="alert">{erro}</p>}

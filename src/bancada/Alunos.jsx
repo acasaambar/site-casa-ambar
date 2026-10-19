@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
+import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
@@ -9,6 +9,8 @@ import { FichaConteudo } from './Agenda.jsx';
 import { useItensVenda, OpcoesItens } from './Servicos.jsx';
 import { mascaraCPF, mascaraTelefone, soDigitos, cpfValido } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { CamposEndereco, CampoComoConheceu } from './CamposCliente.jsx';
+import { ENDERECO_VAZIO } from '../lib/clientes.js';
 
 const WELLHUB = { confirmado: ['Wellhub', 'ok'], pendente: ['Wellhub a confirmar', 'aviso'], bloqueado: ['Wellhub recusado', 'alerta'] };
 
@@ -103,7 +105,9 @@ export function Alunos() {
 
 // ---------- importar clientes (planilha do Avec ou de outro sistema) ----------
 const CAMPOS_IMPORT = [['nome', 'Nome', /nome|cliente/i], ['whatsapp', 'WhatsApp', /whats|celular|telefone|fone|contato/i], ['email', 'E-mail', /e-?mail/i],
-  ['cpf', 'CPF', /cpf|documento/i], ['nascimento', 'Nascimento', /nasc|anivers/i], ['obs', 'Observação', /obs|anota/i]];
+  ['cpf', 'CPF', /cpf|documento/i], ['nascimento', 'Nascimento', /nasc|anivers/i], ['obs', 'Observação', /obs|anota/i],
+  ['cep', 'CEP', /cep/i], ['endereco', 'Rua', /endere|logradouro|^rua/i], ['numero', 'Número', /^n[uú]m|^n[º°.]/i], ['complemento', 'Complemento', /compl/i],
+  ['bairro', 'Bairro', /bairro/i], ['cidade', 'Cidade', /cidade|munic/i], ['uf', 'UF', /^uf$|estado/i], ['comoConheceu', 'Como conheceu', /conhec|soube|indica|origem/i]];
 
 function lerTabela(texto) {
   const linhas = texto.replace(/\r/g, '').split('\n').filter((l) => l.trim());
@@ -222,7 +226,7 @@ function Importar({ aoFechar, aoImportar }) {
 
 function NovoAluno({ aoFechar, aoCriar }) {
   const { chamar } = useBancada();
-  const [f, setF] = useState({ nome: '', cpf: '', whatsapp: '', email: '', nascimento: '', enviarConvite: true });
+  const [f, setF] = useState({ nome: '', cpf: '', whatsapp: '', email: '', nascimento: '', enviarConvite: true, comoConheceu: '', endereco: ENDERECO_VAZIO });
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
@@ -241,7 +245,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
     }
   }
   return (
-    <Modal rotulo="Sem CPF a cliente não acessa a área do aluno, mas tem agenda, comandas e histórico" titulo="Novo cliente" aoFechar={aoFechar}>
+    <Modal rotulo="Sem CPF a cliente não acessa a área do aluno, mas tem agenda, comandas e histórico" titulo="Novo cliente" aoFechar={aoFechar} largo>
       <form className="b-form" onSubmit={salvar} noValidate>
         <label className="b-campo"><span className="rotulo">Nome completo</span><input {...campo('nome')} autoComplete="off" /></label>
         <div className="b-linha2">
@@ -252,6 +256,8 @@ function NovoAluno({ aoFechar, aoCriar }) {
           <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
           <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
         </div>
+        <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
+        <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
         {soDigitos(f.cpf).length === 11 && (
           <label className="b-check">
             <input type="checkbox" checked={f.enviarConvite} onChange={(e) => setF((x) => ({ ...x, enviarConvite: e.target.checked }))} />
@@ -335,6 +341,10 @@ export function AlunoDetalhe() {
               <dt>WhatsApp</dt><dd>{telFmt(a.whatsapp)}</dd>
               <dt>E-mail</dt><dd>{a.email || '—'}</dd>
               <dt>Nascimento</dt><dd>{a.nascimento ? dataBR(a.nascimento) : '—'}</dd>
+              <dt>Como conheceu</dt><dd>{a.comoConheceu || <button type="button" className="link-acao" onClick={() => setEditar(true)}>perguntar e anotar</button>}</dd>
+              <dt>Endereço</dt><dd>{a.endereco?.endereco
+                ? <>{a.endereco.endereco}{a.endereco.numero ? `, ${a.endereco.numero}` : ''}{a.endereco.complemento ? ` · ${a.endereco.complemento}` : ''}<span className="b-suave b-bloco">{[a.endereco.bairro, a.endereco.cidade && `${a.endereco.cidade}${a.endereco.uf ? '/' + a.endereco.uf : ''}`, a.endereco.cep].filter(Boolean).join(' · ')}</span></>
+                : '—'}</dd>
               <dt>Última visita</dt><dd>{a.ultimaVisita ? dataBR(a.ultimaVisita) : '—'}</dd>
               <dt>Visitas</dt><dd>{a.presencas} aula(s) · {a.servicos || 0} serviço(s)</dd>
               <dt>Já gastou</dt><dd>{real(a.totalGasto)}</dd>
@@ -479,11 +489,11 @@ function Prorrogar({ c, aoSalvar }) {
 
 function EditarAluno({ a, aoFechar, aoSalvar }) {
   const [f, setF] = useState({ nome: a.nome, whatsapp: telFmt(a.whatsapp), email: a.email, obs: a.obs, ativo: a.ativo, wellhubId: a.wellhubId, nascimento: a.nascimento || '',
-    marketing: a.marketing !== false, cpf: '' });
+    marketing: a.marketing !== false, cpf: '', comoConheceu: a.comoConheceu || '', endereco: { ...ENDERECO_VAZIO, ...(a.endereco || {}) } });
   const [erro, setErro] = useState('');
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
   return (
-    <Modal rotulo="Aluno" titulo="Editar dados" aoFechar={aoFechar}>
+    <Modal rotulo="Aluno" titulo="Editar dados" aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
         <div className="b-linha2">
@@ -498,6 +508,8 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">CPF (todo o histórico passa para o CPF; se ela já tiver cadastro no site, juntamos os dois)</span>
             <input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
         )}
+        <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
+        <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
         <label className="b-check"><input type="checkbox" checked={f.marketing} onChange={(e) => setF((x) => ({ ...x, marketing: e.target.checked }))} /> Recebe campanhas por e-mail</label>
         <label className="b-campo"><span className="rotulo">Observações internas</span><textarea rows={3} {...campo('obs')} placeholder="Só a equipe vê. Ex.: prefere tapete perto da janela" /></label>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF((x) => ({ ...x, ativo: e.target.checked }))} /> Cadastro ativo (pode entrar e reservar)</label>
@@ -521,6 +533,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const [aluno, setAluno] = useState(inicial || null);
   const [planoId, setPlanoId] = useState('');
   const [metodo, setMetodo] = useState('Pix');
+  const [bandeira, setBandeira] = useState('');
   const [parcelas, setParcelas] = useState(1);
   const [codigo, setCodigo] = useState('');
   const [simulado, setSimulado] = useState(null);
@@ -549,7 +562,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : Number(String(valor).replace(',', '.')), inicio, obs });
+      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, bandeira, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : Number(String(valor).replace(',', '.')), inicio, obs });
       aoVender();
     } catch (e) {
       setErro(e.message);
@@ -594,6 +607,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
             </label>
           )}
         </div>
+        <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
         {plano && metodo !== 'Cortesia' && (
           <>
             <div className="b-linha2">
@@ -621,7 +635,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
           </div>
         )}
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={!aluno || !planoId || enviando} onClick={confirmar}>
+        <button type="button" className="botao botao--cheio" disabled={!aluno || !planoId || enviando || faltaBandeira(metodo, bandeira)} onClick={confirmar}>
           {enviando ? 'Registrando…' : 'Registrar venda'}
         </button>
         <p className="b-suave b-nota">O plano entra na hora para o aluno. Pagamentos pelo site entram sozinhos — não precisa registrar aqui.</p>
@@ -673,7 +687,7 @@ export function ListaPagamentos({ lista, acoes }) {
                 {p.observacao && <span className={`b-bloco ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
               </td>
               <td data-rotulo="Valor" className="num">{real(p.valor)}</td>
-              <td data-rotulo="Forma">{p.metodo || '—'}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
+              <td data-rotulo="Forma">{p.metodo || '—'}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
               <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{p.status}</Tag></td>
               {acoes && <td>{acoes(p)}</td>}
             </tr>

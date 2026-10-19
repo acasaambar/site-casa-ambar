@@ -32,6 +32,40 @@ function normWhats(v) {
   return d;
 }
 
+// ---------------- endereço (nota fiscal) e "Como nos conheceu?" ----------------
+// (as opções da lista ficam no site: src/lib/clientes.js; aqui só se limpa o texto)
+function textoComoConheceu(v) {
+  return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+// só os campos informados (para editar sem apagar o resto)
+function enderecoDe(x) {
+  x = x || {};
+  var o = {};
+  var txt = function (v, n) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n); };
+  if (x.cep != null) {
+    var c = soDigitos(x.cep);
+    if (c && c.length !== 8) throw new Error('O CEP tem 8 números.');
+    o.cep = c ? c.slice(0, 5) + '-' + c.slice(5) : '';
+  }
+  if (x.endereco != null) o.endereco = txt(x.endereco, 120);
+  if (x.numero != null) o.numero = txt(x.numero, 15);
+  if (x.complemento != null) o.complemento = txt(x.complemento, 60);
+  if (x.bairro != null) o.bairro = txt(x.bairro, 60);
+  if (x.cidade != null) o.cidade = txt(x.cidade, 60);
+  if (x.uf != null) {
+    var uf = txt(x.uf, 2).toUpperCase();
+    if (uf && !/^[A-Z]{2}$/.test(uf)) throw new Error('UF com 2 letras (ex.: CE).');
+    o.uf = uf;
+  }
+  return o;
+}
+
+function enderecoPublico(a) {
+  return { cep: String(a.cep || ''), endereco: String(a.endereco || ''), numero: String(a.numero == null ? '' : a.numero), complemento: String(a.complemento || ''),
+    bairro: String(a.bairro || ''), cidade: String(a.cidade || ''), uf: String(a.uf || '') };
+}
+
 // acha (pelo WhatsApp) ou cria cliente sem CPF. Quem chama segura a trava, se precisar.
 function clienteSemCpf(nome, whatsapp, email, origem) {
   var w = normWhats(whatsapp);
@@ -131,11 +165,15 @@ function bancada_importarClientes(d, m) {
       if (!cpf && w.length < 10 && !email) { ignorados.push({ linha: i + 1, nome: nome, motivo: 'sem CPF, WhatsApp ou e-mail' }); return; }
       var ex = (cpf && porCpf[normCpf(cpf)]) || (w.length >= 10 && porWhats[w]) || (email && porEmail[email]);
       var nasc = dataNascimento(x.nascimento);
+      var end = {};
+      try { end = enderecoDe({ cep: x.cep, endereco: x.endereco, numero: x.numero, complemento: x.complemento, bairro: x.bairro, cidade: x.cidade, uf: x.uf }); } catch (e) { end = {}; }
+      if (x.comoConheceu) end.como_conheceu = textoComoConheceu(x.comoConheceu);
       if (ex) {
         var mud = {};
         if (!soDigitos(ex.whatsapp) && w.length >= 10) mud.whatsapp = w;
         if (!ex.email && email) mud.email = email;
         if (!ex.nascimento && nasc) mud.nascimento = nasc;
+        Object.keys(end).forEach(function (k) { if (end[k] && !String(ex[k] || '').trim()) mud[k] = end[k]; });
         if (ex._novo) { repetidos++; return; }
         if (Object.keys(mud).length) { atualizados++; if (!d.simular) atualizarLinha('Alunos', ex._linha, mud); } else repetidos++;
         return;
@@ -143,6 +181,7 @@ function bancada_importarClientes(d, m) {
       var id = cpf || ('9' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmm') + ('0000' + seq++).slice(-4));
       var novo = { cpf: id, nome: nome, whatsapp: w, email: email, senha_hash: '', sal: '', criado_em: agoraTexto(), ativo: 'SIM',
         obs_internas: String(x.obs || '').slice(0, 500), origem_cadastro: 'importado', nascimento: nasc, _novo: true };
+      Object.keys(end).forEach(function (k) { novo[k] = end[k]; });
       novos.push(novo);
       porCpf[normCpf(id)] = novo;
       if (w.length >= 10) porWhats[w] = novo;

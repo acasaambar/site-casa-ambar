@@ -86,6 +86,7 @@ function relFinanceiro(pagamentos, planos, de, ate, dias) {
     vendas: vendas.length,
     ticketMedio: vendas.length ? Math.round(receita / vendas.length * 100) / 100 : 0,
     porForma: agrupar(vendas, function (p) { return String(p.metodo || 'não informado'); }, function (p) { return numero(p.valor); }),
+    porBandeira: agrupar(vendas.filter(function (p) { return String(p.bandeira || '').trim(); }), function (p) { return String(p.bandeira); }, function (p) { return numero(p.valor); }),
     porModalidade: agrupar(vendas, modalidade, function (p) { return numero(p.valor); }),
     porTipo: agrupar(vendas, tipo, function (p) { return numero(p.valor); }),
     porPlano: agrupar(vendas, function (p) { return String(p.descricao); }, function (p) { return numero(p.valor); }).slice(0, 15),
@@ -239,8 +240,22 @@ function relAlunos(alunos, reservas, creditos, pagamentos, fichas, de, ate) {
     renovacao: { terminaram: terminaram.length, renovaram: renovaram.length, taxa: terminaram.length ? Math.round(renovaram.length / terminaram.length * 1000) / 10 : null },
     soAvulsa: Object.keys(soAvulsa).filter(function (c) { return soAvulsa[c] && !vigentes[c]; }).map(contato).slice(0, 60),
     aniversariantes: aniversariantes,
+    // "Como nos conheceu?": novos no período, todos e quanto cada canal trouxe em vendas
+    comoConheceram: agrupar(alunos.filter(function (a) { var k = String(a.criado_em).slice(0, 10); return k >= de && k <= ate; }), canal),
+    comoConheceramTodos: agrupar(alunos, canal),
+    vendasPorCanal: agrupar(pagamentos.filter(function (p) {
+      var k = String(p.pago_em || p.criado_em).slice(0, 10);
+      return p.status === 'pago' && numero(p.valor) > 0 && p.cpf && k >= de && k <= ate;
+    }), function (p) { return canal(porCpf[normCpf(p.cpf)] || {}); }, function (p) { return numero(p.valor); }),
+    bairros: agrupar(alunos.filter(function (a) { return String(a.bairro || '').trim(); }), function (a) {
+      var b = String(a.bairro).trim();
+      return b.charAt(0).toUpperCase() + b.slice(1) + (a.cidade && semAcento(a.cidade) !== 'fortaleza' ? ' (' + a.cidade + ')' : '');
+    }).slice(0, 15),
+    comEndereco: alunos.filter(function (a) { return String(a.endereco || '').trim() && String(a.cep || '').trim(); }).length,
   };
 }
+
+function canal(a) { return String(a.como_conheceu || '').trim() || 'Não informado'; }
 
 function relVales(pagamentos, de, ate) {
   var vales = lerAba('Vales').filter(function (v) { return v.codigo; });

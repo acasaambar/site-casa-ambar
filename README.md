@@ -96,10 +96,22 @@ Catálogo → Serviços e pacotes traz o material "Rituais Casa Âmbar" (preços
 cadastre quem atende, as áreas e o horário de cada uma. Os horários livres consideram a jornada e os atendimentos já marcados.
 Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
 
+### Agenda e profissionais
+
+- **Agenda do dia** (estilo Avec): esteticistas, fisioterapeuta e professoras de Pilates e Yoga lado a lado, horários nas linhas (a cada 30 min).
+  Listrado = fora do horário de quem atende. Toque num horário vago para agendar; toque numa aula para marcar a presença. Filtre por grupo e escolha quantas colunas cabem na tela.
+- **Horário de cada profissional** (Catálogo → Profissionais): cada dia da semana com até 3 turnos (ex.: 8h–12h e 14h–18h) e **dias especiais**
+  (um sábado com horário diferente, um dia de folga). Os horários livres e a agenda seguem isso.
+
+### Clientes: endereço e "Como nos conheceu?"
+
+Cadastro com endereço (o CEP preenche rua, bairro e cidade) para nota fiscal e a pergunta "Como nos conheceu?" (também no cadastro do site).
+Relatórios → Alunos e marketing mostra de onde vêm as clientes, quanto cada canal vendeu e os bairros.
+
 ### Gestão da casa (comandas, caixa, estoque, financeiro)
 
 - **Comandas e caixa**: a comanda é a conta da visita (serviços, produtos, planos e pacotes). Abre pela agenda ("Receber na comanda") ou em Comandas → Nova comanda.
-  Aceita promoção, cupom, vale e pagamento dividido (ex.: Pix + cartão). Ao fechar: entra em Vendas, baixa o estoque, marca o atendimento como atendido e gera a comissão.
+  Aceita promoção, cupom, vale e pagamento dividido (ex.: Pix + cartão). No cartão, escolha a **bandeira** (Visa, Master, Elo…) para conferir com a maquininha. Ao fechar: entra em Vendas, baixa o estoque, marca o atendimento como atendido e gera a comissão.
   **Caixa do dia**: abrir com o troco, sangria/suprimento/despesa, fechar contando a gaveta (mostra a diferença).
 - **Estoque**: produtos de revenda e insumos. A venda na comanda e o uso em cada serviço (Catálogo → serviço → produtos usados) baixam o saldo sozinhos.
 - **Comissões**: em Catálogo → Profissionais, marque os serviços que cada uma faz, com a comissão (%) e o tempo (min) dela em cada um (como no Avec).
