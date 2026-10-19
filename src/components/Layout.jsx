@@ -72,41 +72,68 @@ function irPara(e, id) {
   }
 }
 
+const IconePino = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+    <circle cx="12" cy="10" r="2.3" />
+  </svg>
+);
+const IconeRelogio = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+const IconeSeta = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" />
+  </svg>
+);
+
 export function Footer() {
   return (
     <footer id="contato" className="rodape">
       <div className="rodape__in">
         <div className="rodape__marca">
-          <Selo tamanho={150} />
+          <Selo tamanho={128} />
           <p className="script">harmonia em estado natural</p>
         </div>
+
         <div className="rodape__col">
           <h2 className="rotulo">Visite</h2>
-          <a href={CONFIG.mapa} target="_blank" rel="noreferrer">{CONFIG.endereco}</a>
-          {CONFIG.horario && <span>{CONFIG.horario}</span>}
+          <a className="rodape__item" href={CONFIG.mapa} target="_blank" rel="noreferrer">
+            <IconePino />
+            <span>Rua Eduardo Salgado, 448<small>Aldeota · Fortaleza</small></span>
+          </a>
+          <div className="rodape__item">
+            <IconeRelogio />
+            <span>Seg a sex · 6h às 20h<small>Sáb · 7h às 12h</small><small>Dom · fechado</small></span>
+          </div>
         </div>
+
         <div className="rodape__col">
           <h2 className="rotulo">Fale com a gente</h2>
-          <a className="com-icone" href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer">
-            <IconeWhatsapp /> {CONFIG.telefone}
+          <a className="rodape__item" href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer">
+            <IconeWhatsapp /> <span>{CONFIG.telefone}</span>
           </a>
-          <a className="com-icone" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer">
-            <IconeInstagram /> @{CONFIG.instagram}
+          <a className="rodape__item" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer">
+            <IconeInstagram /> <span>@{CONFIG.instagram}</span>
           </a>
-          <a className="com-icone" href={`mailto:${CONFIG.email}`}>
-            <IconeEmail /> {CONFIG.email}
+          <a className="rodape__item" href={`mailto:${CONFIG.email}`}>
+            <IconeEmail /> <span>{CONFIG.email}</span>
           </a>
         </div>
+
         <div className="rodape__col">
           <h2 className="rotulo">Área do aluno</h2>
-          <Link to="/entrar">Entrar</Link>
-          <Link to="/aulas">Reservar aula</Link>
-          <Link to="/minhas-reservas">Minhas reservas</Link>
+          <Link className="rodape__item" to="/entrar"><IconeSeta /> <span>Entrar</span></Link>
+          <Link className="rodape__item" to="/aulas"><IconeSeta /> <span>Reservar aula</span></Link>
+          <Link className="rodape__item" to="/minhas-reservas"><IconeSeta /> <span>Minhas reservas</span></Link>
         </div>
       </div>
       <div className="rodape__base">
-        <Sol tamanho={14} />
-        <span>Casa Âmbar · desde 26</span>
+        <span className="rodape__base-marca"><Sol tamanho={14} /> Casa Âmbar · desde 26</span>
+        <span>Fortaleza · Ceará</span>
       </div>
     </footer>
   );

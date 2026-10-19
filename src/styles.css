@@ -416,17 +416,42 @@ strong { font-weight: 500; }
 @media (max-width: 860px) { .casa__grid { grid-template-columns: 1fr; gap: 40px; } .casa__foto { max-width: 440px; } }
 
 /* ---------- rodapé ---------- */
-.rodape { background: var(--verde); color: var(--creme); padding: 80px 0 28px; }
-.rodape__in { max-width: var(--largura); margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1.2fr repeat(3, 1fr); gap: 40px; }
-.rodape__marca { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
-.rodape__marca .script { color: #E6CBA2; font-size: 34px; line-height: 1.25; letter-spacing: 0.01em; }
-.rodape__col { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
-.rodape__col .rotulo { margin: 0 0 6px; color: var(--caramelo); }
-.rodape__col a { text-decoration: none; padding: 2px 0; }
-.rodape__col a:hover { text-decoration: underline; text-underline-offset: 4px; }
-.rodape__base { max-width: var(--largura); margin: 64px auto 0; padding: 22px 24px 0; border-top: 1px solid rgba(233, 221, 197, 0.14); display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #BDB49C; }
-@media (max-width: 860px) { .rodape__in { grid-template-columns: 1fr 1fr; } .rodape__marca { grid-column: 1 / -1; } }
-@media (max-width: 520px) { .rodape__in { grid-template-columns: 1fr; } }
+.rodape { background: var(--verde); color: var(--creme); padding: 76px 0 30px; }
+.rodape__in {
+  max-width: var(--largura); margin: 0 auto; padding: 0 24px; display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.85fr); gap: 48px; align-items: start;
+}
+.rodape__marca { display: flex; flex-direction: column; align-items: center; gap: 14px; justify-self: start; margin-top: -14px; }
+.rodape__marca svg { color: var(--creme); }
+.rodape__marca .script { margin: 0; color: #E6CBA2; font-size: 27px; line-height: 1.2; white-space: nowrap; }
+.rodape__col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rodape__col .rotulo { margin: 0 0 4px; color: var(--caramelo); line-height: 1; }
+.rodape__item {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr); column-gap: 14px; align-items: start;
+  font-size: 13px; line-height: 20px; color: var(--creme); text-decoration: none;
+}
+.rodape__item > svg { margin-top: 1px; color: var(--caramelo); transition: color var(--rapido), transform var(--rapido); }
+.rodape__item > span { min-width: 0; overflow-wrap: anywhere; }
+.rodape__item small { display: block; font-size: 13px; line-height: 20px; color: #BDB49C; }
+a.rodape__item:hover > span { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(233, 221, 197, 0.5); }
+a.rodape__item:hover > svg { color: var(--creme); }
+.rodape__base {
+  max-width: var(--largura); margin: 60px auto 0; padding: 22px 24px 0; border-top: 1px solid rgba(233, 221, 197, 0.14);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: #BDB49C;
+}
+.rodape__base-marca { display: inline-flex; align-items: center; gap: 10px; }
+@media (max-width: 1240px) {
+  .rodape__in { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px 32px; }
+  .rodape__marca { grid-column: 1 / -1; flex-direction: row; justify-self: stretch; justify-content: center; gap: 26px; margin: 0 0 8px; padding-bottom: 32px; border-bottom: 1px solid rgba(233, 221, 197, 0.12); }
+}
+@media (max-width: 900px) { .rodape__in { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .rodape { padding: 56px 0 26px; }
+  .rodape__in { grid-template-columns: 1fr; gap: 34px; }
+  .rodape__marca { flex-direction: column; gap: 14px; }
+  .rodape__base { justify-content: center; text-align: center; }
+}
 
 /* ============================================================
    ÁREA DO ALUNO
