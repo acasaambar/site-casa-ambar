@@ -96,6 +96,15 @@ export function IconeWhatsapp({ tamanho = 18 }) {
   );
 }
 
+export function IconeEmail({ tamanho = 18 }) {
+  return (
+    <svg width={tamanho} height={tamanho} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+      <path d="M3.8 7l8.2 6 8.2-6" />
+    </svg>
+  );
+}
+
 export function Seta({ className = '' }) {
   return (
     <svg className={className} width="18" height="22" viewBox="0 0 18 22" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">

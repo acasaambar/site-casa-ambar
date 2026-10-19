@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Logo, Sol, Forma, Monograma, Seta, IconeInstagram, IconeWhatsapp, img } from '../components/Marca.jsx';
+import { Logo, Sol, Forma, Monograma, Seta, IconeInstagram, IconeWhatsapp, IconeEmail, img } from '../components/Marca.jsx';
 import { CONFIG, CUIDADOS, GRADE, PRECOS_AULAS } from '../config.js';
 import { DIAS_CURTOS, formatarHora } from '../lib/util.js';
 
@@ -278,6 +278,7 @@ export default function Home() {
             <p>{CONFIG.endereco}</p>
             {CONFIG.horario && <p>{CONFIG.horario}</p>}
             <p><a className="com-icone" href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer"><IconeWhatsapp /> {CONFIG.telefone}</a></p>
+            <p><a className="com-icone" href={`mailto:${CONFIG.email}`}><IconeEmail /> {CONFIG.email}</a></p>
             <div className="casa__botoes">
               <a className="botao" href={CONFIG.mapa} target="_blank" rel="noreferrer">Como chegar</a>
               <a className="botao botao--linha" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer"><IconeInstagram /> @{CONFIG.instagram}</a>

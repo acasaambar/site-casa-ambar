@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Logo, Selo, Sol, IconeInstagram, IconeWhatsapp } from './Marca.jsx';
+import { Logo, Selo, Sol, IconeInstagram, IconeWhatsapp, IconeEmail } from './Marca.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { CONFIG } from '../config.js';
 import { MODO_DEMO } from '../lib/api.js';
@@ -92,6 +92,9 @@ export function Footer() {
           </a>
           <a className="com-icone" href={`https://instagram.com/${CONFIG.instagram}`} target="_blank" rel="noreferrer">
             <IconeInstagram /> @{CONFIG.instagram}
+          </a>
+          <a className="com-icone" href={`mailto:${CONFIG.email}`}>
+            <IconeEmail /> {CONFIG.email}
           </a>
         </div>
         <div className="rodape__col">

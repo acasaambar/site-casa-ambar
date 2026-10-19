@@ -258,6 +258,7 @@ function doPost(e) {
       checkin: fazerCheckin,
       minhasReservas: minhasReservas,
       salvarAnamnese: salvarAnamnese,
+      minhaFicha: minhaFicha,
       meuPlano: meuPlano,
       comprar: comprar,
       confirmarPagamento: confirmarPagamento,
@@ -300,7 +301,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v16 (Wellhub novo, pagamentos pendentes expiram)';
+var VERSAO = '2026-10-18 · v17 (ficha de saúde abre preenchida)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -687,6 +688,24 @@ function salvarAnamnese(d) {
     trava.releaseLock();
   }
   return { ok: true, alerta: algumSim };
+}
+
+// Ficha já preenchida, no formato do formulário do site (para revisar e atualizar)
+function minhaFicha(d) {
+  var aluno = alunoDaSessao(d.token);
+  var cpf = normCpf(aluno.cpf);
+  var f = lerAba('Anamneses').filter(function (x) { return normCpf(x.cpf) === cpf; })[0];
+  if (!f) return null;
+  var txt = function (v) { return String(v == null ? '' : v); };
+  var o = {
+    data_nascimento: dataTexto(f.data_nascimento || ''), emergencia_nome: txt(f.emergencia_nome), emergencia_parentesco: txt(f.emergencia_parentesco),
+    emergencia_telefone: txt(f.emergencia_telefone), plano_saude: txt(f.plano_saude),
+    comorbidades: txt(f.comorbidades).split(', ').filter(String), comorbidade_outra: txt(f.comorbidade_outra), gestante: txt(f.gestante),
+    gestante_semanas: txt(f.gestante_semanas), cirurgias: txt(f.cirurgias), lesoes: txt(f.lesoes), medicamentos: txt(f.medicamentos),
+    alergias: txt(f.alergias), atividade_regular: txt(f.atividade_regular), observacoes: txt(f.observacoes), preenchida_em: txt(f.preenchida_em),
+  };
+  for (var n = 1; n <= 7; n++) o['parq_' + n] = txt(f['parq_' + n]).toUpperCase() === 'SIM' ? 'sim' : txt(f['parq_' + n]) ? 'nao' : '';
+  return o;
 }
 
 function linhaAnamnese(cpf) {

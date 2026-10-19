@@ -54,6 +54,7 @@ export const api = {
   checkin: (token, reservaId) => chamar('checkin', { token, reservaId }),
   minhasReservas: (token) => chamar('minhasReservas', { token }),
   salvarAnamnese: (token, ficha) => chamar('salvarAnamnese', { token, ficha }),
+  minhaFicha: (token) => chamar('minhaFicha', { token }),
   meuPlano: (token) => chamar('meuPlano', { token }),
   comprar: (token, planoId, codigo = '') => chamar('comprar', { token, planoId, codigo }),
   descartarPagamento: (token, orderNsu) => chamar('descartarPagamento', { token, orderNsu }),
@@ -303,6 +304,12 @@ async function demo(acao, d) {
       r.checkinEm = new Date().toISOString();
       LS.gravar('ambar_demo_reservas', reservas);
       return r;
+    }
+    case 'minhaFicha': {
+      const a = sessao(d.token);
+      const f = fichas[a.cpf];
+      if (!f) return null;
+      return { ...f, preenchida_em: f.preenchidaEm || '', declaracao: false, consentimento: false };
     }
     case 'salvarAnamnese': {
       const a = sessao(d.token);

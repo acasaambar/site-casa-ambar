@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import AreaNav from '../components/AreaNav.jsx';
@@ -24,6 +24,24 @@ export default function FichaSaude() {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(null);
+
+  // ficha já preenchida: abre com as respostas para revisar e atualizar
+  const [anterior, setAnterior] = useState(null);
+  const [carregandoFicha, setCarregandoFicha] = useState(!!aluno?.anamnese);
+  useEffect(() => {
+    if (!aluno?.anamnese) return;
+    let vivo = true;
+    api.minhaFicha(token)
+      .then((r) => {
+        if (!vivo || !r) return;
+        const { preenchida_em: quando, ...resto } = r;
+        setF({ ...FICHA_VAZIA, ...resto, emergencia_telefone: mascaraTelefone(resto.emergencia_telefone || ''), declaracao: false, consentimento: false });
+        setAnterior(quando || 'sim');
+      })
+      .catch(() => {})
+      .finally(() => vivo && setCarregandoFicha(false));
+    return () => { vivo = false; };
+  }, [token, aluno?.anamnese]);
 
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const campo = (k, mascara) => ({
@@ -104,8 +122,12 @@ export default function FichaSaude() {
       <div className="app__topo">
         <div className="largura">
           <span className="rotulo-espacado cor-caramelo">{local.state?.novo ? 'Último passo do cadastro' : 'Ficha de saúde'}</span>
-          <h1 className="display-m">Antes de começar, queremos te conhecer</h1>
-          <p className="ficha__intro">Leva uns 2 minutos. Assim a professora sabe como cuidar de você durante a prática.</p>
+          <h1 className="display-m">{anterior ? 'Sua ficha de saúde' : 'Antes de começar, queremos te conhecer'}</h1>
+          <p className="ficha__intro">
+            {anterior
+              ? 'Estas são as respostas que você enviou. Mudou alguma coisa? Atualize e salve de novo.'
+              : 'Leva uns 2 minutos. Assim a professora sabe como cuidar de você durante a prática.'}
+          </p>
         </div>
       </div>
 
@@ -120,6 +142,14 @@ export default function FichaSaude() {
           ))}
         </ol>
         <p className="passos__legenda">Etapa {etapa + 1} de {ETAPAS.length} · {ETAPAS[etapa].titulo}</p>
+        {anterior && (
+          <p className="ficha__anterior">
+            <Sol tamanho={14} />
+            <span>Ficha preenchida{anterior !== 'sim' && /^\d{4}-\d{2}-\d{2}/.test(anterior) ? ` em ${anterior.slice(0, 10).split('-').reverse().join('/')}` : ''}.
+            Para salvar as mudanças, marque de novo a declaração no final.</span>
+          </p>
+        )}
+        {carregandoFicha && <p className="passos__legenda">Carregando suas respostas…</p>}
 
         <form className="form ficha__form" onSubmit={avancar} noValidate>
           {etapa === 0 && (

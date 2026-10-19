@@ -18,6 +18,7 @@ export const CONFIG = {
   instagram: 'acasaambar',
   whatsapp: '5585991856528', // só números, com 55 + DDD
   telefone: '(85) 99185-6528',
+  email: 'contato@acasaambar.com.br',
   horario: 'Seg a sex, 6h às 20h · Sáb, 7h às 12h · Dom, fechado', // vazio = não aparece
 
   // Regras das reservas
