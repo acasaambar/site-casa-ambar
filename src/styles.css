@@ -317,7 +317,7 @@ strong { font-weight: 500; }
 }
 .movimento__lead { grid-column: 2; max-width: 360px; margin: 0; color: #DCD3BD; }
 .movimento__titulo .botao { grid-column: 2; justify-self: start; }
-.movimento__grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; }
+.movimento__grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; }
 .cartao-aula {
   background: rgba(233, 221, 197, 0.06);
   border: 1px solid rgba(233, 221, 197, 0.16);
@@ -326,6 +326,7 @@ strong { font-weight: 500; }
   display: flex;
   flex-direction: column;
   gap: 28px;
+  min-width: 0;
 }
 .cartao-aula header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .cartao-aula header .rotulo { color: var(--caramelo); }
@@ -342,6 +343,24 @@ strong { font-weight: 500; }
 .precos li { display: flex; align-items: baseline; gap: 10px; }
 .precos__linha { flex: 1; border-bottom: 1px dotted rgba(233, 221, 197, 0.35); }
 .precos strong { color: #FBF3E2; }
+.grade-lista { display: none; list-style: none; margin: 0; padding: 0; }
+.grade-lista li {
+  display: grid; grid-template-columns: 62px minmax(0, 1fr); column-gap: 14px; row-gap: 2px;
+  padding: 12px 0; border-bottom: 1px solid rgba(233, 221, 197, 0.14);
+}
+.grade-lista li:first-child { border-top: 1px solid rgba(233, 221, 197, 0.14); }
+.grade-lista strong { grid-row: 1 / span 2; align-self: center; font-family: var(--display); font-size: 24px; font-weight: 400; color: #FBF3E2; }
+.grade-lista__dias { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--caramelo); }
+.grade-lista__prof { font-size: 14px; color: #FBF3E2; }
+.precos li > span:first-child { min-width: 0; }
+.precos strong { white-space: nowrap; }
+@media (max-width: 560px) {
+  .cartao-aula { padding: 24px 20px; gap: 22px; }
+  .cartao-aula header { flex-wrap: wrap; row-gap: 4px; }
+  .tabela-rolagem { display: none; }
+  .grade-lista { display: block; }
+  .pilates-horas p { font-size: 22px; }
+}
 .nota-plano { margin: 28px 0 0; font-size: 12px; color: #BDB49C; letter-spacing: 0.04em; }
 @media (max-width: 860px) {
   .movimento__titulo { grid-template-columns: 1fr; }

@@ -39,6 +39,15 @@ export default function Home() {
   const yoga = GRADE.filter((g) => g.modalidade === 'Yoga');
   const horariosYoga = [...new Set(yoga.map((g) => g.hora))].sort();
   const diasYoga = [...new Set(yoga.map((g) => g.dia))].sort();
+  // versão para celular: um item por horário + professora, com os dias juntos
+  const listaYoga = [];
+  horariosYoga.forEach((h) => {
+    const porProf = {};
+    yoga.filter((g) => g.hora === h).sort((a, b) => a.dia - b.dia).forEach((g) => {
+      (porProf[g.professor] = porProf[g.professor] || []).push(DIAS_CURTOS[g.dia]);
+    });
+    Object.entries(porProf).forEach(([prof, dias]) => listaYoga.push({ h, prof, dias }));
+  });
 
   return (
     <main>
@@ -142,6 +151,15 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+              <ul className="grade-lista">
+                {listaYoga.map((x) => (
+                  <li key={x.h + x.prof}>
+                    <strong>{formatarHora(x.h)}</strong>
+                    <span className="grade-lista__dias">{x.dias.join(' · ')}</span>
+                    <span className="grade-lista__prof">{x.prof}</span>
+                  </li>
+                ))}
+              </ul>
               <Precos lista={PRECOS_AULAS.Yoga} />
             </article>
 
