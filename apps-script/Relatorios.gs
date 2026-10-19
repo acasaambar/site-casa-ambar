@@ -94,7 +94,7 @@ function relFinanceiro(pagamentos, planos, de, ate, dias) {
     cupons: agrupar(comCupom, function (p) { return String(p.cupom); }, function (p) { return numero(p.desconto); }),
     conversaoSite: linksSite.length ? Math.round(linksSite.filter(function (p) { return p.status === 'pago'; }).length / linksSite.length * 1000) / 10 : null,
     linksSite: linksSite.length,
-    abandonados: linksSite.filter(function (p) { return p.status === 'pendente'; }).length,
+    abandonados: linksSite.filter(function (p) { return p.status === 'pendente' || p.status === 'expirado' || p.status === 'descartado'; }).length,
     estornos: estornos.length,
     valorEstornado: soma(estornos, function (p) { return numero(p.valor); }),
     jurosDevolver: pagamentos.filter(function (p) { return /^DEVOLVER/.test(String(p.observacao)); }).map(pagamentoPublico),

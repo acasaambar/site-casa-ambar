@@ -56,6 +56,7 @@ export const api = {
   salvarAnamnese: (token, ficha) => chamar('salvarAnamnese', { token, ficha }),
   meuPlano: (token) => chamar('meuPlano', { token }),
   comprar: (token, planoId, codigo = '') => chamar('comprar', { token, planoId, codigo }),
+  descartarPagamento: (token, orderNsu) => chamar('descartarPagamento', { token, orderNsu }),
   validarCodigo: (token, planoId, codigo) => chamar('validarCodigo', { token, planoId, codigo }),
   resgatarVale: (token, codigo) => chamar('resgatarVale', { token, codigo }),
   esqueciSenha: (cpf) => chamar('esqueciSenha', { cpf }),
@@ -378,6 +379,11 @@ async function demo(acao, d) {
         .filter((r) => r.cpf === a.cpf && r.status !== 'cancelado' && r.status !== 'pendente')
         .map((r) => ({ ...r, wellhub: r.credito === 'WELLHUB' }))
         .sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+    }
+    case 'descartarPagamento': {
+      const lista = LS.ler('ambar_demo_pagamentos', []).filter((p) => p.orderNsu !== d.orderNsu);
+      LS.gravar('ambar_demo_pagamentos', lista);
+      return true;
     }
     case 'regras':
       return { checkinAbreMinAntes: CONFIG.checkinAbreMinAntes, cancelarAteHorasAntes: CONFIG.cancelarAteHorasAntes, diasVisiveis: CONFIG.diasVisiveis, wellhubAtivo: true };

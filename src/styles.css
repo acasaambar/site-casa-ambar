@@ -1556,3 +1556,82 @@ strong { font-weight: 500; }
 .aviso-email p { margin: 2px 0 0; font-size: 12.5px; color: #6B4512; }
 .aviso-email .erro { grid-column: 1 / -1; margin: 0; }
 @media (max-width: 640px) { .aviso-email { grid-template-columns: 1fr; } }
+
+/* ---------- Wellhub (Meu plano) ---------- */
+.wh {
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); border-radius: 28px; overflow: hidden;
+  background: var(--branco); border: 1px solid rgba(47, 56, 33, 0.12); box-shadow: 0 30px 60px -44px rgba(47, 56, 33, 0.7);
+}
+.wh__lado { position: relative; overflow: hidden; background: var(--verde); color: var(--creme); padding: 32px 32px 30px; display: flex; flex-direction: column; gap: 10px; }
+.wh__lado .rotulo { color: var(--caramelo); }
+.wh__selo {
+  width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; flex: none;
+  background: var(--creme); color: var(--verde); font-family: var(--display); font-size: 30px; line-height: 1; margin-bottom: 6px;
+}
+.wh__titulo { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(28px, 3.2vw, 38px); line-height: 1; text-transform: uppercase; }
+.wh__sub { margin: 0; font-size: 13px; line-height: 1.6; color: rgba(233, 221, 197, 0.78); max-width: 380px; }
+.wh__passos { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 14px; position: relative; z-index: 1; }
+.wh__passos li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.wh__passos strong { display: block; font-weight: 500; font-size: 13px; letter-spacing: 0.04em; }
+.wh__passos p { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: rgba(233, 221, 197, 0.7); }
+.wh__passos em { font-style: normal; color: var(--creme); border-bottom: 1px solid var(--caramelo); }
+.wh__num {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-size: 18px;
+  border: 1px solid rgba(233, 221, 197, 0.35); color: var(--creme);
+}
+.wh__forma { position: absolute; right: -30px; bottom: -34px; pointer-events: none; }
+.wh__form { padding: 32px; display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.wh__campo { display: grid; gap: 8px; }
+.wh__campo .rotulo { font-size: 10.5px; color: var(--tinta-suave); }
+.wh__campo input {
+  min-height: 60px; border-radius: 16px; border: 1px solid rgba(47, 56, 33, 0.2); background: var(--papel); padding: 0 18px;
+  font-family: var(--mono); font-size: 20px; letter-spacing: 0.16em; color: var(--verde); width: 100%;
+  transition: border-color var(--rapido), box-shadow var(--rapido);
+}
+.wh__campo input::placeholder { color: rgba(47, 56, 33, 0.25); }
+.wh__campo input:focus { outline: none; border-color: var(--oliva); box-shadow: 0 0 0 4px rgba(111, 120, 77, 0.16); background: var(--branco); }
+.wh__campo small { font-size: 11.5px; color: var(--tinta-suave); }
+.wh__confirma {
+  position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; align-items: start; cursor: pointer;
+  padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(47, 56, 33, 0.14); font-size: 12.5px; line-height: 1.55; transition: all var(--rapido);
+}
+.wh__confirma input { position: absolute; opacity: 0; pointer-events: none; }
+.wh__check {
+  width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid rgba(47, 56, 33, 0.35); display: grid; place-items: center;
+  color: transparent; font-size: 14px; transition: all var(--rapido);
+}
+.wh__confirma--ok { border-color: var(--oliva); background: #EEF0E2; }
+.wh__confirma--ok .wh__check { background: var(--oliva); border-color: var(--oliva); color: #FBF8EF; }
+.wh__confirma:has(input:focus-visible) { outline: 2px solid var(--ambar); outline-offset: 3px; }
+.wh__confirma strong { font-weight: 500; }
+.wh__botao { min-height: 56px; }
+.wh__rodape { margin: 0; font-size: 11.5px; color: var(--tinta-suave); text-align: center; }
+
+/* ativo: cartão de membro */
+.wh--ativo { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); align-items: center; padding: 20px; gap: 26px; background: linear-gradient(140deg, #FBF8EF, #F1E9D6); }
+.wh__cartao {
+  position: relative; overflow: hidden; border-radius: 22px; padding: 22px 24px 24px; color: var(--creme); aspect-ratio: 1.6; display: flex; flex-direction: column;
+  background: radial-gradient(120% 140% at 100% 0%, #4A5534 0%, var(--verde) 55%, #232A18 100%); box-shadow: 0 24px 40px -24px rgba(31, 37, 22, 0.8);
+}
+.wh__cartao-topo { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: auto; }
+.wh__cartao .rotulo { color: var(--caramelo); font-size: 10px; }
+.wh__id { font-family: var(--mono); font-weight: 400; font-size: clamp(18px, 2.2vw, 24px); letter-spacing: 0.14em; margin: 6px 0 4px; }
+.wh__mods { font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(233, 221, 197, 0.65); }
+.wh__estado { font-size: 10.5px; letter-spacing: 0.1em; padding: 5px 11px; border-radius: 999px; background: rgba(233, 221, 197, 0.14); }
+.wh__estado--confirmado { background: #C9D2A6; color: var(--verde); }
+.wh__passos--claro li { color: var(--tinta); }
+.wh__passos--claro p { color: var(--tinta-suave); }
+.wh__passos--claro em { color: var(--verde); }
+.wh__passos--claro .wh__num { border-color: rgba(47, 56, 33, 0.25); color: var(--verde); }
+.wh__nota { display: block !important; font-size: 11.5px; color: var(--terracota); padding-left: 46px; }
+.wh--aviso { display: flex; gap: 16px; align-items: center; padding: 20px 24px; background: #F3DCD0; color: #6E2A10; }
+.wh--aviso .wh__selo { margin: 0; background: #6E2A10; color: #F3DCD0; }
+.wh--aviso p { margin: 0; font-size: 13px; }
+@media (max-width: 760px) {
+  .wh, .wh--ativo { grid-template-columns: 1fr; }
+  .wh__lado { padding: 26px 22px; }
+  .wh__form { padding: 24px 22px 26px; }
+  .wh--ativo { padding: 16px; gap: 18px; }
+  .wh__cartao { aspect-ratio: auto; min-height: 190px; }
+}
+.pagamento__remover { background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }

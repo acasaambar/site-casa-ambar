@@ -84,6 +84,19 @@ export default function MeuPlano() {
     }
   }
 
+  const [removendo, setRemovendo] = useState('');
+  async function descartar(p) {
+    setRemovendo(p.orderNsu);
+    try {
+      await api.descartarPagamento(token, p.orderNsu);
+      setDados((d) => ({ ...d, pagamentos: d.pagamentos.filter((x) => x.orderNsu !== p.orderNsu) }));
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setRemovendo('');
+    }
+  }
+
   const catalogo = dados?.catalogo || [];
   const ativos = (dados?.creditos || []).filter((c) => c.tipo !== 'avulsa' || c.restantes > 0);
   const daModalidade = catalogo.filter((p) => p.modalidade === modalidade);
@@ -276,6 +289,10 @@ export default function MeuPlano() {
               {dados.pagamentos.length === 0 ? (
                 <p className="plano__nada">Seus pagamentos aparecem aqui, com o comprovante.</p>
               ) : (
+                <>
+                {dados.pagamentos.some((p) => p.status === 'pendente') && (
+                  <p className="plano__nada">Pagamentos não concluídos somem sozinhos em 24 horas. Se não for pagar, toque em Remover.</p>
+                )}
                 <ul className="pagamentos">
                   {dados.pagamentos.map((p) => (
                     <li key={p.orderNsu} className="pagamento">
@@ -291,12 +308,18 @@ export default function MeuPlano() {
                       <span className={`status status--${p.status}`}>{p.status === 'pago' ? 'Pago' : p.status === 'pendente' ? 'Pendente' : p.status}</span>
                       <div className="pagamento__acoes">
                         {p.status === 'pendente' && p.link && <a className="link-acao" href={p.link} target="_blank" rel="noreferrer">Pagar agora</a>}
+                        {p.status === 'pendente' && (
+                          <button type="button" className="link-acao link-acao--suave pagamento__remover" disabled={removendo === p.orderNsu} onClick={() => descartar(p)}>
+                            {removendo === p.orderNsu ? 'Removendo…' : 'Remover'}
+                          </button>
+                        )}
                         {p.recibo && <a className="link-acao" href={p.recibo} target="_blank" rel="noreferrer">Comprovante</a>}
                         {p.status === 'pago' && <a className="link-acao link-acao--suave" href={estorno(p)} target="_blank" rel="noreferrer">Cancelar ou pedir estorno</a>}
                       </div>
                     </li>
                   ))}
                 </ul>
+                </>
               )}
             </section>
 
@@ -462,9 +485,16 @@ function Wellhub({ info, token, aoAtivar }) {
     }
   }
 
+  const passos = [
+    ['Informe seu ID', 'Ele fica no app Wellhub, em Perfil.'],
+    ['Reserve pelo site', <>Na hora de reservar, toque em <em>Usar meu Wellhub</em>.</>],
+    ['Check-in ao chegar', 'Faça o check-in no app Wellhub, na recepção.'],
+  ];
+
   if (info.status === 'bloqueado') {
     return (
-      <div className="wellhub wellhub--aviso">
+      <div className="wh wh--aviso">
+        <div className="wh__selo" aria-hidden="true">W</div>
         <p>Não conseguimos confirmar o seu Wellhub. Fale com a recepção pelo WhatsApp {CONFIG.telefone}.</p>
       </div>
     );
@@ -472,40 +502,57 @@ function Wellhub({ info, token, aoAtivar }) {
 
   if (ativo) {
     return (
-      <div className="wellhub wellhub--ativo">
-        <div className="wellhub__selo" aria-hidden="true">W</div>
-        <div className="wellhub__texto">
-          <strong>Wellhub ativo {info.status === 'pendente' && <span className="status status--pendente">aguardando confirmação</span>}</strong>
-          <p>
-            Você pode reservar {info.modalidades.join(' e ')} sem pagar pelo site: na reserva, escolha <em>Usar meu Wellhub</em>.
-            Ao chegar, faça o <strong>check-in no app Wellhub</strong>. Sem o check-in, a aula é cobrada como avulsa.
-          </p>
-          <span className="wellhub__id">ID Wellhub · {info.id}</span>
+      <div className="wh wh--ativo">
+        <div className="wh__cartao">
+          <div className="wh__cartao-topo">
+            <span className="wh__selo" aria-hidden="true">W</span>
+            <span className={`wh__estado wh__estado--${info.status}`}>{info.status === 'confirmado' ? 'Ativo' : 'Aguardando confirmação'}</span>
+          </div>
+          <span className="rotulo">Wellhub · {info.planoMinimo} ou superior</span>
+          <strong className="wh__id">{info.id.replace(/(\d{4})(?=\d)/g, '$1 ')}</strong>
+          <span className="wh__mods">{info.modalidades.join(' · ')}</span>
+          <Forma nome="equilibrio" tamanho={120} cor="rgba(233,221,197,0.07)" className="wh__forma" />
         </div>
+        <ol className="wh__passos wh__passos--claro">
+          {passos.slice(1).map(([t, d], i) => (
+            <li key={t}><span className="wh__num">{i + 1}</span><div><strong>{t}</strong><p>{d}</p></div></li>
+          ))}
+          <li className="wh__nota">Sem o check-in no app, a aula é cobrada como avulsa.</li>
+        </ol>
       </div>
     );
   }
 
   return (
-    <form className="wellhub" onSubmit={ativar}>
-      <div className="wellhub__selo" aria-hidden="true">W</div>
-      <div className="wellhub__texto">
-        <strong>Tem Wellhub {info.planoMinimo} ou superior?</strong>
-        <p>A Casa Âmbar é parceira do Wellhub. Informe seu ID e reserve {info.modalidades.join(' e ')} usando o seu plano.</p>
-        <div className="form wellhub__form">
-          <label>
-            ID Wellhub <span className="opcional">no app Wellhub, em Perfil</span>
-            <input type="text" inputMode="numeric" value={id} onChange={(e) => setId(e.target.value.replace(/\D/g, '').slice(0, 20))} placeholder="0000000000000" />
-          </label>
-          <label className="termo">
-            <input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />
-            <span>Meu plano Wellhub é {info.planoMinimo} ou superior e farei o check-in no app ao chegar.</span>
-          </label>
-          {erro && <p className="erro" role="alert">{erro}</p>}
-          <button type="submit" className="botao botao--cheio" disabled={salvando || !id || !confirmo}>
-            {salvando ? 'Ativando…' : 'Ativar Wellhub'}
-          </button>
-        </div>
+    <form className="wh" onSubmit={ativar}>
+      <div className="wh__lado">
+        <span className="wh__selo" aria-hidden="true">W</span>
+        <span className="rotulo">Parceiro Wellhub</span>
+        <h3 className="wh__titulo">Pratique com o seu Wellhub</h3>
+        <p className="wh__sub">Planos {info.planoMinimo} ou superior reservam {info.modalidades.join(' e ')} na Casa Âmbar sem pagar pelo site.</p>
+        <ol className="wh__passos">
+          {passos.map(([t, d], i) => (
+            <li key={t}><span className="wh__num">{i + 1}</span><div><strong>{t}</strong><p>{d}</p></div></li>
+          ))}
+        </ol>
+        <Forma nome="equilibrio" tamanho={150} cor="rgba(233,221,197,0.06)" className="wh__forma" />
+      </div>
+      <div className="wh__form">
+        <label className="wh__campo">
+          <span className="rotulo">Seu ID Wellhub</span>
+          <input type="text" inputMode="numeric" autoComplete="off" value={id} onChange={(e) => setId(e.target.value.replace(/\D/g, '').slice(0, 20))} placeholder="0000 0000 0000" />
+          <small>Abra o app Wellhub → Perfil → copie o número do ID.</small>
+        </label>
+        <label className={`wh__confirma${confirmo ? ' wh__confirma--ok' : ''}`}>
+          <input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />
+          <span className="wh__check" aria-hidden="true">✓</span>
+          <span>Meu plano é <strong>{info.planoMinimo} ou superior</strong> e vou fazer o check-in no app ao chegar.</span>
+        </label>
+        {erro && <p className="erro" role="alert">{erro}</p>}
+        <button type="submit" className="botao botao--cheio wh__botao" disabled={salvando || id.length < 6 || !confirmo}>
+          {salvando ? 'Ativando…' : 'Ativar meu Wellhub'}
+        </button>
+        <p className="wh__rodape">A recepção confirma seu plano no primeiro check-in. Enquanto isso, você já pode reservar.</p>
       </div>
     </form>
   );

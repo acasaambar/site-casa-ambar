@@ -262,6 +262,7 @@ function doPost(e) {
       comprar: comprar,
       confirmarPagamento: confirmarPagamento,
       ativarWellhub: ativarWellhub,
+      descartarPagamento: descartarPagamento,
       // senha
       esqueciSenha: esqueciSenha,
       verLinkSenha: verLinkSenha,
@@ -299,7 +300,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v15 (bancada, senha com pimenta, cupons e vales-presente)';
+var VERSAO = '2026-10-18 · v16 (Wellhub novo, pagamentos pendentes expiram)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -936,9 +937,16 @@ function meuPlano(d) {
   var linhas = aba('Pagamentos').getDataRange().getValues();
   var cab = linhas[0];
   var pagamentos = [];
+  var limitePendente = Date.now() - PENDENTE_VALE_HORAS * 3600000;
   for (var i = 1; i < linhas.length; i++) {
     var p = objeto(cab, linhas[i]);
     if (normCpf(p.cpf) !== cpf) continue;
+    // tentativa de pagamento não concluída: some depois de algumas horas (fica 'expirado' na planilha)
+    if (p.status === 'pendente' && new Date(String(p.criado_em).replace(' ', 'T') + '-03:00').getTime() < limitePendente) {
+      aba('Pagamentos').getRange(i + 1, coluna('Pagamentos', 'status')).setValue('expirado');
+      continue;
+    }
+    if (p.status === 'expirado' || p.status === 'descartado') continue;
     pagamentos.push({ orderNsu: String(p.order_nsu), descricao: p.descricao, valor: numero(p.valor), status: p.status, criadoEm: String(p.criado_em),
       pagoEm: String(p.pago_em || ''), metodo: p.metodo, parcelas: p.parcelas, recibo: p.recibo, link: p.status === 'pendente' ? p.link : '' });
   }
@@ -946,6 +954,24 @@ function meuPlano(d) {
   return { catalogo: listarPlanos().map(planoPublico), creditos: creditos, pagamentos: pagamentos,
     trimestralOnline: !!chaveInfinitePay(),
     wellhub: { status: statusWellhub(aluno), id: String(aluno.wellhub_id || ''), modalidades: AJUSTES.wellhub.modalidades, planoMinimo: AJUSTES.wellhub.planoMinimo } };
+}
+
+// Pagamento iniciado e não concluído some de "Meus pagamentos" depois de X horas
+var PENDENTE_VALE_HORAS = 24;
+
+// Aluno descarta uma tentativa de pagamento que não vai concluir
+function descartarPagamento(d) {
+  var aluno = alunoDaSessao(d.token);
+  var pg = linhaPagamento(String(d.orderNsu || ''));
+  if (!pg || normCpf(pg.cpf) !== normCpf(aluno.cpf)) throw new Error('Pagamento não encontrado.');
+  if (pg.status !== 'pendente') throw new Error('Só pagamentos pendentes podem ser removidos.');
+  atualizarLinha('Pagamentos', pg._linha, { status: 'descartado' });
+  // libera o tapete que estava guardado para este pagamento
+  if (pg.reserva_id) {
+    var r = lerAba('Reservas').filter(function (x) { return x.id === pg.reserva_id && x.status === 'pendente'; })[0];
+    if (r) atualizarLinha('Reservas', r._linha, { status: 'cancelado', cancelada_em: agoraTexto() });
+  }
+  return true;
 }
 
 function comprar(d) {
