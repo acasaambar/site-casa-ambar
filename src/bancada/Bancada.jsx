@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessaoBancada, useBancada, pode } from './sessao.jsx';
 import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
+import { Atualizando, preCarregar } from './ui.jsx';
 import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
 import { Alunos, AlunoDetalhe } from './Alunos.jsx';
@@ -78,7 +79,7 @@ function Portao() {
 }
 
 function Painel() {
-  const { membro, sair } = useBancada();
+  const { membro, sair, chamar, token } = useBancada();
   const [menu, setMenu] = useState(false);
   const local = useLocation();
   useEffect(() => { setMenu(false); }, [local.pathname]);
@@ -86,6 +87,12 @@ function Painel() {
     document.title = 'Bancada · Casa Âmbar';
     return () => { document.title = 'Casa Âmbar · harmonia em estado natural'; };
   }, []);
+  // o que quase toda tela da recepção usa (catálogo e planos) já vem carregado
+  useEffect(() => {
+    if (!pode(membro, 'admin', 'recepcao')) return undefined;
+    const t = setTimeout(() => { preCarregar(chamar, token, 'catalogoServicos'); preCarregar(chamar, token, 'planos'); }, 1500);
+    return () => clearTimeout(t);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
   const grupos = MENU.map(([g, l]) => [g, l.filter((m) => pode(membro, ...m[3]))]).filter(([, l]) => l.length);
   return (
     <div className="bancada">
@@ -119,6 +126,7 @@ function Painel() {
       </aside>
       {menu && <button type="button" className="b-veu" aria-label="Fechar menu" onClick={() => setMenu(false)} />}
 
+      <Atualizando />
       <div className="b-conteudo">
         <div className="b-topo-cel">
           <button type="button" className="b-topo-cel__menu" aria-label="Abrir menu" aria-expanded={menu} onClick={() => setMenu(true)}>

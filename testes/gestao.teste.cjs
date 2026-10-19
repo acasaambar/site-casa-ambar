@@ -266,6 +266,34 @@ ok(r.ok && r.dados.fichaEstetica && r.dados.evolucoes === 1 && r.dados.historico
 r = chamar('b_excluirEvolucao', { token: rosa, id: chamar('b_prontuario', { token: lia, atendimentoId: at1.id }).dados.evolucoes[0].id });
 ok(!r.ok, 'quem não registrou não apaga');
 
+console.log('— comissão e tempo de cada serviço por profissional (como no Avec)');
+r = chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Mara Facial', dias: [1, 2, 3, 4, 5, 6], comissao: 25,
+  servicos: [{ id: 'limpeza-pele', comissao: 20, duracao: 90 }, { id: 'microagulhamento-facial', comissao: 30, duracao: 50 }, { id: 'peeling-coreano', comissao: '', duracao: '' }, { id: 'nao-existe', comissao: 99 }] } });
+const mara = r.ok && r.dados.profissionais.find((p) => p.nome === 'Mara Facial');
+ok(mara && mara.servicos.length === 3 && mara.servicos[1].comissao === 30 && mara.servicos[1].duracao === 50 && mara.servicos[2].comissao === null,
+  'serviços da profissional com comissão e tempo próprios', mara);
+ok(mara && mara.categorias.join() === 'Estética facial', 'áreas saem dos serviços marcados', mara && mara.categorias);
+r = chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Mara Facial', nomeOriginal: 'Mara Facial', dias: [1], servicos: [] } });
+ok(!r.ok && /pelo menos um serviço/.test(r.erro), 'sem nenhum serviço marcado é recusado', r);
+const diaMara = proxDiaUtil(hoje, 3);
+r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Mara Facial', data: diaMara });
+ok(r.ok && r.dados.horarios.length === 0 && /não faz/.test(r.dados.motivo), 'serviço que ela não faz não tem horário', r.dados);
+r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Mara Facial', data: diaMara, hora: '09:00', cliente: { nome: 'Teste Mara', whatsapp: '85991234567' } });
+ok(!r.ok && /não faz/.test(r.erro), 'nem dá para agendar', r);
+r = chamar('b_horarios', { token: rec, servicoId: 'microagulhamento-facial', profissional: 'Mara Facial', data: diaMara });
+ok(r.ok && r.dados.duracao === 50, 'horários livres usam o tempo dela (50 min, o serviço tem 40)', r.dados && r.dados.duracao);
+r = chamar('b_agendarServico', { token: rec, servicoId: 'microagulhamento-facial', profissional: 'Mara Facial', data: diaMara, hora: r.dados.horarios[0], cliente: { nome: 'Teste Mara', whatsapp: '85991234567' } });
+ok(r.ok && r.dados.duracao === 50, 'atendimento agendado com 50 min', r);
+const atMara = r.dados;
+chamar('b_atualizarAtendimento', { token: rec, id: atMara.id, status: 'atendido' });
+let kMara = ctx.lerAba('Comissoes').find((c) => c.ref === atMara.id);
+ok(kMara && kMara.pct === 30 && kMara.valor === Math.round(atMara.valor * 30) / 100, 'comissão de 30% (a dela neste serviço)', kMara);
+r = chamar('b_agendarServico', { token: rec, servicoId: 'peeling-coreano', profissional: 'Mara Facial', data: diaMara, hora: '17:00', cliente: { nome: 'Teste Mara', whatsapp: '85991234567' } });
+ok(r.ok && r.dados.duracao === 40, 'sem tempo próprio, vale o do serviço', r);
+chamar('b_atualizarAtendimento', { token: rec, id: r.dados.id, status: 'atendido' });
+kMara = ctx.lerAba('Comissoes').find((c) => c.ref === r.dados.id);
+ok(kMara && kMara.pct === 25, 'sem comissão própria, vale a padrão dela (25%)', kMara);
+
 console.log('— resumo do dia');
 r = chamar('b_resumo', { token: rec });
 ok(r.ok && 'comandasAbertas' in r.dados && 'estoqueBaixo' in r.dados && r.dados.caixa === 'fechado', 'Hoje mostra comandas, estoque e caixa', r.dados && [r.dados.comandasAbertas, r.dados.estoqueBaixo, r.dados.caixa]);

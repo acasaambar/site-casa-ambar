@@ -22,10 +22,10 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 | Configuração do site | `src/config.js` | URL da API, WhatsApp, e-mail. `VITE_API_URL` troca a API (para testes locais). |
 
 Arquivos do backend:
-- `Codigo.gs`: núcleo. Abas (`ABAS`), planilha, alunos, aulas, reservas, pagamentos InfinitePay, utilidades (`lerAba`, `adicionarLinha(s)`, `atualizarLinha`, `seguro`, `novoNsu`).
+- `Codigo.gs`: núcleo. Abas (`ABAS`), planilha, alunos, aulas, reservas, pagamentos InfinitePay, utilidades (`lerAba`, `valoresAba`, `adicionarLinha(s)`, `atualizarLinha`, `seguro`, `novoNsu`, `esperarTrava`).
 - `Seguranca.gs`: senhas, links de senha, limites de tentativas, e-mail com a marca, `autorizarEmails()`.
 - `Bancada.gs`: login da equipe, `PERMISSOES` (lista do que cada papel pode), agenda, clientes, vendas, vales, cupons, ajustes.
-- `Servicos.gs`: catálogo de serviços e pacotes, profissionais, horários livres, agendamento de serviços.
+- `Servicos.gs`: catálogo de serviços e pacotes, profissionais (com os serviços que cada uma faz, comissão e tempo próprios), horários livres, agendamento de serviços.
 - `Gestao.gs`: produtos e estoque, comandas, comissões, despesas, financeiro, caixa do dia, bloqueio de horário (folgas).
 - `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico.
 - `Marketing.gs`: promoções automáticas, campanhas (e-mail e WhatsApp) com descadastro, lembretes da véspera.
@@ -35,6 +35,7 @@ Arquivos do backend:
 Regras de negócio importantes:
 - Serviços (estética e fisioterapia) são agendados **só pela bancada**, nunca pela área do aluno.
 - Toda ação nova da bancada precisa entrar em `PERMISSOES` (Bancada.gs), senão é recusada.
+- Comissão de um serviço: a da profissional naquele serviço (Catálogo → Profissionais) → a do serviço → a padrão da profissional. O tempo da profissional no serviço vale para horários livres e agenda. Na aba Profissionais, coluna `servicos` = `id:comissão:minutos;…` (vazio = padrão).
 - Abas novas: declarar em `ABAS` (Codigo.gs) e, se tiver CPF/IDs, em `FORMATO_TEXTO`. Colunas novas vão **no fim** da lista (a planilha já existe com dados).
 - Fora de escopo por decisão do dono: clube de assinaturas, nota fiscal e WhatsApp pago (API oficial). Não propor de novo sem ele pedir.
 
@@ -45,6 +46,14 @@ Regras de negócio importantes:
 - Mudar `oauthScopes` no `appsscript.json` exige que o dono reautorize no editor: evite, a não ser que seja essencial.
 - Depois de publicar, confira as execuções com `gh api repos/acasaambar/site-casa-ambar/actions/runs`.
 
+## Velocidade (Apps Script é lento: cada leitura da planilha custa 0,1 a 0,5 s)
+
+- Servidor: durante um pedido, o que já foi lido fica em memória (`valoresAba`/`lerAba`). `aba(nome)` descarta a cópia daquela aba (use-o para gravar). Dentro de trava, use `esperarTrava(trava, ms)`, que relê tudo. Não grave por fora dessas funções depois de ler a mesma aba no mesmo pedido.
+- `atualizarLinha` grava colunas vizinhas juntas. Prefira-a a `getRange().setValue()` solto.
+- Tela: `useDados` mostra na hora o que já foi carregado e atualiza por trás (`src/bancada/memoria.js`, aviso "Atualizando…"). Catálogo e planos são pré-carregados.
+- `npm run velocidade` conta leituras/gravações de cada tela e ação. Rode antes e depois de mexer no backend.
+- `DEMORA=1500 npm run simulador` imita a demora do Google para testar a tela.
+
 ## Testar antes de publicar
 
 ```bash
@@ -52,6 +61,7 @@ npm install
 npm run lint        # oxlint
 npm run build
 npm run teste       # testa o backend inteiro num simulador (sem tocar na planilha real)
+npm run velocidade  # quantas idas à planilha cada tela/ação faz
 npm run simulador   # cópia local com dados de exemplo em http://localhost:8787
 # em outro terminal: VITE_API_URL=http://localhost:8787 npm run dev
 ```

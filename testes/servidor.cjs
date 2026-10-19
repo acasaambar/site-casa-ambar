@@ -86,6 +86,8 @@ chamar('b_importarClientes', { token: adm, linhas: [{ nome: 'Fernanda Lopes', wh
 const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN8+v/PfwAJbAPuFoL8XwAAAABJRU5ErkJggg==';
 chamar('b_salvarFichaEstetica', { token: adm, atendimentoId: atHoje[0].id, ficha: { queixa: 'Manchas e poros dilatados', objetivo: 'Uniformizar o tom', tipoPele: 'Mista', fototipo: 'III', alergias: 'Ácido salicílico', condicoes: ['Hipertensão'], consentimentoFotos: true } });
 chamar('b_salvarEvolucao', { token: adm, atendimentoId: atHoje[0].id, anotacao: 'Primeira sessão. Pele respondeu bem ao vapor de ozônio; leve vermelhidão na testa.\nOrientado protetor solar a cada 3h.', fotos: [png, png] });
+module.exports = { m, adm, hojeS };
+if (require.main !== module) return;
 console.log('pronto: admin contato@acasaambar.com.br / ambar2026adm · recepção bia@acasaambar.com.br / recep2026ok · prof ana@gmail.com / anapaula26');
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -96,6 +98,7 @@ http.createServer((req, res) => {
     let out;
     try { out = ctx.doPost({ postData: { contents: corpo } }); } catch (e) { out = JSON.stringify({ ok: false, erro: String(e) }); }
     res.setHeader('Content-Type', 'application/json');
-    res.end(out);
+    // DEMORA=1500 npm run simulador → imita a demora do Google (em milissegundos)
+    setTimeout(() => res.end(out), Number(process.env.DEMORA) || 0);
   });
 }).listen(8787);

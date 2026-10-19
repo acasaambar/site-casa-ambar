@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { bancada } from '../lib/api.js';
+import { esquecerTudo } from './memoria.js';
 
 // Sessão da equipe (separada da sessão do aluno)
 const Ctx = createContext(null);
@@ -17,6 +18,7 @@ export function SessaoBancada({ children }) {
   const [s, setS] = useState(ler);
 
   const guardar = useCallback((v) => {
+    esquecerTudo();
     setS(v);
     try {
       if (v) localStorage.setItem(CHAVE, JSON.stringify(v));

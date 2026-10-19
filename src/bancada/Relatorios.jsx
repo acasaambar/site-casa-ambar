@@ -29,7 +29,7 @@ export default function Relatorios() {
   const [preset, setPreset] = useState('mes');
   const [[de, ate], setPeriodo] = useState(periodoPreset('mes'));
   const [aba, setAba] = useState(local.state?.aba || 'financeiro');
-  const { dados: r, erro, carregando } = useDados('relatorio', { de, ate });
+  const { dados: r, erro, carregando, atual } = useDados('relatorio', { de, ate });
 
   const escolher = (id) => {
     setPreset(id);
@@ -56,8 +56,8 @@ export default function Relatorios() {
       </div>
       <Abas atual={aba} aoMudar={setAba} itens={[['financeiro', 'Financeiro'], ['aulas', 'Aulas e horários'], ['servicos', 'Serviços'], ['alunos', 'Alunos e marketing'], ['vales', 'Vales e cupons']]} />
       <Erro>{erro}</Erro>
-      {carregando && <Carregando texto="Calculando" />}
-      {r && !carregando && (
+      {carregando && !atual && <Carregando texto="Calculando" />}
+      {r && atual && (
         <>
           {aba === 'financeiro' && <Financeiro f={r.financeiro} de={de} ate={ate} />}
           {aba === 'aulas' && <Aulas a={r.aulas} />}

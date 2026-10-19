@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { useBancada } from './sessao.jsx';
 import { mascaraCPF } from '../lib/util.js';
+import { lembrar, temNaMemoria, guardarNaMemoria, buscar, acompanhar } from './memoria.js';
 
 // ---------- formatos ----------
 export const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -85,21 +86,59 @@ export function baixarCSV(nome, colunas, linhas) {
 
 // ---------- dados ----------
 // const { dados, erro, carregando, recarregar } = useDados('agenda', { de, dias })
+// Carrega os dados de uma tela. Se a tela já foi aberta antes, mostra na hora o que
+// estava na memória e atualiza por trás. "atual" diz se os dados são destes parâmetros.
 export function useDados(acao, params, ativo = true) {
-  const { chamar } = useBancada();
-  const [estado, setEstado] = useState({ dados: null, erro: '', carregando: true });
+  const { chamar, token } = useBancada();
   const chave = JSON.stringify(params || {});
+  const id = `${token}|${acao}|${chave}`;
+  const [estado, setEstado] = useState(() => ({ dados: lembrar(id) ?? null, erro: '', carregando: true, id: temNaMemoria(id) ? id : '' }));
   const [versao, setVersao] = useState(0);
   useEffect(() => {
     if (!ativo) return undefined;
     let vivo = true;
-    setEstado((e) => ({ ...e, carregando: true, erro: '' }));
-    chamar(acao, JSON.parse(chave))
-      .then((d) => { if (vivo) setEstado({ dados: d, erro: '', carregando: false }); })
+    setEstado((e) => (temNaMemoria(id) ? { dados: lembrar(id), erro: '', carregando: true, id } : { ...e, carregando: true, erro: '' }));
+    buscar(id, () => chamar(acao, JSON.parse(chave)), versao > 0)
+      .then((d) => { if (vivo) setEstado({ dados: d, erro: '', carregando: false, id }); })
       .catch((e) => { if (vivo) setEstado((x) => ({ ...x, erro: e.message, carregando: false })); });
     return () => { vivo = false; };
-  }, [acao, chave, versao, chamar, ativo]);
-  return { ...estado, recarregar: () => setVersao((v) => v + 1), setDados: (d) => setEstado((e) => ({ ...e, dados: typeof d === 'function' ? d(e.dados) : d })) };
+  }, [id, versao, chamar, ativo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { id: idDados, ...resto } = estado;
+  return {
+    ...resto,
+    atual: idDados === id,
+    recarregar: () => setVersao((v) => v + 1),
+    setDados: (d) => setEstado((e) => {
+      const novo = typeof d === 'function' ? d(e.dados) : d;
+      guardarNaMemoria(id, novo);
+      return { ...e, dados: novo, id };
+    }),
+  };
+}
+
+// busca por trás, antes de a tela ser aberta (mesma chave do useDados)
+export function preCarregar(chamar, token, acao, params = {}) {
+  const id = `${token}|${acao}|${JSON.stringify(params)}`;
+  if (!temNaMemoria(id)) buscar(id, () => chamar(acao, params), false, true).catch(() => {});
+}
+
+// aviso discreto enquanto alguma tela busca dados novos
+export function Atualizando() {
+  const [n, setN] = useState(0);
+  const [visivel, setVisivel] = useState(false);
+  useEffect(() => acompanhar(setN), []);
+  useEffect(() => {
+    if (!n) { setVisivel(false); return undefined; }
+    const t = setTimeout(() => setVisivel(true), 400);
+    return () => clearTimeout(t);
+  }, [n]);
+  if (!visivel) return null;
+  return (
+    <div className="b-atualizando" role="status">
+      <Sol tamanho={14} className="girando" />
+      <span>Atualizando…</span>
+    </div>
+  );
 }
 
 // ---------- peças visuais ----------

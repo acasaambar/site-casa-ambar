@@ -108,7 +108,7 @@ function dataNascimento(v) {
 function bancada_importarClientes(d, m) {
   var linhas = (d.linhas || []).slice(0, 1000);
   var trava = LockService.getScriptLock();
-  trava.waitLock(30000);
+  esperarTrava(trava, 30000);
   try {
     var alunos = lerAba('Alunos');
     var porCpf = {}, porWhats = {}, porEmail = {};

@@ -48,10 +48,10 @@ var PACOTES_INICIAIS = [
 
 // ---------------- catálogo ----------------
 function semearServicos() {
-  var s = aba('Servicos');
-  if (s.getLastRow() < 2) s.getRange(2, 1, SERVICOS_INICIAIS.length, SERVICOS_INICIAIS[0].length).setValues(SERVICOS_INICIAIS);
-  var p = aba('Pacotes');
-  if (p.getLastRow() < 2) p.getRange(2, 1, PACOTES_INICIAIS.length, PACOTES_INICIAIS[0].length).setValues(PACOTES_INICIAIS);
+  // confere uma vez por pedido (se a aba já foi lida, já tem catálogo)
+  if (_memo.Servicos && _memo.Pacotes) return;
+  if (abaSemDescartar('Servicos').getLastRow() < 2) aba('Servicos').getRange(2, 1, SERVICOS_INICIAIS.length, SERVICOS_INICIAIS[0].length).setValues(SERVICOS_INICIAIS);
+  if (abaSemDescartar('Pacotes').getLastRow() < 2) aba('Pacotes').getRange(2, 1, PACOTES_INICIAIS.length, PACOTES_INICIAIS[0].length).setValues(PACOTES_INICIAIS);
 }
 
 function listarServicos(todos) {
@@ -82,8 +82,35 @@ function listarProfissionais(todos) {
   return lerAba('Profissionais').filter(function (x) { return String(x.nome).trim() && (todos || String(x.ativo).toUpperCase() !== 'NÃO'); }).map(function (x) {
     return { nome: String(x.nome).trim(), ativo: String(x.ativo).toUpperCase() !== 'NÃO', categorias: String(x.categorias || '').split(',').map(function (c) { return c.trim(); }).filter(String),
       dias: String(x.dias || '1,2,3,4,5,6').split(',').map(function (d) { return Number(d); }).filter(function (d) { return d >= 0 && d <= 6; }),
-      inicio: horaTexto(x.inicio) || '', fim: horaTexto(x.fim) || '', comissao: numero(x.comissao), comissaoProduto: numero(x.comissao_produto) };
+      inicio: horaTexto(x.inicio) || '', fim: horaTexto(x.fim) || '', comissao: numero(x.comissao), comissaoProduto: numero(x.comissao_produto),
+      servicos: servicosDaProfissional(x.servicos) };
   });
+}
+
+// Serviços que a profissional faz, com comissão e tempo dela (como no Avec).
+// Na planilha: "limpeza-pele:20:90;peeling-coreano::40" (id:comissão:minutos; vazio = vale o padrão).
+function servicosDaProfissional(texto) {
+  return String(texto || '').split(';').map(function (t) {
+    var q = t.split(':');
+    var id = String(q[0] || '').trim();
+    return { id: id, comissao: String(q[1] || '').trim() === '' ? null : numero(q[1]), duracao: numero(q[2]) || null };
+  }).filter(function (c) { return c.id; });
+}
+
+function configServico(p, servicoId) {
+  return p ? p.servicos.filter(function (c) { return c.id === String(servicoId); })[0] || null : null;
+}
+
+// sem lista de serviços (cadastro antigo), vale a área de atendimento
+function fazServico(p, serv) {
+  if (!p) return true;
+  if (p.servicos.length) return !!configServico(p, serv.id);
+  return !p.categorias.length || p.categorias.indexOf(serv.categoria) >= 0;
+}
+
+function duracaoServico(serv, profissional) {
+  var c = configServico(profissionalPorNome(profissional), serv.id);
+  return c && c.duracao ? c.duracao : serv.duracao;
 }
 
 // Item que pode ser vendido: plano de aula, serviço avulso ou pacote de serviço
@@ -147,7 +174,8 @@ function bancada_horarios(d) {
   var serv = listarServicos(true).filter(function (s) { return s.id === d.servicoId; })[0];
   if (!serv) throw new Error('Escolha o serviço.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data))) throw new Error('Escolha a data.');
-  var dur = Number(d.duracao) || serv.duracao;
+  if (!fazServico(profissionalPorNome(d.profissional), serv)) return { horarios: [], motivo: d.profissional + ' não faz ' + serv.nome + '. Confira em Catálogo → Profissionais.' };
+  var dur = Number(d.duracao) || duracaoServico(serv, d.profissional);
   var janela = janelaDoProfissional(d.profissional, d.data);
   if (!janela) return { horarios: [], motivo: 'Fora do horário de atendimento neste dia.' };
   var folgas = folgasDoDia(d.data, d.profissional);
@@ -220,7 +248,8 @@ function bancada_agendarServico(d, m) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data)) || !/^\d{2}:\d{2}$/.test(String(d.hora))) throw new Error('Escolha data e horário.');
   var prof = String(d.profissional || '').trim();
   if (!prof) throw new Error('Escolha o profissional.');
-  var dur = Math.min(Math.max(Number(d.duracao) || serv.duracao, 10), 480);
+  if (!fazServico(profissionalPorNome(prof), serv)) throw new Error(prof + ' não faz ' + serv.nome + '. Confira em Catálogo → Profissionais.');
+  var dur = Math.min(Math.max(Number(d.duracao) || duracaoServico(serv, prof), 10), 480);
   var cliente;
   if (d.cpf) {
     var al = buscarAluno(d.cpf);
@@ -234,7 +263,7 @@ function bancada_agendarServico(d, m) {
     cliente = { cpf: '', nome: nome, whatsapp: whats, novo: true };
   }
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     var janela = janelaDoProfissional(prof, d.data);
     var ini = minutos(d.hora);
@@ -293,7 +322,7 @@ function bancada_atualizarAtendimento(d, m) {
   var mud = { status: st, atualizado_em: agoraTexto() };
   if (st === 'atendido' && a.pagamento === 'no_dia' && d.metodo && !prof) {
     var trava = LockService.getScriptLock();
-    trava.waitLock(20000);
+    esperarTrava(trava, 20000);
     try {
       var cliente = { cpf: a.cpf ? normCpf(a.cpf) : '', nome: a.nome, whatsapp: a.whatsapp };
       var venda = registrarVenda(cliente, buscarItemVenda(a.servico_id) || { id: a.servico_id, nome: a.servico, modalidade: 'Serviço', tipo: 'servico', aulas_total: 1, aulas_semana: 0, validade_dias: 90, preco: numero(a.valor) },
@@ -365,9 +394,23 @@ function bancada_salvarProfissional(d, m) {
   if (nome.length < 2) throw new Error('Informe o nome.');
   var cats = (x.categorias || []).filter(function (c) { return CATEGORIAS_SERVICO.indexOf(c) >= 0; });
   var dias = (x.dias || []).map(Number).filter(function (n) { return n >= 0 && n <= 6; });
+  // serviços que ela faz, com comissão e tempo próprios (vazio = vale o padrão)
+  var catalogo = {};
+  listarServicos(true).forEach(function (s) { catalogo[s.id] = s; });
+  var servs = [];
+  (x.servicos || []).forEach(function (c) {
+    var s = catalogo[String(c && c.id)];
+    if (!s || servs.some(function (y) { return y.id === s.id; })) return;
+    var pct = c.comissao === '' || c.comissao == null ? '' : Math.min(Math.max(numero(c.comissao), 0), 100);
+    var min = numero(c.duracao) > 0 ? Math.min(Math.max(Math.round(numero(c.duracao)), 10), 480) : '';
+    servs.push({ id: s.id, categoria: s.categoria, txt: s.id + ':' + pct + ':' + min });
+  });
+  if (x.servicos && !servs.length) throw new Error('Marque pelo menos um serviço que ' + nome.split(' ')[0] + ' faz.');
+  if (servs.length) cats = CATEGORIAS_SERVICO.filter(function (c) { return servs.some(function (y) { return y.categoria === c; }); });
   var linha = { nome: nome, ativo: x.ativo === false ? 'NÃO' : 'SIM', categorias: cats.join(', '), dias: dias.join(','),
     inicio: /^\d{2}:\d{2}$/.test(String(x.inicio)) ? x.inicio : '', fim: /^\d{2}:\d{2}$/.test(String(x.fim)) ? x.fim : '',
-    comissao: Math.min(Math.max(numero(x.comissao), 0), 100), comissao_produto: Math.min(Math.max(numero(x.comissaoProduto), 0), 100) };
+    comissao: Math.min(Math.max(numero(x.comissao), 0), 100), comissao_produto: Math.min(Math.max(numero(x.comissaoProduto), 0), 100),
+    servicos: servs.map(function (y) { return y.txt; }).join(';') };
   var ex = lerAba('Profissionais').filter(function (p) { return semAcento(p.nome) === semAcento(x.nomeOriginal || nome); })[0];
   if (ex) atualizarLinha('Profissionais', ex._linha, linha); else adicionarLinha('Profissionais', linha);
   registrar(m, ex ? 'editou profissional' : 'cadastrou profissional', nome);

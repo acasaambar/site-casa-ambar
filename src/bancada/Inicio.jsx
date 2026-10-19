@@ -95,12 +95,17 @@ function LinhaDoDia({ aulas, servicos, agora }) {
   );
 }
 
+// os lembretes automáticos são pedidos uma vez só enquanto a bancada está aberta
+let lembretesPedidos = false;
+
 export default function Inicio() {
   const { membro, chamar } = useBancada();
   const { dados: r, erro, carregando } = useDados('resumo');
   // lembretes da véspera por e-mail: saem sozinhos quando a recepção abre a bancada
   useEffect(() => {
-    if (pode(membro, 'admin', 'recepcao')) chamar('lembretesAuto', {}).catch(() => {});
+    if (lembretesPedidos || !pode(membro, 'admin', 'recepcao')) return;
+    lembretesPedidos = true;
+    chamar('lembretesAuto', {}).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const agora = useAgora();
   const h = agora.getHours();

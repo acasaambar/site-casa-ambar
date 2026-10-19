@@ -182,7 +182,7 @@ function membroDaSessao(token) {
   var h = hashToken(token);
   var email = cache.get('e_' + h);
   if (!email) {
-    var linhas = aba('SessoesEquipe').getDataRange().getValues();
+    var linhas = valoresAba('SessoesEquipe');
     for (var i = 1; i < linhas.length; i++) {
       if ((linhas[i][0] === h || linhas[i][0] === token) && new Date(linhas[i][3]) > new Date()) { email = String(linhas[i][1]).toLowerCase(); break; }
     }
@@ -237,8 +237,7 @@ function mapaAnamneses() {
 
 function mapaCreditos() {
   var m = {};
-  var abaC = aba('Creditos');
-  var linhas = completarCreditosManuais(abaC, abaC.getDataRange().getValues());
+  var linhas = valoresCreditos();
   var cab = linhas[0];
   for (var i = 1; i < linhas.length; i++) {
     var c = objeto(cab, linhas[i]);
@@ -414,7 +413,7 @@ function bancada_agendar(d, m) {
   if (!aula) throw new Error('Aula não encontrada (confira a grade e os bloqueios).');
   if (inicio(aula).getTime() + AJUSTES.duracaoAulaMin * 60000 < Date.now() - 7 * 86400000) throw new Error('Esta aula é muito antiga.');
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     var reservas = reservasAtivas();
     var montada = montarAula(JSON.parse(JSON.stringify(aula)), reservas, cpf);
@@ -591,7 +590,7 @@ function bancada_salvarAluno(d, m) {
   registrar(m, 'editou aluno', a.nome + ' · ' + Object.keys(mud).join(', '));
   if (x.cpf && soDigitos(x.cpf) !== normCpf(a.cpf)) {
     var trava = LockService.getScriptLock();
-    trava.waitLock(20000);
+    esperarTrava(trava, 20000);
     try { return bancada_aluno({ cpf: informarCpf(buscarAluno(a.cpf), x.cpf, m) }); } finally { trava.releaseLock(); }
   }
   return bancada_aluno({ cpf: a.cpf });
@@ -605,7 +604,7 @@ function bancada_novoAluno(d, m) {
   if (d.email && !emailValido(d.email)) throw new Error('E-mail inválido.');
   var nasc = /^\d{4}-\d{2}-\d{2}$/.test(String(d.nascimento || '')) ? d.nascimento : '';
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     if (cpf) {
       if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro.');
@@ -705,7 +704,7 @@ function bancada_vender(d, m) {
   var plano = buscarItemVenda(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     var v = registrarVenda(aluno, plano, d, m);
     registrar(m, 'venda no balcão', aluno.nome + ' · ' + plano.nome + ' · R$ ' + v.valor + ' · ' + v.metodo);
@@ -790,7 +789,7 @@ function bancada_criarVales(d, m) {
   var qtdSemNome = Math.min(Math.max(Number(d.quantidade) || 1, 1), 200);
   if (!(d.pessoas && d.pessoas.length) && qtdSemNome > 1) { pessoas = []; for (var q = 0; q < qtdSemNome; q++) pessoas.push({}); }
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   var criados = [];
   try {
     pessoas.forEach(function (p) {
@@ -852,7 +851,7 @@ function bancada_aplicarVale(d, m) {
   var aluno = buscarAluno(d.cpf);
   if (!aluno) throw new Error('Aluno não encontrado.');
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     var r = aplicarVale(aluno, d.codigo, m.email);
     registrar(m, 'aplicou vale', d.codigo + ' · ' + aluno.nome);
@@ -957,7 +956,7 @@ function bancada_salvarGrade(d, m) {
   if (!linhas.length) throw new Error('A grade não pode ficar vazia.');
   var s = aba('Grade');
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     // limpa as linhas antigas (o Sheets não deixa apagar todas) e grava a grade nova
     if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 6).clearContent();

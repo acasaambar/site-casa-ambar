@@ -102,7 +102,8 @@ Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
   Aceita promoção, cupom, vale e pagamento dividido (ex.: Pix + cartão). Ao fechar: entra em Vendas, baixa o estoque, marca o atendimento como atendido e gera a comissão.
   **Caixa do dia**: abrir com o troco, sangria/suprimento/despesa, fechar contando a gaveta (mostra a diferença).
 - **Estoque**: produtos de revenda e insumos. A venda na comanda e o uso em cada serviço (Catálogo → serviço → produtos usados) baixam o saldo sozinhos.
-- **Comissões**: % por profissional (Catálogo → Profissionais) ou por serviço. Financeiro → Comissões para pagar; a profissional vê em "Meus ganhos".
+- **Comissões**: em Catálogo → Profissionais, marque os serviços que cada uma faz, com a comissão (%) e o tempo (min) dela em cada um (como no Avec).
+  Em branco vale o padrão: a comissão do serviço, senão a comissão padrão da profissional; o tempo do serviço. Financeiro → Comissões para pagar; a profissional vê em "Meus ganhos".
 - **Financeiro**: visão do mês (entradas × saídas), despesas (com contas fixas que se repetem todo mês) e fechamentos de caixa.
 - **Bloquear horário**: Agenda → Serviços → Bloquear horário (folga, almoço, curso), com repetição semanal.
 - **Marketing**: promoções automáticas (sem código), campanhas por e-mail ou WhatsApp (sumidas, aniversariantes, pacote acabando…),

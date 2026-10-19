@@ -22,7 +22,7 @@ function pimenta() {
   var p = props.getProperty('SENHA_PIMENTA');
   if (p) return p;
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     p = props.getProperty('SENHA_PIMENTA');
     if (!p) {
@@ -175,7 +175,7 @@ function novaSenha(d) {
   validarSenhaNova(d.senha);
   limitarTentativas('link_' + String(d.t || '').slice(0, 12));
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     var r = acharLinkSenha(d.t);
     if (!r) throw erroCod('Este link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".', 'LINK_INVALIDO');

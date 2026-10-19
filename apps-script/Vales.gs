@@ -155,7 +155,7 @@ function resgatarVale(d) {
   var aluno = alunoDaSessao(d.token);
   limitarCodigos(normCpf(aluno.cpf));
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     return aplicarVale(aluno, d.codigo, 'aluno');
   } catch (e) {

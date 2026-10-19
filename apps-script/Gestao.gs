@@ -110,7 +110,7 @@ function bancada_movimentarEstoque(d, m) {
   }
   var custo = dinheiro(d.custo);
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     movimentarEstoque(p.id, qtd, tipo, d.motivo || '', '', m.email, tipo === 'entrada' ? custo : 0);
     if (tipo === 'entrada' && d.lancarDespesa && custo > 0 && m.papel === 'admin') {
@@ -160,10 +160,13 @@ function profissionalPorNome(nome) {
   return listarProfissionais(true).filter(function (p) { return semAcento(p.nome) === semAcento(nome); })[0] || null;
 }
 
+// comissão: a da profissional naquele serviço → a do serviço → a padrão da profissional
 function pctComissao(profissional, servicoId) {
+  var p = profissionalPorNome(profissional);
+  var c = servicoId ? configServico(p, servicoId) : null;
+  if (c && c.comissao != null) return c.comissao;
   var s = servicoId ? listarServicos(true).filter(function (x) { return x.id === String(servicoId); })[0] : null;
   if (s && s.comissao != null) return s.comissao;
-  var p = profissionalPorNome(profissional);
   return p ? p.comissao : 0;
 }
 
@@ -249,7 +252,7 @@ function bancada_pagarComissoes(d, m) {
   if (!ids.length) throw new Error('Escolha as comissões.');
   var forma = METODOS_PAGAMENTO.indexOf(d.forma) >= 0 ? d.forma : 'Pix';
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   var pagas = 0;
   try {
     var linhas = lerAba('Comissoes').filter(function (c) { return ids.indexOf(String(c.id)) >= 0 && c.status === 'a_pagar'; });
@@ -726,7 +729,7 @@ function bancada_salvarComanda(d, m) {
       valorManual: i.valorManual, pago: !!i.pago, data: i.data };
   }).filter(function (i) { return i.id; });
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     var ex = x.id ? acharComanda(x.id) : null;
     if (x.id && !ex) throw new Error('Comanda não encontrada.');
@@ -794,7 +797,7 @@ function bancada_cancelarComanda(d, m) {
 // pagamentos: [{ metodo, valor, parcelas, codigo (vale em R$) }]. Pode dividir em várias formas.
 function bancada_fecharComanda(d, m) {
   var trava = LockService.getScriptLock();
-  trava.waitLock(30000);
+  esperarTrava(trava, 30000);
   try {
     var c = acharComanda(d.id);
     if (!c) throw new Error('Comanda não encontrada.');

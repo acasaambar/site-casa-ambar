@@ -115,7 +115,7 @@ var ABAS = {
   // ---- serviços (estética, fisioterapia...) agendados pela bancada ----
   Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo'],
   Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
-  Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto'],
+  Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos'],
   Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',
     'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em', 'lembrete', 'comanda'],
   // ---- gestão (Gestao.gs) ----
@@ -258,6 +258,7 @@ function testarInfinitePay() {
 //  2) PORTA DE ENTRADA DO SITE
 // ============================================================
 function doPost(e) {
+  novaExecucao();
   aplicarAjustesSalvos();
   var corpo;
   try {
@@ -358,7 +359,7 @@ function cadastrar(d) {
   validarSenhaNova(d.senha);
 
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro. Use "Entrar".');
     var sal = Utilities.getUuid();
@@ -432,7 +433,7 @@ function alunoDaSessao(token) {
   var h = hashToken(token);
   var cpf = cache.get('s_' + h);
   if (!cpf) {
-    var linhas = aba('Sessoes').getDataRange().getValues();
+    var linhas = valoresAba('Sessoes');
     for (var i = 1; i < linhas.length; i++) {
       // aceita também sessões antigas (token puro), criadas antes desta versão
       if ((linhas[i][0] === h || linhas[i][0] === token) && new Date(linhas[i][3]) > new Date()) {
@@ -449,7 +450,7 @@ function alunoDaSessao(token) {
 }
 
 function buscarAluno(cpf) {
-  var linhas = aba('Alunos').getDataRange().getValues();
+  var linhas = valoresAba('Alunos');
   var cab = linhas[0];
   for (var i = 1; i < linhas.length; i++) {
     if (normCpf(linhas[i][0]) === normCpf(cpf)) {
@@ -480,9 +481,9 @@ function hashSenha(senha, sal) {
 //  4) AULAS
 // ============================================================
 function gerarAulas(dataInicio, dias) {
-  var grade = aba('Grade').getDataRange().getValues();
+  var grade = valoresAba('Grade');
   var cab = grade[0];
-  var bloqueios = aba('Bloqueios').getDataRange().getValues().slice(1).map(function (b) {
+  var bloqueios = valoresAba('Bloqueios').slice(1).map(function (b) {
     return dataTexto(b[0]) + '|' + horaTexto(b[1]) + '|' + String(b[2]).toLowerCase();
   });
   var hoje = dataInicio ? new Date(dataInicio + 'T12:00:00-03:00') : new Date();
@@ -515,7 +516,7 @@ function gerarAulas(dataInicio, dias) {
 }
 
 function reservasAtivas() {
-  var linhas = aba('Reservas').getDataRange().getValues();
+  var linhas = valoresAba('Reservas');
   var cab = linhas[0];
   var lista = [];
   for (var i = 1; i < linhas.length; i++) {
@@ -562,7 +563,7 @@ function reservar(d) {
 
   var cpf = normCpf(aluno.cpf);
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     // uma tentativa anterior de pagar esta mesma aula é descartada
     reservasAtivas().forEach(function (r) {
@@ -670,7 +671,7 @@ function fazerCheckin(d) {
 
 function minhasReservas(d) {
   var aluno = alunoDaSessao(d.token);
-  var linhas = aba('Reservas').getDataRange().getValues();
+  var linhas = valoresAba('Reservas');
   var cab = linhas[0];
   var lista = [];
   for (var i = 1; i < linhas.length; i++) {
@@ -737,7 +738,7 @@ function salvarAnamnese(d) {
 
   var linha = ABAS.Anamneses.map(function (c) { return valores[c] == null ? '' : valores[c]; });
   var trava = LockService.getScriptLock();
-  trava.waitLock(15000);
+  esperarTrava(trava, 15000);
   try {
     var s = aba('Anamneses');
     var existente = linhaAnamnese(cpf);
@@ -850,6 +851,25 @@ function numero(v) {
 }
 
 function listarPlanos() {
+  // conferências feitas uma vez por pedido (depois os planos vêm da memória)
+  if (!_memo.Planos) prepararPlanos();
+  var linhas = valoresAba('Planos');
+  var cab = linhas[0];
+  var lista = [];
+  for (var i = 1; i < linhas.length; i++) {
+    var p = objeto(cab, linhas[i]);
+    if (!p.id || String(p.ativo).toUpperCase() === 'NÃO') continue;
+    p.preco = numero(p.preco);
+    p.aulas_semana = numero(p.aulas_semana);
+    p.aulas_total = numero(p.aulas_total);
+    p.validade_dias = numero(p.validade_dias) || 30;
+    p.sem_juros_ate = semJurosAte(p);
+    lista.push(p);
+  }
+  return lista;
+}
+
+function prepararPlanos() {
   var abaPlanos = aba('Planos');
   // aba vazia (criada automaticamente): preenche com o catálogo padrão
   if (abaPlanos.getLastRow() < 2) {
@@ -871,20 +891,6 @@ function listarPlanos() {
     }
     props.setProperty('AVULSA_30_DIAS', 'ok');
   }
-  var linhas = abaPlanos.getDataRange().getValues();
-  var cab = linhas[0];
-  var lista = [];
-  for (var i = 1; i < linhas.length; i++) {
-    var p = objeto(cab, linhas[i]);
-    if (!p.id || String(p.ativo).toUpperCase() === 'NÃO') continue;
-    p.preco = numero(p.preco);
-    p.aulas_semana = numero(p.aulas_semana);
-    p.aulas_total = numero(p.aulas_total);
-    p.validade_dias = numero(p.validade_dias) || 30;
-    p.sem_juros_ate = semJurosAte(p);
-    lista.push(p);
-  }
-  return lista;
 }
 
 function buscarPlano(id) {
@@ -939,9 +945,17 @@ function completarCreditosManuais(abaC, linhas) {
   return linhas;
 }
 
+// créditos já completados (ver acima), lidos uma vez por pedido
+function valoresCreditos() {
+  if (!_memo.Creditos) {
+    var abaC = aba('Creditos');
+    _memo.Creditos = { valores: completarCreditosManuais(abaC, abaC.getDataRange().getValues()), objetos: null };
+  }
+  return _memo.Creditos.valores;
+}
+
 function creditosDo(cpf) {
-  var abaC = aba('Creditos');
-  var linhas = completarCreditosManuais(abaC, abaC.getDataRange().getValues());
+  var linhas = valoresCreditos();
   var cab = linhas[0];
   var lista = [];
   for (var i = 1; i < linhas.length; i++) {
@@ -1015,7 +1029,7 @@ function meuPlano(d) {
         inicio: c.inicio, fim: c.fim, usadas: usadas, limite: limite, restantes: Math.max(0, limite - usadas) };
     });
 
-  var linhas = aba('Pagamentos').getDataRange().getValues();
+  var linhas = valoresAba('Pagamentos');
   var cab = linhas[0];
   var pagamentos = [];
   var limitePendente = Date.now() - PENDENTE_VALE_HORAS * 3600000;
@@ -1159,7 +1173,7 @@ function confirmarPagamento(d) {
 }
 
 function linhaPagamento(orderNsu) {
-  var linhas = aba('Pagamentos').getDataRange().getValues();
+  var linhas = valoresAba('Pagamentos');
   var cab = linhas[0];
   for (var i = 1; i < linhas.length; i++) {
     if (String(linhas[i][0]) === orderNsu) {
@@ -1175,7 +1189,7 @@ function linhaPagamento(orderNsu) {
 // Confere na InfinitePay e, se aprovado, libera o crédito (e a reserva que estava aguardando)
 function processarPagamento(orderNsu, transactionNsu, slug, origem) {
   var trava = LockService.getScriptLock();
-  trava.waitLock(20000);
+  esperarTrava(trava, 20000);
   try {
     var pg = linhaPagamento(orderNsu);
     if (!pg) throw new Error('Pagamento ' + orderNsu + ' não encontrado.');
@@ -1214,7 +1228,6 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
 // Marca como pago, cria o crédito de aulas e libera a reserva que aguardava.
 // Usado pela InfinitePay, pelos descontos de 100% e pelas vendas no balcão.
 function concluirPagamento(pg, info) {
-  var s = aba('Pagamentos');
   var obs = [info.observacao || ''];
   // vale-presente usado neste pagamento
   if (pg.vale) {
@@ -1246,8 +1259,7 @@ function concluirPagamento(pg, info) {
 
   // reserva que estava aguardando este pagamento
   if (pg.reserva_id) {
-    var rs = aba('Reservas');
-    var linhas = rs.getDataRange().getValues();
+    var linhas = valoresAba('Reservas');
     var cab = linhas[0];
     for (var i = 1; i < linhas.length; i++) {
       var r = objeto(cab, linhas[i]);
@@ -1256,11 +1268,9 @@ function concluirPagamento(pg, info) {
         return x.id !== r.id && x.aula_id === r.aula_id && r.tapete && Number(x.tapete) === Number(r.tapete);
       });
       if (ocupado || r.status === 'cancelado') {
-        s.getRange(pg._linha, coluna('Pagamentos', 'observacao')).setValue('O lugar foi ocupado antes da confirmação; o crédito ficou disponível.');
+        atualizarLinha('Pagamentos', pg._linha, { observacao: 'O lugar foi ocupado antes da confirmação; o crédito ficou disponível.' });
       } else {
-        rs.getRange(i + 1, coluna('Reservas', 'status')).setValue('reservado');
-        rs.getRange(i + 1, coluna('Reservas', 'credito_id')).setValue(creditoId);
-        rs.getRange(i + 1, coluna('Reservas', 'expira_ms')).setValue('');
+        atualizarLinha('Reservas', i + 1, { status: 'reservado', credito_id: creditoId, expira_ms: '' });
       }
       break;
     }
@@ -1316,7 +1326,44 @@ function ativarWellhub(d) {
 // ============================================================
 //  9) UTILIDADES
 // ============================================================
+// ---------- memória do pedido ----------
+// Cada leitura da planilha custa caro no Google (0,1 a 0,5 s). Durante um mesmo pedido,
+// o que já foi lido fica guardado aqui. Pedir a aba com aba(nome) (para gravar)
+// descarta a cópia daquela aba, então a próxima leitura vem atualizada.
+var _abas = {};
+var _memo = {};
+function novaExecucao() {
+  _abas = {};
+  _memo = {};
+  _planilha = null;
+  _itensVenda = null;
+  _ajustesAplicados = false;
+  _cabecalhoOk = null;
+}
+
+// Pega a trava (uma ação por vez) e esquece o que foi lido antes:
+// dentro da trava tudo é lido de novo, para não decidir com dados velhos.
+function esperarTrava(trava, ms) {
+  trava.waitLock(ms);
+  _memo = {};
+}
+
 function aba(nome) {
+  delete _memo[nome];
+  return abaSemDescartar(nome);
+}
+
+// valores da aba (com o cabeçalho), lidos uma vez por pedido. Não altere o resultado.
+function valoresAba(nome) {
+  if (!_memo[nome]) {
+    var v = abaSemDescartar(nome).getDataRange().getValues();
+    _memo[nome] = { valores: v, objetos: null };
+  }
+  return _memo[nome].valores;
+}
+
+function abaSemDescartar(nome) {
+  if (_abas[nome]) return _abas[nome];
   var ss = planilha();
   var s = ss.getSheetByName(nome);
   if (!s && ABAS[nome]) {
@@ -1329,6 +1376,7 @@ function aba(nome) {
   }
   if (!s) throw new Error('Aba "' + nome + '" não encontrada. Execute configurarPlanilha.');
   garantirCabecalho(s, nome);
+  _abas[nome] = s;
   return s;
 }
 
@@ -1336,15 +1384,23 @@ var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', 
   Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
   Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G' };
 
-// Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem
-var _cabecalhoOk = {};
+// Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem.
+// A conferência fica guardada por 6 h (muda sozinha quando o código ganha colunas novas).
+var _cabecalhoOk = null;
 function garantirCabecalho(s, nome) {
-  if (_cabecalhoOk[nome] || !ABAS[nome] || !s) return;
+  if (!ABAS[nome] || !s) return;
+  var assinatura = ABAS[nome].join(',');
+  var cache = CacheService.getScriptCache();
+  if (!_cabecalhoOk) {
+    try { _cabecalhoOk = JSON.parse(cache.get('cabecalhos_ok') || '{}') || {}; } catch (e) { _cabecalhoOk = {}; }
+  }
+  if (_cabecalhoOk[nome] === assinatura) return;
   var atual = s.getLastColumn ? s.getRange(1, 1, 1, Math.max(1, s.getLastColumn())).getValues()[0] : [];
   ABAS[nome].forEach(function (col, i) {
     if (String(atual[i] || '') !== col && atual.indexOf(col) < 0) s.getRange(1, i + 1).setValue(col);
   });
-  _cabecalhoOk[nome] = true;
+  _cabecalhoOk[nome] = assinatura;
+  try { cache.put('cabecalhos_ok', JSON.stringify(_cabecalhoOk), 21600); } catch (e) { /* ignora */ }
 }
 
 // Texto vindo de fora nunca vira fórmula na planilha (=, +, -, @ no início
@@ -1390,26 +1446,41 @@ function adicionarLinhas(nomeAba, objs) {
   s.getRange(s.getLastRow() + 1, 1, vals.length, cols.length).setValues(vals);
 }
 
-// Atualiza só as colunas informadas de uma linha
+// Atualiza só as colunas informadas de uma linha.
+// Colunas vizinhas vão juntas numa gravação só (bem mais rápido que uma por uma).
 function atualizarLinha(nomeAba, linha, obj) {
   var s = aba(nomeAba);
+  var cols = [];
   Object.keys(obj).forEach(function (c) {
     var col = coluna(nomeAba, c);
-    if (col > 0) s.getRange(linha, col).setValue(seguro(obj[c] == null ? '' : obj[c]));
+    if (col > 0) cols.push([col, seguro(obj[c] == null ? '' : obj[c])]);
   });
+  cols.sort(function (a, b) { return a[0] - b[0]; });
+  for (var i = 0; i < cols.length;) {
+    var j = i;
+    while (j + 1 < cols.length && cols[j + 1][0] === cols[j][0] + 1) j++;
+    var trecho = cols.slice(i, j + 1);
+    if (trecho.length === 1) s.getRange(linha, trecho[0][0]).setValue(trecho[0][1]);
+    else s.getRange(linha, trecho[0][0], 1, trecho.length).setValues([trecho.map(function (x) { return x[1]; })]);
+    i = j + 1;
+  }
 }
 
-// Todas as linhas de uma aba como objetos (com _linha)
+// Todas as linhas de uma aba como objetos (com _linha).
+// Cada chamada recebe cópias: pode alterar os objetos sem afetar as próximas leituras.
 function lerAba(nomeAba) {
-  var linhas = aba(nomeAba).getDataRange().getValues();
-  var cab = linhas[0];
-  var lista = [];
-  for (var i = 1; i < linhas.length; i++) {
-    var o = objeto(cab, linhas[i]);
-    o._linha = i + 1;
-    lista.push(o);
+  var linhas = valoresAba(nomeAba);
+  var m = _memo[nomeAba];
+  if (!m.objetos) {
+    var cab = linhas[0];
+    m.objetos = [];
+    for (var i = 1; i < linhas.length; i++) {
+      var o = objeto(cab, linhas[i]);
+      o._linha = i + 1;
+      m.objetos.push(o);
+    }
   }
-  return lista;
+  return m.objetos.map(function (o) { var c = {}; for (var k in o) c[k] = o[k]; return c; });
 }
 
 function coluna(nomeAba, campo) {

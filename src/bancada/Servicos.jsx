@@ -180,7 +180,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
 
   const servicos = catalogo.servicos.filter((s) => s.ativo);
   const serv = servicos.find((s) => s.id === servicoId);
-  const profs = catalogo.profissionais.filter((p) => p.ativo && (!serv || !p.categorias.length || p.categorias.includes(serv.categoria)));
+  const profs = catalogo.profissionais.filter((p) => p.ativo && (!serv || fazServico(p, serv)));
 
   useEffect(() => {
     if (!serv || !profissional || !data) return undefined;
@@ -246,7 +246,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
 
         {serv && profissional && (
           <fieldset className="s-horarios">
-            <legend className="rotulo">Horário · {serv.duracao} min</legend>
+            <legend className="rotulo">Horário · {horarios?.duracao || serv.duracao} min</legend>
             {!horarios && <span className="b-suave">Procurando horários livres…</span>}
             {horarios && horarios.horarios.length === 0 && <span className="b-suave">{horarios.motivo || 'Sem horário livre neste dia. Tente outro dia ou profissional.'}</span>}
             {horarios && horarios.horarios.length > 0 && (
@@ -625,36 +625,56 @@ export function Profissionais() {
         {dados.profissionais.map((p) => (
           <li key={p.nome} className={p.ativo ? '' : 'inativo'}>
             <div className="b-equipe__ini" aria-hidden="true">{p.nome.slice(0, 1)}</div>
-            <div><strong>{p.nome}</strong><span className="b-suave">{p.categorias.join(', ') || 'todas as áreas'}</span></div>
+            <div><strong>{p.nome}</strong><span className="b-suave">{p.servicos?.length ? `${p.servicos.length} serviço${p.servicos.length === 1 ? '' : 's'} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'todas as áreas'}</span></div>
             <span className="b-suave">{p.dias.map((d) => dias[d]).join(' ')}</span>
-            <span className="b-suave">{p.inicio && p.fim ? `${hora(p.inicio)} às ${hora(p.fim)}` : 'horário da casa'}{p.comissao ? ` · comissão ${p.comissao}%` : ''}</span>
+            <span className="b-suave">{p.inicio && p.fim ? `${hora(p.inicio)} às ${hora(p.fim)}` : 'horário da casa'}{p.comissao ? ` · comissão padrão ${p.comissao}%` : ''}</span>
             <button type="button" className="link-acao" onClick={() => setEditar({ ...p, nomeOriginal: p.nome })}>editar</button>
           </li>
         ))}
       </ul>
-      {editar && <EditarProfissional p={editar} categorias={dados.categorias} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
+      {editar && <EditarProfissional p={editar} categorias={dados.categorias} servicos={dados.servicos} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
     </>
   );
 }
 
-function EditarProfissional({ p, categorias, aoFechar, aoSalvar }) {
+// faz o serviço? Com lista de serviços (como no Avec), vale a lista; senão, a área
+const fazServico = (p, serv) => (p.servicos?.length ? p.servicos.some((c) => c.id === serv.id) : !p.categorias.length || p.categorias.includes(serv.categoria));
+
+function EditarProfissional({ p, categorias, servicos, aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
-  const [f, setF] = useState({ nome: p.nome || '', nomeOriginal: p.nomeOriginal, categorias: p.categorias || [], dias: p.dias || [], inicio: p.inicio || '', fim: p.fim || '', ativo: p.ativo !== false,
-    comissao: p.comissao ? String(p.comissao) : '', comissaoProduto: p.comissaoProduto ? String(p.comissaoProduto) : '' });
+  const [f, setF] = useState(() => {
+    // serviços que ela faz: { id: { comissao, duracao } } (vazio = vale o padrão)
+    const marcados = {};
+    if (p.servicos?.length) p.servicos.forEach((c) => { marcados[c.id] = { comissao: c.comissao == null ? '' : String(c.comissao), duracao: c.duracao ? String(c.duracao) : '' }; });
+    else if (p.nome) servicos.filter((s) => s.ativo && fazServico(p, s)).forEach((s) => { marcados[s.id] = { comissao: '', duracao: '' }; });
+    return { nome: p.nome || '', nomeOriginal: p.nomeOriginal, dias: p.dias || [], inicio: p.inicio || '', fim: p.fim || '', ativo: p.ativo !== false,
+      comissao: p.comissao ? String(p.comissao) : '', comissaoProduto: p.comissaoProduto ? String(p.comissaoProduto) : '', servicos: marcados };
+  });
   const [erro, setErro] = useState('');
   const alterna = (k, v) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
+  const marcar = (lista, sim) => setF((x) => {
+    const m = { ...x.servicos };
+    lista.forEach((s) => { if (sim) m[s.id] = m[s.id] || { comissao: '', duracao: '' }; else delete m[s.id]; });
+    return { ...x, servicos: m };
+  });
+  const mudar = (id, campo, v) => setF((x) => ({ ...x, servicos: { ...x.servicos, [id]: { ...x.servicos[id], [campo]: v } } }));
+  const num = (v) => Number(String(v).replace(',', '.')) || 0;
+  const porArea = categorias.map((c) => [c, servicos.filter((s) => s.categoria === c && (s.ativo || f.servicos[s.id]))]).filter(([, l]) => l.length);
+  const qtd = Object.keys(f.servicos).length;
+
+  async function salvar() {
+    setErro('');
+    if (!qtd) { setErro('Marque pelo menos um serviço que ela faz.'); return; }
+    const lista = Object.entries(f.servicos).map(([id, c]) => ({ id, comissao: c.comissao === '' ? '' : num(c.comissao), duracao: c.duracao === '' ? '' : num(c.duracao) }));
+    try {
+      aoSalvar(await chamar('salvarProfissional', { profissional: { ...f, servicos: lista, comissao: num(f.comissao), comissaoProduto: num(f.comissaoProduto) } }));
+    } catch (e) { setErro(e.message); }
+  }
+
   return (
-    <Modal rotulo="Profissional" titulo={p.nome || 'Nova profissional'} aoFechar={aoFechar}>
+    <Modal rotulo="Profissional" titulo={p.nome || 'Nova profissional'} aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
-        <fieldset className="b-opcoes">
-          <legend className="rotulo">Áreas que atende</legend>
-          <div className="b-filtros">
-            {categorias.map((c) => (
-              <button key={c} type="button" className={`b-chip${f.categorias.includes(c) ? ' b-chip--ativo' : ''}`} onClick={() => alterna('categorias', c)}>{c}</button>
-            ))}
-          </div>
-        </fieldset>
         <fieldset className="b-opcoes">
           <legend className="rotulo">Dias de atendimento</legend>
           <div className="b-filtros">
@@ -669,15 +689,51 @@ function EditarProfissional({ p, categorias, aoFechar, aoSalvar }) {
         </div>
         <p className="b-suave">Sem horário, vale o da casa: seg a sex 6h–20h, sáb 7h–12h.</p>
         <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Comissão nos serviços (%)</span><input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 40" /></label>
+          <label className="b-campo"><span className="rotulo">Comissão padrão nos serviços (%)</span><input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 40" /></label>
           <label className="b-campo"><span className="rotulo">Comissão nos produtos (%)</span><input inputMode="decimal" value={f.comissaoProduto} onChange={(e) => setF({ ...f, comissaoProduto: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 10" /></label>
         </div>
+
+        <fieldset className="pf-servicos">
+          <legend className="rotulo">Serviços e comissão · {qtd} marcado{qtd === 1 ? '' : 's'}</legend>
+          <p className="b-suave">Marque o que ela faz. Comissão ou tempo em branco seguem o padrão (o número cinza).</p>
+          {porArea.map(([area, lista]) => {
+            const n = lista.filter((s) => f.servicos[s.id]).length;
+            return (
+              <div key={area} className="pf-grupo">
+                <div className="pf-linha pf-linha--titulo">
+                  <label className="pf-nome">
+                    <input type="checkbox" checked={n === lista.length} ref={(el) => { if (el) el.indeterminate = n > 0 && n < lista.length; }} onChange={(e) => marcar(lista, e.target.checked)} />
+                    <strong>{area}</strong>
+                  </label>
+                  <span>Comissão</span>
+                  <span>Tempo</span>
+                </div>
+                {lista.map((s) => {
+                  const c = f.servicos[s.id];
+                  return (
+                    <div key={s.id} className={`pf-linha${c ? '' : ' pf-linha--fora'}`}>
+                      <label className="pf-nome"><input type="checkbox" checked={!!c} onChange={(e) => marcar([s], e.target.checked)} /><span>{s.nome}</span></label>
+                      <label className="pf-num">
+                        <input inputMode="decimal" disabled={!c} value={c?.comissao ?? ''} placeholder={String(s.comissao ?? (num(f.comissao) || 0))} aria-label={`Comissão em ${s.nome}`}
+                          onChange={(e) => mudar(s.id, 'comissao', e.target.value.replace(/[^\d,.]/g, ''))} />
+                        <span>%</span>
+                      </label>
+                      <label className="pf-num">
+                        <input inputMode="numeric" disabled={!c} value={c?.duracao ?? ''} placeholder={String(s.duracao)} aria-label={`Tempo de ${s.nome}`}
+                          onChange={(e) => mudar(s.id, 'duracao', e.target.value.replace(/\D/g, '').slice(0, 3))} />
+                        <span>min</span>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </fieldset>
+
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Atendendo</label>
         <Erro>{erro}</Erro>
-        <BotaoAcao className="botao botao--cheio" acao={async () => {
-          setErro('');
-          try { aoSalvar(await chamar('salvarProfissional', { profissional: { ...f, comissao: Number(String(f.comissao).replace(',', '.')) || 0, comissaoProduto: Number(String(f.comissaoProduto).replace(',', '.')) || 0 } })); } catch (e) { setErro(e.message); }
-        }}>Salvar</BotaoAcao>
+        <BotaoAcao className="botao botao--cheio" acao={salvar}>Salvar</BotaoAcao>
       </div>
     </Modal>
   );
