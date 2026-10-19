@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { api } from './api.js';
+import { CONFIG } from '../config.js';
 
 const AuthCtx = createContext(null);
 const CHAVE = 'ambar_sessao';
@@ -14,6 +15,15 @@ function lerSessao() {
 
 export function AuthProvider({ children }) {
   const [sessao, setSessao] = useState(lerSessao);
+
+  // regras definidas na bancada (check-in, cancelamento...)
+  useEffect(() => {
+    api.regras().then((r) => {
+      ['checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis'].forEach((k) => {
+        if (r && r[k] != null) CONFIG[k] = r[k];
+      });
+    }).catch(() => {});
+  }, []);
 
   const guardar = useCallback((s) => {
     setSessao(s);

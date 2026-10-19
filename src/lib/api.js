@@ -37,19 +37,32 @@ async function chamar(acao, dados = {}) {
   return json.dados;
 }
 
+// Bancada interna: api.b('agenda', { token, de, dias })
+export const bancada = (acao, dados = {}) => {
+  if (MODO_DEMO) return Promise.reject(new Error('A bancada funciona só com o sistema real (planilha). Ela não tem modo demonstração.'));
+  return chamar('b_' + acao, dados);
+};
+
 export const api = {
   cadastrar: (d) => chamar('cadastrar', d),
   entrar: (d) => chamar('entrar', d),
   sair: (token) => chamar('sair', { token }),
   aulas: (token) => chamar('aulas', { token }),
   aula: (token, aulaId) => chamar('aula', { token, aulaId }),
-  reservar: (token, aulaId, tapete, pagarAvulsa = false, usarWellhub = false) => chamar('reservar', { token, aulaId, tapete, pagarAvulsa, usarWellhub }),
+  reservar: (token, aulaId, tapete, pagarAvulsa = false, usarWellhub = false, codigo = '') => chamar('reservar', { token, aulaId, tapete, pagarAvulsa, usarWellhub, codigo }),
   cancelar: (token, reservaId) => chamar('cancelar', { token, reservaId }),
   checkin: (token, reservaId) => chamar('checkin', { token, reservaId }),
   minhasReservas: (token) => chamar('minhasReservas', { token }),
   salvarAnamnese: (token, ficha) => chamar('salvarAnamnese', { token, ficha }),
   meuPlano: (token) => chamar('meuPlano', { token }),
-  comprar: (token, planoId) => chamar('comprar', { token, planoId }),
+  comprar: (token, planoId, codigo = '') => chamar('comprar', { token, planoId, codigo }),
+  validarCodigo: (token, planoId, codigo) => chamar('validarCodigo', { token, planoId, codigo }),
+  resgatarVale: (token, codigo) => chamar('resgatarVale', { token, codigo }),
+  esqueciSenha: (cpf) => chamar('esqueciSenha', { cpf }),
+  verLinkSenha: (t) => chamar('verLinkSenha', { t }),
+  novaSenha: (t, senha) => chamar('novaSenha', { t, senha }),
+  salvarEmail: (token, email) => chamar('salvarEmail', { token, email }),
+  regras: () => chamar('regras'),
   confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
   ativarWellhub: (token, wellhubId, confirmo) => chamar('ativarWellhub', { token, wellhubId, confirmo }),
 };
@@ -365,6 +378,17 @@ async function demo(acao, d) {
         .filter((r) => r.cpf === a.cpf && r.status !== 'cancelado' && r.status !== 'pendente')
         .map((r) => ({ ...r, wellhub: r.credito === 'WELLHUB' }))
         .sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+    }
+    case 'regras':
+      return { checkinAbreMinAntes: CONFIG.checkinAbreMinAntes, cancelarAteHorasAntes: CONFIG.cancelarAteHorasAntes, diasVisiveis: CONFIG.diasVisiveis, wellhubAtivo: true };
+    case 'validarCodigo':
+    case 'resgatarVale':
+      throw new Error('Cupons e vales funcionam só no sistema real.');
+    case 'esqueciSenha':
+      return { email: 'ma***@gm***.com' };
+    case 'salvarEmail': {
+      const a = sessao(d.token);
+      return { ...publico(a), email: d.email };
     }
     default:
       throw new Error('Ação desconhecida.');

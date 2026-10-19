@@ -1514,3 +1514,45 @@ strong { font-weight: 500; }
   .compra { padding-top: 22px; }
   .compra__passos { font-size: 11px; }
 }
+
+/* ---------- senha, cupom e vale-presente (área do aluno) ---------- */
+.form .dica-campo { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 11.5px; color: var(--tinta-suave); }
+.botao--p { min-height: 44px; padding: 0 18px; font-size: 11px; }
+.senha-ok { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.regras-senha { list-style: none; margin: -6px 0 0; padding: 0; display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--tinta-suave); }
+.regras-senha .ok { color: #4B5A2C; font-weight: 500; }
+.codigo { display: grid; gap: 8px; text-align: left; width: 100%; }
+.codigo__campo { display: grid; gap: 6px; }
+.codigo__campo .rotulo { font-size: 10.5px; color: var(--tinta-suave); }
+.codigo__linha { display: flex; gap: 8px; width: 100%; }
+.codigo__linha input {
+  flex: 1; min-width: 0; min-height: 46px; border-radius: 12px; border: 1px solid rgba(47, 56, 33, 0.22); background: var(--branco); padding: 0 14px;
+  font-family: var(--mono); font-size: 15px; letter-spacing: 0.08em; color: var(--tinta);
+}
+.codigo__linha input:focus { outline: none; border-color: var(--oliva); box-shadow: 0 0 0 4px rgba(111, 120, 77, 0.16); }
+.codigo__linha .botao { min-height: 46px; flex-shrink: 0; }
+.codigo__abrir { align-self: center; background: none; border: 0; cursor: pointer; font-family: inherit; text-decoration: underline; }
+.codigo--ok { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 12px 14px; border-radius: 14px; background: #E5E8D6; }
+.codigo--ok p { margin: 2px 0 0; font-size: 12px; color: #3C4628; }
+.codigo--ok .rotulo { font-size: 10.5px; color: #4B5A2C; }
+.codigo__valores { display: grid; text-align: right; }
+.codigo__valores s { font-size: 12px; color: var(--tinta-suave); }
+.codigo__valores strong { font-size: 18px; font-weight: 500; }
+.codigo--ok .link-sair { grid-column: 1 / -1; justify-self: start; }
+.vale-resgate {
+  display: flex; gap: 20px; align-items: flex-start; padding: 24px 26px; border-radius: 24px; background: var(--branco);
+  border: 1px solid rgba(47, 56, 33, 0.12); box-shadow: 0 18px 40px -32px rgba(47, 56, 33, 0.6);
+}
+.vale-resgate__selo { width: 56px; height: 56px; border-radius: 18px; background: var(--terracota); display: grid; place-items: center; flex-shrink: 0; }
+.vale-resgate__texto { display: grid; gap: 10px; flex: 1; min-width: 0; }
+.vale-resgate__texto p { margin: 0; font-size: 13px; color: var(--tinta-suave); }
+.vale-resgate__texto .erro, .vale-resgate__texto .aviso { margin: 0; }
+@media (max-width: 560px) { .vale-resgate { flex-direction: column; padding: 22px 20px; } }
+.aviso-email {
+  margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 12px 20px; align-items: center;
+  padding: 18px 22px; border-radius: 20px; background: #F6E9D5; border: 1px solid #E5CF9E;
+}
+.aviso-email strong { font-weight: 500; }
+.aviso-email p { margin: 2px 0 0; font-size: 12.5px; color: #6B4512; }
+.aviso-email .erro { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 640px) { .aviso-email { grid-template-columns: 1fr; } }

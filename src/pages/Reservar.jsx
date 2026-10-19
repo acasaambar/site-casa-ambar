@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { abrirAbaPagamento, fecharAba, seguirParaPagamento } from '../lib/pagamento.js';
+import CampoCodigo from '../components/CampoCodigo.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import Tapete from '../components/Tapete.jsx';
 import Aparelho from '../components/Reformer.jsx';
@@ -32,6 +33,7 @@ export default function Reservar() {
   const [feito, setFeito] = useState(null);
   const [semCredito, setSemCredito] = useState(null);
   const [pagando, setPagando] = useState(false);
+  const [desconto, setDesconto] = useState(null);
 
   const carregar = useCallback(() => {
     return api.aula(token, id).then(setAula).catch((e) => {
@@ -74,7 +76,15 @@ export default function Reservar() {
     setErro('');
     const aba = abrirAbaPagamento();
     try {
-      const r = await api.reservar(token, aula.id, yoga ? escolhido : null, true);
+      const r = await api.reservar(token, aula.id, yoga ? escolhido : null, true, false, desconto?.codigo || '');
+      if (!r.pagamento) {
+        // cupom ou vale cobriu a aula: reserva confirmada na hora
+        fecharAba(aba);
+        setSemCredito(null);
+        setPagando(false);
+        setFeito(r);
+        return;
+      }
       seguirParaPagamento(aba, r.pagamento, nav);
     } catch (e) {
       fecharAba(aba);
@@ -243,11 +253,16 @@ export default function Reservar() {
               <p className="confirmado__nota">{semCredito.wellhub.pode?.motivo}</p>
             )}
             {semCredito.avulsa && (
-              <button type="button" className="botao botao--cheio sem-credito__pagar" disabled={pagando} onClick={pagarAvulsa}>
-                {pagando
-                  ? 'Abrindo pagamento…'
-                  : `Pagar esta aula · ${Number(semCredito.avulsa.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
-              </button>
+              <>
+                <CampoCodigo token={token} planoId={semCredito.avulsa.id} aplicado={desconto} aoAplicar={setDesconto} />
+                <button type="button" className="botao botao--cheio sem-credito__pagar" disabled={pagando} onClick={pagarAvulsa}>
+                  {pagando
+                    ? 'Aguarde…'
+                    : desconto && desconto.valorFinal <= 0
+                      ? 'Reservar com meu código'
+                      : `Pagar esta aula · ${Number(desconto ? desconto.valorFinal : semCredito.avulsa.preco).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+                </button>
+              </>
             )}
             <p className="confirmado__nota">
               {yoga && escolhido ? `O tapete ${escolhido} fica guardado por 20 minutos enquanto você paga. ` : ''}

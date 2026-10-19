@@ -8,6 +8,7 @@ import { Forma, IconeWhatsapp, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
 import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
+import CampoCodigo from '../components/CampoCodigo.jsx';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const realCurto = (v) => {
@@ -34,6 +35,8 @@ export default function MeuPlano() {
   const [modalidade, setModalidade] = useState('Yoga');
   const [escolhido, setEscolhido] = useState(null);
   const [indo, setIndo] = useState(false);
+  const [desconto, setDesconto] = useState(null);
+  const [comprado, setComprado] = useState(null);
 
   const carregar = useCallback(
     () =>
@@ -51,6 +54,7 @@ export default function MeuPlano() {
   }, [carregar]);
 
   const local = useLocation();
+  const valeDoLink = new URLSearchParams(local.search).get('vale') || '';
   useEffect(() => {
     if (dados && local.state?.rolar) setTimeout(() => document.getElementById(local.state.rolar)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
   }, [dados, local.state]);
@@ -60,7 +64,17 @@ export default function MeuPlano() {
     setIndo(true);
     const aba = abrirAbaPagamento();
     try {
-      const pg = await api.comprar(token, escolhido.id);
+      const pg = await api.comprar(token, escolhido.id, desconto?.codigo || '');
+      if (pg.pago) {
+        // cupom ou vale cobriu tudo: não passa pela InfinitePay
+        fecharAba(aba);
+        setEscolhido(null);
+        setDesconto(null);
+        setIndo(false);
+        setComprado(pg);
+        carregar();
+        return;
+      }
       seguirParaPagamento(aba, pg, nav);
     } catch (e) {
       fecharAba(aba);
@@ -242,6 +256,12 @@ export default function MeuPlano() {
               )}
             </section>
 
+            {/* ---------- VALE-PRESENTE ---------- */}
+            <section className="plano__secao" id="vale">
+              <h2 className="titulo-secao"><Sol tamanho={14} /> Vale-presente</h2>
+              <Resgatar token={token} inicial={valeDoLink} aoResgatar={carregar} />
+            </section>
+
             {/* ---------- WELLHUB ---------- */}
             {dados.wellhub && dados.wellhub.status !== 'desligado' && (
               <section className="plano__secao" id="wellhub">
@@ -316,7 +336,7 @@ export default function MeuPlano() {
               </li>
               <li className="compra__total">
                 <span>Total</span>
-                <strong>{real(escolhido.preco)}</strong>
+                <strong>{desconto ? (desconto.valorFinal > 0 ? real(desconto.valorFinal) : 'Grátis') : real(escolhido.preco)}</strong>
               </li>
               <li className="compra__condicao">
                 <span>Pagamento</span>
@@ -345,8 +365,9 @@ export default function MeuPlano() {
               </>
             ) : (
               <>
+                <CampoCodigo token={token} planoId={escolhido.id} aplicado={desconto} aoAplicar={setDesconto} />
                 <button type="button" className="botao botao--cheio compra__ir" disabled={indo} onClick={irParaPagamento}>
-                  {indo ? 'Abrindo pagamento…' : 'Ir para o pagamento'}
+                  {indo ? 'Aguarde…' : desconto && desconto.valorFinal <= 0 ? 'Confirmar sem pagar' : 'Ir para o pagamento'}
                 </button>
                 <ol className="compra__passos">
                   <li>O pagamento seguro da InfinitePay abre em uma <strong>nova aba</strong>.</li>
@@ -355,11 +376,67 @@ export default function MeuPlano() {
                 </ol>
               </>
             )}
-            <button type="button" className="link-sair" disabled={indo} onClick={() => setEscolhido(null)}>Voltar</button>
+            <button type="button" className="link-sair" disabled={indo} onClick={() => { setEscolhido(null); setDesconto(null); }}>Voltar</button>
+          </div>
+        </div>
+      )}
+
+      {comprado && (
+        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="comprado-titulo">
+          <div className="confirmado__caixa">
+            <Sol tamanho={52} className="cor-caramelo confirmado__sol" />
+            <h2 id="comprado-titulo" className="display-m">Tudo certo</h2>
+            <p>{comprado.descricao} já está no seu plano.</p>
+            <div className="confirmado__botoes">
+              <Link className="botao botao--cheio" to="/aulas">Reservar aula</Link>
+              <button type="button" className="link-sair" onClick={() => setComprado(null)}>Fechar</button>
+            </div>
           </div>
         </div>
       )}
     </main>
+  );
+}
+
+// "Tenho um vale-presente": o vale de aula/plano vira crédito na hora
+function Resgatar({ token, inicial, aoResgatar }) {
+  const [codigo, setCodigo] = useState(inicial);
+  const [erro, setErro] = useState('');
+  const [ok, setOk] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+
+  async function resgatar(e) {
+    e.preventDefault();
+    setErro('');
+    setOk(null);
+    if (!codigo.trim()) return setErro('Digite o código do vale.');
+    setEnviando(true);
+    try {
+      const r = await api.resgatarVale(token, codigo.trim());
+      setOk(r);
+      if (r.tipo === 'plano') { setCodigo(''); aoResgatar(); }
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <form className="vale-resgate" onSubmit={resgatar}>
+      <div className="vale-resgate__selo" aria-hidden="true"><Forma nome="sutileza" tamanho={34} cor="var(--creme)" /></div>
+      <div className="vale-resgate__texto">
+        <strong>Tenho um vale-presente</strong>
+        <p>Recebeu um vale da Casa Âmbar? Digite o código para usar.</p>
+        <div className="codigo__linha">
+          <input type="text" value={codigo} placeholder="AMBAR-XXXX-XXXX" autoCapitalize="characters" autoComplete="off" spellCheck="false"
+            onChange={(e) => setCodigo(e.target.value.toUpperCase())} aria-label="Código do vale-presente" />
+          <button type="submit" className="botao botao--cheio botao--p" disabled={enviando}>{enviando ? '…' : 'Usar vale'}</button>
+        </div>
+        {erro && <p className="erro" role="alert">{erro}</p>}
+        {ok && <p className="aviso">{ok.mensagem}</p>}
+      </div>
+    </form>
   );
 }
 

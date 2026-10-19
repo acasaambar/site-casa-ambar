@@ -48,6 +48,7 @@ export default function Aulas() {
       </div>
 
       <AreaNav />
+      <AvisoEmail />
       <div className="largura app__corpo">
         {erro && <p className="erro" role="alert">{erro}</p>}
         {!aulas && !erro && <Carregando />}
@@ -135,6 +136,43 @@ export function Carregando() {
     <div className="carregando" role="status">
       <Sol tamanho={36} className="girando" />
       <span>Carregando…</span>
+    </div>
+  );
+}
+
+// Aluno antigo sem e-mail: pede o e-mail para poder recuperar a senha
+function AvisoEmail() {
+  const { token, aluno, atualizarAluno } = useAuth();
+  const [email, setEmail] = useState('');
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  if (!aluno || aluno.email !== '') return null;
+  async function salvar(e) {
+    e.preventDefault();
+    setErro('');
+    setSalvando(true);
+    try {
+      const a = await api.salvarEmail(token, email.trim());
+      atualizarAluno({ email: a.email });
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+  return (
+    <div className="largura">
+      <form className="aviso-email" onSubmit={salvar}>
+        <div>
+          <strong>Cadastre seu e-mail</strong>
+          <p>Assim você recupera a senha sozinha, sem precisar chamar a recepção.</p>
+        </div>
+        <div className="codigo__linha">
+          <input type="email" autoComplete="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="E-mail" />
+          <button type="submit" className="botao botao--cheio botao--p" disabled={salvando}>{salvando ? '…' : 'Salvar'}</button>
+        </div>
+        {erro && <p className="erro" role="alert">{erro}</p>}
+      </form>
     </div>
   );
 }

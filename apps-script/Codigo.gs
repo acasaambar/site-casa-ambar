@@ -63,9 +63,25 @@ var AJUSTES = {
   },
 };
 
+// Ajustes que a bancada pode mudar (ficam nas Propriedades do script)
+var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias', 'wellhubAtivo', 'wellhubReservasPorDia'];
+AJUSTES.valeValidadeDias = 365;
+var _ajustesAplicados = false;
+function aplicarAjustesSalvos() {
+  if (_ajustesAplicados) return;
+  _ajustesAplicados = true;
+  var j = {};
+  try { j = JSON.parse(PropertiesService.getScriptProperties().getProperty('AJUSTES_JSON') || '{}') || {}; } catch (e) { j = {}; }
+  ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias'].forEach(function (k) {
+    if (j[k] != null && !isNaN(Number(j[k]))) AJUSTES[k] = Number(j[k]);
+  });
+  if (j.wellhubAtivo != null) AJUSTES.wellhub.ativo = !!j.wellhubAtivo;
+  if (j.wellhubReservasPorDia != null) AJUSTES.wellhub.reservasPorDia = Number(j.wellhubReservasPorDia) || 1;
+}
+
 var ABAS = {
   Grade: ['ativo', 'modalidade', 'dia_semana', 'hora', 'professor', 'capacidade'],
-  Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo', 'wellhub', 'wellhub_id', 'wellhub_desde'],
+  Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'origem_cadastro'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -76,9 +92,19 @@ var ABAS = {
   // Catálogo do que se vende no site (edite preços e planos aqui)
   Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao', 'sem_juros_ate'],
   Pagamentos: ['order_nsu', 'cpf', 'nome', 'plano_id', 'descricao', 'valor', 'status', 'link', 'criado_em', 'pago_em', 'metodo', 'parcelas',
-    'valor_pago', 'transaction_nsu', 'slug', 'recibo', 'reserva_id', 'aula_id', 'tapete', 'observacao'],
+    'valor_pago', 'transaction_nsu', 'slug', 'recibo', 'reserva_id', 'aula_id', 'tapete', 'observacao',
+    'valor_original', 'desconto', 'cupom', 'vale', 'vale_usado', 'origem', 'registrado_por'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
+  // ---- bancada interna ----
+  Equipe: ['email', 'nome', 'papel', 'professor_nome', 'senha_hash', 'sal', 'ativo', 'criado_em', 'ultimo_acesso'],
+  SessoesEquipe: ['token', 'email', 'criada_em', 'expira_em'],
+  Redefinicoes: ['token_hash', 'tipo', 'id', 'email', 'criado_em', 'expira_ms', 'usado_em', 'motivo'],
+  Registro: ['quando', 'quem', 'acao', 'detalhe'],
+  Cupons: ['codigo', 'ativo', 'tipo', 'valor', 'modalidade', 'tipo_plano', 'inicio', 'fim', 'limite_total', 'limite_por_aluno', 'primeira_compra', 'descricao', 'criado_por', 'criado_em'],
+  // Vale-presente é cortesia (não é vendido): dá uma aula/plano do catálogo ou um valor em R$
+  Vales: ['codigo', 'status', 'tipo', 'plano_id', 'valor', 'cpf', 'nome', 'email', 'whatsapp', 'motivo', 'campanha', 'mensagem',
+    'criado_em', 'criado_por', 'validade', 'resgatado_em', 'resgatado_cpf', 'enviado'],
 };
 
 // Catálogo inicial (vai para a aba Planos na configuração)
@@ -204,6 +230,7 @@ function testarInfinitePay() {
 //  2) PORTA DE ENTRADA DO SITE
 // ============================================================
 function doPost(e) {
+  aplicarAjustesSalvos();
   var corpo;
   try {
     corpo = JSON.parse(e.postData.contents);
@@ -235,8 +262,21 @@ function doPost(e) {
       comprar: comprar,
       confirmarPagamento: confirmarPagamento,
       ativarWellhub: ativarWellhub,
+      // senha
+      esqueciSenha: esqueciSenha,
+      verLinkSenha: verLinkSenha,
+      novaSenha: novaSenha,
+      salvarEmail: salvarEmail,
+      regras: regrasPublicas,
+      // cupons e vale-presente
+      validarCodigo: validarCodigo,
+      resgatarVale: resgatarVale,
+      // bancada (login da equipe)
+      b_entrar: bancadaEntrar,
+      b_esqueci: bancadaEsqueci,
     };
     var fn = acoes[corpo.acao];
+    if (!fn && /^b_/.test(String(corpo.acao))) return responder(true, executarBancada(corpo));
     if (!fn) return responder(false, null, 'Ação desconhecida.');
     return responder(true, fn(corpo));
   } catch (err) {
@@ -259,7 +299,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v14 (domínio www.acasambar.com.br)';
+var VERSAO = '2026-10-18 · v15 (bancada, senha com pimenta, cupons e vales-presente)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -278,14 +318,16 @@ function cadastrar(d) {
   if (!cpfValido(cpf)) throw new Error('CPF inválido.');
   if (!d.nome || String(d.nome).trim().split(' ').length < 2) throw new Error('Informe nome e sobrenome.');
   if (soDigitos(d.whatsapp).length < 10) throw new Error('Informe um WhatsApp com DDD.');
-  if (!d.senha || String(d.senha).length < 6) throw new Error('A senha precisa ter pelo menos 6 caracteres.');
+  if (!emailValido(d.email)) throw new Error('Informe um e-mail válido. É por ele que você recupera a senha.');
+  validarSenhaNova(d.senha);
 
   var trava = LockService.getScriptLock();
   trava.waitLock(15000);
   try {
     if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro. Use "Entrar".');
     var sal = Utilities.getUuid();
-    aba('Alunos').appendRow([cpf, String(d.nome).trim(), soDigitos(d.whatsapp), String(d.email || '').trim(), hashSenha(d.senha, sal), sal, agoraTexto(), 'SIM']);
+    adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email).trim().toLowerCase(),
+      senha_hash: hashSenhaV2(d.senha, sal), sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site' });
   } finally {
     trava.releaseLock();
   }
@@ -294,12 +336,18 @@ function cadastrar(d) {
 }
 
 function entrar(d) {
-  var cpf = soDigitos(d.cpf);
+  var cpf = normCpf(d.cpf);
+  limitarTentativas('a_' + cpf);
   var aluno = buscarAluno(cpf);
-  if (!aluno || aluno.ativo === 'NÃO' || hashSenha(d.senha, aluno.sal) !== aluno.senha_hash) {
+  var v = aluno && aluno.ativo !== 'NÃO' ? verificarSenha(d.senha, aluno.senha_hash, aluno.sal) : { ok: false };
+  if (!v.ok) {
+    registrarFalha('a_' + cpf);
     Utilities.sleep(600); // dificulta tentativas em massa
-    throw new Error('CPF ou senha incorretos.');
+    throw new Error(aluno && !aluno.senha_hash ? 'Você ainda não criou sua senha. Toque em "Esqueci minha senha" para receber o link no e-mail.' : 'CPF ou senha incorretos.');
   }
+  limparFalhas('a_' + cpf);
+  // senha no formato antigo: regrava com sal + pimenta
+  if (v.atualizar) gravarSenha('Alunos', aluno._linha, d.senha);
   return { token: criarSessao(cpf), aluno: publico(aluno) };
 }
 
@@ -354,7 +402,7 @@ function buscarAluno(cpf) {
 
 function publico(a) {
   var cpf = normCpf(a.cpf);
-  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), anamnese: !!linhaAnamnese(cpf), wellhub: statusWellhub(a) };
+  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), email: String(a.email || ''), anamnese: !!linhaAnamnese(cpf), wellhub: statusWellhub(a) };
 }
 
 function hashSenha(senha, sal) {
@@ -370,20 +418,22 @@ function hashSenha(senha, sal) {
 // ============================================================
 //  4) AULAS
 // ============================================================
-function gerarAulas() {
+function gerarAulas(dataInicio, dias) {
   var grade = aba('Grade').getDataRange().getValues();
   var cab = grade[0];
   var bloqueios = aba('Bloqueios').getDataRange().getValues().slice(1).map(function (b) {
     return dataTexto(b[0]) + '|' + horaTexto(b[1]) + '|' + String(b[2]).toLowerCase();
   });
-  var hoje = new Date();
+  var hoje = dataInicio ? new Date(dataInicio + 'T12:00:00-03:00') : new Date();
+  var total = dias || AJUSTES.diasVisiveis;
   var lista = [];
-  for (var i = 0; i < AJUSTES.diasVisiveis; i++) {
+  for (var i = 0; i < total; i++) {
     var dia = new Date(hoje.getTime() + i * 86400000);
     var data = Utilities.formatDate(dia, AJUSTES.fuso, 'yyyy-MM-dd');
     var semana = Number(Utilities.formatDate(dia, AJUSTES.fuso, 'u')) % 7; // 1=seg ... 7=dom → 0
     for (var j = 1; j < grade.length; j++) {
       var g = objeto(cab, grade[j]);
+      if (!String(g.modalidade || '').trim() || String(g.dia_semana) === '') continue; // linha vazia
       if (String(g.ativo).toUpperCase() === 'NÃO' || Number(g.dia_semana) !== semana) continue;
       var hora = horaTexto(g.hora);
       var mod = String(g.modalidade).trim();
@@ -492,7 +542,15 @@ function reservar(d) {
         });
       }
       // guarda o tapete por alguns minutos e gera o pagamento da aula avulsa
-      var pg = criarPagamento(aluno, avulsa, { reserva_id: id, aula_id: aula.id, tapete: tapete });
+      var pg = criarPagamento(aluno, avulsa, { reserva_id: id, aula_id: aula.id, tapete: tapete }, d.codigo);
+      if (pg.pago) {
+        // cupom ou vale cobriu a aula inteira
+        aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+          pg.creditoId, pg.order_nsu, '']);
+        SpreadsheetApp.flush();
+        return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null,
+          status: 'reservado', credito: 'Vale-presente / cupom' };
+      }
       aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'pendente', agoraTexto(), '', '',
         '', pg.order_nsu, Date.now() + AJUSTES.reservaPendenteMin * 60000]);
       SpreadsheetApp.flush();
@@ -897,23 +955,39 @@ function comprar(d) {
   if (String(plano.tipo) === 'trimestral' && !chaveInfinitePay()) {
     throw erroCod('O plano trimestral em até 3x sem juros é feito com a nossa atendente.', 'TRIMESTRAL_ATENDENTE');
   }
-  return criarPagamento(aluno, plano, {});
+  return criarPagamento(aluno, plano, {}, d.codigo);
 }
 
-function criarPagamento(aluno, plano, extras) {
+// Cria o pagamento (com cupom ou vale-presente, se houver).
+// Se o desconto cobrir tudo, já conclui sem passar pela InfinitePay.
+function criarPagamento(aluno, plano, extras, codigo) {
+  var cpf = normCpf(aluno.cpf);
+  var calc = calcularPreco(plano, cpf, codigo);
   var orderNsu = 'P' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
-  var link = infinitepayCriarLink(plano, aluno, orderNsu);
-  aba('Pagamentos').appendRow([orderNsu, normCpf(aluno.cpf), aluno.nome, plano.id, plano.nome, plano.preco, 'pendente', link, agoraTexto(), '', '', '',
-    '', '', '', '', extras.reserva_id || '', extras.aula_id || '', extras.tapete || '', '']);
+  var linha = {
+    order_nsu: orderNsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: calc.valorFinal, status: 'pendente', link: '',
+    criado_em: agoraTexto(), reserva_id: extras.reserva_id || '', aula_id: extras.aula_id || '', tapete: extras.tapete || '',
+    valor_original: calc.valorOriginal, desconto: calc.desconto, cupom: calc.cupom, vale: calc.vale, vale_usado: calc.valeUsado, origem: 'site',
+  };
+  if (calc.valorFinal <= 0) {
+    adicionarLinha('Pagamentos', linha);
+    SpreadsheetApp.flush();
+    var creditoId = concluirPagamento(linhaPagamento(orderNsu), { metodo: calc.vale ? 'Vale-presente' : 'Cupom' });
+    return { pago: true, order_nsu: orderNsu, creditoId: creditoId, valor: 0, descricao: plano.nome };
+  }
+  linha.link = infinitepayCriarLink({ descricao: plano.nome + (calc.desconto ? ' (com desconto)' : ''), valor: calc.valorFinal, semJuros: semJurosAte(plano) }, aluno, orderNsu);
+  adicionarLinha('Pagamentos', linha);
   SpreadsheetApp.flush();
-  return { order_nsu: orderNsu, link: link, valor: plano.preco, descricao: plano.nome };
+  return { order_nsu: orderNsu, link: linha.link, valor: calc.valorFinal, valorOriginal: calc.valorOriginal, desconto: calc.desconto, descricao: plano.nome };
 }
 
-function infinitepayCriarLink(plano, aluno, orderNsu) {
+// item = { descricao, valor, semJuros }
+function infinitepayCriarLink(item, aluno, orderNsu) {
   var whats = soDigitos(aluno.whatsapp);
+  var semJuros = item.semJuros || 1;
   var corpo = {
     handle: AJUSTES.infinitepayHandle,
-    items: [{ quantity: 1, price: Math.round(plano.preco * 100), description: plano.nome + ' (' + condicaoPagamento(plano) + ')' }],
+    items: [{ quantity: 1, price: Math.round(item.valor * 100), description: item.descricao + ' (' + (semJuros > 1 ? 'até ' + semJuros + 'x sem juros' : '1x sem juros') + ')' }],
     order_nsu: orderNsu,
     redirect_url: AJUSTES.siteUrl + '?pagamento=' + orderNsu,
     webhook_url: AJUSTES.apiUrl,
@@ -923,7 +997,7 @@ function infinitepayCriarLink(plano, aluno, orderNsu) {
   var cabecalhos = {};
   if (chave) {
     // regra por link: até quantas parcelas a Casa Âmbar assume os juros
-    corpo.options = { assured_installments: semJurosAte(plano) };
+    corpo.options = { assured_installments: semJuros };
     cabecalhos['X-Api-Key'] = chave;
   }
   var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/links', {
@@ -1007,59 +1081,84 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
       Logger.log('Pagamento não confirmado (' + origem + '): ' + JSON.stringify(conf));
       return pg;
     }
-
-    var s = aba('Pagamentos');
-    var col = function (c) { return coluna('Pagamentos', c); };
-    s.getRange(pg._linha, col('status')).setValue('pago');
-    s.getRange(pg._linha, col('pago_em')).setValue(agoraTexto());
-    s.getRange(pg._linha, col('metodo')).setValue(conf.capture_method === 'pix' ? 'Pix' : conf.capture_method === 'credit_card' ? 'Cartão' : String(conf.capture_method || ''));
-    s.getRange(pg._linha, col('parcelas')).setValue(conf.installments || 1);
+    var obs = '';
     var planoRegra = buscarPlano(pg.plano_id);
     // parcelou dentro do "sem juros" deste plano, mas a InfinitePay cobrou juros da aluna:
     // avisa a recepção quanto devolver (valor pago − valor do plano)
     var parcelasPagas = Number(conf.installments || 1);
     var jurosPagos = (Number(conf.paid_amount || conf.amount) - Number(conf.amount)) / 100;
     if (planoRegra && parcelasPagas > 1 && parcelasPagas <= semJurosAte(planoRegra) && jurosPagos > 0.009) {
-      s.getRange(pg._linha, col('observacao')).setValue('DEVOLVER R$ ' + jurosPagos.toFixed(2).replace('.', ',') + ' de juros à aluna: pagou em ' +
-        parcelasPagas + 'x, que é sem juros neste plano.');
+      obs = 'DEVOLVER R$ ' + jurosPagos.toFixed(2).replace('.', ',') + ' de juros à aluna: pagou em ' + parcelasPagas + 'x, que é sem juros neste plano.';
     }
-    s.getRange(pg._linha, col('valor_pago')).setValue(Number(conf.paid_amount || conf.amount) / 100);
-    s.getRange(pg._linha, col('transaction_nsu')).setValue(String(transactionNsu));
-    s.getRange(pg._linha, col('slug')).setValue(String(slug));
-
-    // crédito novo
-    var plano = buscarPlano(pg.plano_id) || { id: pg.plano_id, nome: pg.descricao, modalidade: '', tipo: 'avulsa', aulas_semana: 0, aulas_total: 1, validade_dias: 30 };
-    var hoje = hojeTexto();
-    var creditoId = 'C' + orderNsu.slice(1);
-    aba('Creditos').appendRow([creditoId, normCpf(pg.cpf), pg.nome, plano.id, plano.nome, plano.modalidade, plano.tipo, plano.aulas_semana, plano.aulas_total,
-      hoje, somarDias(hoje, plano.validade_dias - 1), 'pagamento ' + orderNsu, 'SIM']);
-
-    // reserva que estava aguardando este pagamento
-    if (pg.reserva_id) {
-      var rs = aba('Reservas');
-      var linhas = rs.getDataRange().getValues();
-      var cab = linhas[0];
-      for (var i = 1; i < linhas.length; i++) {
-        var r = objeto(cab, linhas[i]);
-        if (r.id !== pg.reserva_id) continue;
-        var ocupado = reservasAtivas().some(function (x) {
-          return x.id !== r.id && x.aula_id === r.aula_id && r.tapete && Number(x.tapete) === Number(r.tapete);
-        });
-        if (ocupado || r.status === 'cancelado') {
-          s.getRange(pg._linha, col('observacao')).setValue('O lugar foi ocupado antes da confirmação; o crédito ficou disponível.');
-        } else {
-          rs.getRange(i + 1, coluna('Reservas', 'status')).setValue('reservado');
-          rs.getRange(i + 1, coluna('Reservas', 'credito_id')).setValue(creditoId);
-          rs.getRange(i + 1, coluna('Reservas', 'expira_ms')).setValue('');
-        }
-        break;
-      }
-    }
-    SpreadsheetApp.flush();
+    concluirPagamento(pg, {
+      metodo: conf.capture_method === 'pix' ? 'Pix' : conf.capture_method === 'credit_card' ? 'Cartão' : String(conf.capture_method || ''),
+      parcelas: conf.installments || 1,
+      valor_pago: Number(conf.paid_amount || conf.amount) / 100,
+      transaction_nsu: String(transactionNsu),
+      slug: String(slug),
+      observacao: obs,
+    });
     return linhaPagamento(orderNsu);
   } finally {
     trava.releaseLock();
   }
+}
+
+// Marca como pago, cria o crédito de aulas e libera a reserva que aguardava.
+// Usado pela InfinitePay, pelos descontos de 100% e pelas vendas no balcão.
+function concluirPagamento(pg, info) {
+  var s = aba('Pagamentos');
+  var obs = [info.observacao || ''];
+  // vale-presente usado neste pagamento
+  if (pg.vale) {
+    var v = acharVale(pg.vale);
+    if (v && v.tipo === 'plano') {
+      atualizarLinha('Vales', v._linha, { status: 'resgatado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });
+    } else if (v && saldoVale(v) + 0.009 < numero(pg.vale_usado)) {
+      obs.push('ATENÇÃO: o vale ' + pg.vale + ' não tinha mais saldo suficiente (diferença de R$ ' + (numero(pg.vale_usado) - saldoVale(v)).toFixed(2).replace('.', ',') + ').');
+    }
+  }
+  atualizarLinha('Pagamentos', pg._linha, {
+    status: 'pago', pago_em: agoraTexto(), metodo: info.metodo || '', parcelas: info.parcelas || 1,
+    valor_pago: info.valor_pago != null ? info.valor_pago : numero(pg.valor), transaction_nsu: info.transaction_nsu || '', slug: info.slug || '',
+    observacao: obs.filter(String).join(' ') || pg.observacao || '',
+  });
+  if (pg.vale) {
+    var v2 = acharVale(pg.vale);
+    if (v2 && v2.tipo !== 'plano' && saldoVale(v2) <= 0.009) atualizarLinha('Vales', v2._linha, { status: 'usado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });
+  }
+
+  // crédito novo
+  var plano = buscarPlano(pg.plano_id) || { id: pg.plano_id, nome: pg.descricao, modalidade: '', tipo: 'avulsa', aulas_semana: 0, aulas_total: 1, validade_dias: 30 };
+  var inicioCred = info.inicio || hojeTexto();
+  var creditoId = 'C' + String(pg.order_nsu).slice(1);
+  adicionarLinha('Creditos', { id: creditoId, cpf: normCpf(pg.cpf), nome: pg.nome, plano_id: plano.id, descricao: plano.nome, modalidade: plano.modalidade, tipo: plano.tipo,
+    aulas_semana: plano.aulas_semana, aulas_total: plano.aulas_total, inicio: inicioCred, fim: somarDias(inicioCred, plano.validade_dias - 1),
+    origem: (info.origemCredito || 'pagamento') + ' ' + pg.order_nsu, ativo: 'SIM' });
+
+  // reserva que estava aguardando este pagamento
+  if (pg.reserva_id) {
+    var rs = aba('Reservas');
+    var linhas = rs.getDataRange().getValues();
+    var cab = linhas[0];
+    for (var i = 1; i < linhas.length; i++) {
+      var r = objeto(cab, linhas[i]);
+      if (r.id !== pg.reserva_id) continue;
+      var ocupado = reservasAtivas().some(function (x) {
+        return x.id !== r.id && x.aula_id === r.aula_id && r.tapete && Number(x.tapete) === Number(r.tapete);
+      });
+      if (ocupado || r.status === 'cancelado') {
+        s.getRange(pg._linha, coluna('Pagamentos', 'observacao')).setValue('O lugar foi ocupado antes da confirmação; o crédito ficou disponível.');
+      } else {
+        rs.getRange(i + 1, coluna('Reservas', 'status')).setValue('reservado');
+        rs.getRange(i + 1, coluna('Reservas', 'credito_id')).setValue(creditoId);
+        rs.getRange(i + 1, coluna('Reservas', 'expira_ms')).setValue('');
+      }
+      break;
+    }
+  }
+  SpreadsheetApp.flush();
+  return creditoId;
 }
 
 // ============================================================
@@ -1117,12 +1216,14 @@ function aba(nome) {
     s.appendRow(ABAS[nome]);
     s.getRange(1, 1, 1, ABAS[nome].length).setFontWeight('bold').setBackground('#2F3821').setFontColor('#E9DDC5');
     s.setFrozenRows(1);
-    s.getRange(nome === 'Sessoes' ? 'A:B' : 'A:G').setNumberFormat('@');
+    s.getRange(FORMATO_TEXTO[nome] || (nome === 'Sessoes' ? 'A:B' : 'A:G')).setNumberFormat('@');
   }
   if (!s) throw new Error('Aba "' + nome + '" não encontrada. Execute configurarPlanilha.');
   garantirCabecalho(s, nome);
   return s;
 }
+
+var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R' };
 
 // Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem
 var _cabecalhoOk = {};
@@ -1135,13 +1236,56 @@ function garantirCabecalho(s, nome) {
   _cabecalhoOk[nome] = true;
 }
 
+// Acrescenta uma linha a partir de um objeto { coluna: valor }
+function adicionarLinha(nomeAba, obj) {
+  var s = aba(nomeAba);
+  s.appendRow(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; }));
+  return s.getLastRow();
+}
+
+// Atualiza só as colunas informadas de uma linha
+function atualizarLinha(nomeAba, linha, obj) {
+  var s = aba(nomeAba);
+  Object.keys(obj).forEach(function (c) {
+    var col = coluna(nomeAba, c);
+    if (col > 0) s.getRange(linha, col).setValue(obj[c] == null ? '' : obj[c]);
+  });
+}
+
+// Todas as linhas de uma aba como objetos (com _linha)
+function lerAba(nomeAba) {
+  var linhas = aba(nomeAba).getDataRange().getValues();
+  var cab = linhas[0];
+  var lista = [];
+  for (var i = 1; i < linhas.length; i++) {
+    var o = objeto(cab, linhas[i]);
+    o._linha = i + 1;
+    lista.push(o);
+  }
+  return lista;
+}
+
 function coluna(nomeAba, campo) {
   return ABAS[nomeAba].indexOf(campo) + 1;
 }
 
+function ehData(v) {
+  return Object.prototype.toString.call(v) === '[object Date]' && !isNaN(v.getTime());
+}
+
+// A planilha transforma textos como "2026-10-18 09:30:00" em data/hora.
+// Aqui elas voltam a ser texto, no fuso da planilha (o mesmo valor que foi gravado).
+var _fusoCache = null;
 function objeto(cab, linha) {
   var o = {};
-  cab.forEach(function (c, i) { o[c] = linha[i]; });
+  cab.forEach(function (c, i) {
+    var v = linha[i];
+    if (ehData(v)) {
+      _fusoCache = _fusoCache || fusoPlanilha();
+      v = v.getFullYear() < 1901 ? Utilities.formatDate(v, _fusoCache, 'HH:mm') : Utilities.formatDate(v, _fusoCache, 'yyyy-MM-dd HH:mm:ss').replace(/ 00:00:00$/, '');
+    }
+    o[c] = v;
+  });
   return o;
 }
 
@@ -1176,12 +1320,12 @@ function fusoPlanilha() {
 }
 
 function dataTexto(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, fusoPlanilha(), 'yyyy-MM-dd');
+  if (ehData(v)) return Utilities.formatDate(v, fusoPlanilha(), 'yyyy-MM-dd');
   return String(v).slice(0, 10);
 }
 
 function horaTexto(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, fusoPlanilha(), 'HH:mm');
+  if (ehData(v)) return Utilities.formatDate(v, fusoPlanilha(), 'HH:mm');
   var s = String(v).trim();
   if (!s) return '';
   var p = s.split(':');

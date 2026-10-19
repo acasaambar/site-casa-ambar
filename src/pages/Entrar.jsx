@@ -1,10 +1,15 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { Logo, Forma, img } from '../components/Marca.jsx';
 import { mascaraCPF, mascaraTelefone, cpfValido, soDigitos } from '../lib/util.js';
 import { MODO_DEMO } from '../lib/api.js';
-import { CONFIG } from '../config.js';
+
+export function problemaSenha(s) {
+  if (String(s).length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
+  if (!/[A-Za-z]/.test(s) || !/\d/.test(s)) return 'Use letras e números na senha.';
+  return '';
+}
 
 export default function Entrar() {
   const { entrar, cadastrar } = useAuth();
@@ -28,7 +33,9 @@ export default function Entrar() {
     if (modo === 'cadastro') {
       if (f.nome.trim().split(' ').length < 2) return setErro('Informe nome e sobrenome.');
       if (soDigitos(f.whatsapp).length < 10) return setErro('Informe um WhatsApp com DDD.');
-      if (f.senha.length < 6) return setErro('A senha precisa ter pelo menos 6 caracteres.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) return setErro('Informe um e-mail válido. É por ele que você recupera a senha.');
+      const problema = problemaSenha(f.senha);
+      if (problema) return setErro(problema);
       if (f.senha !== f.senha2) return setErro('As senhas não conferem.');
     }
     setEnviando(true);
@@ -93,14 +100,16 @@ export default function Entrar() {
                   <input type="tel" inputMode="numeric" autoComplete="tel" placeholder="(85) 90000-0000" required {...campo('whatsapp', mascaraTelefone)} />
                 </label>
                 <label>
-                  E-mail <span className="opcional">opcional</span>
-                  <input type="email" autoComplete="email" {...campo('email')} />
+                  E-mail
+                  <input type="email" autoComplete="email" required {...campo('email')} />
+                  <span className="dica-campo">Usado para recuperar a senha.</span>
                 </label>
               </>
             )}
             <label>
               Senha
               <input type="password" autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'} required {...campo('senha')} />
+              {modo === 'cadastro' && <span className="dica-campo">Mínimo de 8 caracteres, com letras e números.</span>}
             </label>
             {modo === 'cadastro' && (
               <label>
@@ -117,7 +126,7 @@ export default function Entrar() {
           </form>
 
           {modo === 'entrar' && (
-            <p className="entrar__ajuda">Esqueceu a senha? <a href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent('Olá! Esqueci minha senha da área do aluno.')}`} target="_blank" rel="noreferrer">Fale com a recepção</a>.</p>
+            <p className="entrar__ajuda"><Link to="/esqueci-senha">Esqueci minha senha</Link></p>
           )}
           {MODO_DEMO && (
             <p className="entrar__demo">

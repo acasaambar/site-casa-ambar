@@ -65,6 +65,36 @@ Ao chegar, ela faz o **check-in no app Wellhub** (é o que garante o repasse par
 Na aba **Alunos**, coluna `wellhub`, a recepção marca `SIM` depois do primeiro check-in validado, ou `NÃO` para bloquear.
 Reservas Wellhub aparecem na aba Reservas com `credito_id = WELLHUB`. Limite: 1 aula por dia (ajustável em `AJUSTES.wellhub` no Codigo.gs).
 
+## Bancada interna (equipe)
+
+Endereço: **www.acasambar.com.br/#/bancada**. Cada pessoa entra com o próprio e-mail e senha.
+
+| Acesso | O que faz |
+|---|---|
+| Administração | tudo, inclusive relatórios, equipe, planos/preços, cupons e ajustes |
+| Recepção | agenda, agendar/cancelar, presença, alunos, vendas no balcão, vales-presente e bloqueios |
+| Professora | só as próprias aulas: lista de presença e ficha de saúde das alunas |
+
+Primeiro acesso: no editor do Apps Script, execute **uma vez** a função `autorizarEmails` (arquivo Seguranca.gs).
+Ela autoriza o envio de e-mails e manda para o dono da conta Google o link para criar a senha de administrador.
+Depois disso, novos acessos são criados na própria bancada (Equipe → Novo acesso), com convite por e-mail.
+
+O código da bancada fica em `src/bancada/` (telas) e `apps-script/Bancada.gs`, `Vales.gs`, `Relatorios.gs` (servidor).
+Abas novas da planilha (criadas sozinhas): Equipe, SessoesEquipe, Redefinicoes, Registro, Cupons, Vales.
+
+### Senhas
+
+Sal (único por pessoa) + pimenta (segredo do sistema) com HMAC-SHA256 repetido. A pimenta fica só nas
+Propriedades do script, em `SENHA_PIMENTA`, criada sozinha. **Nunca apague nem altere essa propriedade.**
+Senhas antigas continuam valendo e são convertidas no próximo login. "Esqueci minha senha" envia um link
+de uso único, válido por 1 hora, para o e-mail do cadastro.
+
+### Cupons e vales-presente
+
+- **Cupom**: desconto (% ou R$) que o aluno digita no pagamento; criado pela administração.
+- **Vale-presente**: cortesia (não é vendido). Dá uma aula/plano ou um valor em R$. A equipe gera, entrega por
+  e-mail, WhatsApp ou no balcão, e o aluno usa em Meu plano → "Tenho um vale-presente".
+
 ## Publicação
 
 Todo envio para a branch `main` publica o site no GitHub Pages pelo workflow `.github/workflows/deploy.yml`.

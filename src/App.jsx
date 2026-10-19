@@ -12,11 +12,13 @@ import FichaSaude from './pages/FichaSaude.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
 import Pagamento from './pages/Pagamento.jsx';
 import WhatsFlutuante from './components/WhatsFlutuante.jsx';
+import { EsqueciSenha, NovaSenha } from './pages/Senha.jsx';
+import Bancada from './bancada/Bancada.jsx';
 
 function Protegida({ children }) {
   const { token } = useAuth();
   const local = useLocation();
-  if (!token) return <Navigate to="/entrar" replace state={{ de: local.pathname }} />;
+  if (!token) return <Navigate to="/entrar" replace state={{ de: local.pathname + local.search }} />;
   return children;
 }
 
@@ -32,7 +34,13 @@ function TopoAoNavegar() {
 
 function Paginas({ children }) {
   const { pathname } = useLocation();
-  return <ErroTela key={pathname}>{children}</ErroTela>;
+  return <ErroTela key={pathname.startsWith('/bancada') ? '/bancada' : pathname}>{children}</ErroTela>;
+}
+
+// A bancada tem layout próprio (sem cabeçalho, rodapé e WhatsApp do site)
+function SoNoSite({ children }) {
+  const { pathname } = useLocation();
+  return pathname.startsWith('/bancada') ? null : children;
 }
 
 export default function App() {
@@ -40,7 +48,7 @@ export default function App() {
     <AuthProvider>
       <HashRouter>
         <TopoAoNavegar />
-        <Header />
+        <SoNoSite><Header /></SoNoSite>
         <Paginas>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -51,11 +59,16 @@ export default function App() {
           <Route path="/pagamento" element={<Protegida><Pagamento /></Protegida>} />
           <Route path="/ficha-saude" element={<Protegida><FichaSaude /></Protegida>} />
           <Route path="/minhas-reservas" element={<Protegida><MinhasReservas /></Protegida>} />
+          <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+          <Route path="/nova-senha" element={<NovaSenha />} />
+          <Route path="/bancada/*" element={<Bancada />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Paginas>
-        <Footer />
-        <WhatsFlutuante />
+        <SoNoSite>
+          <Footer />
+          <WhatsFlutuante />
+        </SoNoSite>
       </HashRouter>
     </AuthProvider>
   );
