@@ -48,6 +48,16 @@ var PERMISSOES = {
   b_salvarAjustes: ['admin'],
   b_registro: ['admin'],
   b_relatorio: ['admin'],
+  // serviços
+  b_catalogoServicos: ['admin', 'recepcao', 'professora'],
+  b_atendimentos: ['admin', 'recepcao', 'professora'],
+  b_atualizarAtendimento: ['admin', 'recepcao', 'professora'],
+  b_horarios: ['admin', 'recepcao'],
+  b_agendarServico: ['admin', 'recepcao'],
+  b_creditosServico: ['admin', 'recepcao'],
+  b_salvarServico: ['admin'],
+  b_salvarPacote: ['admin'],
+  b_salvarProfissional: ['admin'],
 };
 
 function executarBancada(d) {
@@ -92,8 +102,9 @@ function bancadaEntrar(d) {
   limparFalhas('e_' + email);
   if (v.atualizar) gravarSenha('Equipe', m._linha, d.senha);
   atualizarLinha('Equipe', m._linha, { ultimo_acesso: agoraTexto() });
-  var token = 'E' + Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().slice(0, 8);
-  adicionarLinha('SessoesEquipe', { token: token, email: email, criada_em: agoraTexto(), expira_em: new Date(Date.now() + 12 * 3600000).toISOString() });
+  var token = 'E' + Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: new Date(Date.now() + 12 * 3600000).toISOString() });
+  limparSessoesVencidas('SessoesEquipe');
   return { token: token, membro: membroPublico(m) };
 }
 
@@ -117,16 +128,17 @@ function bancadaEsqueci(d) {
 }
 
 function membroDaSessao(token) {
-  if (!token || String(token).charAt(0) !== 'E') throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
+  if (!token || String(token).charAt(0) !== 'E' || String(token).length < 30) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
   var cache = CacheService.getScriptCache();
-  var email = cache.get('e_' + token);
+  var h = hashToken(token);
+  var email = cache.get('e_' + h);
   if (!email) {
     var linhas = aba('SessoesEquipe').getDataRange().getValues();
     for (var i = 1; i < linhas.length; i++) {
-      if (linhas[i][0] === token && new Date(linhas[i][3]) > new Date()) { email = String(linhas[i][1]).toLowerCase(); break; }
+      if ((linhas[i][0] === h || linhas[i][0] === token) && new Date(linhas[i][3]) > new Date()) { email = String(linhas[i][1]).toLowerCase(); break; }
     }
     if (!email) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
-    cache.put('e_' + token, email, 3600);
+    cache.put('e_' + h, email, 600);
   }
   var m = buscarMembro(email);
   if (!m || String(m.ativo).toUpperCase() === 'NÃO') throw erroCod('Seu acesso à bancada foi desativado.', 'SESSAO_EQUIPE');
@@ -144,9 +156,10 @@ function bancada_sair(d) {
 
 function encerrarSessaoToken(token) {
   var s = aba('SessoesEquipe');
+  var h = hashToken(token);
   var linhas = s.getDataRange().getValues();
-  for (var i = linhas.length - 1; i >= 1; i--) if (linhas[i][0] === token) s.deleteRow(i + 1);
-  try { CacheService.getScriptCache().remove('e_' + token); } catch (e) { /* ignora */ }
+  for (var i = linhas.length - 1; i >= 1; i--) if (linhas[i][0] === h || linhas[i][0] === token) s.deleteRow(i + 1);
+  try { CacheService.getScriptCache().remove('e_' + h); } catch (e) { /* ignora */ }
 }
 
 function enviarConviteEquipe(m) {
@@ -232,11 +245,20 @@ function bancada_resumo(d, m) {
     aulasHoje: aulas.length,
     reservasHoje: hojeR.length,
     presentesHoje: hojeR.filter(function (x) { return x.status === 'check-in'; }).length,
+    linha: aulas.map(function (a) {
+      return { id: a.id, hora: a.hora, duracao: a.duracao || AJUSTES.duracaoAulaMin, modalidade: a.modalidade, professor: a.professor,
+        reservas: ativas.filter(function (x) { return x.aula_id === a.id; }).length, capacidade: a.capacidade };
+    }),
     proximas: aulas.filter(function (a) { return inicio(a).getTime() + AJUSTES.duracaoAulaMin * 60000 > Date.now(); }).slice(0, 4).map(function (a) {
       var n = ativas.filter(function (x) { return x.aula_id === a.id; }).length;
       return { id: a.id, hora: a.hora, modalidade: a.modalidade, professor: a.professor, reservas: n, capacidade: a.capacidade };
     }),
   };
+  var atend = lerAba('Atendimentos').filter(function (a) {
+    return a.id && dataTexto(a.data) === hoje && a.status !== 'cancelado' && (m.papel !== 'professora' || mesmaProfessora(a.profissional, m));
+  });
+  r.servicosHoje = atend.length;
+  r.servicos = atend.map(function (a) { return atendimentoPublico(a, m); }).sort(function (a, b) { return a.hora.localeCompare(b.hora); });
   if (m.papel !== 'professora') {
     var pagos = pagamentosPagos();
     var mes = hoje.slice(0, 7);
@@ -253,10 +275,14 @@ function bancada_resumo(d, m) {
   return r;
 }
 
+function semAcento(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+// a professora/profissional só vê o que está no nome dela (comparação exata, sem acento)
 function mesmaProfessora(nomeAula, m) {
-  var a = String(nomeAula || '').trim().toLowerCase();
-  var b = String(m.professor_nome || m.nome || '').trim().toLowerCase();
-  return !!a && !!b && (a === b || a.split(' ')[0] === b.split(' ')[0]);
+  var a = semAcento(nomeAula);
+  var b = semAcento(m.professor_nome || m.nome);
+  return !!a && !!b && a === b;
 }
 
 // ============================================================
@@ -358,8 +384,8 @@ function bancada_agendar(d, m) {
       throw new Error('Forma inválida.');
     }
     var id = 'R' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10);
-    aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
-      creditoId, '', '']);
+    aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+      creditoId, '', '']));
     SpreadsheetApp.flush();
     registrar(m, 'agendou', aluno.nome + ' · ' + aula.id + ' · ' + descricao);
     return { id: id, forma: descricao };
@@ -548,7 +574,8 @@ function registrarVenda(aluno, plano, o, membro) {
   var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay'];
   var metodo = metodos.indexOf(o.metodo) >= 0 ? o.metodo : '';
   if (!metodo) throw new Error('Escolha como foi pago.');
-  var cpf = normCpf(aluno.cpf);
+  if (!plano) throw new Error('Item de venda não encontrado.');
+  var cpf = soDigitos(aluno.cpf) ? normCpf(aluno.cpf) : '';
   var calc = calcularPreco(plano, cpf, o.codigo);
   var valor = calc.valorFinal;
   var desconto = calc.desconto;
@@ -570,7 +597,7 @@ function registrarVenda(aluno, plano, o, membro) {
 }
 
 function bancada_simularPreco(d) {
-  var plano = buscarPlano(d.planoId);
+  var plano = buscarItemVenda(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
   var r = calcularPreco(plano, d.cpf ? normCpf(d.cpf) : '', d.codigo);
   return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem };
@@ -579,7 +606,7 @@ function bancada_simularPreco(d) {
 function bancada_vender(d, m) {
   var aluno = buscarAluno(d.cpf);
   if (!aluno) throw new Error('Aluno não encontrado.');
-  var plano = buscarPlano(d.planoId);
+  var plano = buscarItemVenda(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
   var trava = LockService.getScriptLock();
   trava.waitLock(20000);
@@ -595,7 +622,12 @@ function bancada_vender(d, m) {
 function bancada_pagamentos(d) {
   var de = String(d.de || somarDias(hojeTexto(), -30));
   var ate = String(d.ate || hojeTexto());
-  return lerAba('Pagamentos').filter(function (p) {
+  var limite = Date.now() - PENDENTE_VALE_HORAS * 3600000;
+  return lerAba('Pagamentos').map(function (p) {
+    // link de pagamento antigo e não pago: aparece como expirado
+    if (p.status === 'pendente' && new Date(String(p.criado_em).replace(' ', 'T') + '-03:00').getTime() < limite) p.status = 'expirado';
+    return p;
+  }).filter(function (p) {
     var dia = String(p.pago_em || p.criado_em).slice(0, 10);
     if (dia < de || dia > ate) return false;
     if (d.status && p.status !== d.status) return false;
@@ -653,7 +685,7 @@ function bancada_vales() {
 // gera 1 ou vários vales (campanha). Cada pessoa: { nome, cpf, email, whatsapp }
 function bancada_criarVales(d, m) {
   var tipo = d.tipo === 'valor' ? 'valor' : 'plano';
-  var plano = tipo === 'plano' ? buscarPlano(d.planoId) : null;
+  var plano = tipo === 'plano' ? buscarItemVenda(d.planoId) : null;
   if (tipo === 'plano' && !plano) throw new Error('Escolha a aula ou o plano do vale.');
   var valor = tipo === 'valor' ? numero(d.valor) : 0;
   if (tipo === 'valor' && (valor < 1 || valor > 5000)) throw new Error('Informe o valor do vale.');
@@ -914,7 +946,7 @@ function bancada_salvarMembro(d, m) {
 function bancada_ajustes() {
   return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes,
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
-    wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
+    wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
     emailsRestantes: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } })() };
 }
 
@@ -925,7 +957,7 @@ function bancada_salvarAjustes(d, m) {
   var salvar = {};
   AJUSTES_EDITAVEIS.forEach(function (k) {
     if (a[k] == null) return;
-    if (k === 'wellhubAtivo') { salvar[k] = !!a[k]; return; }
+    if (k === 'wellhubAtivo' || k === 'wellhubPendentePodeReservar') { salvar[k] = !!a[k]; return; }
     var n = Number(a[k]);
     if (isNaN(n) || n < limites[k][0] || n > limites[k][1]) throw new Error('Valor fora do limite em ' + k + ' (' + limites[k][0] + ' a ' + limites[k][1] + ').');
     salvar[k] = n;

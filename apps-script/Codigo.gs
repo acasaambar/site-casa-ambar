@@ -64,7 +64,7 @@ var AJUSTES = {
 };
 
 // Ajustes que a bancada pode mudar (ficam nas Propriedades do script)
-var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias', 'wellhubAtivo', 'wellhubReservasPorDia'];
+var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias', 'wellhubAtivo', 'wellhubReservasPorDia', 'wellhubPendentePodeReservar'];
 AJUSTES.valeValidadeDias = 365;
 var _ajustesAplicados = false;
 function aplicarAjustesSalvos() {
@@ -77,6 +77,7 @@ function aplicarAjustesSalvos() {
   });
   if (j.wellhubAtivo != null) AJUSTES.wellhub.ativo = !!j.wellhubAtivo;
   if (j.wellhubReservasPorDia != null) AJUSTES.wellhub.reservasPorDia = Number(j.wellhubReservasPorDia) || 1;
+  if (j.wellhubPendentePodeReservar != null) AJUSTES.wellhub.pendentePodeReservar = !!j.wellhubPendentePodeReservar;
 }
 
 var ABAS = {
@@ -105,6 +106,12 @@ var ABAS = {
   // Vale-presente é cortesia (não é vendido): dá uma aula/plano do catálogo ou um valor em R$
   Vales: ['codigo', 'status', 'tipo', 'plano_id', 'valor', 'cpf', 'nome', 'email', 'whatsapp', 'motivo', 'campanha', 'mensagem',
     'criado_em', 'criado_por', 'validade', 'resgatado_em', 'resgatado_cpf', 'enviado'],
+  // ---- serviços (estética, fisioterapia...) agendados pela bancada ----
+  Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate'],
+  Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
+  Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim'],
+  Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',
+    'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em'],
 };
 
 // Catálogo inicial (vai para a aba Planos na configuração)
@@ -287,6 +294,10 @@ function doPost(e) {
     if (/permiss|authoriz|autoriza/i.test(msg)) {
       Logger.log('Falta autorização: ' + msg);
       msg = 'Esta função está sendo ativada pela Casa Âmbar. Tente de novo mais tarde ou fale com a recepção.';
+    } else if (err instanceof TypeError || err instanceof ReferenceError || /is not a function|undefined|null|Cannot read/i.test(msg)) {
+      // erro interno: registra para a equipe e mostra mensagem neutra
+      Logger.log('Erro interno em ' + (corpo && corpo.acao) + ': ' + msg + '\n' + (err.stack || ''));
+      msg = 'Algo deu errado do nosso lado. Tente de novo em instantes.';
     }
     return responder(false, err.dados || null, msg, err.codigo);
   }
@@ -301,7 +312,7 @@ function erroCod(msg, codigo, dados) {
 }
 
 // Versão do código (muda a cada atualização publicada)
-var VERSAO = '2026-10-18 · v17 (ficha de saúde abre preenchida)';
+var VERSAO = '2026-10-18 · v18 (segurança reforçada e serviços na bancada)';
 
 function doGet() {
   return responder(true, { status: 'Casa Âmbar API no ar', versao: VERSAO });
@@ -354,35 +365,60 @@ function entrar(d) {
 }
 
 function sair(d) {
+  if (!d.token) return true;
   var s = aba('Sessoes');
+  var h = hashToken(d.token);
   var linhas = s.getDataRange().getValues();
   for (var i = linhas.length - 1; i >= 1; i--) {
-    if (linhas[i][0] === d.token) s.deleteRow(i + 1);
+    if (linhas[i][0] === h || linhas[i][0] === d.token) s.deleteRow(i + 1);
   }
+  try { CacheService.getScriptCache().remove('s_' + h); } catch (e) { /* ignora */ }
   return true;
 }
 
+// A planilha guarda só o hash do token: quem abrir a aba Sessoes não consegue entrar como o aluno
+function hashToken(token) {
+  return 'h' + sha256Hex('sessao:' + String(token));
+}
+
 function criarSessao(cpf) {
-  var token = Utilities.getUuid() + Utilities.getUuid().slice(0, 8);
+  var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
   var expira = new Date(Date.now() + AJUSTES.validadeSessaoDias * 86400000);
-  aba('Sessoes').appendRow([token, normCpf(cpf), agoraTexto(), expira.toISOString()]);
+  aba('Sessoes').appendRow([hashToken(token), normCpf(cpf), agoraTexto(), expira.toISOString()]);
+  limparSessoesVencidas('Sessoes');
   return token;
 }
 
-function alunoDaSessao(token) {
-  if (!token) throw new Error('Sua sessão expirou. Entre novamente.');
+// apaga sessões vencidas de vez em quando (no máximo 1x por hora)
+function limparSessoesVencidas(nomeAba) {
   var cache = CacheService.getScriptCache();
-  var cpf = cache.get('s_' + token);
+  if (cache.get('limpeza_' + nomeAba)) return;
+  cache.put('limpeza_' + nomeAba, '1', 3600);
+  var s = aba(nomeAba);
+  var linhas = s.getDataRange().getValues();
+  var agora = new Date();
+  for (var i = linhas.length - 1; i >= 1; i--) {
+    var exp = new Date(linhas[i][3]);
+    if (!isNaN(exp.getTime()) && exp < agora) s.deleteRow(i + 1);
+  }
+}
+
+function alunoDaSessao(token) {
+  if (!token || String(token).length < 20) throw new Error('Sua sessão expirou. Entre novamente.');
+  var cache = CacheService.getScriptCache();
+  var h = hashToken(token);
+  var cpf = cache.get('s_' + h);
   if (!cpf) {
     var linhas = aba('Sessoes').getDataRange().getValues();
     for (var i = 1; i < linhas.length; i++) {
-      if (linhas[i][0] === token && new Date(linhas[i][3]) > new Date()) {
+      // aceita também sessões antigas (token puro), criadas antes desta versão
+      if ((linhas[i][0] === h || linhas[i][0] === token) && new Date(linhas[i][3]) > new Date()) {
         cpf = normCpf(linhas[i][1]);
         break;
       }
     }
     if (!cpf) throw new Error('Sua sessão expirou. Entre novamente.');
-    cache.put('s_' + token, cpf, 21600);
+    cache.put('s_' + h, cpf, 1800);
   }
   var aluno = buscarAluno(cpf);
   if (!aluno || aluno.ativo === 'NÃO') throw new Error('Sua sessão expirou. Entre novamente.');
@@ -527,8 +563,8 @@ function reservar(d) {
     if (!credito && d.usarWellhub) {
       var podeW = podeUsarWellhub(aluno, aula, reservas);
       if (!podeW.ok) throw new Error(podeW.motivo);
-      aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
-        'WELLHUB', '', '']);
+      aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+        'WELLHUB', '', '']));
       SpreadsheetApp.flush();
       return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null,
         status: 'reservado', credito: 'Wellhub', wellhub: true };
@@ -547,20 +583,20 @@ function reservar(d) {
       var pg = criarPagamento(aluno, avulsa, { reserva_id: id, aula_id: aula.id, tapete: tapete }, d.codigo);
       if (pg.pago) {
         // cupom ou vale cobriu a aula inteira
-        aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
-          pg.creditoId, pg.order_nsu, '']);
+        aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+          pg.creditoId, pg.order_nsu, '']));
         SpreadsheetApp.flush();
         return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null,
           status: 'reservado', credito: 'Vale-presente / cupom' };
       }
-      aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'pendente', agoraTexto(), '', '',
-        '', pg.order_nsu, Date.now() + AJUSTES.reservaPendenteMin * 60000]);
+      aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'pendente', agoraTexto(), '', '',
+        '', pg.order_nsu, Date.now() + AJUSTES.reservaPendenteMin * 60000]));
       SpreadsheetApp.flush();
       return { pagamento: pg };
     }
 
-    aba('Reservas').appendRow([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
-      credito.id, '', '']);
+    aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+      credito.id, '', '']));
     SpreadsheetApp.flush();
     return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null, status: 'reservado', credito: credito.descricao };
   } finally {
@@ -682,6 +718,7 @@ function salvarAnamnese(d) {
   try {
     var s = aba('Anamneses');
     var existente = linhaAnamnese(cpf);
+    linha = linhaSegura(linha);
     if (existente) s.getRange(existente, 1, 1, linha.length).setValues([linha]);
     else s.appendRow(linha);
   } finally {
@@ -1173,10 +1210,11 @@ function concluirPagamento(pg, info) {
     if (v2 && v2.tipo !== 'plano' && saldoVale(v2) <= 0.009) atualizarLinha('Vales', v2._linha, { status: 'usado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });
   }
 
-  // crédito novo
-  var plano = buscarPlano(pg.plano_id) || { id: pg.plano_id, nome: pg.descricao, modalidade: '', tipo: 'avulsa', aulas_semana: 0, aulas_total: 1, validade_dias: 30 };
+  // crédito novo (cliente de serviço sem cadastro não tem crédito)
+  var plano = buscarItemVenda(pg.plano_id) || { id: pg.plano_id, nome: pg.descricao, modalidade: '', tipo: 'avulsa', aulas_semana: 0, aulas_total: 1, validade_dias: 30 };
   var inicioCred = info.inicio || hojeTexto();
   var creditoId = 'C' + String(pg.order_nsu).slice(1);
+  if (!soDigitos(pg.cpf)) { SpreadsheetApp.flush(); return ''; }
   adicionarLinha('Creditos', { id: creditoId, cpf: normCpf(pg.cpf), nome: pg.nome, plano_id: plano.id, descricao: plano.nome, modalidade: plano.modalidade, tipo: plano.tipo,
     aulas_semana: plano.aulas_semana, aulas_total: plano.aulas_total, inicio: inicioCred, fim: somarDias(inicioCred, plano.validade_dias - 1),
     origem: (info.origemCredito || 'pagamento') + ' ' + pg.order_nsu, ativo: 'SIM' });
@@ -1225,6 +1263,7 @@ function podeUsarWellhub(aluno, aula, reservas) {
   var st = statusWellhub(aluno);
   if (st === 'desligado') return { ok: false, motivo: 'Reservas pelo Wellhub não estão disponíveis no momento.' };
   if (st === 'nao_informado') return { ok: false, motivo: 'Ative o Wellhub em Meu plano para reservar com ele.' };
+  if (st === 'pendente' && AJUSTES.wellhub.pendentePodeReservar === false) return { ok: false, motivo: 'Seu Wellhub está aguardando a confirmação da recepção.' };
   if (st === 'bloqueado') return { ok: false, motivo: 'Seu Wellhub não foi confirmado. Fale com a recepção.' };
   if (AJUSTES.wellhub.modalidades.indexOf(aula.modalidade) < 0) return { ok: false, motivo: aula.modalidade + ' não está disponível pelo Wellhub.' };
   var cpf = normCpf(aluno.cpf);
@@ -1268,7 +1307,8 @@ function aba(nome) {
   return s;
 }
 
-var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R' };
+var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
+  Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Atendimentos: 'A:K' };
 
 // Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem
 var _cabecalhoOk = {};
@@ -1281,10 +1321,21 @@ function garantirCabecalho(s, nome) {
   _cabecalhoOk[nome] = true;
 }
 
+// Texto vindo de fora nunca vira fórmula na planilha (=, +, -, @ no início
+// poderiam executar IMPORTXML/HYPERLINK e vazar dados). Também limita o tamanho.
+function seguro(v) {
+  if (typeof v !== 'string') return v;
+  var t = v.length > 2000 ? v.slice(0, 2000) : v;
+  return /^[=+\-@\t\r]/.test(t) ? "'" + t : t;
+}
+function linhaSegura(arr) {
+  return arr.map(seguro);
+}
+
 // Acrescenta uma linha a partir de um objeto { coluna: valor }
 function adicionarLinha(nomeAba, obj) {
   var s = aba(nomeAba);
-  s.appendRow(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; }));
+  s.appendRow(linhaSegura(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; })));
   return s.getLastRow();
 }
 
@@ -1293,7 +1344,7 @@ function atualizarLinha(nomeAba, linha, obj) {
   var s = aba(nomeAba);
   Object.keys(obj).forEach(function (c) {
     var col = coluna(nomeAba, c);
-    if (col > 0) s.getRange(linha, col).setValue(obj[c] == null ? '' : obj[c]);
+    if (col > 0) s.getRange(linha, col).setValue(seguro(obj[c] == null ? '' : obj[c]));
   });
 }
 

@@ -4,6 +4,7 @@ import { useBancada, pode } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, real, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
 import { Sol, Forma, IconeWhatsapp, Logo } from '../components/Marca.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
+import { useItensVenda, OpcoesItens } from './Servicos.jsx';
 
 const TOM_VALE = { ativo: 'ok', resgatado: 'apagado', usado: 'apagado', cancelado: 'alerta', vencido: 'aviso' };
 const MOTIVOS = ['Aniversário', 'Campanha', 'Indicação', 'Cortesia', 'Parceria', 'Pedido de desculpas'];
@@ -14,7 +15,7 @@ export default function Vales() {
   const [aba, setAba] = useState('vales');
   return (
     <>
-      <Cabecalho rotulo="Presentes e descontos" titulo="Vales e cupons">
+      <Cabecalho titulo="Vales e cupons">
         Vale-presente é cortesia da casa (aniversário, campanha, indicação). Cupom é desconto no pagamento.
       </Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={[['vales', 'Vales-presente'], ['cupons', 'Cupons de desconto']]} />
@@ -43,7 +44,7 @@ function ListaVales({ abrirNovo }) {
           ['codigo', 'Código'], ['descricao', 'Presente'], ['nome', 'Para'], [(v) => cpfFmt(v.cpf), 'CPF'], ['email', 'E-mail'], ['whatsapp', 'WhatsApp'],
           ['motivo', 'Motivo'], ['campanha', 'Campanha'], ['status', 'Situação'], [(v) => (v.saldo == null ? '' : String(v.saldo).replace('.', ',')), 'Saldo'],
           [(v) => dataBR(v.validade), 'Validade'], ['enviado', 'Entregue'], [(v) => dataBR(v.criadoEm), 'Criado em'], ['criadoPor', 'Criado por']], lista)}>Exportar CSV</button>
-        <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>+ Gerar vale</button>
+        <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Gerar vale</button>
       </div>
       <div className="b-filtros">
         {[['ativo', 'Ativos'], ['usado', 'Usados'], ['vencido', 'Vencidos'], ['cancelado', 'Cancelados'], ['todos', 'Todos']].map(([id, t]) => (
@@ -78,7 +79,7 @@ function ListaVales({ abrirNovo }) {
 
 function NovoVale({ aoFechar, aoCriar }) {
   const { chamar } = useBancada();
-  const { dados: planos } = useDados('planos', {});
+  const itens = useItensVenda();
   const [tipo, setTipo] = useState('plano');
   const [planoId, setPlanoId] = useState('');
   const [valor, setValor] = useState('');
@@ -123,23 +124,20 @@ function NovoVale({ aoFechar, aoCriar }) {
     );
   }
 
-  const ativos = (planos || []).filter((p) => p.ativo);
   return (
     <Modal rotulo="Cortesia da casa" titulo="Gerar vale-presente" aoFechar={aoFechar} largo>
       <div className="b-form">
         <fieldset className="b-opcoes b-opcoes--linha">
           <legend className="rotulo">O que o vale dá</legend>
-          <label className={tipo === 'plano' ? 'ativo' : ''}><input type="radio" checked={tipo === 'plano'} onChange={() => setTipo('plano')} /><span><strong>Uma aula ou um plano</strong><small>entra como crédito ao usar</small></span></label>
+          <label className={tipo === 'plano' ? 'ativo' : ''}><input type="radio" checked={tipo === 'plano'} onChange={() => setTipo('plano')} /><span><strong>Uma aula, plano ou serviço</strong><small>entra como crédito ao usar</small></span></label>
           <label className={tipo === 'valor' ? 'ativo' : ''}><input type="radio" checked={tipo === 'valor'} onChange={() => setTipo('valor')} /><span><strong>Um valor em R$</strong><small>desconta numa compra</small></span></label>
         </fieldset>
         {tipo === 'plano' ? (
           <label className="b-campo">
-            <span className="rotulo">Aula ou plano</span>
+            <span className="rotulo">O que o vale dá</span>
             <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
-              <option value="">Escolha…</option>
-              {['Yoga', 'Pilates'].map((m) => (
-                <optgroup key={m} label={m}>{ativos.filter((p) => p.modalidade === m).map((p) => <option key={p.id} value={p.id}>{p.nome.replace(m + ' · ', '')} · {real(p.preco)}</option>)}</optgroup>
-              ))}
+              <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
+              <OpcoesItens itens={itens} />
             </select>
           </label>
         ) : (
@@ -259,7 +257,7 @@ function Cupons({ podeEditar }) {
     <>
       <div className="b-barra-acoes">
         <p className="b-suave">O aluno digita o cupom no pagamento do site; a recepção também pode aplicar na venda do balcão.</p>
-        {podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({})}>+ Novo cupom</button>}
+        {podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({})}>Novo cupom</button>}
       </div>
       <Erro>{erro}</Erro>
       {carregando && !dados && <Carregando />}
@@ -273,7 +271,7 @@ function Cupons({ podeEditar }) {
                 <tr key={c.codigo}>
                   <td data-rotulo="Cupom"><code className="b-cupom">{c.codigo}</code>{c.descricao && <span className="b-suave b-bloco">{c.descricao}</span>}</td>
                   <td data-rotulo="Desconto">{c.tipo === 'percentual' ? `${c.valor}%` : real(c.valor)}</td>
-                  <td data-rotulo="Vale para">{c.modalidade === 'Todas' ? 'Yoga e Pilates' : c.modalidade} · {c.tipoPlano === 'todos' ? 'todos os planos' : c.tipoPlano}{c.primeiraCompra ? ' · 1ª compra' : ''}</td>
+                  <td data-rotulo="Vale para">{c.modalidade === 'Todas' ? 'Tudo' : c.modalidade === 'Serviço' ? 'Serviços' : c.modalidade} · {c.tipoPlano === 'todos' ? 'todos os planos' : c.tipoPlano}{c.primeiraCompra ? ' · 1ª compra' : ''}</td>
                   <td data-rotulo="Período">{c.inicio || c.fim ? `${c.inicio ? dataBR(c.inicio) : '…'} a ${c.fim ? dataBR(c.fim) : '…'}` : 'sem prazo'}</td>
                   <td data-rotulo="Usos" className="num">{c.usos}{c.limiteTotal ? `/${c.limiteTotal}` : ''}</td>
                   <td data-rotulo="Desconto dado" className="num">{real(c.descontoTotal)}</td>
@@ -313,9 +311,9 @@ function EditarCupom({ c, aoFechar, aoSalvar }) {
         </div>
         <div className="b-linha2">
           <label className="b-campo"><span className="rotulo">Modalidade</span>
-            <select {...campo('modalidade')}><option value="Todas">Yoga e Pilates</option><option>Yoga</option><option>Pilates</option></select></label>
+            <select {...campo('modalidade')}><option value="Todas">Tudo</option><option>Yoga</option><option>Pilates</option><option value="Serviço">Serviços de estética e fisio</option></select></label>
           <label className="b-campo"><span className="rotulo">Planos</span>
-            <select {...campo('tipoPlano')}><option value="todos">Todos</option><option value="avulsa">Só aula avulsa</option><option value="mensal">Só mensal</option><option value="trimestral">Só trimestral</option></select></label>
+            <select {...campo('tipoPlano')}><option value="todos">Todos</option><option value="avulsa">Só aula avulsa</option><option value="mensal">Só mensal</option><option value="trimestral">Só trimestral</option><option value="servico">Só serviço avulso</option><option value="pacote">Só pacotes de serviço</option></select></label>
         </div>
         <div className="b-linha2">
           <label className="b-campo"><span className="rotulo">Começa em</span><input type="date" {...campo('inicio')} /></label>

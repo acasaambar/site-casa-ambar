@@ -15,6 +15,7 @@ function bancada_relatorio(d) {
   if (dias > 400) throw new Error('Escolha um período de até 13 meses.');
   var planos = {};
   lerAba('Planos').forEach(function (p) { planos[String(p.id)] = p; });
+  listarServicos(true).concat(listarPacotes(true)).forEach(function (x) { var it = buscarItemVenda(x.id); if (it) planos[x.id] = it; });
   var pagamentos = lerAba('Pagamentos');
   var reservas = todasReservas();
   var alunos = lerAba('Alunos').filter(function (a) { return a.cpf; });
@@ -26,6 +27,7 @@ function bancada_relatorio(d) {
     aulas: relAulas(reservas, creditos, de, ate),
     alunos: relAlunos(alunos, reservas, creditos, pagamentos, fichas, de, ate),
     vales: relVales(pagamentos, de, ate),
+    servicos: relServicos(pagamentos, planos, de, ate),
     geradoEm: agoraTexto(),
   };
 }
@@ -57,7 +59,7 @@ function relFinanceiro(pagamentos, planos, de, ate, dias) {
   // período anterior de mesmo tamanho (para comparar)
   var antAte = somarDias(de, -1), antDe = somarDias(de, -dias);
   var receitaAnt = soma(pagamentos.filter(function (p) { var x = diaPg(p); return p.status === 'pago' && x >= antDe && x <= antAte; }), function (p) { return numero(p.valor); });
-  var modalidade = function (p) { var pl = planos[String(p.plano_id)]; return pl ? String(pl.modalidade) : 'Outros'; };
+  var modalidade = function (p) { var pl = planos[String(p.plano_id)]; return pl ? (String(pl.modalidade) === 'Serviço' ? String(pl.categoria || 'Serviços') : String(pl.modalidade)) : 'Outros'; };
   var tipo = function (p) { var pl = planos[String(p.plano_id)]; return pl ? String(pl.tipo) : 'outro'; };
 
   // série: por dia (até 62 dias) ou por mês
@@ -258,5 +260,29 @@ function relVales(pagamentos, de, ate) {
       return g;
     }),
     aulasCortesia: cortesias,
+  };
+}
+
+function relServicos(pagamentos, planos, de, ate) {
+  var lista = lerAba('Atendimentos').filter(function (a) { var d = dataTexto(a.data); return a.id && d >= de && d <= ate; });
+  var hoje = hojeTexto();
+  var feitos = lista.filter(function (a) { return a.status === 'atendido'; });
+  var passados = lista.filter(function (a) { return a.status !== 'cancelado' && dataTexto(a.data) < hoje; });
+  var vendas = pagamentos.filter(function (p) {
+    var x = diaPg(p); var it = planos[String(p.plano_id)];
+    return p.status === 'pago' && numero(p.valor) > 0 && x >= de && x <= ate && it && String(it.modalidade) === 'Serviço';
+  });
+  return {
+    agendados: lista.filter(function (a) { return a.status !== 'cancelado'; }).length,
+    atendidos: feitos.length,
+    faltas: lista.filter(function (a) { return a.status === 'falta'; }).length,
+    cancelados: lista.filter(function (a) { return a.status === 'cancelado'; }).length,
+    taxaFalta: passados.length ? Math.round(lista.filter(function (a) { return a.status === 'falta'; }).length / passados.length * 1000) / 10 : null,
+    receita: soma(vendas, function (p) { return numero(p.valor); }),
+    pacotesVendidos: vendas.filter(function (p) { var it = planos[String(p.plano_id)]; return it && it.tipo === 'pacote'; }).length,
+    porServico: agrupar(lista.filter(function (a) { return a.status !== 'cancelado'; }), function (a) { return String(a.servico); }, function (a) { return numero(a.valor); }),
+    porCategoria: agrupar(lista.filter(function (a) { return a.status !== 'cancelado'; }), function (a) { return String(a.categoria); }, function (a) { return numero(a.valor); }),
+    porProfissional: agrupar(lista.filter(function (a) { return a.status !== 'cancelado'; }), function (a) { return String(a.profissional); }, function (a) { return numero(a.valor); }),
+    receitaPorCategoria: agrupar(vendas, function (p) { return String(planos[String(p.plano_id)].categoria || 'Serviços'); }, function (p) { return numero(p.valor); }),
   };
 }

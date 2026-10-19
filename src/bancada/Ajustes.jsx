@@ -15,7 +15,7 @@ export default function Ajustes() {
   const [aba, setAba] = useState('regras');
   return (
     <>
-      <Cabecalho rotulo="Ajustes" titulo="Regras da casa" />
+      <Cabecalho titulo="Ajustes">Regras que valem para o site e para a bancada.</Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={[['regras', 'Regras'], ['registro', 'Registro de ações']]} />
       {aba === 'regras' ? <Regras /> : <Registro />}
     </>
@@ -42,12 +42,13 @@ function Regras() {
             </label>
           ))}
           <label className="b-check"><input type="checkbox" checked={!!f.wellhubAtivo} onChange={(e) => setF({ ...f, wellhubAtivo: e.target.checked })} /> Aceitar reservas pelo Wellhub</label>
+          <label className="b-check"><input type="checkbox" checked={!!f.wellhubPendentePodeReservar} onChange={(e) => setF({ ...f, wellhubPendentePodeReservar: e.target.checked })} /> Wellhub ainda não confirmado pela recepção já pode reservar</label>
           {aviso && <p className="aviso">{aviso}</p>}
           <Erro>{erroS}</Erro>
           <BotaoAcao className="botao botao--cheio" acao={async () => {
             setAviso(''); setErroS('');
             try {
-              const r = await chamar('salvarAjustes', { ajustes: Object.fromEntries(CAMPOS.map(([k]) => [k, Number(f[k])]).concat([['wellhubAtivo', !!f.wellhubAtivo]])) });
+              const r = await chamar('salvarAjustes', { ajustes: Object.fromEntries(CAMPOS.map(([k]) => [k, Number(f[k])]).concat([['wellhubAtivo', !!f.wellhubAtivo], ['wellhubPendentePodeReservar', !!f.wellhubPendentePodeReservar]])) });
               setDados(r); setAviso('Salvo. O site já segue as regras novas.');
             } catch (e) { setErroS(e.message); }
           }}>Salvar regras</BotaoAcao>

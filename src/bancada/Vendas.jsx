@@ -29,14 +29,14 @@ export default function Vendas() {
 
   return (
     <>
-      <Cabecalho rotulo="Vendas" titulo="Pagamentos" acoes={
+      <Cabecalho titulo="Vendas" acoes={
         <>
           <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={() => baixarCSV(`vendas-${de}-a-${ate}`, [
             [(p) => dataBR(p.pagoEm || p.criadoEm), 'Data'], ['nome', 'Aluno'], [(p) => cpfFmt(p.cpf), 'CPF'], ['descricao', 'Item'],
             [(p) => String(p.valorOriginal).replace('.', ','), 'Preço'], [(p) => String(p.desconto).replace('.', ','), 'Desconto'], [(p) => p.cupom || p.vale, 'Cupom/vale'],
             [(p) => String(p.valor).replace('.', ','), 'Valor cobrado'], ['metodo', 'Forma'], ['parcelas', 'Parcelas'], ['origem', 'Origem'], ['status', 'Situação'],
             ['observacao', 'Observação'], ['orderNsu', 'Código']], lista)}>Exportar CSV</button>
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>+ Registrar venda</button>
+          <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>Registrar venda</button>
         </>
       } />
       <div className="b-periodo">

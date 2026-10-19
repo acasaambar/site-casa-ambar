@@ -98,6 +98,16 @@ function limparFalhas(chave) {
   try { CacheService.getScriptCache().remove('falha_' + chave); } catch (e) { /* ignora */ }
 }
 
+// limite simples para adivinhação de códigos (cupom/vale): 15 erros em 15 min por pessoa
+function contarErroCodigo(chave) {
+  var c = CacheService.getScriptCache();
+  var n = Number(c.get('cod_' + chave) || 0) + 1;
+  c.put('cod_' + chave, String(n), 900);
+}
+function limitarCodigos(chave) {
+  if (Number(CacheService.getScriptCache().get('cod_' + chave) || 0) >= 15) throw new Error('Muitos códigos inválidos. Aguarde alguns minutos.');
+}
+
 // ---------------- links de senha (recuperação e convite) ----------------
 function sha256Hex(txt) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(txt), Utilities.Charset.UTF_8)
@@ -125,21 +135,20 @@ function acharLinkSenha(token) {
   return null;
 }
 
-// Aluno: "Esqueci minha senha" (pelo CPF)
+// Aluno: "Esqueci minha senha" (pelo CPF).
+// A resposta é sempre a mesma: não revela se o CPF tem cadastro nem qual é o e-mail.
 function esqueciSenha(d) {
   var cpf = normCpf(d.cpf);
   if (!cpfValido(cpf)) throw new Error('Confira o CPF.');
   var cache = CacheService.getScriptCache();
   var chave = 'esq_' + cpf;
   var pedidos = Number(cache.get(chave) || 0);
-  if (pedidos >= 3) throw new Error('Já enviamos o link algumas vezes. Confira sua caixa de entrada e o spam, ou aguarde 1 hora.');
+  cache.put(chave, String(pedidos + 1), 3600);
+  if (pedidos >= 3) return { enviado: true };
   var aluno = buscarAluno(cpf);
-  if (!aluno || aluno.ativo === 'NÃO') {
-    Utilities.sleep(500);
-    throw erroCod('Não encontramos cadastro com este CPF. Crie sua conta ou fale com a recepção.', 'SEM_CADASTRO');
-  }
-  if (!emailValido(aluno.email)) {
-    throw erroCod('Seu cadastro não tem e-mail. Fale com a recepção pelo WhatsApp para recuperar o acesso.', 'SEM_EMAIL');
+  if (!aluno || aluno.ativo === 'NÃO' || !emailValido(aluno.email)) {
+    Utilities.sleep(700);
+    return { enviado: true };
   }
   var link = criarLinkSenha('aluno', cpf, aluno.email, 1, 'recuperação');
   enviarEmail(aluno.email, 'Crie uma nova senha · Casa Âmbar',
@@ -147,13 +156,14 @@ function esqueciSenha(d) {
     ['Olá, ' + primeiroNome(aluno.nome) + '.', 'Recebemos um pedido para criar uma nova senha da sua área do aluno.',
       'O link vale por 1 hora e só pode ser usado uma vez. Se não foi você, ignore este e-mail: sua senha atual continua valendo.'],
     { texto: 'Criar nova senha', url: link });
-  cache.put(chave, String(pedidos + 1), 3600);
-  return { email: mascararEmail(aluno.email) };
+  return { enviado: true };
 }
 
 // A tela de nova senha confere o link antes de mostrar o formulário
 function verLinkSenha(d) {
+  limitarTentativas('link_' + String(d.t || '').slice(0, 12));
   var r = acharLinkSenha(d.t);
+  if (!r) registrarFalha('link_' + String(d.t || '').slice(0, 12));
   if (!r) throw erroCod('Este link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".', 'LINK_INVALIDO');
   var nome = '';
   if (r.tipo === 'aluno') { var a = buscarAluno(r.id); nome = a ? a.nome : ''; }
@@ -163,6 +173,7 @@ function verLinkSenha(d) {
 
 function novaSenha(d) {
   validarSenhaNova(d.senha);
+  limitarTentativas('link_' + String(d.t || '').slice(0, 12));
   var trava = LockService.getScriptLock();
   trava.waitLock(15000);
   try {
@@ -177,6 +188,8 @@ function novaSenha(d) {
     } else {
       var m = buscarMembro(r.id);
       if (!m) throw new Error('Acesso não encontrado.');
+      // equipe acessa dados de saúde e financeiros: senha mais longa
+      if (String(d.senha).length < 10) throw new Error('Para a bancada, use pelo menos 10 caracteres.');
       gravarSenha('Equipe', m._linha, d.senha);
       encerrarSessoes('SessoesEquipe', 'e_', String(r.id).toLowerCase());
       limparFalhas('e_' + String(r.id).toLowerCase());

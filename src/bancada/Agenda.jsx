@@ -5,6 +5,7 @@ import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAca
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { AgendaServicos } from './Servicos.jsx';
 
 export default function Agenda() {
   const { membro, chamar } = useBancada();
@@ -15,6 +16,7 @@ export default function Agenda() {
   const [agendar, setAgendar] = useState(null);
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
+  const [vista, setVista] = useState(local.state?.vista || 'aulas');
   const { dados, erro, carregando, recarregar, setDados } = useDados('agenda', { de: dia, dias: 1 });
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
 
@@ -56,7 +58,7 @@ export default function Agenda() {
 
   return (
     <>
-      <Cabecalho rotulo={membro.papel === 'professora' ? 'Minhas aulas' : 'Agenda'} titulo={`${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`}
+      <Cabecalho titulo={`${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`}
         acoes={
           <div className="b-agenda__nav">
             <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, -1))} aria-label="Dia anterior">‹</button>
@@ -75,11 +77,22 @@ export default function Agenda() {
         ))}
       </div>
 
-      <div className="b-filtros">
-        {['Todas', 'Yoga', 'Pilates'].map((f) => (
-          <button key={f} type="button" className={`b-chip${filtro === f ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(f)}>{f}</button>
-        ))}
+      <div className="b-agenda__vista">
+        <div className="b-segmento" role="tablist" aria-label="O que mostrar">
+          <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas</button>
+          <button type="button" role="tab" aria-selected={vista === 'servicos'} onClick={() => setVista('servicos')}>Serviços</button>
+        </div>
+        {vista === 'aulas' && (
+          <div className="b-filtros">
+            {['Todas', 'Yoga', 'Pilates'].map((f) => (
+              <button key={f} type="button" className={`b-chip${filtro === f ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(f)}>{f}</button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {vista === 'servicos' && <AgendaServicos dia={dia} />}
+      {vista === 'aulas' && (<>
 
       <Erro>{erro || aviso}</Erro>
       {carregando && !dados && <Carregando />}
@@ -151,7 +164,7 @@ export default function Agenda() {
                     })}
                   </ul>
                   {equipeBalcao && (
-                    <button type="button" className="botao botao--cheio botao--p b-aula__agendar" onClick={() => setAgendar(a)}>+ Agendar aluno</button>
+                    <button type="button" className="botao botao--cheio botao--p b-aula__agendar" onClick={() => setAgendar(a)}>Agendar aluno</button>
                   )}
                 </div>
               )}
@@ -159,6 +172,8 @@ export default function Agenda() {
           );
         })}
       </div>
+
+      </>)}
 
       {agendar && <Agendar aula={agendar} aoFechar={() => setAgendar(null)} aoAgendar={() => { setAgendar(null); recarregar(); setAbertas((x) => ({ ...x, [agendar.id]: true })); }} />}
       {ficha && <FichaModal {...ficha} aoFechar={() => setFicha(null)} />}

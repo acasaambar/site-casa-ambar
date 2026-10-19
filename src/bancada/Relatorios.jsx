@@ -21,7 +21,7 @@ function periodoPreset(id) {
   return null;
 }
 
-const TIPOS = { avulsa: 'Aula avulsa', mensal: 'Plano mensal', trimestral: 'Plano trimestral', outro: 'Outros' };
+const TIPOS = { avulsa: 'Aula avulsa', mensal: 'Plano mensal', trimestral: 'Plano trimestral', servico: 'Serviço avulso', pacote: 'Pacote de serviço', outro: 'Outros' };
 const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
 
 export default function Relatorios() {
@@ -39,7 +39,7 @@ export default function Relatorios() {
 
   return (
     <>
-      <Cabecalho rotulo="Relatórios" titulo="Como a casa está indo">Financeiro, aulas e marketing do período escolhido.</Cabecalho>
+      <Cabecalho titulo="Relatórios">Financeiro, aulas, serviços e marketing do período escolhido.</Cabecalho>
       <div className="b-periodo">
         <div className="b-filtros">
           {[['mes', 'Este mês'], ['mes-passado', 'Mês passado'], ['30', '30 dias'], ['90', '90 dias'], ['ano', 'Este ano'], ['livre', 'Escolher']].map(([id, t]) => (
@@ -54,7 +54,7 @@ export default function Relatorios() {
         )}
         <span className="b-suave">{dataBR(de)} a {dataBR(ate)}</span>
       </div>
-      <Abas atual={aba} aoMudar={setAba} itens={[['financeiro', 'Financeiro'], ['aulas', 'Aulas e horários'], ['alunos', 'Alunos e marketing'], ['vales', 'Vales e cupons']]} />
+      <Abas atual={aba} aoMudar={setAba} itens={[['financeiro', 'Financeiro'], ['aulas', 'Aulas e horários'], ['servicos', 'Serviços'], ['alunos', 'Alunos e marketing'], ['vales', 'Vales e cupons']]} />
       <Erro>{erro}</Erro>
       {carregando && <Carregando texto="Calculando" />}
       {r && !carregando && (
@@ -63,6 +63,7 @@ export default function Relatorios() {
           {aba === 'aulas' && <Aulas a={r.aulas} />}
           {aba === 'alunos' && <Alunos a={r.alunos} />}
           {aba === 'vales' && <ValesCupons v={r.vales} f={r.financeiro} />}
+          {aba === 'servicos' && r.servicos && <ServicosRel s={r.servicos} />}
           <p className="b-suave b-nota">Atualizado em {r.geradoEm.slice(0, 16).split(' ').map((x, i) => (i ? x : x.split('-').reverse().join('/'))).join(' às ')}.</p>
         </>
       )}
@@ -257,3 +258,32 @@ function ValesCupons({ v, f }) {
   );
 }
 
+
+function ServicosRel({ s }) {
+  if (!s.agendados && !s.receita) return <Vazio titulo="Ainda sem serviços no período">Os números aparecem conforme a recepção agenda estética e fisioterapia.</Vazio>;
+  return (
+    <>
+      <section className="b-kpis">
+        <Kpi rotulo="Faturamento com serviços" valor={realCurto(s.receita)} detalhe={`${s.pacotesVendidos} pacote${s.pacotesVendidos === 1 ? '' : 's'} vendido${s.pacotesVendidos === 1 ? '' : 's'}`} />
+        <Kpi rotulo="Atendimentos" valor={s.agendados} detalhe={`${s.atendidos} já atendidos`} />
+        <Kpi rotulo="Faltas" valor={pct(s.taxaFalta)} detalhe={`${s.faltas} faltas · ${s.cancelados} cancelados`} tom={s.taxaFalta > 15 ? 'alerta' : ''} />
+      </section>
+      <div className="b-duas">
+        <Grafico titulo="Serviços mais agendados">
+          <BarrasH itens={s.porServico.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} limite={12} />
+        </Grafico>
+        <Grafico titulo="Por área de cuidado">
+          <BarrasH itens={s.porCategoria.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} />
+        </Grafico>
+      </div>
+      <div className="b-duas">
+        <Grafico titulo="Por profissional" sub="Atendimentos no período">
+          <BarrasH itens={s.porProfissional.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} />
+        </Grafico>
+        <Grafico titulo="Faturamento por área">
+          <BarrasH itens={s.receitaPorCategoria.map((i) => ({ nome: i.nome, valor: i.valor, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+        </Grafico>
+      </div>
+    </>
+  );
+}

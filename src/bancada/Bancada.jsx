@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { SessaoBancada, useBancada, pode } from './sessao.jsx';
-import { Logo, Sol, Forma, img } from '../components/Marca.jsx';
+import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
 import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
@@ -32,15 +32,21 @@ const Icone = ({ nome }) => (
 );
 
 const MENU = [
-  ['', 'Hoje', 'inicio', ['admin', 'recepcao', 'professora']],
-  ['agenda', 'Agenda', 'agenda', ['admin', 'recepcao', 'professora']],
-  ['alunos', 'Alunos', 'alunos', ['admin', 'recepcao']],
-  ['vendas', 'Vendas', 'vendas', ['admin', 'recepcao']],
-  ['vales', 'Vales e cupons', 'vales', ['admin', 'recepcao']],
-  ['relatorios', 'Relatórios', 'relatorios', ['admin']],
-  ['grade', 'Grade e planos', 'grade', ['admin', 'recepcao']],
-  ['equipe', 'Equipe', 'equipe', ['admin']],
-  ['ajustes', 'Ajustes', 'ajustes', ['admin']],
+  ['Dia a dia', [
+    ['', 'Hoje', 'inicio', ['admin', 'recepcao', 'professora']],
+    ['agenda', 'Agenda', 'agenda', ['admin', 'recepcao', 'professora']],
+    ['alunos', 'Clientes', 'alunos', ['admin', 'recepcao']],
+  ]],
+  ['Caixa', [
+    ['vendas', 'Vendas', 'vendas', ['admin', 'recepcao']],
+    ['vales', 'Vales e cupons', 'vales', ['admin', 'recepcao']],
+  ]],
+  ['A casa', [
+    ['relatorios', 'Relatórios', 'relatorios', ['admin']],
+    ['grade', 'Catálogo', 'grade', ['admin', 'recepcao']],
+    ['equipe', 'Equipe', 'equipe', ['admin']],
+    ['ajustes', 'Ajustes', 'ajustes', ['admin']],
+  ]],
 ];
 
 export default function Bancada() {
@@ -66,7 +72,7 @@ function Painel() {
     document.title = 'Bancada · Casa Âmbar';
     return () => { document.title = 'Casa Âmbar · harmonia em estado natural'; };
   }, []);
-  const itens = MENU.filter((m) => pode(membro, ...m[3]));
+  const grupos = MENU.map(([g, l]) => [g, l.filter((m) => pode(membro, ...m[3]))]).filter(([, l]) => l.length);
   return (
     <div className="bancada">
       <aside className={`b-lateral${menu ? ' b-lateral--aberta' : ''}`}>
@@ -75,11 +81,16 @@ function Painel() {
           <span className="rotulo">Bancada</span>
         </div>
         <nav className="b-menu" aria-label="Bancada">
-          {itens.map(([to, texto, icone]) => (
-            <NavLink key={to} to={'/bancada' + (to ? '/' + to : '')} end={!to} className="b-menu__item">
-              <Icone nome={icone} />
-              <span>{texto}</span>
-            </NavLink>
+          {grupos.map(([g, l]) => (
+            <div key={g} className="b-menu__grupo">
+              {grupos.length > 1 && <span className="b-menu__titulo">{g}</span>}
+              {l.map(([to, texto, icone]) => (
+                <NavLink key={to} to={'/bancada' + (to ? '/' + to : '')} end={!to} className="b-menu__item">
+                  <Icone nome={icone} />
+                  <span>{texto}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="b-lateral__pe">
@@ -90,7 +101,7 @@ function Painel() {
           <a className="b-lateral__site" href="#/" target="_blank" rel="noreferrer">Ver site</a>
           <button type="button" className="b-lateral__sair" onClick={sair}>Sair</button>
         </div>
-        <Forma nome="sutileza" tamanho={150} cor="rgba(233,221,197,0.05)" className="b-lateral__forma" />
+        <Selo tamanho={210} className="b-lateral__selo" />
       </aside>
       {menu && <button type="button" className="b-veu" aria-label="Fechar menu" onClick={() => setMenu(false)} />}
 

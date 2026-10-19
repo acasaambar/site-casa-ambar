@@ -57,7 +57,9 @@ export const primeiro = (n) => String(n || '').trim().split(' ')[0];
 // CSV que o Excel abre direto (separador ; e acentos certos)
 export function baixarCSV(nome, colunas, linhas) {
   const esc = (v) => {
-    const s = v == null ? '' : String(v);
+    let s = v == null ? '' : String(v);
+    // impede que o Excel execute fórmulas vindas de dados (=, +, -, @)
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   const corpo = [colunas.map((c) => esc(c[1])).join(';')]
@@ -113,10 +115,9 @@ export function Vazio({ titulo, children, forma = 'sutileza' }) {
 
 export function Cabecalho({ rotulo, titulo, children, acoes }) {
   return (
-    <header className="b-cabecalho">
+    <header className="b-cabecalho" data-secao={rotulo || undefined}>
       <div>
-        {rotulo && <span className="rotulo-espacado cor-terracota">{rotulo}</span>}
-        <h1 className="display-m">{titulo}</h1>
+        <h1 className="b-titulo">{titulo}</h1>
         {children && <p className="b-cabecalho__sub">{children}</p>}
       </div>
       {acoes && <div className="b-cabecalho__acoes">{acoes}</div>}
@@ -149,8 +150,8 @@ export function Modal({ titulo, rotulo, aoFechar, children, largo }) {
       <div className={`b-modal__caixa${largo ? ' b-modal__caixa--largo' : ''}`} ref={ref}>
         <header className="b-modal__topo">
           <div>
-            {rotulo && <span className="rotulo cor-terracota">{rotulo}</span>}
-            <h2 className="display-p">{titulo}</h2>
+            <h2 className="b-modal__titulo">{titulo}</h2>
+            {rotulo && <p className="b-modal__contexto">{rotulo}</p>}
           </div>
           {aoFechar && <button type="button" className="b-fechar" aria-label="Fechar" onClick={aoFechar}>×</button>}
         </header>

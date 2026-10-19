@@ -37,8 +37,8 @@ export function EsqueciSenha() {
     if (!cpfValido(cpf)) return setErro({ msg: 'Confira o CPF digitado.' });
     setEnviando(true);
     try {
-      const r = await api.esqueciSenha(soDigitos(cpf));
-      setEnviado(r.email);
+      await api.esqueciSenha(soDigitos(cpf));
+      setEnviado(true);
     } catch (err) {
       setErro({ msg: err.message, codigo: err.codigo });
     } finally {
@@ -55,9 +55,10 @@ export function EsqueciSenha() {
           <Sol tamanho={48} className="cor-caramelo" />
           <h1 className="display-m">Confira seu e-mail</h1>
           <p className="entrar__sub">
-            Enviamos um link para <strong>{enviado}</strong>. Ele vale por 1 hora. Se não aparecer em alguns minutos, olhe também a caixa de spam.
+            Se este CPF tiver cadastro com e-mail, o link para criar a nova senha chega em alguns minutos. Ele vale por 1 hora. Olhe também a caixa de spam.
           </p>
-          <Link className="botao botao--linha" to="/entrar">Voltar para entrar</Link>
+          <a className="botao botao--linha com-icone" href={whats} target="_blank" rel="noreferrer"><IconeWhatsapp /> Não recebeu? Fale com a recepção</a>
+          <Link className="link-acao" to="/entrar">Voltar para entrar</Link>
         </div>
       ) : (
         <>
@@ -71,9 +72,6 @@ export function EsqueciSenha() {
                 onChange={(e) => setCpf(mascaraCPF(e.target.value))} />
             </label>
             {erro && <p className="erro" role="alert">{erro.msg}</p>}
-            {erro?.codigo === 'SEM_EMAIL' && (
-              <a className="botao botao--linha" href={whats} target="_blank" rel="noreferrer"><IconeWhatsapp /> Falar com a recepção</a>
-            )}
             <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Enviando…' : 'Enviar link'}</button>
           </form>
           <p className="entrar__ajuda"><Link to="/entrar">Lembrei a senha</Link></p>

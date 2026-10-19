@@ -2,20 +2,23 @@ import { useEffect, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, real, dataBR, hora, hojeIso, linkWhats, primeiro, DIAS_LONGOS } from './ui.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { CatalogoServicos, Profissionais } from './Servicos.jsx';
 
 export default function Grade() {
   const { membro } = useBancada();
   const admin = pode(membro, 'admin');
   const [aba, setAba] = useState('bloqueios');
   const itens = [['bloqueios', 'Feriados e bloqueios']];
-  if (admin) itens.push(['grade', 'Grade semanal'], ['planos', 'Planos e preços']);
+  if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais']);
   return (
     <>
-      <Cabecalho rotulo="Grade e planos" titulo="Como a semana funciona" />
+      <Cabecalho titulo="Catálogo">Aulas, serviços, preços e quem atende. O que mudar aqui vale na hora para o site e para a bancada.</Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={itens} />
       {aba === 'bloqueios' && <Bloqueios />}
       {aba === 'grade' && admin && <GradeSemanal />}
       {aba === 'planos' && admin && <Planos />}
+      {aba === 'servicos' && admin && <CatalogoServicos />}
+      {aba === 'profissionais' && admin && <Profissionais />}
     </>
   );
 }

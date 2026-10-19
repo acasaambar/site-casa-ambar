@@ -73,7 +73,7 @@ function motivoValeInvalido(v, plano, cpf) {
   if (valeVencido(v)) return 'Este vale expirou em ' + dataTexto(v.validade).split('-').reverse().join('/') + '.';
   if (v.cpf && cpf && normCpf(v.cpf) !== normCpf(cpf)) return 'Este vale é de outra pessoa.';
   if (plano && v.tipo === 'plano' && v.plano_id !== plano.id) {
-    var p = buscarPlano(v.plano_id);
+    var p = buscarItemVenda(v.plano_id);
     return 'Este vale dá "' + (p ? p.nome : v.plano_id) + '". Resgate em Meu plano → Tenho um vale-presente.';
   }
   if (v.tipo !== 'plano' && saldoVale(v) <= 0) return 'Este vale não tem mais saldo.';
@@ -117,17 +117,23 @@ function validarCodigo(d) {
   var aluno = alunoDaSessao(d.token);
   var plano = buscarPlano(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
-  var r = calcularPreco(plano, normCpf(aluno.cpf), d.codigo);
+  limitarCodigos(normCpf(aluno.cpf));
+  var r;
+  try { r = calcularPreco(plano, normCpf(aluno.cpf), d.codigo); } catch (e) { contarErroCodigo(normCpf(aluno.cpf)); throw e; }
   return { codigo: r.cupom || r.vale, tipo: r.cupom ? 'cupom' : 'vale', valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem };
 }
 
 // Aluno resgata um vale em Meu plano
 function resgatarVale(d) {
   var aluno = alunoDaSessao(d.token);
+  limitarCodigos(normCpf(aluno.cpf));
   var trava = LockService.getScriptLock();
   trava.waitLock(15000);
   try {
     return aplicarVale(aluno, d.codigo, 'aluno');
+  } catch (e) {
+    contarErroCodigo(normCpf(aluno.cpf));
+    throw e;
   } finally {
     trava.releaseLock();
   }
@@ -145,7 +151,7 @@ function aplicarVale(aluno, codigo, quem) {
     return { tipo: 'valor', codigo: codigoLimpo(v.codigo), saldo: saldoVale(v), validade: dataTexto(v.validade),
       mensagem: 'Seu vale tem R$ ' + saldoVale(v).toFixed(2).replace('.', ',') + '. Use o código ' + codigoLimpo(v.codigo) + ' no pagamento.' };
   }
-  var plano = buscarPlano(v.plano_id);
+  var plano = buscarItemVenda(v.plano_id);
   if (!plano) throw new Error('O plano deste vale não existe mais. Fale com a recepção.');
   var nsu = 'V' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: 0, status: 'pendente',
@@ -174,7 +180,7 @@ function gerarCodigoVale() {
 
 function descreverVale(v) {
   if (v.tipo === 'plano') {
-    var p = buscarPlano(v.plano_id);
+    var p = buscarItemVenda(v.plano_id);
     return p ? p.nome : String(v.plano_id);
   }
   return 'R$ ' + numero(v.valor).toFixed(2).replace('.', ',') + ' para usar na Casa Âmbar';

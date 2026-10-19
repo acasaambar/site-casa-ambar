@@ -4,6 +4,7 @@ import { useBancada } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso } from './ui.jsx';
 import { FichaConteudo } from './Agenda.jsx';
+import { useItensVenda, OpcoesItens } from './Servicos.jsx';
 import { mascaraCPF, mascaraTelefone, soDigitos, cpfValido } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 
@@ -36,13 +37,13 @@ export function Alunos() {
 
   return (
     <>
-      <Cabecalho rotulo="Alunos" titulo="Quem pratica com a gente" acoes={
+      <Cabecalho titulo="Clientes" acoes={
         <>
           <button type="button" className="botao botao--linha botao--p" disabled={!dados} onClick={() => baixarCSV('alunos-casa-ambar', [
             ['nome', 'Nome'], [(a) => cpfFmt(a.cpf), 'CPF'], [(a) => telFmt(a.whatsapp), 'WhatsApp'], ['email', 'E-mail'], ['plano', 'Plano ativo'],
             [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaAula), 'Última aula'], ['presencas', 'Presenças'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
             ['wellhub', 'Wellhub'], [(a) => dataBR(a.criadoEm), 'Cadastro']], lista)}>Exportar CSV</button>
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>+ Novo aluno</button>
+          <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Novo cliente</button>
         </>
       } />
       <div className="b-barra-busca">
@@ -112,7 +113,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
     }
   }
   return (
-    <Modal rotulo="Alunos" titulo="Novo aluno" aoFechar={aoFechar}>
+    <Modal rotulo="Cadastro com convite por e-mail" titulo="Novo cliente" aoFechar={aoFechar}>
       <form className="b-form" onSubmit={salvar} noValidate>
         <label className="b-campo"><span className="rotulo">Nome completo</span><input {...campo('nome')} autoComplete="off" /></label>
         <div className="b-linha2">
@@ -142,7 +143,7 @@ export function AlunoDetalhe() {
   const [aviso, setAviso] = useState('');
 
   if (carregando && !a) return <Carregando />;
-  if (!a) return <><Erro>{erro}</Erro><Link to="/bancada/alunos" className="link-acao">← Alunos</Link></>;
+  if (!a) return <><Erro>{erro}</Erro><Link to="/bancada/alunos" className="link-acao">Voltar para clientes</Link></>;
 
   async function linkSenha() {
     setAviso('');
@@ -161,15 +162,15 @@ export function AlunoDetalhe() {
   const wh = WELLHUB[a.wellhub];
   return (
     <>
-      <Link to="/bancada/alunos" className="link-acao b-voltar">← Alunos</Link>
-      <Cabecalho rotulo={cpfFmt(a.cpf)} titulo={a.nome} acoes={
+      <Link to="/bancada/alunos" className="link-acao b-voltar">Clientes</Link>
+      <Cabecalho titulo={a.nome} acoes={
         <>
           {a.whatsapp && <a className="botao botao--linha botao--p com-icone" href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> WhatsApp</a>}
           <button type="button" className="botao botao--linha botao--p" onClick={() => setVale(true)}>Aplicar vale</button>
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setVender(true)}>Vender plano</button>
         </>
       }>
-        {telFmt(a.whatsapp)}{a.email ? ' · ' + a.email : ' · sem e-mail'} · cliente desde {dataBR(a.criadoEm)}
+        CPF {cpfFmt(a.cpf)} · {telFmt(a.whatsapp)}{a.email ? ' · ' + a.email : ' · sem e-mail'} · cliente desde {dataBR(a.criadoEm)}
       </Cabecalho>
       <div className="b-reserva__tags b-tags-topo">
         {!a.ativo && <Tag tom="apagado">desativado</Tag>}
@@ -334,7 +335,7 @@ const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito',
 // Venda feita no balcão (dinheiro, Pix, maquininha...). Usada também em Vendas.
 export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const { chamar } = useBancada();
-  const { dados: planos } = useDados('planos', {});
+  const itens = useItensVenda();
   const [aluno, setAluno] = useState(inicial || null);
   const [planoId, setPlanoId] = useState('');
   const [metodo, setMetodo] = useState('Pix');
@@ -346,8 +347,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const [obs, setObs] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const plano = (planos || []).find((p) => p.id === planoId);
-  const ativos = (planos || []).filter((p) => p.ativo);
+  const plano = itens?.achar(planoId);
 
   useEffect(() => { setSimulado(null); setValor(''); }, [planoId]);
 
@@ -391,12 +391,8 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
         <label className="b-campo">
           <span className="rotulo">O que foi vendido</span>
           <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
-            <option value="">Escolha…</option>
-            {['Yoga', 'Pilates'].map((m) => (
-              <optgroup key={m} label={m}>
-                {ativos.filter((p) => p.modalidade === m).map((p) => <option key={p.id} value={p.id}>{p.nome.replace(m + ' · ', '')} · {real(p.preco)}</option>)}
-              </optgroup>
-            ))}
+            <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
+            <OpcoesItens itens={itens} />
           </select>
         </label>
         <div className="b-linha2">
@@ -479,7 +475,7 @@ function AplicarVale({ aluno, aoFechar, aoAplicar }) {
 
 export function ListaPagamentos({ lista, acoes }) {
   if (!lista?.length) return <Vazio titulo="Nenhum pagamento">Os pagamentos do site e do balcão aparecem aqui.</Vazio>;
-  const tom = { pago: 'ok', pendente: 'aviso', estornado: 'apagado' };
+  const tom = { pago: 'ok', pendente: 'aviso', estornado: 'apagado', expirado: 'apagado', descartado: 'apagado' };
   return (
     <div className="b-tabela-caixa">
       <table className="b-tabela">

@@ -89,6 +89,23 @@ Propriedades do script, em `SENHA_PIMENTA`, criada sozinha. **Nunca apague nem a
 Senhas antigas continuam valendo e são convertidas no próximo login. "Esqueci minha senha" envia um link
 de uso único, válido por 1 hora, para o e-mail do cadastro.
 
+### Serviços (estética e fisioterapia)
+
+Só a equipe agenda serviços, pela bancada (Agenda → Serviços). A área do aluno continua só com Yoga e Pilates.
+Catálogo → Serviços e pacotes traz o material "Rituais Casa Âmbar" (preços, durações e combos). Em Catálogo → Profissionais,
+cadastre quem atende, as áreas e o horário de cada uma. Os horários livres consideram a jornada e os atendimentos já marcados.
+Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
+
+### Segurança
+
+- Sessões: a planilha guarda só o hash do token (aba Sessoes e SessoesEquipe). Sair invalida na hora.
+- Textos que chegam do site nunca viram fórmula na planilha (proteção contra IMPORTXML/HYPERLINK).
+- Limite de tentativas: login, link de senha e códigos de cupom/vale.
+- "Esqueci minha senha" não revela se o CPF tem cadastro.
+- Senha da equipe: no mínimo 10 caracteres. Professora/profissional só vê a própria agenda, sem CPF e WhatsApp.
+- O site tem política de segurança de conteúdo (CSP) no index.html.
+- Mantenha a planilha e a pasta de anamneses com acesso **Restrito** (nunca "qualquer pessoa com o link").
+
 ### Cupons e vales-presente
 
 - **Cupom**: desconto (% ou R$) que o aluno digita no pagamento; criado pela administração.
