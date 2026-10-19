@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useBancada } from './sessao.jsx';
+import { useBancada, pode } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso } from './ui.jsx';
+import { ComandaModal } from './Comandas.jsx';
+import { ProntuarioConteudo } from './Prontuario.jsx';
 import { FichaConteudo } from './Agenda.jsx';
 import { useItensVenda, OpcoesItens } from './Servicos.jsx';
 import { mascaraCPF, mascaraTelefone, soDigitos, cpfValido } from '../lib/util.js';
@@ -16,7 +18,9 @@ export function Alunos() {
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState(local.state?.filtro || 'todos');
   const [novo, setNovo] = useState(!!local.state?.novo);
-  const { dados, erro, carregando } = useDados('alunos', {});
+  const [importar, setImportar] = useState(false);
+  const { membro } = useBancada();
+  const { dados, erro, carregando, recarregar } = useDados('alunos', {});
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -27,13 +31,15 @@ export function Alunos() {
       if (filtro === 'sem-ficha' && a.ficha) return false;
       if (filtro === 'wellhub' && a.wellhub !== 'pendente' && a.wellhub !== 'confirmado') return false;
       if (filtro === 'inativos' && a.ativo) return false;
+      if (filtro === 'servicos' && !a.servicos) return false;
+      if (filtro === 'sem-cpf' && !a.semCpf) return false;
       if (!q) return true;
       return a.nome.toLowerCase().includes(q) || a.email.toLowerCase().includes(q) || (d.length >= 3 && (a.cpf.includes(d) || a.whatsapp.includes(d)));
     });
   }, [dados, busca, filtro]);
 
   const contagem = (f) => (dados || []).filter((a) => (f === 'ativos' ? a.plano : f === 'sem-plano' ? !a.plano : f === 'sem-ficha' ? !a.ficha
-    : f === 'wellhub' ? a.wellhub === 'pendente' || a.wellhub === 'confirmado' : f === 'inativos' ? !a.ativo : true)).length;
+    : f === 'wellhub' ? a.wellhub === 'pendente' || a.wellhub === 'confirmado' : f === 'inativos' ? !a.ativo : f === 'servicos' ? a.servicos : f === 'sem-cpf' ? a.semCpf : true)).length;
 
   return (
     <>
@@ -41,8 +47,9 @@ export function Alunos() {
         <>
           <button type="button" className="botao botao--linha botao--p" disabled={!dados} onClick={() => baixarCSV('alunos-casa-ambar', [
             ['nome', 'Nome'], [(a) => cpfFmt(a.cpf), 'CPF'], [(a) => telFmt(a.whatsapp), 'WhatsApp'], ['email', 'E-mail'], ['plano', 'Plano ativo'],
-            [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaAula), 'Última aula'], ['presencas', 'Presenças'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
+            [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaVisita || a.ultimaAula), 'Última visita'], ['presencas', 'Presenças em aula'], ['servicos', 'Serviços feitos'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
             ['wellhub', 'Wellhub'], [(a) => dataBR(a.criadoEm), 'Cadastro']], lista)}>Exportar CSV</button>
+          {pode(membro, 'admin') && <button type="button" className="botao botao--linha botao--p" onClick={() => setImportar(true)}>Importar planilha</button>}
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Novo cliente</button>
         </>
       } />
@@ -50,7 +57,7 @@ export function Alunos() {
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar aluno" />
       </div>
       <div className="b-filtros">
-        {[['todos', 'Todos'], ['ativos', 'Com plano'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['wellhub', 'Wellhub'], ['inativos', 'Desativados']].map(([id, t]) => (
+        {[['todos', 'Todos'], ['ativos', 'Com plano'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'], ['wellhub', 'Wellhub'], ['inativos', 'Desativados']].map(([id, t]) => (
           <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>
             {t} {dados && <span>{contagem(id)}</span>}
           </button>
@@ -63,22 +70,23 @@ export function Alunos() {
         <div className="b-tabela-caixa">
           <table className="b-tabela b-tabela--clicavel">
             <thead>
-              <tr><th>Aluno</th><th>Plano</th><th>Última aula</th><th className="num">Presenças</th><th>Situação</th></tr>
+              <tr><th>Cliente</th><th>Plano</th><th>Última visita</th><th className="num">Visitas</th><th>Situação</th></tr>
             </thead>
             <tbody>
               {lista.map((a) => (
                 <tr key={a.cpf} onClick={() => nav('/bancada/alunos/' + a.cpf)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && nav('/bancada/alunos/' + a.cpf)}>
                   <td data-rotulo="Aluno"><strong>{a.nome}</strong><span className="b-suave b-bloco">{telFmt(a.whatsapp)}</span></td>
                   <td data-rotulo="Plano">{a.plano || <span className="b-suave">sem plano ativo</span>}{a.planoFim && <span className="b-suave b-bloco">até {dataCurta(a.planoFim)}</span>}</td>
-                  <td data-rotulo="Última aula">{a.ultimaAula ? dataCurta(a.ultimaAula) : <span className="b-suave">—</span>}</td>
-                  <td data-rotulo="Presenças" className="num">{a.presencas}</td>
+                  <td data-rotulo="Última visita">{a.ultimaVisita || a.ultimaAula ? dataCurta(a.ultimaVisita || a.ultimaAula) : <span className="b-suave">—</span>}</td>
+                  <td data-rotulo="Visitas" className="num">{a.presencas + (a.servicos || 0)}</td>
                   <td data-rotulo="Situação">
                     <span className="b-reserva__tags">
                       {!a.ativo && <Tag tom="apagado">desativado</Tag>}
-                      {!a.ficha && <Tag tom="aviso">sem ficha</Tag>}
+                      {a.semCpf && <Tag>sem CPF</Tag>}
+                      {!a.ficha && !a.semCpf && <Tag tom="aviso">sem ficha</Tag>}
                       {a.alerta && <Tag tom="alerta">saúde: atenção</Tag>}
                       {WELLHUB[a.wellhub] && <Tag tom={WELLHUB[a.wellhub][1]}>{WELLHUB[a.wellhub][0]}</Tag>}
-                      {!a.temSenha && <Tag>sem senha</Tag>}
+                      {!a.temSenha && !a.semCpf && <Tag>sem senha</Tag>}
                     </span>
                   </td>
                 </tr>
@@ -88,20 +96,140 @@ export function Alunos() {
         </div>
       )}
       {novo && <NovoAluno aoFechar={() => setNovo(false)} aoCriar={(cpf) => nav('/bancada/alunos/' + cpf)} />}
+      {importar && <Importar aoFechar={() => setImportar(false)} aoImportar={() => { setImportar(false); recarregar(); }} />}
     </>
+  );
+}
+
+// ---------- importar clientes (planilha do Avec ou de outro sistema) ----------
+const CAMPOS_IMPORT = [['nome', 'Nome', /nome|cliente/i], ['whatsapp', 'WhatsApp', /whats|celular|telefone|fone|contato/i], ['email', 'E-mail', /e-?mail/i],
+  ['cpf', 'CPF', /cpf|documento/i], ['nascimento', 'Nascimento', /nasc|anivers/i], ['obs', 'Observação', /obs|anota/i]];
+
+function lerTabela(texto) {
+  const linhas = texto.replace(/\r/g, '').split('\n').filter((l) => l.trim());
+  if (!linhas.length) return [];
+  const sep = linhas[0].includes('\t') ? '\t' : (linhas[0].match(/;/g) || []).length >= (linhas[0].match(/,/g) || []).length ? ';' : ',';
+  return linhas.map((l) => {
+    const cel = [];
+    let atual = '', aspas = false;
+    for (let i = 0; i < l.length; i++) {
+      const ch = l[i];
+      if (ch === '"') { if (aspas && l[i + 1] === '"') { atual += '"'; i++; } else aspas = !aspas; }
+      else if (ch === sep && !aspas) { cel.push(atual.trim()); atual = ''; }
+      else atual += ch;
+    }
+    cel.push(atual.trim());
+    return cel;
+  });
+}
+
+function Importar({ aoFechar, aoImportar }) {
+  const { chamar } = useBancada();
+  const [tabela, setTabela] = useState(null);
+  const [mapa, setMapa] = useState({});
+  const [previa, setPrevia] = useState(null);
+  const [erro, setErro] = useState('');
+  const [feito, setFeito] = useState(null);
+  const arquivo = useRef(null);
+  function carregar(texto) {
+    const t = lerTabela(texto);
+    if (t.length < 2) { setErro('Não encontrei linhas. Confira se a primeira linha tem os títulos das colunas.'); return; }
+    setErro(''); setPrevia(null);
+    setTabela(t);
+    const m = {};
+    CAMPOS_IMPORT.forEach(([k, , re]) => { const i = t[0].findIndex((h) => re.test(h)); if (i >= 0) m[k] = i; });
+    setMapa(m);
+  }
+  const linhas = () => tabela.slice(1).map((l) => Object.fromEntries(CAMPOS_IMPORT.map(([k]) => [k, mapa[k] != null ? l[mapa[k]] || '' : ''])));
+  async function enviar(simular) {
+    setErro('');
+    try {
+      const todas = linhas();
+      const soma = { novos: 0, atualizados: 0, repetidos: 0, totalIgnorados: 0, semCpf: 0, ignorados: [] };
+      for (let i = 0; i < todas.length; i += 500) {
+        const r = await chamar('importarClientes', { linhas: todas.slice(i, i + 500), simular });
+        ['novos', 'atualizados', 'repetidos', 'totalIgnorados', 'semCpf'].forEach((k) => { soma[k] += r[k]; });
+        soma.ignorados.push(...r.ignorados.map((x) => ({ ...x, linha: x.linha + i })));
+      }
+      if (simular) setPrevia(soma); else setFeito(soma);
+    } catch (e) { setErro(e.message); }
+  }
+  return (
+    <Modal titulo="Importar clientes" rotulo="Planilha exportada do Avec ou de outro sistema" aoFechar={aoFechar} largo>
+      <div className="b-form">
+        {feito ? (
+          <>
+            <p className="aviso">{feito.novos} cliente(s) novas importadas · {feito.atualizados} completadas · {feito.repetidos} já existiam.</p>
+            <button type="button" className="botao botao--cheio" onClick={aoImportar}>Ver clientes</button>
+          </>
+        ) : (
+          <>
+            <p className="b-suave">No Avec (ou no Excel), salve a lista de clientes como <strong>CSV</strong>. Você também pode copiar as colunas da planilha e colar aqui embaixo.
+              Quem já existe (mesmo CPF, WhatsApp ou e-mail) não é duplicado; só completamos o que faltar.</p>
+            <input ref={arquivo} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={(e) => {
+              const f = e.target.files[0]; if (!f) return;
+              const ler = (cod) => {
+                const leitor = new FileReader();
+                // planilha salva no Excel pode vir em Windows-1252: tenta de novo se os acentos quebrarem
+                leitor.onload = () => { const t = String(leitor.result); if (cod === 'utf-8' && t.includes('\uFFFD')) ler('windows-1252'); else carregar(t); };
+                leitor.readAsText(f, cod);
+              };
+              ler('utf-8');
+              e.target.value = '';
+            }} />
+            <div className="b-botoes">
+              <button type="button" className="botao botao--linha botao--p" onClick={() => arquivo.current?.click()}>Escolher arquivo CSV</button>
+            </div>
+            <label className="b-campo"><span className="rotulo">Ou cole aqui (com a linha de títulos)</span>
+              <textarea rows={4} onPaste={(e) => { e.preventDefault(); carregar(e.clipboardData.getData('text')); }} placeholder="Nome	Celular	E-mail	CPF	Nascimento" /></label>
+            {tabela && (
+              <>
+                <p className="b-suave">{tabela.length - 1} linha(s). Confira qual coluna é cada informação:</p>
+                <div className="imp-mapa">
+                  {CAMPOS_IMPORT.map(([k, t]) => (
+                    <label key={k} className="b-campo"><span className="rotulo">{t}</span>
+                      <select value={mapa[k] ?? ''} onChange={(e) => { setMapa({ ...mapa, [k]: e.target.value === '' ? undefined : Number(e.target.value) }); setPrevia(null); }}>
+                        <option value="">não tem</option>
+                        {tabela[0].map((h, i) => <option key={i} value={i}>{h || `coluna ${i + 1}`}</option>)}
+                      </select></label>
+                  ))}
+                </div>
+                <div className="b-tabela-caixa">
+                  <table className="b-tabela"><thead><tr>{CAMPOS_IMPORT.filter(([k]) => mapa[k] != null).map(([k, t]) => <th key={k}>{t}</th>)}</tr></thead>
+                    <tbody>{linhas().slice(0, 4).map((l, i) => <tr key={i}>{CAMPOS_IMPORT.filter(([k]) => mapa[k] != null).map(([k]) => <td key={k}>{l[k]}</td>)}</tr>)}</tbody></table>
+                </div>
+                {previa && (
+                  <div className="aviso">
+                    Vão entrar <strong>{previa.novos}</strong> cliente(s) novas ({previa.semCpf} sem CPF) · {previa.atualizados} completadas · {previa.repetidos} já existem · {previa.totalIgnorados} ignoradas.
+                    {previa.ignorados.length > 0 && <span className="b-bloco b-suave">Ignoradas: {previa.ignorados.slice(0, 8).map((x) => `linha ${x.linha + 1}${x.nome ? ' (' + x.nome + ')' : ''}: ${x.motivo}`).join('; ')}</span>}
+                  </div>
+                )}
+                <Erro>{erro}</Erro>
+                {!previa ? (
+                  <BotaoAcao className="botao botao--linha" disabled={mapa.nome == null} acao={() => enviar(true)}>Conferir antes de importar</BotaoAcao>
+                ) : (
+                  <BotaoAcao className="botao botao--cheio" disabled={!previa.novos && !previa.atualizados} acao={() => enviar(false)}>Importar {previa.novos} cliente(s)</BotaoAcao>
+                )}
+              </>
+            )}
+            {!tabela && <Erro>{erro}</Erro>}
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 
 function NovoAluno({ aoFechar, aoCriar }) {
   const { chamar } = useBancada();
-  const [f, setF] = useState({ nome: '', cpf: '', whatsapp: '', email: '', enviarConvite: true });
+  const [f, setF] = useState({ nome: '', cpf: '', whatsapp: '', email: '', nascimento: '', enviarConvite: true });
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
   async function salvar(e) {
     e.preventDefault();
     setErro('');
-    if (!cpfValido(f.cpf)) return setErro('CPF inválido.');
+    if (soDigitos(f.cpf) && !cpfValido(f.cpf)) return setErro('CPF inválido.');
     setEnviando(true);
     try {
       const r = await chamar('novoAluno', { ...f, cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp) });
@@ -113,18 +241,23 @@ function NovoAluno({ aoFechar, aoCriar }) {
     }
   }
   return (
-    <Modal rotulo="Cadastro com convite por e-mail" titulo="Novo cliente" aoFechar={aoFechar}>
+    <Modal rotulo="Sem CPF a cliente não acessa a área do aluno, mas tem agenda, comandas e histórico" titulo="Novo cliente" aoFechar={aoFechar}>
       <form className="b-form" onSubmit={salvar} noValidate>
         <label className="b-campo"><span className="rotulo">Nome completo</span><input {...campo('nome')} autoComplete="off" /></label>
         <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">CPF</span><input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
+          <label className="b-campo"><span className="rotulo">CPF (opcional)</span><input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
           <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" {...campo('whatsapp', mascaraTelefone)} /></label>
         </div>
-        <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
-        <label className="b-check">
-          <input type="checkbox" checked={f.enviarConvite} onChange={(e) => setF((x) => ({ ...x, enviarConvite: e.target.checked }))} />
-          Enviar convite por e-mail para o aluno criar a senha
-        </label>
+        <div className="b-linha2">
+          <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
+          <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
+        </div>
+        {soDigitos(f.cpf).length === 11 && (
+          <label className="b-check">
+            <input type="checkbox" checked={f.enviarConvite} onChange={(e) => setF((x) => ({ ...x, enviarConvite: e.target.checked }))} />
+            Enviar convite por e-mail para criar a senha da área do aluno
+          </label>
+        )}
         <Erro>{erro}</Erro>
         <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Salvando…' : 'Cadastrar'}</button>
       </form>
@@ -134,12 +267,14 @@ function NovoAluno({ aoFechar, aoCriar }) {
 
 export function AlunoDetalhe() {
   const { cpf } = useParams();
+  const nav = useNavigate();
   const { chamar } = useBancada();
   const { dados: a, erro, carregando, recarregar, setDados } = useDados('aluno', { cpf });
   const [aba, setAba] = useState('resumo');
   const [editar, setEditar] = useState(false);
   const [vender, setVender] = useState(false);
   const [vale, setVale] = useState(false);
+  const [comanda, setComanda] = useState(null);
   const [aviso, setAviso] = useState('');
 
   if (carregando && !a) return <Carregando />;
@@ -156,6 +291,7 @@ export function AlunoDetalhe() {
   }
   async function salvar(dados) {
     const r = await chamar('salvarAluno', { cpf, dados });
+    if (r.cpf !== cpf) { nav('/bancada/alunos/' + r.cpf, { replace: true }); return; }
     setDados(r);
   }
 
@@ -167,23 +303,29 @@ export function AlunoDetalhe() {
         <>
           {a.whatsapp && <a className="botao botao--linha botao--p com-icone" href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> WhatsApp</a>}
           <button type="button" className="botao botao--linha botao--p" onClick={() => setVale(true)}>Aplicar vale</button>
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setVender(true)}>Vender plano</button>
+          <button type="button" className="botao botao--linha botao--p" onClick={() => setVender(true)}>Vender plano</button>
+          <button type="button" className="botao botao--cheio botao--p" onClick={() => setComanda(a.comandaAberta ? { id: a.comandaAberta } : { inicial: { cpf: a.cpf, nome: a.nome } })}>
+            {a.comandaAberta ? 'Comanda aberta' : 'Abrir comanda'}
+          </button>
         </>
       }>
-        CPF {cpfFmt(a.cpf)} · {telFmt(a.whatsapp)}{a.email ? ' · ' + a.email : ' · sem e-mail'} · cliente desde {dataBR(a.criadoEm)}
+        {a.semCpf ? 'Sem CPF' : `CPF ${cpfFmt(a.cpf)}`} · {telFmt(a.whatsapp)}{a.email ? ' · ' + a.email : ' · sem e-mail'} · cliente desde {dataBR(a.criadoEm)}
       </Cabecalho>
       <div className="b-reserva__tags b-tags-topo">
         {!a.ativo && <Tag tom="apagado">desativado</Tag>}
         {a.plano ? <Tag tom="ok">{a.plano}</Tag> : <Tag>sem plano ativo</Tag>}
-        {!a.ficha && <Tag tom="aviso">sem ficha de saúde</Tag>}
+        {a.semCpf && <Tag>sem CPF · não acessa o site</Tag>}
+        {!a.marketing && <Tag>não recebe campanhas</Tag>}
+        {!a.ficha && !a.semCpf && <Tag tom="aviso">sem ficha de saúde</Tag>}
         {a.alerta && <Tag tom="alerta">saúde: atenção</Tag>}
         {wh && <Tag tom={wh[1]}>{wh[0]}{a.wellhubId ? ' · ID ' + a.wellhubId : ''}</Tag>}
-        {!a.temSenha && <Tag>ainda não criou senha</Tag>}
+        {!a.temSenha && !a.semCpf && <Tag>ainda não criou senha</Tag>}
       </div>
       <Erro>{erro}</Erro>
       {aviso && <p className="aviso">{aviso}</p>}
 
-      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['planos', 'Planos'], ['aulas', 'Aulas'], ['pagamentos', 'Pagamentos'], ['saude', 'Saúde']]} />
+      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['estetica', 'Estética'], ['planos', 'Planos e pacotes'], ['aulas', 'Aulas'],
+        ['pagamentos', 'Pagamentos'], ['saude', 'Saúde']]} />
 
       {aba === 'resumo' && (
         <div className="b-duas">
@@ -192,9 +334,11 @@ export function AlunoDetalhe() {
             <dl className="b-dados">
               <dt>WhatsApp</dt><dd>{telFmt(a.whatsapp)}</dd>
               <dt>E-mail</dt><dd>{a.email || '—'}</dd>
-              <dt>Presenças</dt><dd>{a.presencas}</dd>
-              <dt>Última aula</dt><dd>{a.ultimaAula ? dataBR(a.ultimaAula) : '—'}</dd>
-              <dt>Acesso ao site</dt><dd>{a.temSenha ? 'com senha' : 'sem senha'} · <button type="button" className="link-acao" onClick={linkSenha}>{a.temSenha ? 'enviar link de nova senha' : 'enviar convite'}</button></dd>
+              <dt>Nascimento</dt><dd>{a.nascimento ? dataBR(a.nascimento) : '—'}</dd>
+              <dt>Última visita</dt><dd>{a.ultimaVisita ? dataBR(a.ultimaVisita) : '—'}</dd>
+              <dt>Visitas</dt><dd>{a.presencas} aula(s) · {a.servicos || 0} serviço(s)</dd>
+              <dt>Já gastou</dt><dd>{real(a.totalGasto)}</dd>
+              <dt>Acesso ao site</dt><dd>{a.semCpf ? 'precisa de CPF' : <>{a.temSenha ? 'com senha' : 'sem senha'} · <button type="button" className="link-acao" onClick={linkSenha}>{a.temSenha ? 'enviar link de nova senha' : 'enviar convite'}</button></>}</dd>
             </dl>
             {a.obs && <div className="b-obs"><span className="rotulo">Observações internas</span><p>{a.obs}</p></div>}
           </section>
@@ -216,6 +360,8 @@ export function AlunoDetalhe() {
         </div>
       )}
 
+      {aba === 'historico' && <Historico itens={a.historico} />}
+      {aba === 'estetica' && <section className="b-cartao"><ProntuarioConteudo alvo={{ cpf: a.cpf }} /></section>}
       {aba === 'planos' && <Creditos a={a} aoMudar={recarregar} />}
 
       {aba === 'aulas' && (
@@ -252,8 +398,34 @@ export function AlunoDetalhe() {
       {editar && <EditarAluno a={a} aoFechar={() => setEditar(false)} aoSalvar={async (d) => { await salvar(d); setEditar(false); }} />}
       {vender && <VenderModal aluno={a} aoFechar={() => setVender(false)} aoVender={() => { setVender(false); recarregar(); setAba('planos'); }} />}
       {vale && <AplicarVale aluno={a} aoFechar={() => setVale(false)} aoAplicar={() => { setVale(false); recarregar(); }} />}
+      {comanda && <ComandaModal id={comanda.id} inicial={comanda.inicial} aoFechar={() => { setComanda(null); recarregar(); }} />}
     </>
   );
+}
+
+const TIPO_HIST = { aula: 'Aula', servico: 'Serviço', compra: 'Compra', produto: 'Produto', vale: 'Vale-presente', evolucao: 'Evolução' };
+function Historico({ itens }) {
+  if (!itens?.length) return <Vazio titulo="Nada por aqui ainda" />;
+  const linhas = [];
+  itens.forEach((h, i) => {
+    const ano = h.data.slice(0, 4);
+    if (!i || itens[i - 1].data.slice(0, 4) !== ano) linhas.push(<li key={'a' + ano + i} className="hist__ano">{ano}</li>);
+    const quando = `${dataCurta(h.data)}${h.hora ? ` · ${hora(h.hora)}` : ''}`;
+    linhas.push(
+      <li key={i} className={`hist__item hist__item--${h.tipo}`}>
+        <span className="hist__data">{quando}</span>
+        <span className="hist__ponto" aria-hidden="true" />
+        <span className="hist__corpo">
+          <strong>{h.titulo}</strong>
+          <span className="b-suave">{TIPO_HIST[h.tipo]}{h.detalhe ? ` · ${h.detalhe}` : ''}{h.valor ? ` · ${real(h.valor)}` : ''}</span>
+          <span className="b-suave hist__quando">{quando}</span>
+        </span>
+        {h.status && h.status !== 'pago' ? <Tag tom={h.status === 'falta' ? 'alerta' : h.status === 'cancelado' ? 'apagado' : h.status === 'atendido' || h.status === 'check-in' ? 'ok' : 'neutro'}>{
+          { 'check-in': 'presente', reservado: 'reservada', atendido: 'atendido', falta: 'faltou', cancelado: 'cancelado', agendado: 'agendado', confirmado: 'confirmado', ativo: 'ativo', resgatado: 'usado', usado: 'usado' }[h.status] || h.status}</Tag> : <span />}
+      </li>
+    );
+  });
+  return <ol className="hist">{linhas}</ol>;
 }
 
 function Creditos({ a, aoMudar }) {
@@ -306,7 +478,8 @@ function Prorrogar({ c, aoSalvar }) {
 }
 
 function EditarAluno({ a, aoFechar, aoSalvar }) {
-  const [f, setF] = useState({ nome: a.nome, whatsapp: telFmt(a.whatsapp), email: a.email, obs: a.obs, ativo: a.ativo, wellhubId: a.wellhubId });
+  const [f, setF] = useState({ nome: a.nome, whatsapp: telFmt(a.whatsapp), email: a.email, obs: a.obs, ativo: a.ativo, wellhubId: a.wellhubId, nascimento: a.nascimento || '',
+    marketing: a.marketing !== false, cpf: '' });
   const [erro, setErro] = useState('');
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
   return (
@@ -317,13 +490,22 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" {...campo('whatsapp', mascaraTelefone)} /></label>
           <label className="b-campo"><span className="rotulo">ID Wellhub</span><input inputMode="numeric" {...campo('wellhubId')} /></label>
         </div>
-        <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
+        <div className="b-linha2">
+          <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
+          <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
+        </div>
+        {a.semCpf && (
+          <label className="b-campo"><span className="rotulo">CPF (todo o histórico passa para o CPF; se ela já tiver cadastro no site, juntamos os dois)</span>
+            <input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
+        )}
+        <label className="b-check"><input type="checkbox" checked={f.marketing} onChange={(e) => setF((x) => ({ ...x, marketing: e.target.checked }))} /> Recebe campanhas por e-mail</label>
         <label className="b-campo"><span className="rotulo">Observações internas</span><textarea rows={3} {...campo('obs')} placeholder="Só a equipe vê. Ex.: prefere tapete perto da janela" /></label>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF((x) => ({ ...x, ativo: e.target.checked }))} /> Cadastro ativo (pode entrar e reservar)</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
-          try { await aoSalvar({ ...f, whatsapp: soDigitos(f.whatsapp) }); } catch (e) { setErro(e.message); }
+          if (f.cpf && !cpfValido(f.cpf)) { setErro('CPF inválido.'); return; }
+          try { await aoSalvar({ ...f, whatsapp: soDigitos(f.whatsapp), cpf: soDigitos(f.cpf) || undefined }); } catch (e) { setErro(e.message); }
         }}>Salvar</BotaoAcao>
       </div>
     </Modal>

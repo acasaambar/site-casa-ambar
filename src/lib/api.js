@@ -65,6 +65,7 @@ export const api = {
   novaSenha: (t, senha) => chamar('novaSenha', { t, senha }),
   salvarEmail: (token, email) => chamar('salvarEmail', { token, email }),
   regras: () => chamar('regras'),
+  sairLista: (t) => chamar('sairLista', { t }),
   confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
   ativarWellhub: (token, wellhubId, confirmo) => chamar('ativarWellhub', { token, wellhubId, confirmo }),
 };

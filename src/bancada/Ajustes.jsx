@@ -43,12 +43,14 @@ function Regras() {
           ))}
           <label className="b-check"><input type="checkbox" checked={!!f.wellhubAtivo} onChange={(e) => setF({ ...f, wellhubAtivo: e.target.checked })} /> Aceitar reservas pelo Wellhub</label>
           <label className="b-check"><input type="checkbox" checked={!!f.wellhubPendentePodeReservar} onChange={(e) => setF({ ...f, wellhubPendentePodeReservar: e.target.checked })} /> Wellhub ainda não confirmado pela recepção já pode reservar</label>
+          <label className="b-check"><input type="checkbox" checked={!!f.lembreteServicos} onChange={(e) => setF({ ...f, lembreteServicos: e.target.checked })} /> E-mail de lembrete na véspera dos serviços</label>
+          <label className="b-check"><input type="checkbox" checked={!!f.lembreteAulas} onChange={(e) => setF({ ...f, lembreteAulas: e.target.checked })} /> E-mail de lembrete na véspera das aulas de Yoga e Pilates</label>
           {aviso && <p className="aviso">{aviso}</p>}
           <Erro>{erroS}</Erro>
           <BotaoAcao className="botao botao--cheio" acao={async () => {
             setAviso(''); setErroS('');
             try {
-              const r = await chamar('salvarAjustes', { ajustes: Object.fromEntries(CAMPOS.map(([k]) => [k, Number(f[k])]).concat([['wellhubAtivo', !!f.wellhubAtivo], ['wellhubPendentePodeReservar', !!f.wellhubPendentePodeReservar]])) });
+              const r = await chamar('salvarAjustes', { ajustes: Object.fromEntries(CAMPOS.map(([k]) => [k, Number(f[k])]).concat([['wellhubAtivo', !!f.wellhubAtivo], ['wellhubPendentePodeReservar', !!f.wellhubPendentePodeReservar], ['lembreteServicos', !!f.lembreteServicos], ['lembreteAulas', !!f.lembreteAulas]])) });
               setDados(r); setAviso('Salvo. O site já segue as regras novas.');
             } catch (e) { setErroS(e.message); }
           }}>Salvar regras</BotaoAcao>
@@ -59,6 +61,7 @@ function Regras() {
         <dl className="b-dados">
           <dt>Pagamento online</dt><dd>{f.pagamentoComChave ? <Tag tom="ok">chave InfinitePay ativa</Tag> : <Tag tom="aviso">sem chave: trimestral pela atendente</Tag>}</dd>
           <dt>E-mails restantes hoje</dt><dd>{f.emailsRestantes ?? '—'}</dd>
+          <dt>Últimos lembretes</dt><dd>{f.ultimosLembretes ? f.ultimosLembretes.slice(0, 16).split(' ').map((x, i) => (i ? x : x.split('-').reverse().join('/'))).join(' ') : 'nenhum ainda'}</dd>
           <dt>Versão</dt><dd className="b-suave">{f.versao}</dd>
         </dl>
       </section>

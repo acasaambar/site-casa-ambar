@@ -24,7 +24,7 @@ export default function Vales() {
   );
 }
 
-function ListaVales({ abrirNovo }) {
+export function ListaVales({ abrirNovo }) {
   const [novo, setNovo] = useState(abrirNovo);
   const [entregar, setEntregar] = useState(null);
   const [filtro, setFiltro] = useState('ativo');
@@ -250,7 +250,7 @@ function Entregar({ v, aoFechar }) {
   );
 }
 
-function Cupons({ podeEditar }) {
+export function Cupons({ podeEditar }) {
   const { dados, erro, carregando, recarregar } = useDados('cupons', {});
   const [editar, setEditar] = useState(null);
   return (

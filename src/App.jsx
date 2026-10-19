@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { Header, Footer } from './components/Layout.jsx';
@@ -12,8 +12,10 @@ import FichaSaude from './pages/FichaSaude.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
 import Pagamento from './pages/Pagamento.jsx';
 import WhatsFlutuante from './components/WhatsFlutuante.jsx';
-import { EsqueciSenha, NovaSenha } from './pages/Senha.jsx';
-import Bancada from './bancada/Bancada.jsx';
+import { EsqueciSenha, NovaSenha, Descadastrar } from './pages/Senha.jsx';
+
+// a bancada só é baixada por quem abre /#/bancada (o site do aluno fica leve)
+const Bancada = lazy(() => import('./bancada/Bancada.jsx'));
 
 function Protegida({ children }) {
   const { token } = useAuth();
@@ -61,7 +63,8 @@ export default function App() {
           <Route path="/minhas-reservas" element={<Protegida><MinhasReservas /></Protegida>} />
           <Route path="/esqueci-senha" element={<EsqueciSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
-          <Route path="/bancada/*" element={<Bancada />} />
+          <Route path="/descadastrar" element={<Descadastrar />} />
+          <Route path="/bancada/*" element={<Suspense fallback={<div className="b-carregando-tela" role="status">Abrindo a bancada…</div>}><Bancada /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Paginas>

@@ -224,7 +224,7 @@ export default function MeuPlano() {
                       </div>
                       <span className="cardapio__pontos" aria-hidden="true" />
                       <button type="button" className="preco" onClick={() => setEscolhido(avulsa)}>
-                        {realCurto(avulsa.preco)}
+                        <Preco p={avulsa} fmt={realCurto} />
                       </button>
                     </div>
                   )}
@@ -243,13 +243,13 @@ export default function MeuPlano() {
                           <span role="rowheader" className="cardapio__item">{f}x na semana</span>
                           <span role="cell" className="cardapio__celula" data-rotulo="Mensal">
                             {m ? (
-                              <button type="button" className="preco" onClick={() => setEscolhido(m)}>{realCurto(m.preco)}</button>
+                              <button type="button" className="preco" onClick={() => setEscolhido(m)}><Preco p={m} fmt={realCurto} /></button>
                             ) : <span className="cardapio__traco">—</span>}
                           </span>
                           <span role="cell" className="cardapio__celula" data-rotulo="Trimestral">
                             {t ? (
                               <button type="button" className="preco preco--destaque" onClick={() => setEscolhido(t)}>
-                                {realCurto(t.preco / 3)}<small>/mês</small>
+                                <Preco p={t} fmt={(v) => realCurto(v / 3)} /><small>/mês</small>
                               </button>
                             ) : <span className="cardapio__traco">—</span>}
                             {t && m && t.preco / 3 < m.preco && (
@@ -359,8 +359,11 @@ export default function MeuPlano() {
               </li>
               <li className="compra__total">
                 <span>Total</span>
-                <strong>{desconto ? (desconto.valorFinal > 0 ? real(desconto.valorFinal) : 'Grátis') : real(escolhido.preco)}</strong>
+                <strong>{desconto ? (desconto.valorFinal > 0 ? real(desconto.valorFinal) : 'Grátis') : real(escolhido.promocao ? escolhido.promocao.preco : escolhido.preco)}</strong>
               </li>
+              {escolhido.promocao && !desconto && (
+                <li className="compra__condicao"><span>Promoção</span><strong>{escolhido.promocao.nome} · de {real(escolhido.preco)} por {real(escolhido.promocao.preco)}</strong></li>
+              )}
               <li className="compra__condicao">
                 <span>Pagamento</span>
                 <strong>
@@ -556,4 +559,10 @@ function Wellhub({ info, token, aoAtivar }) {
       </div>
     </form>
   );
+}
+
+// preço do cardápio: mostra o valor riscado quando há promoção no site
+function Preco({ p, fmt }) {
+  if (!p.promocao) return <>{fmt(p.preco)}</>;
+  return <><s className="preco__de">{fmt(p.preco)}</s> {fmt(p.promocao.preco)}</>;
 }

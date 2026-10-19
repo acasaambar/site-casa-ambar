@@ -167,3 +167,25 @@ export function NovaSenha() {
     </Moldura>
   );
 }
+
+// ---------- Sair da lista de e-mails de campanha (link no rodapé do e-mail) ----------
+export function Descadastrar() {
+  const [params] = useSearchParams();
+  const t = params.get('t') || '';
+  const [estado, setEstado] = useState({ carregando: true });
+  useEffect(() => {
+    if (!/^[a-f0-9]{32}$/.test(t)) { setEstado({ erro: 'Este link não é válido.' }); return; }
+    api.sairLista(t).then((r) => setEstado({ nome: r.nome })).catch((e) => setEstado({ erro: e.message }));
+  }, [t]);
+  return (
+    <Moldura>
+      <Sol tamanho={30} className="cor-caramelo" />
+      <h1 className="display-m">{estado.carregando ? 'Um momento…' : estado.erro ? 'Não deu certo' : 'Pronto'}</h1>
+      {estado.erro && <p className="entrar__sub">{estado.erro} Se quiser, fale com a gente pelo WhatsApp.</p>}
+      {estado.nome !== undefined && !estado.erro && (
+        <p className="entrar__sub">{estado.nome ? `${estado.nome}, você` : 'Você'} não vai mais receber e-mails de campanhas da Casa Âmbar. Lembretes dos seus horários e avisos da sua conta continuam chegando.</p>
+      )}
+      <Link to="/" className="botao botao--linha">Voltar ao site</Link>
+    </Moldura>
+  );
+}

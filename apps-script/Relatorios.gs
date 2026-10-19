@@ -16,6 +16,7 @@ function bancada_relatorio(d) {
   var planos = {};
   lerAba('Planos').forEach(function (p) { planos[String(p.id)] = p; });
   listarServicos(true).concat(listarPacotes(true)).forEach(function (x) { var it = buscarItemVenda(x.id); if (it) planos[x.id] = it; });
+  listarProdutos(true).forEach(function (p) { planos[p.id] = { id: p.id, modalidade: 'Produtos', categoria: 'Produtos', tipo: 'produto' }; });
   var pagamentos = lerAba('Pagamentos');
   var reservas = todasReservas();
   var alunos = lerAba('Alunos').filter(function (a) { return a.cpf; });

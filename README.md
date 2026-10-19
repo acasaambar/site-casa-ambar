@@ -96,6 +96,24 @@ Catálogo → Serviços e pacotes traz o material "Rituais Casa Âmbar" (preços
 cadastre quem atende, as áreas e o horário de cada uma. Os horários livres consideram a jornada e os atendimentos já marcados.
 Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
 
+### Gestão da casa (comandas, caixa, estoque, financeiro)
+
+- **Comandas e caixa**: a comanda é a conta da visita (serviços, produtos, planos e pacotes). Abre pela agenda ("Receber na comanda") ou em Comandas → Nova comanda.
+  Aceita promoção, cupom, vale e pagamento dividido (ex.: Pix + cartão). Ao fechar: entra em Vendas, baixa o estoque, marca o atendimento como atendido e gera a comissão.
+  **Caixa do dia**: abrir com o troco, sangria/suprimento/despesa, fechar contando a gaveta (mostra a diferença).
+- **Estoque**: produtos de revenda e insumos. A venda na comanda e o uso em cada serviço (Catálogo → serviço → produtos usados) baixam o saldo sozinhos.
+- **Comissões**: % por profissional (Catálogo → Profissionais) ou por serviço. Financeiro → Comissões para pagar; a profissional vê em "Meus ganhos".
+- **Financeiro**: visão do mês (entradas × saídas), despesas (com contas fixas que se repetem todo mês) e fechamentos de caixa.
+- **Bloquear horário**: Agenda → Serviços → Bloquear horário (folga, almoço, curso), com repetição semanal.
+- **Marketing**: promoções automáticas (sem código), campanhas por e-mail ou WhatsApp (sumidas, aniversariantes, pacote acabando…),
+  lembretes da véspera por e-mail (saem sozinhos quando a recepção abre a bancada), vales-presente e cupons.
+  Todo e-mail de campanha tem o link "não quero mais receber".
+- **Clientes**: cliente sem CPF tem cadastro completo (não acessa a área do aluno); ao informar o CPF, o histórico é transferido.
+  Histórico completo, ficha de estética e evolução com fotos de antes e depois (pasta privada "Casa Âmbar · Fotos de clientes" no Drive).
+  **Importar planilha** (Avec ou outro sistema, em CSV) em Clientes.
+
+Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, Promocoes, Campanhas, FichasEstetica, Evolucoes.
+
 ### Segurança
 
 - Sessões: a planilha guarda só o hash do token (aba Sessoes e SessoesEquipe). Sair invalida na hora.

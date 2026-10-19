@@ -40,7 +40,14 @@ export function somarDias(iso, n) {
   return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
 }
 export const diaSemana = (iso) => { const [a, m, d] = iso.split('-').map(Number); return new Date(a, m - 1, d).getDay(); };
-export const cpfFmt = (c) => mascaraCPF(c || '');
+// cliente sem CPF tem um código interno de 15 dígitos (começa com 9)
+export const semCpf = (c) => String(c || '').replace(/\D/g, '').length > 11;
+export const cpfFmt = (c) => (semCpf(c) ? 'sem CPF' : mascaraCPF(c || ''));
+export const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay'];
+export const MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+export const mesTexto = (m) => { const [a, n] = String(m).split('-'); return `${MESES_LONGOS[Number(n) - 1]} ${a}`; };
+export const somarMes = (m, n) => { const [a, x] = String(m).split('-').map(Number); const d = new Date(a, x - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+export const numBR = (v) => Number(String(v ?? '').replace(/\./g, '').replace(',', '.')) || 0;
 export function telFmt(t) {
   const d = String(t || '').replace(/\D/g, '');
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
@@ -167,6 +174,25 @@ export function Kpi({ rotulo, valor, detalhe, tom }) {
       <span className="b-kpi__rotulo">{rotulo}</span>
       <strong className="b-kpi__valor">{valor}</strong>
       {detalhe && <span className="b-kpi__detalhe">{detalhe}</span>}
+    </div>
+  );
+}
+
+// navegação de mês: ‹ outubro 2026 ›
+export function SeletorMes({ mes, aoMudar }) {
+  return (
+    <div className="b-mes" role="group" aria-label="Mês">
+      <button type="button" onClick={() => aoMudar(somarMes(mes, -1))} aria-label="Mês anterior">‹</button>
+      <strong>{mesTexto(mes)}</strong>
+      <button type="button" onClick={() => aoMudar(somarMes(mes, 1))} aria-label="Próximo mês">›</button>
+    </div>
+  );
+}
+
+export function Segmento({ itens, atual, aoMudar, rotulo }) {
+  return (
+    <div className="b-segmento" role="tablist" aria-label={rotulo}>
+      {itens.map(([id, t]) => <button key={id} type="button" role="tab" aria-selected={atual === id} onClick={() => aoMudar(id)}>{t}</button>)}
     </div>
   );
 }

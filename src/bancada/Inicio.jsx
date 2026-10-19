@@ -94,8 +94,12 @@ function LinhaDoDia({ aulas, servicos, agora }) {
 }
 
 export default function Inicio() {
-  const { membro } = useBancada();
+  const { membro, chamar } = useBancada();
   const { dados: r, erro, carregando } = useDados('resumo');
+  // lembretes da véspera por e-mail: saem sozinhos quando a recepção abre a bancada
+  useEffect(() => {
+    if (pode(membro, 'admin', 'recepcao')) chamar('lembretesAuto', {}).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const agora = useAgora();
   const h = agora.getHours();
   const saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
@@ -133,9 +137,13 @@ export default function Inicio() {
           <section className="b-kpis">
             <Kpi rotulo="Reservas de aula hoje" valor={r.reservasHoje} detalhe={`${r.presentesHoje} com presença marcada`} />
             <Kpi rotulo="Atendimentos hoje" valor={r.servicosHoje || 0} detalhe="estética e fisioterapia" />
-            {balcao && <Kpi rotulo="Recebido hoje" valor={realCurto(r.vendasHoje)} />}
+            {balcao && <Kpi rotulo="Recebido hoje" valor={realCurto(r.vendasHoje)} detalhe={r.caixa === 'nao_aberto' ? 'caixa ainda não aberto' : r.caixa === 'aberto' ? 'caixa aberto' : 'caixa fechado'} />}
             {balcao && <Kpi rotulo="Recebido no mês" valor={realCurto(r.vendasMes)} />}
+            {!balcao && <Kpi rotulo="Meus ganhos no mês" valor={realCurto(r.meusGanhosMes || 0)} detalhe="comissões" />}
           </section>
+          {r.folgasHoje && r.folgasHoje.length > 0 && (
+            <p className="b-suave inicio__folgas">Horários bloqueados hoje: {r.folgasHoje.map((f) => `${f.profissional} (${f.motivo}${f.diaTodo ? ', dia todo' : `, ${hora(f.inicio)}–${hora(f.fim)}`})`).join(' · ')}</p>
+          )}
 
           <div className="b-duas b-duas--larga">
             <section className="b-cartao">
@@ -166,12 +174,17 @@ export default function Inicio() {
                   <Atencao n={r.wellhubPendentes} texto="Wellhub para confirmar" para="/bancada/alunos" estado={{ filtro: 'wellhub' }} />
                   <Atencao n={r.devolverJuros} texto="juros para devolver" para="/bancada/vendas" estado={{ filtro: 'devolver' }} />
                   <Atencao n={r.vencendo} texto="planos vencem em 7 dias" para={pode(membro, 'admin') ? '/bancada/relatorios' : '/bancada/alunos'} estado={{ aba: 'alunos' }} />
+                  <Atencao n={r.caixa === 'nao_aberto' ? 1 : 0} simbolo="R$" texto="abrir o caixa de hoje" para="/bancada/comandas" estado={{ vista: 'caixa' }} />
+                  <Atencao n={r.comandasAbertas} texto={r.comandasAbertas === 1 ? 'comanda aberta' : 'comandas abertas'} para="/bancada/comandas" />
+                  <Atencao n={r.estoqueBaixo} texto="produtos acabando" para="/bancada/estoque" estado={{ filtro: 'falta' }} />
+                  <Atencao n={r.lembretesWhats} texto="lembretes de amanhã para mandar no WhatsApp" para="/bancada/marketing" estado={{ aba: 'lembretes' }} />
+                  <Atencao n={r.contasVencendo} texto="contas vencendo" para="/bancada/financeiro" estado={{ aba: 'despesas' }} />
                 </ul>
-                {!r.wellhubPendentes && !r.devolverJuros && !r.vencendo && <p className="b-suave">Nada pendente.</p>}
+                {!r.wellhubPendentes && !r.devolverJuros && !r.vencendo && !r.comandasAbertas && !r.estoqueBaixo && !r.lembretesWhats && !r.contasVencendo && r.caixa !== 'nao_aberto' && <p className="b-suave">Nada pendente.</p>}
                 <nav className="atalhos" aria-label="Atalhos">
+                  <Link to="/bancada/comandas" state={{ nova: true }}>Abrir comanda</Link>
                   <Link to="/bancada/agenda" state={{ vista: 'servicos' }}>Agendar serviço</Link>
-                  <Link to="/bancada/vendas" state={{ nova: true }}>Registrar venda</Link>
-                  <Link to="/bancada/vales" state={{ novo: true }}>Dar um vale-presente</Link>
+                  <Link to="/bancada/marketing" state={{ aba: 'vales', novo: true }}>Dar um vale-presente</Link>
                   <Link to="/bancada/alunos" state={{ novo: true }}>Cadastrar cliente</Link>
                 </nav>
               </section>
@@ -179,6 +192,8 @@ export default function Inicio() {
               <section className="b-cartao">
                 <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Lembretes</h2></header>
                 <p className="b-suave">Marque a presença de cada aluna e confira a ficha de saúde de quem tem o aviso “saúde: atenção”.</p>
+                <p className="b-suave">Nos serviços, abra o atendimento na agenda para preencher a ficha de estética e registrar a evolução com fotos.</p>
+                <nav className="atalhos" aria-label="Atalhos"><Link to="/bancada/ganhos">Meus ganhos</Link><Link to="/bancada/agenda" state={{ vista: 'servicos' }}>Minha agenda</Link></nav>
               </section>
             )}
           </div>
@@ -188,12 +203,12 @@ export default function Inicio() {
   );
 }
 
-function Atencao({ n, texto, para, estado }) {
+function Atencao({ n, texto, para, estado, simbolo }) {
   if (!n) return null;
   return (
     <li>
       <Link to={para} state={estado}>
-        <strong>{n}</strong>
+        <strong>{simbolo || n}</strong>
         <span>{texto}</span>
       </Link>
     </li>

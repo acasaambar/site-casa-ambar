@@ -58,6 +58,55 @@ var PERMISSOES = {
   b_salvarServico: ['admin'],
   b_salvarPacote: ['admin'],
   b_salvarProfissional: ['admin'],
+  // clientes: histórico, ficha de estética, evolução e fotos, importação
+  b_prontuario: ['admin', 'recepcao', 'professora'],
+  b_salvarFichaEstetica: ['admin', 'recepcao', 'professora'],
+  b_salvarEvolucao: ['admin', 'recepcao', 'professora'],
+  b_excluirEvolucao: ['admin', 'recepcao', 'professora'],
+  b_foto: ['admin', 'recepcao', 'professora'],
+  b_importarClientes: ['admin'],
+  // comandas e caixa
+  b_comandas: ['admin', 'recepcao'],
+  b_comanda: ['admin', 'recepcao'],
+  b_salvarComanda: ['admin', 'recepcao'],
+  b_comandaDoAtendimento: ['admin', 'recepcao'],
+  b_fecharComanda: ['admin', 'recepcao'],
+  b_cancelarComanda: ['admin', 'recepcao'],
+  b_caixa: ['admin', 'recepcao'],
+  b_abrirCaixa: ['admin', 'recepcao'],
+  b_movimentoCaixa: ['admin', 'recepcao'],
+  b_fecharCaixa: ['admin', 'recepcao'],
+  b_reabrirCaixa: ['admin'],
+  // estoque
+  b_produtos: ['admin', 'recepcao'],
+  b_salvarProduto: ['admin'],
+  b_movimentarEstoque: ['admin', 'recepcao'],
+  b_movimentos: ['admin', 'recepcao'],
+  // financeiro e comissões
+  b_financeiro: ['admin'],
+  b_despesas: ['admin'],
+  b_salvarDespesa: ['admin'],
+  b_pagarDespesa: ['admin'],
+  b_excluirDespesa: ['admin'],
+  b_comissoes: ['admin'],
+  b_pagarComissoes: ['admin'],
+  b_meusGanhos: ['professora'],
+  // bloqueio de horário das profissionais
+  b_folgas: ['admin', 'recepcao', 'professora'],
+  b_salvarFolga: ['admin', 'recepcao'],
+  b_excluirFolga: ['admin', 'recepcao'],
+  // marketing
+  b_promocoes: ['admin', 'recepcao'],
+  b_salvarPromocao: ['admin'],
+  b_excluirPromocao: ['admin'],
+  b_publicoCampanha: ['admin', 'recepcao'],
+  b_enviarCampanha: ['admin'],
+  b_registrarCampanha: ['admin', 'recepcao'],
+  b_campanhas: ['admin', 'recepcao'],
+  b_lembretes: ['admin', 'recepcao'],
+  b_enviarLembretes: ['admin', 'recepcao'],
+  b_marcarLembrete: ['admin', 'recepcao'],
+  b_lembretesAuto: ['admin', 'recepcao'],
 };
 
 function executarBancada(d) {
@@ -271,7 +320,20 @@ function bancada_resumo(d, m) {
     r.vencendo = Object.keys(mapaC).map(function (k) { return mapaC[k]; }).filter(function (c) {
       return String(c.ativo).toUpperCase() !== 'NÃO' && c.tipo !== 'avulsa' && c.fim >= hoje && c.fim <= em7;
     }).length;
+    r.comandasAbertas = lerAba('Comandas').filter(function (c) { return c.status === 'aberta'; }).length;
+    r.estoqueBaixo = listarProdutos().filter(function (p) { return p.minimo > 0 && p.estoque <= p.minimo; }).length;
+    var cx = caixaDoDia(hoje);
+    r.caixa = cx ? String(cx.status) : 'nao_aberto';
+    var amanha = somarDias(hoje, 1);
+    r.lembretesWhats = lembretesDe(amanha).filter(function (x) { return !x.enviado && !x.email && soDigitos(x.whatsapp).length >= 10; }).length;
+    if (m.papel === 'admin') {
+      r.contasVencendo = lerAba('Despesas').filter(function (x) { return x.status === 'a_pagar' && dataTexto(x.data) <= somarDias(hoje, 3); }).length;
+    }
+  } else {
+    var mg = bancada_meusGanhos({}, m);
+    r.meusGanhosMes = mg.total;
   }
+  r.folgasHoje = folgasDoDia(hoje).filter(function (f) { return m.papel !== 'professora' || mesmaProfessora(f.profissional, m); });
   return r;
 }
 
@@ -407,6 +469,7 @@ function bancada_cancelarReserva(d, m) {
 // ============================================================
 function resumoAluno(a, ctx) {
   var cpf = normCpf(a.cpf);
+  var visita = ctx.visitas ? ctx.visitas[cpf] || '' : '';
   var hoje = hojeTexto();
   var creds = ctx.creditosPorCpf[cpf] || [];
   var vigentes = creds.filter(function (c) { return String(c.ativo).toUpperCase() !== 'NÃO' && c.inicio <= hoje && c.fim >= hoje; });
@@ -418,7 +481,8 @@ function resumoAluno(a, ctx) {
     criadoEm: String(a.criado_em || '').slice(0, 10), ficha: !!ctx.fichas[cpf], alerta: ctx.fichas[cpf] ? String(ctx.fichas[cpf].parq_algum_sim) === 'SIM' : false,
     wellhub: statusWellhub(a), plano: vigentes.map(function (c) { return c.descricao; }).join(' + '),
     planoFim: vigentes.map(function (c) { return c.fim; }).sort().pop() || '', presencas: presencas.length, ultimaAula: ultima,
-    temSenha: !!a.senha_hash,
+    temSenha: !!a.senha_hash, semCpf: !temCpfReal(cpf), ultimaVisita: visita, servicos: ctx.servicosPorCpf ? ctx.servicosPorCpf[cpf] || 0 : 0,
+    origem: String(a.origem_cadastro || ''),
   };
 }
 
@@ -434,6 +498,9 @@ function contextoAlunos() {
     (ctx.reservasPorCpf[cpf] = ctx.reservasPorCpf[cpf] || []).push(r);
   });
   ctx.mapaCreditos = mc;
+  ctx.visitas = ultimasVisitas();
+  ctx.servicosPorCpf = {};
+  lerAba('Atendimentos').forEach(function (x) { if (x.cpf && x.status === 'atendido') ctx.servicosPorCpf[normCpf(x.cpf)] = (ctx.servicosPorCpf[normCpf(x.cpf)] || 0) + 1; });
   return ctx;
 }
 
@@ -442,7 +509,7 @@ function bancada_alunos(d) {
   var busca = String(d.busca || '').trim().toLowerCase();
   var dig = soDigitos(busca);
   return lerAba('Alunos').filter(function (a) {
-    if (!a.cpf) return false;
+    if (!a.cpf || /^unificado/.test(String(a.origem_cadastro))) return false;
     if (!busca) return true;
     return String(a.nome).toLowerCase().indexOf(busca) >= 0 || (dig.length >= 3 && (normCpf(a.cpf).indexOf(dig) >= 0 || soDigitos(a.whatsapp).indexOf(dig) >= 0)) ||
       String(a.email).toLowerCase().indexOf(busca) >= 0;
@@ -472,6 +539,15 @@ function bancada_aluno(d) {
   }).sort(function (x, y) { return (y.data + y.hora).localeCompare(x.data + x.hora); }).slice(0, 80);
   r.pagamentos = lerAba('Pagamentos').filter(function (p) { return normCpf(p.cpf) === cpf; }).map(pagamentoPublico).reverse();
   r.vales = lerAba('Vales').filter(function (v) { return v.cpf && normCpf(v.cpf) === cpf; }).map(valePublico);
+  r.atendimentos = lerAba('Atendimentos').filter(function (x) { return x.id && x.cpf && normCpf(x.cpf) === cpf; }).map(function (x) { return atendimentoPublico(x); })
+    .sort(function (x, y) { return (y.data + y.hora).localeCompare(x.data + x.hora); });
+  r.historico = historicoCliente(cpf);
+  r.nascimento = String(a.nascimento || '').slice(0, 10);
+  r.marketing = String(a.marketing).toUpperCase() !== 'NÃO';
+  r.fichaEstetica = !!linhaFichaEstetica(cpf);
+  r.evolucoes = evolucoesDe(cpf).length;
+  r.totalGasto = dinheiro(lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && p.cpf && normCpf(p.cpf) === cpf; }).reduce(function (s, p) { return s + numero(p.valor); }, 0));
+  r.comandaAberta = (lerAba('Comandas').filter(function (c) { return c.status === 'aberta' && c.cpf && normCpf(c.cpf) === cpf; })[0] || {}).id || '';
   void reservas;
   return r;
 }
@@ -509,29 +585,46 @@ function bancada_salvarAluno(d, m) {
   if (x.wellhub != null) mud.wellhub = { confirmado: 'SIM', bloqueado: 'NÃO', pendente: 'pendente', nao_informado: '' }[x.wellhub];
   if (x.wellhubId != null) mud.wellhub_id = soDigitos(x.wellhubId);
   if (x.obs != null) mud.obs_internas = String(x.obs).slice(0, 1000);
+  if (x.nascimento != null) mud.nascimento = /^\d{4}-\d{2}-\d{2}$/.test(String(x.nascimento)) ? x.nascimento : '';
+  if (x.marketing != null) mud.marketing = x.marketing ? '' : 'NÃO';
   atualizarLinha('Alunos', a._linha, mud);
   registrar(m, 'editou aluno', a.nome + ' · ' + Object.keys(mud).join(', '));
+  if (x.cpf && soDigitos(x.cpf) !== normCpf(a.cpf)) {
+    var trava = LockService.getScriptLock();
+    trava.waitLock(20000);
+    try { return bancada_aluno({ cpf: informarCpf(buscarAluno(a.cpf), x.cpf, m) }); } finally { trava.releaseLock(); }
+  }
   return bancada_aluno({ cpf: a.cpf });
 }
 
 function bancada_novoAluno(d, m) {
   var cpf = soDigitos(d.cpf);
-  if (!cpfValido(cpf)) throw new Error('CPF inválido.');
+  if (cpf && !cpfValido(cpf)) throw new Error('CPF inválido.');
   if (!d.nome || String(d.nome).trim().split(' ').length < 2) throw new Error('Informe nome e sobrenome.');
   if (soDigitos(d.whatsapp).length < 10) throw new Error('Informe o WhatsApp com DDD.');
   if (d.email && !emailValido(d.email)) throw new Error('E-mail inválido.');
+  var nasc = /^\d{4}-\d{2}-\d{2}$/.test(String(d.nascimento || '')) ? d.nascimento : '';
   var trava = LockService.getScriptLock();
   trava.waitLock(15000);
   try {
-    if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro.');
-    adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email || '').trim().toLowerCase(),
-      senha_hash: '', sal: '', criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'bancada' });
+    if (cpf) {
+      if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro.');
+      adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email || '').trim().toLowerCase(),
+        senha_hash: '', sal: '', criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'bancada', nascimento: nasc });
+    } else {
+      var w = normWhats(d.whatsapp);
+      var ja = lerAba('Alunos').filter(function (a) { return a.cpf && normWhats(a.whatsapp) === w && ativoSim(a.ativo); })[0];
+      if (ja) throw erroCod('Já existe cadastro com este WhatsApp: ' + ja.nome + '.', 'DUPLICADO', { cpf: normCpf(ja.cpf) });
+      var nova = clienteSemCpf(String(d.nome).trim(), w, d.email, 'bancada (sem CPF)');
+      cpf = normCpf(nova.cpf);
+      if (nasc) atualizarLinha('Alunos', nova._linha, { nascimento: nasc });
+    }
   } finally {
     trava.releaseLock();
   }
-  registrar(m, 'cadastrou aluno', d.nome);
+  registrar(m, 'cadastrou cliente', d.nome);
   var conviteEnviado = false;
-  if (d.email && d.enviarConvite !== false) { enviarConviteAluno(buscarAluno(cpf)); conviteEnviado = true; }
+  if (d.email && d.enviarConvite !== false && temCpfReal(cpf)) { enviarConviteAluno(buscarAluno(cpf)); conviteEnviado = true; }
   return { cpf: normCpf(cpf), conviteEnviado: conviteEnviado };
 }
 
@@ -545,6 +638,7 @@ function enviarConviteAluno(a) {
 function bancada_enviarLinkSenha(d, m) {
   var a = buscarAluno(d.cpf);
   if (!a) throw new Error('Aluno não encontrado.');
+  if (!temCpfReal(a.cpf)) throw new Error('Cliente sem CPF não entra na área do aluno. Informe o CPF no cadastro primeiro.');
   if (!emailValido(a.email)) throw new Error('Este aluno não tem e-mail no cadastro. Cadastre o e-mail primeiro.');
   if (a.senha_hash) {
     var link = criarLinkSenha('aluno', normCpf(a.cpf), a.email, 24, 'recepção');
@@ -576,19 +670,21 @@ function registrarVenda(aluno, plano, o, membro) {
   if (!metodo) throw new Error('Escolha como foi pago.');
   if (!plano) throw new Error('Item de venda não encontrado.');
   var cpf = soDigitos(aluno.cpf) ? normCpf(aluno.cpf) : '';
-  var calc = calcularPreco(plano, cpf, o.codigo);
+  var calc = calcularPreco(plano, cpf, o.codigo, { canal: 'bancada', data: /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto() });
   var valor = calc.valorFinal;
+  var promocao = calc.promocao;
   var desconto = calc.desconto;
   if (o.valor != null && o.valor !== '' && !isNaN(numero(o.valor))) {
     // valor combinado no balcão
     valor = Math.max(0, numero(o.valor));
     desconto = Math.max(0, Math.round((plano.preco - valor) * 100) / 100);
+    if (valor !== calc.valorFinal) promocao = '';
   }
   if (metodo === 'Cortesia') { desconto = plano.preco; valor = 0; }
-  var nsu = 'B' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
+  var nsu = novoNsu('B');
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: valor, status: 'pendente',
     criado_em: agoraTexto(), valor_original: plano.preco, desconto: desconto, cupom: calc.cupom, vale: calc.vale, vale_usado: calc.valeUsado,
-    origem: 'balcão', registrado_por: membro.email, observacao: String(o.obs || '').slice(0, 300) });
+    origem: 'balcão', registrado_por: membro.email, observacao: String(o.obs || '').slice(0, 300), promocao: promocao, tipo_item: plano.tipo === 'servico' || plano.tipo === 'pacote' ? plano.tipo : 'plano' });
   SpreadsheetApp.flush();
   var inicioC = /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto();
   var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: Number(o.parcelas) || 1, valor_pago: valor, inicio: inicioC,
@@ -599,8 +695,8 @@ function registrarVenda(aluno, plano, o, membro) {
 function bancada_simularPreco(d) {
   var plano = buscarItemVenda(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
-  var r = calcularPreco(plano, d.cpf ? normCpf(d.cpf) : '', d.codigo);
-  return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem };
+  var r = calcularPreco(plano, d.cpf ? normCpf(d.cpf) : '', d.codigo, { canal: 'bancada', data: d.data });
+  return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem, promocao: r.promocao };
 }
 
 function bancada_vender(d, m) {
@@ -699,7 +795,7 @@ function bancada_criarVales(d, m) {
   try {
     pessoas.forEach(function (p) {
       var cpf = p.cpf ? soDigitos(p.cpf) : '';
-      if (cpf && !cpfValido(cpf)) throw new Error('CPF inválido: ' + p.cpf);
+      if (cpf && !cpfValido(cpf) && !buscarAluno(cpf)) throw new Error('CPF inválido: ' + p.cpf);
       var al = cpf ? buscarAluno(cpf) : null;
       var v = { codigo: gerarCodigoVale(), status: 'ativo', tipo: tipo, plano_id: plano ? plano.id : '', valor: plano ? plano.preco : valor,
         cpf: cpf ? normCpf(cpf) : '', nome: String(p.nome || (al ? al.nome : '')).trim(), email: String(p.email || (al ? al.email : '')).trim().toLowerCase(),
@@ -947,6 +1043,8 @@ function bancada_ajustes() {
   return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes,
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
     wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
+    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas,
+    ultimosLembretes: PropertiesService.getScriptProperties().getProperty('LEMBRETES_ULTIMO') || '',
     emailsRestantes: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } })() };
 }
 
@@ -957,7 +1055,7 @@ function bancada_salvarAjustes(d, m) {
   var salvar = {};
   AJUSTES_EDITAVEIS.forEach(function (k) {
     if (a[k] == null) return;
-    if (k === 'wellhubAtivo' || k === 'wellhubPendentePodeReservar') { salvar[k] = !!a[k]; return; }
+    if (k === 'wellhubAtivo' || k === 'wellhubPendentePodeReservar' || k === 'lembreteServicos' || k === 'lembreteAulas') { salvar[k] = !!a[k]; return; }
     var n = Number(a[k]);
     if (isNaN(n) || n < limites[k][0] || n > limites[k][1]) throw new Error('Valor fora do limite em ' + k + ' (' + limites[k][0] + ' a ' + limites[k][1] + ').');
     salvar[k] = n;

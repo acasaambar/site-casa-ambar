@@ -4,6 +4,8 @@ import { useDados, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, r
   MESES, diaSemana } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { ComandaModal } from './Comandas.jsx';
+import { ProntuarioModal } from './Prontuario.jsx';
 
 // Cor de cada área de cuidado (tons da marca)
 export const COR_CATEGORIA = {
@@ -36,8 +38,13 @@ export function AgendaServicos({ dia }) {
   const { dados: catalogo } = useDados('catalogoServicos', {});
   const [novo, setNovo] = useState(null);
   const [aberto, setAberto] = useState(null);
+  const [bloquear, setBloquear] = useState(null);
+  const [folga, setFolga] = useState(null);
+  const [comanda, setComanda] = useState(null);
+  const [prontuario, setProntuario] = useState(null);
 
   const lista = dados?.atendimentos || [];
+  const folgas = dados?.folgas || [];
   const colunas = useMemo(() => {
     const nomes = new Set([...(dados?.profissionais || [])]);
     lista.forEach((a) => nomes.add(a.profissional));
@@ -55,7 +62,10 @@ export function AgendaServicos({ dia }) {
       {balcao && (
         <div className="s-barra">
           <p className="b-suave">{lista.length ? `${lista.length} atendimento${lista.length > 1 ? 's' : ''} neste dia` : 'Nenhum atendimento neste dia'}</p>
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo({ data: dia })}>Agendar serviço</button>
+          <span className="b-botoes">
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setBloquear({ data: dia })}>Bloquear horário</button>
+            <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo({ data: dia })}>Agendar serviço</button>
+          </span>
         </div>
       )}
       {colunas.length === 0 && (
@@ -83,6 +93,17 @@ export function AgendaServicos({ dia }) {
                     aria-label={`Agendar com ${c} às ${INICIO_DIA / 60 + i}h`}
                     onClick={() => setNovo({ data: dia, profissional: c, hora: `${String(INICIO_DIA / 60 + i).padStart(2, '0')}:00` })} />
                 ))}
+                {folgas.filter((f) => f.profissional === c).map((f) => {
+                  const ini = f.diaTodo ? INICIO_DIA : Math.max(min(f.inicio), INICIO_DIA);
+                  const fim = f.diaTodo ? FIM_DIA : Math.min(min(f.fim), FIM_DIA);
+                  if (fim <= ini) return null;
+                  return (
+                    <button key={f.id} type="button" className="s-folga" style={{ top: (ini - INICIO_DIA) * PX, height: (fim - ini) * PX }} disabled={!balcao}
+                      onClick={() => setFolga(f)} title={`${f.motivo}${f.diaTodo ? ' · dia todo' : ` · ${hora(f.inicio)}–${hora(f.fim)}`}`}>
+                      <span>{f.motivo}</span>
+                    </button>
+                  );
+                })}
                 {lista.filter((a) => a.profissional === c).map((a) => (
                   <button key={a.id} type="button" onClick={() => setAberto(a)}
                     className={`s-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} s-bloco--${a.status}`}
@@ -103,6 +124,15 @@ export function AgendaServicos({ dia }) {
 
       {/* no celular: lista em ordem de horário */}
       <ul className="s-lista">
+        {folgas.map((f) => (
+          <li key={f.id}>
+            <button type="button" className="s-item s-item--folga" onClick={() => balcao && setFolga(f)}>
+              <span className="s-item__hora">{f.diaTodo ? '—' : hora(f.inicio)}</span>
+              <span className="s-item__quem"><strong>{f.profissional} · {f.motivo}</strong><span>{f.diaTodo ? 'dia todo' : `até ${hora(f.fim)}`}</span></span>
+              <Tag tom="apagado">bloqueado</Tag>
+            </button>
+          </li>
+        ))}
         {lista.map((a) => (
           <li key={a.id}>
             <button type="button" className={`s-item s-item--${COR_CATEGORIA[a.categoria] || 'facial'}`} onClick={() => setAberto(a)}>
@@ -116,7 +146,13 @@ export function AgendaServicos({ dia }) {
 
       {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={() => { setNovo(null); recarregar(); }} />}
       {aberto && <DetalheAtendimento a={aberto} aoFechar={() => setAberto(null)} aoMudar={() => { setAberto(null); recarregar(); }}
-        aoReagendar={(a) => { setAberto(null); setNovo({ data: a.data, profissional: a.profissional, servicoId: a.servicoId, reagendar: a }); }} />}
+        aoReagendar={(a) => { setAberto(null); setNovo({ data: a.data, profissional: a.profissional, servicoId: a.servicoId, reagendar: a }); }}
+        aoComanda={async (a) => { setAberto(null); setComanda({ carregando: true, a }); }}
+        aoProntuario={(a) => { setAberto(null); setProntuario(a); }} />}
+      {bloquear && catalogo && <BloquearHorario inicial={bloquear} profissionais={catalogo.profissionais.filter((p) => p.ativo).map((p) => p.nome)} aoFechar={() => setBloquear(null)} aoSalvar={() => { setBloquear(null); recarregar(); }} />}
+      {folga && <DetalheFolga f={folga} aoFechar={() => setFolga(null)} aoMudar={() => { setFolga(null); recarregar(); }} />}
+      {comanda && <ComandaDoAtendimento a={comanda.a} aoFechar={() => { setComanda(null); recarregar(); }} />}
+      {prontuario && <ProntuarioModal alvo={{ atendimentoId: prontuario.id }} nome={prontuario.nome} aoFechar={() => setProntuario(null)} />}
     </>
   );
 }
@@ -288,7 +324,83 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
 // ============================================================
 //  DETALHE DO ATENDIMENTO
 // ============================================================
-function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar }) {
+// abre (ou retoma) a comanda do atendimento e mostra a folha da comanda
+function ComandaDoAtendimento({ a, aoFechar }) {
+  const { chamar } = useBancada();
+  const [id, setId] = useState('');
+  const [erro, setErro] = useState('');
+  useEffect(() => {
+    chamar('comandaDoAtendimento', { atendimentoId: a.id }).then((c) => setId(c.id)).catch((e) => setErro(e.message));
+  }, [a.id, chamar]);
+  if (id) return <ComandaModal id={id} aoFechar={aoFechar} />;
+  return <Modal titulo="Comanda" rotulo={`${a.servico} · ${a.nome}`} aoFechar={aoFechar}>{erro ? <Erro>{erro}</Erro> : <Carregando texto="Abrindo a comanda" />}</Modal>;
+}
+
+function BloquearHorario({ inicial, profissionais, aoFechar, aoSalvar }) {
+  const { chamar } = useBancada();
+  const [f, setF] = useState({ profissional: inicial.profissional || '', data: inicial.data || hojeIso(), diaTodo: false, inicio: '12:00', fim: '13:00', motivo: '', repetirSemanas: 0 });
+  const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState(null);
+  const campo = (k) => ({ value: f[k], onChange: (e) => setF({ ...f, [k]: e.target.value }) });
+  if (aviso) {
+    return (
+      <Modal titulo="Horário bloqueado" aoFechar={aoSalvar}>
+        <div className="b-form">
+          <p>{aviso.criadas} bloqueio{aviso.criadas > 1 ? 's' : ''} criado{aviso.criadas > 1 ? 's' : ''}.</p>
+          {aviso.conflitos.length > 0 && (
+            <div className="aviso"><strong>Já havia atendimento marcado nesse horário:</strong><ul>{aviso.conflitos.map((c) => <li key={c}>{c}</li>)}</ul>Reagende essas clientes pela agenda.</div>
+          )}
+          <button type="button" className="botao botao--cheio" onClick={aoSalvar}>Ok</button>
+        </div>
+      </Modal>
+    );
+  }
+  return (
+    <Modal titulo="Bloquear horário" rotulo="Folga, almoço, curso ou compromisso da profissional" aoFechar={aoFechar}>
+      <div className="b-form">
+        <div className="b-linha2">
+          <label className="b-campo"><span className="rotulo">Profissional</span>
+            <select {...campo('profissional')}><option value="">Escolha…</option>{profissionais.map((p) => <option key={p}>{p}</option>)}</select></label>
+          <label className="b-campo"><span className="rotulo">Dia</span><input type="date" {...campo('data')} /></label>
+        </div>
+        <label className="b-check"><input type="checkbox" checked={f.diaTodo} onChange={(e) => setF({ ...f, diaTodo: e.target.checked })} /> O dia todo</label>
+        {!f.diaTodo && (
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Das</span><input type="time" step={900} {...campo('inicio')} /></label>
+            <label className="b-campo"><span className="rotulo">Até</span><input type="time" step={900} {...campo('fim')} /></label>
+          </div>
+        )}
+        <label className="b-campo"><span className="rotulo">Motivo</span><input {...campo('motivo')} placeholder="Ex.: almoço, médico, curso" /></label>
+        <label className="b-campo"><span className="rotulo">Repetir</span>
+          <select value={f.repetirSemanas} onChange={(e) => setF({ ...f, repetirSemanas: Number(e.target.value) })}>
+            <option value={0}>Só neste dia</option>
+            {[1, 3, 7, 11, 25].map((n) => <option key={n} value={n}>Toda semana, por {n + 1} semanas</option>)}
+          </select></label>
+        <Erro>{erro}</Erro>
+        <BotaoAcao className="botao botao--cheio" disabled={!f.profissional} acao={async () => {
+          setErro('');
+          try { setAviso(await chamar('salvarFolga', f)); } catch (e) { setErro(e.message); }
+        }}>Bloquear</BotaoAcao>
+      </div>
+    </Modal>
+  );
+}
+
+function DetalheFolga({ f, aoFechar, aoMudar }) {
+  const { chamar } = useBancada();
+  const [erro, setErro] = useState('');
+  return (
+    <Modal titulo={f.motivo} rotulo={`${f.profissional} · ${dataBR(f.data)}`} aoFechar={aoFechar}>
+      <div className="b-form">
+        <p>{f.diaTodo ? 'Dia todo bloqueado.' : `Bloqueado das ${hora(f.inicio)} às ${hora(f.fim)}.`}</p>
+        <Erro>{erro}</Erro>
+        <BotaoAcao className="botao botao--linha botao--perigo" acao={async () => { try { await chamar('excluirFolga', { id: f.id }); aoMudar(); } catch (e) { setErro(e.message); } }}>Liberar este horário</BotaoAcao>
+      </div>
+    </Modal>
+  );
+}
+
+function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoProntuario }) {
   const { membro, chamar } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [metodo, setMetodo] = useState('Pix');
@@ -319,6 +431,12 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar }) {
       </div>
       <Erro>{erro}</Erro>
 
+      {balcao && a.status !== 'cancelado' && !(a.status === 'atendido' && a.pagamento === 'pago') && (
+        <button type="button" className="botao botao--cheio s-comanda" onClick={() => aoComanda(a)}>
+          {a.pagamento === 'no_dia' ? 'Receber na comanda' : 'Abrir comanda'}<small>serviço + produtos, pagamento dividido</small>
+        </button>
+      )}
+      <button type="button" className="link-acao s-prontuario" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
       {!fechado && (
         <div className="s-acoes">
           {a.pagamento === 'no_dia' && balcao ? (
@@ -388,7 +506,7 @@ export function CatalogoServicos() {
                         </span>
                       )}
                     </div>
-                    <strong className="s-cat__preco">{real(s.preco)}</strong>
+                    <strong className="s-cat__preco">{real(s.preco)}{s.comissao != null && <small className="b-suave b-bloco">comissão {s.comissao}%</small>}</strong>
                     <div className="b-botoes b-botoes--coluna">
                       <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'servico', v: s })}>editar</button>
                       <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'pacote', v: { servicoId: s.id, sessoes: 5, semJurosAte: 3, validadeDias: 120, ativo: true } })}>+ pacote</button>
@@ -400,15 +518,16 @@ export function CatalogoServicos() {
           </section>
         );
       })}
-      {editar?.tipo === 'servico' && <EditarServico s={editar.v} categorias={dados.categorias} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
+      {editar?.tipo === 'servico' && <EditarServico s={editar.v} categorias={dados.categorias} produtos={dados.produtos || []} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
       {editar?.tipo === 'pacote' && <EditarPacote p={editar.v} servicos={dados.servicos} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
     </>
   );
 }
 
-function EditarServico({ s, categorias, aoFechar, aoSalvar }) {
+function EditarServico({ s, categorias, produtos = [], aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
-  const [f, setF] = useState({ id: s.id || '', nome: s.nome || '', categoria: s.categoria, duracao: s.duracao || 60, preco: s.preco || '', descricao: s.descricao || '', semJurosAte: s.semJurosAte || 1, ativo: s.ativo !== false });
+  const [f, setF] = useState({ id: s.id || '', nome: s.nome || '', categoria: s.categoria, duracao: s.duracao || 60, preco: s.preco || '', descricao: s.descricao || '', semJurosAte: s.semJurosAte || 1, ativo: s.ativo !== false,
+    comissao: s.comissao == null ? '' : String(s.comissao), consumo: s.consumo || [] });
   const [erro, setErro] = useState('');
   const campo = (k) => ({ value: f[k], onChange: (e) => setF({ ...f, [k]: e.target.value }) });
   return (
@@ -424,11 +543,34 @@ function EditarServico({ s, categorias, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">Parcelas sem juros</span><select {...campo('semJurosAte')}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
         </div>
         <label className="b-campo"><span className="rotulo">Descrição curta</span><input {...campo('descricao')} /></label>
+        <label className="b-campo"><span className="rotulo">Comissão deste serviço (%)</span>
+          <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Vazio = a da profissional" /></label>
+        <fieldset className="b-opcoes">
+          <legend className="rotulo">Produtos usados em cada sessão (baixa o estoque sozinho)</legend>
+          {f.consumo.map((c, i) => {
+            const pr = produtos.find((x) => x.id === c.produtoId);
+            return (
+              <div key={i} className="s-consumo">
+                <select value={c.produtoId} onChange={(e) => setF({ ...f, consumo: f.consumo.map((y, k) => (k === i ? { ...y, produtoId: e.target.value } : y)) })} aria-label="Produto">
+                  <option value="">Escolha…</option>{produtos.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                </select>
+                <input inputMode="decimal" value={String(c.qtd).replace('.', ',')} onChange={(e) => setF({ ...f, consumo: f.consumo.map((y, k) => (k === i ? { ...y, qtd: e.target.value.replace(/[^\d,.]/g, '') } : y)) })} aria-label="Quantidade" />
+                <span className="b-suave">{pr ? pr.unidade : ''}</span>
+                <button type="button" className="cm-item__tirar" aria-label="Tirar" onClick={() => setF({ ...f, consumo: f.consumo.filter((_, k) => k !== i) })}>×</button>
+              </div>
+            );
+          })}
+          {produtos.length ? <button type="button" className="link-acao" onClick={() => setF({ ...f, consumo: [...f.consumo, { produtoId: '', qtd: 1 }] })}>+ produto</button>
+            : <span className="b-suave">Cadastre os insumos em Estoque para usar aqui.</span>}
+        </fieldset>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Disponível para agendar</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
-          try { aoSalvar(await chamar('salvarServico', { servico: { ...f, preco: Number(String(f.preco).replace(',', '.')), duracao: Number(f.duracao), semJurosAte: Number(f.semJurosAte) } })); } catch (e) { setErro(e.message); }
+          try {
+            aoSalvar(await chamar('salvarServico', { servico: { ...f, preco: Number(String(f.preco).replace(',', '.')), duracao: Number(f.duracao), semJurosAte: Number(f.semJurosAte),
+              comissao: f.comissao === '' ? '' : Number(String(f.comissao).replace(',', '.')), consumo: f.consumo.map((c) => ({ produtoId: c.produtoId, qtd: Number(String(c.qtd).replace(',', '.')) })) } }));
+          } catch (e) { setErro(e.message); }
         }}>Salvar serviço</BotaoAcao>
       </div>
     </Modal>
@@ -485,7 +627,7 @@ export function Profissionais() {
             <div className="b-equipe__ini" aria-hidden="true">{p.nome.slice(0, 1)}</div>
             <div><strong>{p.nome}</strong><span className="b-suave">{p.categorias.join(', ') || 'todas as áreas'}</span></div>
             <span className="b-suave">{p.dias.map((d) => dias[d]).join(' ')}</span>
-            <span className="b-suave">{p.inicio && p.fim ? `${hora(p.inicio)} às ${hora(p.fim)}` : 'horário da casa'}</span>
+            <span className="b-suave">{p.inicio && p.fim ? `${hora(p.inicio)} às ${hora(p.fim)}` : 'horário da casa'}{p.comissao ? ` · comissão ${p.comissao}%` : ''}</span>
             <button type="button" className="link-acao" onClick={() => setEditar({ ...p, nomeOriginal: p.nome })}>editar</button>
           </li>
         ))}
@@ -497,7 +639,8 @@ export function Profissionais() {
 
 function EditarProfissional({ p, categorias, aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
-  const [f, setF] = useState({ nome: p.nome || '', nomeOriginal: p.nomeOriginal, categorias: p.categorias || [], dias: p.dias || [], inicio: p.inicio || '', fim: p.fim || '', ativo: p.ativo !== false });
+  const [f, setF] = useState({ nome: p.nome || '', nomeOriginal: p.nomeOriginal, categorias: p.categorias || [], dias: p.dias || [], inicio: p.inicio || '', fim: p.fim || '', ativo: p.ativo !== false,
+    comissao: p.comissao ? String(p.comissao) : '', comissaoProduto: p.comissaoProduto ? String(p.comissaoProduto) : '' });
   const [erro, setErro] = useState('');
   const alterna = (k, v) => setF((x) => ({ ...x, [k]: x[k].includes(v) ? x[k].filter((y) => y !== v) : [...x[k], v] }));
   return (
@@ -525,11 +668,15 @@ function EditarProfissional({ p, categorias, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">Termina às</span><input type="time" value={f.fim} onChange={(e) => setF({ ...f, fim: e.target.value })} /></label>
         </div>
         <p className="b-suave">Sem horário, vale o da casa: seg a sex 6h–20h, sáb 7h–12h.</p>
+        <div className="b-linha2">
+          <label className="b-campo"><span className="rotulo">Comissão nos serviços (%)</span><input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 40" /></label>
+          <label className="b-campo"><span className="rotulo">Comissão nos produtos (%)</span><input inputMode="decimal" value={f.comissaoProduto} onChange={(e) => setF({ ...f, comissaoProduto: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 10" /></label>
+        </div>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Atendendo</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
-          try { aoSalvar(await chamar('salvarProfissional', { profissional: f })); } catch (e) { setErro(e.message); }
+          try { aoSalvar(await chamar('salvarProfissional', { profissional: { ...f, comissao: Number(String(f.comissao).replace(',', '.')) || 0, comissaoProduto: Number(String(f.comissaoProduto).replace(',', '.')) || 0 } })); } catch (e) { setErro(e.message); }
         }}>Salvar</BotaoAcao>
       </div>
     </Modal>

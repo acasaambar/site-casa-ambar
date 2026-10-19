@@ -58,7 +58,11 @@ function listarServicos(todos) {
   semearServicos();
   return lerAba('Servicos').filter(function (x) { return x.id && (todos || String(x.ativo).toUpperCase() !== 'NÃO'); }).map(function (x) {
     return { id: String(x.id), ativo: String(x.ativo).toUpperCase() !== 'NÃO', categoria: String(x.categoria), nome: String(x.nome),
-      duracao: numero(x.duracao_min) || 60, preco: numero(x.preco), descricao: String(x.descricao || ''), semJurosAte: numero(x.sem_juros_ate) || 1 };
+      duracao: numero(x.duracao_min) || 60, preco: numero(x.preco), descricao: String(x.descricao || ''), semJurosAte: numero(x.sem_juros_ate) || 1,
+      comissao: String(x.comissao) === '' ? null : numero(x.comissao),
+      // produtos usados em cada sessão: "p-acido:0.5;p-luva:2"
+      consumo: String(x.consumo || '').split(';').map(function (c) { var q = c.split(':'); return { produtoId: String(q[0] || '').trim(), qtd: numero(q[1]) }; })
+        .filter(function (c) { return c.produtoId && c.qtd > 0; }) };
   });
 }
 
@@ -78,7 +82,7 @@ function listarProfissionais(todos) {
   return lerAba('Profissionais').filter(function (x) { return String(x.nome).trim() && (todos || String(x.ativo).toUpperCase() !== 'NÃO'); }).map(function (x) {
     return { nome: String(x.nome).trim(), ativo: String(x.ativo).toUpperCase() !== 'NÃO', categorias: String(x.categorias || '').split(',').map(function (c) { return c.trim(); }).filter(String),
       dias: String(x.dias || '1,2,3,4,5,6').split(',').map(function (d) { return Number(d); }).filter(function (d) { return d >= 0 && d <= 6; }),
-      inicio: horaTexto(x.inicio) || '', fim: horaTexto(x.fim) || '' };
+      inicio: horaTexto(x.inicio) || '', fim: horaTexto(x.fim) || '', comissao: numero(x.comissao), comissaoProduto: numero(x.comissao_produto) };
   });
 }
 
@@ -123,13 +127,20 @@ function janelaDoProfissional(prof, data) {
   return fim > ini ? [ini, fim] : null;
 }
 
-function conflito(data, hora, duracao, profissional, ignorarId) {
+function conflito(data, hora, duracao, profissional, ignorarId, folgas, atendimentos) {
   var a0 = minutos(hora), a1 = a0 + duracao;
-  return atendimentosDoDia(data, ignorarId).filter(function (x) {
+  var c = (atendimentos || atendimentosDoDia(data, ignorarId)).filter(function (x) {
     if (semAcento(x.profissional) !== semAcento(profissional)) return false;
     var b0 = minutos(horaTexto(x.hora)), b1 = b0 + (numero(x.duracao_min) || 60);
     return a0 < b1 && b0 < a1;
-  })[0] || null;
+  })[0];
+  if (c) return c;
+  // horário bloqueado (folga, almoço, curso…)
+  var f = (folgas || folgasDoDia(data, profissional)).filter(function (x) {
+    var iv = intervaloFolga(x);
+    return a0 < iv[1] && iv[0] < a1;
+  })[0];
+  return f ? { folga: true, nome: f.motivo, hora: f.inicio, motivo: f.motivo } : null;
 }
 
 function bancada_horarios(d) {
@@ -139,15 +150,19 @@ function bancada_horarios(d) {
   var dur = Number(d.duracao) || serv.duracao;
   var janela = janelaDoProfissional(d.profissional, d.data);
   if (!janela) return { horarios: [], motivo: 'Fora do horário de atendimento neste dia.' };
+  var folgas = folgasDoDia(d.data, d.profissional);
+  var diaTodo = folgas.filter(function (f) { return f.diaTodo; })[0];
+  if (diaTodo) return { horarios: [], motivo: d.profissional + ' não atende neste dia (' + diaTodo.motivo + ').' };
   var agora = new Date();
   var hoje = hojeTexto();
+  var atend = atendimentosDoDia(d.data, d.ignorarId);
   var livres = [];
   for (var m = janela[0]; m + dur <= janela[1]; m += 15) {
     var h = hhmm(m);
     if (d.data === hoje && inicio({ data: d.data, hora: h }) < agora) continue;
-    if (!conflito(d.data, h, dur, d.profissional, d.ignorarId)) livres.push(h);
+    if (!conflito(d.data, h, dur, d.profissional, d.ignorarId, folgas, atend)) livres.push(h);
   }
-  return { horarios: livres, duracao: dur };
+  return { horarios: livres, duracao: dur, bloqueios: folgas };
 }
 
 // ---------------- agenda de serviços ----------------
@@ -170,11 +185,13 @@ function bancada_atendimentos(d, m) {
     return true;
   }).map(function (a) { return atendimentoPublico(a, m); })
     .sort(function (a, b) { return (a.data + a.hora).localeCompare(b.data + b.hora); });
-  return { atendimentos: lista, profissionais: listarProfissionais().map(function (p) { return p.nome; }) };
+  var folgas = bancada_folgas({ de: de, dias: Math.min(Math.max(Number(d.dias) || 1, 1), 31) }, m);
+  return { atendimentos: lista, profissionais: listarProfissionais().map(function (p) { return p.nome; }), folgas: folgas };
 }
 
 function bancada_catalogoServicos() {
-  return { servicos: listarServicos(true), pacotes: listarPacotes(true), profissionais: listarProfissionais(true), categorias: CATEGORIAS_SERVICO, horarioCasa: HORARIO_CASA };
+  return { servicos: listarServicos(true), pacotes: listarPacotes(true), profissionais: listarProfissionais(true), categorias: CATEGORIAS_SERVICO, horarioCasa: HORARIO_CASA,
+    produtos: listarProdutos().map(function (p) { return { id: p.id, nome: p.nome, unidade: p.unidade, preco: p.preco, vende: p.vende, estoque: p.estoque }; }) };
 }
 
 // créditos de pacote de um serviço ainda com sessões
@@ -214,15 +231,24 @@ function bancada_agendarServico(d, m) {
     var whats = soDigitos((d.cliente || {}).whatsapp);
     if (nome.split(' ').length < 2) throw new Error('Informe nome e sobrenome do cliente.');
     if (whats.length < 10) throw new Error('Informe o WhatsApp do cliente com DDD.');
-    cliente = { cpf: '', nome: nome, whatsapp: whats };
+    cliente = { cpf: '', nome: nome, whatsapp: whats, novo: true };
   }
   var trava = LockService.getScriptLock();
   trava.waitLock(20000);
   try {
+    var janela = janelaDoProfissional(prof, d.data);
+    var ini = minutos(d.hora);
+    if (!janela || ini < janela[0] || ini + dur > janela[1]) throw new Error('Fora do horário de atendimento de ' + prof + ' neste dia.');
     var c = conflito(d.data, d.hora, dur, prof, d.reagendarId);
+    if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
     if (c) throw new Error(prof + ' já atende ' + c.nome + ' às ' + horaTexto(c.hora) + '. Escolha outro horário.');
+    if (cliente.novo) {
+      // cliente sem CPF ganha cadastro (fica com histórico, pacotes e comandas)
+      var cad = clienteSemCpf(cliente.nome, cliente.whatsapp, '', 'agenda de serviços');
+      cliente = { cpf: normCpf(cad.cpf), nome: cad.nome, whatsapp: String(cad.whatsapp || cliente.whatsapp), email: cad.email };
+    }
     var forma = String(d.pagamento || 'no_dia');
-    var linha = { id: 'A' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 90 + 10),
+    var linha = { id: novoId('A'),
       data: d.data, hora: d.hora, duracao_min: dur, servico_id: serv.id, servico: serv.nome, categoria: serv.categoria, profissional: prof,
       cpf: cliente.cpf, nome: cliente.nome, whatsapp: cliente.whatsapp, status: 'agendado', pagamento: forma, valor: serv.preco,
       obs: String(d.obs || '').slice(0, 500), criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto() };
@@ -282,8 +308,14 @@ function bancada_atualizarAtendimento(d, m) {
   }
   if (d.obs != null && !prof) mud.obs = String(d.obs).slice(0, 500);
   atualizarLinha('Atendimentos', a._linha, mud);
+  var novo = lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0];
+  // comissão e baixa dos produtos usados acompanham o "atendido"
+  if (st === 'atendido' || a.status === 'atendido') {
+    comissaoDoAtendimento(novo, st === 'atendido');
+    aplicarConsumo(novo.servico_id, 'atend:' + novo.id, novo.nome, st === 'atendido', m.email);
+  }
   registrar(m, 'atendimento ' + st, a.nome + ' · ' + a.servico + ' · ' + dataTexto(a.data) + ' ' + horaTexto(a.hora));
-  return atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0], m);
+  return atendimentoPublico(novo, m);
 }
 
 // ---------------- cadastro (administração) ----------------
@@ -299,7 +331,10 @@ function bancada_salvarServico(d, m) {
   if (!(numero(x.preco) > 0)) throw new Error('Informe o preço.');
   var id = String(x.id || slug(nome));
   var linha = { id: id, ativo: x.ativo === false ? 'NÃO' : 'SIM', categoria: x.categoria, nome: nome, duracao_min: Math.min(Math.max(numero(x.duracao) || 60, 10), 480),
-    preco: numero(x.preco), descricao: String(x.descricao || '').slice(0, 200), sem_juros_ate: Math.min(Math.max(numero(x.semJurosAte) || 1, 1), 12) };
+    preco: numero(x.preco), descricao: String(x.descricao || '').slice(0, 200), sem_juros_ate: Math.min(Math.max(numero(x.semJurosAte) || 1, 1), 12),
+    comissao: x.comissao === '' || x.comissao == null ? '' : Math.min(Math.max(numero(x.comissao), 0), 100),
+    consumo: (x.consumo || []).filter(function (c) { return c.produtoId && numero(c.qtd) > 0; }).slice(0, 12)
+      .map(function (c) { return String(c.produtoId).replace(/[:;]/g, '') + ':' + numero(c.qtd); }).join(';') };
   var ex = lerAba('Servicos').filter(function (s) { return String(s.id) === id; })[0];
   if (ex) atualizarLinha('Servicos', ex._linha, linha); else adicionarLinha('Servicos', linha);
   _itensVenda = null;
@@ -331,7 +366,8 @@ function bancada_salvarProfissional(d, m) {
   var cats = (x.categorias || []).filter(function (c) { return CATEGORIAS_SERVICO.indexOf(c) >= 0; });
   var dias = (x.dias || []).map(Number).filter(function (n) { return n >= 0 && n <= 6; });
   var linha = { nome: nome, ativo: x.ativo === false ? 'NÃO' : 'SIM', categorias: cats.join(', '), dias: dias.join(','),
-    inicio: /^\d{2}:\d{2}$/.test(String(x.inicio)) ? x.inicio : '', fim: /^\d{2}:\d{2}$/.test(String(x.fim)) ? x.fim : '' };
+    inicio: /^\d{2}:\d{2}$/.test(String(x.inicio)) ? x.inicio : '', fim: /^\d{2}:\d{2}$/.test(String(x.fim)) ? x.fim : '',
+    comissao: Math.min(Math.max(numero(x.comissao), 0), 100), comissao_produto: Math.min(Math.max(numero(x.comissaoProduto), 0), 100) };
   var ex = lerAba('Profissionais').filter(function (p) { return semAcento(p.nome) === semAcento(x.nomeOriginal || nome); })[0];
   if (ex) atualizarLinha('Profissionais', ex._linha, linha); else adicionarLinha('Profissionais', linha);
   registrar(m, ex ? 'editou profissional' : 'cadastrou profissional', nome);

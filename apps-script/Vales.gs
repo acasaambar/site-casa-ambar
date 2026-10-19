@@ -31,7 +31,15 @@ function pagamentosPagos() {
 function usosCupom(codigo, cpf, pagos) {
   pagos = pagos || pagamentosPagos();
   var c = codigoLimpo(codigo);
-  var doCupom = pagos.filter(function (p) { return codigoLimpo(p.cupom) === c; });
+  var vistos = {};
+  // uma comanda com vários itens conta como um uso só
+  var doCupom = pagos.filter(function (p) {
+    if (codigoLimpo(p.cupom) !== c) return false;
+    var k = p.comanda ? 'Q' + p.comanda : 'P' + p.order_nsu;
+    if (vistos[k]) return false;
+    vistos[k] = 1;
+    return true;
+  });
   return { total: doCupom.length, doAluno: cpf ? doCupom.filter(function (p) { return normCpf(p.cpf) === normCpf(cpf); }).length : 0,
     desconto: doCupom.reduce(function (s, p) { return s + numero(p.desconto); }, 0) };
 }
@@ -80,20 +88,37 @@ function motivoValeInvalido(v, plano, cpf) {
   return '';
 }
 
-// Preço final de um plano com cupom ou vale
-function calcularPreco(plano, cpf, codigo) {
-  var r = { valorOriginal: plano.preco, desconto: 0, cupom: '', vale: '', valeUsado: 0, valorFinal: plano.preco, mensagem: '' };
+// Preço final de um item (plano, serviço, pacote ou produto) com promoção, cupom ou vale.
+// opts: { data: 'aaaa-mm-dd' (dia do serviço), canal: 'site' | 'bancada' }
+// Promoção e cupom não somam: vale o maior desconto. O vale-presente entra depois da promoção.
+function calcularPreco(plano, cpf, codigo, opts) {
+  opts = opts || {};
+  var base = numero(plano.preco);
+  var r = { valorOriginal: base, desconto: 0, cupom: '', vale: '', valeUsado: 0, valorFinal: base, mensagem: '', promocao: '' };
+  var promo = melhorPromocao(plano, opts.data || hojeTexto(), opts.canal || 'site');
+  var aplicarPromo = function () {
+    if (!promo) return;
+    r.promocao = promo.nome;
+    r.desconto = promo.desconto;
+    r.valorFinal = Math.round((base - promo.desconto) * 100) / 100;
+    r.mensagem = 'Promoção ' + promo.nome + ': ' + promo.texto + '.';
+  };
   codigo = codigoLimpo(codigo);
-  if (!codigo) return r;
+  if (!codigo) { aplicarPromo(); return r; }
   var c = acharCupom(codigo);
   if (c) {
     var m = motivoCupomInvalido(c, plano, cpf);
     if (m) throw erroCod(m, 'CODIGO_INVALIDO');
-    var desc = c.tipo === 'percentual' ? plano.preco * numero(c.valor) / 100 : numero(c.valor);
-    desc = Math.min(plano.preco, Math.round(desc * 100) / 100);
+    var desc = c.tipo === 'percentual' ? base * numero(c.valor) / 100 : numero(c.valor);
+    desc = Math.min(base, Math.round(desc * 100) / 100);
+    if (promo && promo.desconto >= desc) {
+      aplicarPromo();
+      r.mensagem += ' Ela já dá um desconto igual ou maior que o cupom, então o cupom não foi usado.';
+      return r;
+    }
     r.cupom = codigoLimpo(c.codigo);
     r.desconto = desc;
-    r.valorFinal = Math.round((plano.preco - desc) * 100) / 100;
+    r.valorFinal = Math.round((base - desc) * 100) / 100;
     r.mensagem = 'Cupom ' + r.cupom + ': ' + (c.tipo === 'percentual' ? numero(c.valor) + '% de desconto' : 'R$ ' + desc.toFixed(2).replace('.', ',') + ' de desconto');
     return r;
   }
@@ -101,12 +126,14 @@ function calcularPreco(plano, cpf, codigo) {
   if (v) {
     var mv = motivoValeInvalido(v, plano, cpf);
     if (mv) throw erroCod(mv, 'CODIGO_INVALIDO');
-    var usa = v.tipo === 'plano' ? plano.preco : Math.min(plano.preco, saldoVale(v));
+    aplicarPromo();
+    var resto = r.valorFinal;
+    var usa = v.tipo === 'plano' ? resto : Math.min(resto, saldoVale(v));
     r.vale = codigoLimpo(v.codigo);
-    r.valeUsado = usa;
-    r.desconto = usa;
-    r.valorFinal = Math.round((plano.preco - usa) * 100) / 100;
-    r.mensagem = v.tipo === 'plano' ? 'Vale-presente: esta compra sai como cortesia.' : 'Vale-presente: R$ ' + usa.toFixed(2).replace('.', ',') + ' do seu vale.';
+    r.valeUsado = Math.round(usa * 100) / 100;
+    r.desconto = Math.round((r.desconto + usa) * 100) / 100;
+    r.valorFinal = Math.round((resto - usa) * 100) / 100;
+    r.mensagem = (promo ? r.mensagem + ' ' : '') + (v.tipo === 'plano' ? 'Vale-presente: esta compra sai como cortesia.' : 'Vale-presente: R$ ' + usa.toFixed(2).replace('.', ',') + ' do seu vale.');
     return r;
   }
   throw erroCod('Código não encontrado. Confira as letras e os números.', 'CODIGO_INVALIDO');
@@ -119,7 +146,7 @@ function validarCodigo(d) {
   if (!plano) throw new Error('Plano não encontrado.');
   limitarCodigos(normCpf(aluno.cpf));
   var r;
-  try { r = calcularPreco(plano, normCpf(aluno.cpf), d.codigo); } catch (e) { contarErroCodigo(normCpf(aluno.cpf)); throw e; }
+  try { r = calcularPreco(plano, normCpf(aluno.cpf), d.codigo, { canal: 'site' }); } catch (e) { contarErroCodigo(normCpf(aluno.cpf)); throw e; }
   return { codigo: r.cupom || r.vale, tipo: r.cupom ? 'cupom' : 'vale', valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem };
 }
 
@@ -153,7 +180,7 @@ function aplicarVale(aluno, codigo, quem) {
   }
   var plano = buscarItemVenda(v.plano_id);
   if (!plano) throw new Error('O plano deste vale não existe mais. Fale com a recepção.');
-  var nsu = 'V' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Math.floor(Math.random() * 900 + 100);
+  var nsu = novoNsu('V');
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: 0, status: 'pendente',
     criado_em: agoraTexto(), valor_original: plano.preco, desconto: plano.preco, vale: codigoLimpo(v.codigo), vale_usado: plano.preco,
     origem: quem === 'aluno' ? 'site' : 'balcão', registrado_por: quem === 'aluno' ? '' : quem });

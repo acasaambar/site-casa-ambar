@@ -7,14 +7,17 @@ import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
 import { Alunos, AlunoDetalhe } from './Alunos.jsx';
 import Vendas from './Vendas.jsx';
-import Vales from './Vales.jsx';
+import Comandas from './Comandas.jsx';
+import Estoque from './Estoque.jsx';
+import Financeiro, { MeusGanhos } from './Financeiro.jsx';
+import Marketing from './Marketing.jsx';
 import Relatorios from './Relatorios.jsx';
 import Grade from './Grade.jsx';
 import Equipe from './Equipe.jsx';
 import Ajustes from './Ajustes.jsx';
 import './bancada.css';
 
-const PAPEL = { admin: 'Administração', recepcao: 'Recepção', professora: 'Professora' };
+const PAPEL = { admin: 'Administração', recepcao: 'Recepção', professora: 'Professora · profissional' };
 
 const I = {
   inicio: <path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z" />,
@@ -25,6 +28,11 @@ const I = {
   relatorios: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   grade: <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="8" cy="6" r="1.6" /><circle cx="15" cy="12" r="1.6" /><circle cx="10" cy="18" r="1.6" /></>,
   equipe: <><circle cx="12" cy="8" r="3.4" /><path d="M5 20c1-3.6 3.8-5.6 7-5.6s6 2 7 5.6" /></>,
+  comandas: <><path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z" /><path d="M9 8h6M9 12h6M9 16h3" /></>,
+  estoque: <><path d="M3.5 8 12 4l8.5 4v8L12 20l-8.5-4z" /><path d="M3.5 8 12 12l8.5-4M12 12v8" /></>,
+  financeiro: <><ellipse cx="9" cy="7" rx="5.5" ry="2.5" /><path d="M3.5 7v4c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V7" /><path d="M9.5 16.2c.6.2 1.2.3 1.9.3 3 0 5.5-1.1 5.5-2.5v-4" /><ellipse cx="15" cy="17" rx="5.5" ry="2.5" /></>,
+  marketing: <><path d="M4 10v4l3 .5L15 19V5L7 9.5z" /><path d="M7 14.5 8.5 20h2.5L10 15" /><path d="M18.5 9.5a3.5 3.5 0 0 1 0 5" /></>,
+  ganhos: <><circle cx="12" cy="12" r="8.5" /><path d="M14.8 9.2c-.5-.9-1.5-1.4-2.8-1.4-1.6 0-2.8.8-2.8 2s1.2 1.7 2.8 2c1.6.3 2.8.9 2.8 2.1s-1.2 2.1-2.8 2.1c-1.3 0-2.4-.6-2.9-1.5M12 6.3v1.5M12 16.2v1.5" /></>,
   ajustes: <><circle cx="12" cy="12" r="3" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" /></>,
 };
 const Icone = ({ nome }) => (
@@ -38,10 +46,16 @@ const MENU = [
     ['alunos', 'Clientes', 'alunos', ['admin', 'recepcao']],
   ]],
   ['Caixa', [
+    ['comandas', 'Comandas e caixa', 'comandas', ['admin', 'recepcao']],
     ['vendas', 'Vendas', 'vendas', ['admin', 'recepcao']],
-    ['vales', 'Vales e cupons', 'vales', ['admin', 'recepcao']],
+    ['estoque', 'Estoque', 'estoque', ['admin', 'recepcao']],
+    ['ganhos', 'Meus ganhos', 'ganhos', ['professora']],
+  ]],
+  ['Relacionamento', [
+    ['marketing', 'Marketing', 'marketing', ['admin', 'recepcao']],
   ]],
   ['A casa', [
+    ['financeiro', 'Financeiro', 'financeiro', ['admin']],
     ['relatorios', 'Relatórios', 'relatorios', ['admin']],
     ['grade', 'Catálogo', 'grade', ['admin', 'recepcao']],
     ['equipe', 'Equipe', 'equipe', ['admin']],
@@ -122,17 +136,22 @@ function Painel() {
                 <Route path="alunos" element={<Alunos />} />
                 <Route path="alunos/:cpf" element={<AlunoDetalhe />} />
                 <Route path="vendas" element={<Vendas />} />
-                <Route path="vales" element={<Vales />} />
+                <Route path="comandas" element={<Comandas />} />
+                <Route path="estoque" element={<Estoque />} />
+                <Route path="marketing" element={<Marketing />} />
+                <Route path="vales" element={<Navigate to="/bancada/marketing" replace state={{ aba: 'vales' }} />} />
                 <Route path="grade" element={<Grade />} />
               </>
             )}
             {pode(membro, 'admin') && (
               <>
                 <Route path="relatorios" element={<Relatorios />} />
+                <Route path="financeiro" element={<Financeiro />} />
                 <Route path="equipe" element={<Equipe />} />
                 <Route path="ajustes" element={<Ajustes />} />
               </>
             )}
+            {pode(membro, 'professora') && <Route path="ganhos" element={<MeusGanhos />} />}
             <Route path="*" element={<Navigate to="/bancada" replace />} />
           </Routes>
         </main>
