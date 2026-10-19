@@ -7,6 +7,8 @@ import { mascaraCPF } from '../lib/util.js';
 export const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const realCurto = (v) => {
   const n = Number(v || 0);
+  // sinal de menos colado no valor (o hífen deixava o "−" sozinho numa linha)
+  if (n < 0) return '−\u2060' + realCurto(-n);
   if (Math.abs(n) >= 10000) return 'R$ ' + (n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
   return Number.isInteger(n) ? 'R$ ' + n.toLocaleString('pt-BR') : real(n);
 };

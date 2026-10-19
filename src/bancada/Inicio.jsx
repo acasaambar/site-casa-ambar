@@ -53,9 +53,11 @@ function LinhaDoDia({ aulas, servicos, agora }) {
   const m = agora.getHours() * 60 + agora.getMinutes();
   const dentro = m >= INI && m <= FIM;
   useEffect(() => {
-    // no celular a linha rola até a hora atual
+    // no celular a linha rola até a hora atual (depois das 20h, mostra o fim do dia)
     const el = caixa.current;
-    if (el && el.scrollWidth > el.clientWidth && dentro) el.scrollLeft = ((m - INI) / (FIM - INI)) * el.scrollWidth - el.clientWidth / 3;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    if (dentro) el.scrollLeft = ((m - INI) / (FIM - INI)) * el.scrollWidth - el.clientWidth / 3;
+    else if (m > FIM) el.scrollLeft = el.scrollWidth;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const horas = [];
   for (let h = 6; h <= 20; h += 2) horas.push(h);
