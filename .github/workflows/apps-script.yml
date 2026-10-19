@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   publicar:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +53,13 @@ jobs:
           printf '{"scriptId":"%s","rootDir":"apps-script"}' "$SCRIPT_ID" > .clasp.json
 
       - name: Enviar código
-        run: npx --yes @google/clasp@2.4.2 push --force
+        run: |
+          if ! out=$(npx --yes @google/clasp@2.4.2 push --force 2>&1); then
+            echo "$out"
+            echo "::error::clasp push: $(echo "$out" | grep -v -i token | tail -6 | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "$out"
 
       - name: Atualizar implantação (mesma URL)
         env:
