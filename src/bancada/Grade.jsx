@@ -9,7 +9,7 @@ export default function Grade() {
   const admin = pode(membro, 'admin');
   const [aba, setAba] = useState('bloqueios');
   const itens = [['bloqueios', 'Feriados e bloqueios']];
-  if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais']);
+  if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais'], ['professoras', 'Professoras de aula']);
   return (
     <>
       <Cabecalho titulo="Catálogo">Aulas, serviços, preços e quem atende. O que mudar aqui vale na hora para o site e para a bancada.</Cabecalho>
@@ -19,6 +19,86 @@ export default function Grade() {
       {aba === 'planos' && admin && <Planos />}
       {aba === 'servicos' && admin && <CatalogoServicos />}
       {aba === 'profissionais' && admin && <Profissionais />}
+      {aba === 'professoras' && admin && <ProfessorasDeAula />}
+    </>
+  );
+}
+
+// Pagamento das professoras: Pilates em % por aluna, Yoga por aula dada (hora/aula)
+function ProfessorasDeAula() {
+  const { chamar } = useBancada();
+  const { dados, erro, carregando, setDados } = useDados('pagamentoAulas', {});
+  const [f, setF] = useState(null);
+  const [erroS, setErroS] = useState('');
+  const [salvo, setSalvo] = useState(false);
+  const txt = (v) => (v == null || v === 0 ? '' : String(v).replace('.', ','));
+  useEffect(() => {
+    if (!dados) return;
+    setF({
+      wellhubValor: txt(dados.wellhubValor),
+      professoras: dados.professoras.map((p) => ({ ...p, pilatesPct: txt(p.pilatesPct), wellhubPct: txt(p.wellhubPct), yogaPorAula: txt(p.yogaPorAula), desde: p.desde || dados.hoje })),
+    });
+  }, [dados]);
+  if (carregando && !f) return <Carregando />;
+  if (!f) return <Erro>{erro}</Erro>;
+  const num = (v) => v.replace(/[^\d,.]/g, '');
+  const mudar = (i, k, v) => { setSalvo(false); setF((x) => ({ ...x, professoras: x.professoras.map((p, j) => (j === i ? { ...p, [k]: v } : p)) })); };
+  const temPilates = f.professoras.some((p) => p.modalidades.includes('Pilates'));
+  return (
+    <>
+      <div className="b-barra-acoes">
+        <p className="b-suave">
+          Pilates: comissão sobre o valor de cada aluna na aula (o plano dividido pelas aulas dele; mensal 2x = 8 aulas). Yoga: valor fixo por aula dada.
+          Contam as aulas que já terminaram; falta e reserva cancelada não contam. Tudo aparece em Financeiro → Comissões e em "Meus ganhos" da professora.
+        </p>
+      </div>
+      {temPilates && (
+        <label className="b-campo pa-wellhub">
+          <span className="rotulo">A Casa recebe por check-in Wellhub (R$)</span>
+          <input inputMode="decimal" value={f.wellhubValor} placeholder="Ex.: 30" onChange={(e) => { setSalvo(false); setF({ ...f, wellhubValor: num(e.target.value) }); }} />
+        </label>
+      )}
+      {f.professoras.length === 0 && <Vazio titulo="Nenhuma professora na grade" forma="presenca">Cadastre os horários em Grade de aulas.</Vazio>}
+      <ul className="pa-lista">
+        {f.professoras.map((p, i) => {
+          const pilates = p.modalidades.includes('Pilates') || !p.modalidades.length;
+          const yoga = p.modalidades.includes('Yoga') || !p.modalidades.length;
+          return (
+            <li key={p.nome} className="pa-cartao">
+              <div className="pa-cartao__topo">
+                <strong>{p.nome}</strong>
+                <span className="b-suave">{p.modalidades.join(' e ') || 'fora da grade'}</span>
+              </div>
+              <div className="pa-campos">
+                {pilates && (
+                  <label className="b-campo"><span className="rotulo">Pilates · % por aluna</span>
+                    <input inputMode="decimal" value={p.pilatesPct} placeholder="Ex.: 40" onChange={(e) => mudar(i, 'pilatesPct', num(e.target.value))} /></label>
+                )}
+                {pilates && (
+                  <label className="b-campo"><span className="rotulo">Aluna Wellhub · %</span>
+                    <input inputMode="decimal" value={p.wellhubPct} placeholder={p.pilatesPct ? `${p.pilatesPct} (igual)` : 'Ex.: 40'} onChange={(e) => mudar(i, 'wellhubPct', num(e.target.value))} /></label>
+                )}
+                {yoga && (
+                  <label className="b-campo"><span className="rotulo">Yoga · R$ por aula</span>
+                    <input inputMode="decimal" value={p.yogaPorAula} placeholder="Ex.: 60" onChange={(e) => mudar(i, 'yogaPorAula', num(e.target.value))} /></label>
+                )}
+                <label className="b-campo"><span className="rotulo">Contar aulas a partir de</span>
+                  <input type="date" value={p.desde} onChange={(e) => mudar(i, 'desde', e.target.value)} /></label>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <Erro>{erroS}</Erro>
+      {salvo && <p className="b-ok" role="status">Salvo. As comissões das aulas já foram recalculadas.</p>}
+      <BotaoAcao className="botao botao--cheio" acao={async () => {
+        setErroS('');
+        try {
+          const r = await chamar('salvarPagamentoAulas', { wellhubValor: f.wellhubValor, professoras: f.professoras.map(({ nome, pilatesPct, wellhubPct, yogaPorAula, desde, ativo }) => ({ nome, pilatesPct, wellhubPct, yogaPorAula, desde, ativo })) });
+          setDados(r);
+          setSalvo(true);
+        } catch (e) { setErroS(e.message); }
+      }}>Salvar valores</BotaoAcao>
     </>
   );
 }

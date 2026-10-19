@@ -294,6 +294,57 @@ chamar('b_atualizarAtendimento', { token: rec, id: r.dados.id, status: 'atendido
 kMara = ctx.lerAba('Comissoes').find((c) => c.ref === r.dados.id);
 ok(kMara && kMara.pct === 25, 'sem comissão própria, vale a padrão dela (25%)', kMara);
 
+console.log('— pagamento das professoras de aula (Pilates %, Yoga por aula)');
+{
+  // um dia que já passou com Yoga e Pilates (seg, qua ou sex)
+  const passadas = ctx.gerarAulas(ctx.somarDias(hoje, -6), 6);
+  const dd = [...new Set(passadas.map((a) => a.data))].reverse().find((d) => passadas.some((a) => a.data === d && a.modalidade === 'Yoga') && passadas.filter((a) => a.data === d && a.modalidade === 'Pilates' && a.professor === 'Kalliny').length >= 3);
+  const pil = passadas.filter((a) => a.data === dd && a.modalidade === 'Pilates' && a.professor === 'Kalliny');
+  const yog = passadas.find((a) => a.data === dd && a.modalidade === 'Yoga');
+  const cpfA = '52998224725', cpfB = '39053344705';
+  chamar('cadastrar', { cpf: cpfA, nome: 'Alice Pilates', whatsapp: '85991112222', email: 'alice.p@gmail.com', senha: 'aluna2026' });
+  chamar('cadastrar', { cpf: cpfB, nome: 'Bruna Yoga', whatsapp: '85991113333', email: 'bruna.y@gmail.com', senha: 'aluna2026' });
+  r = chamar('b_vender', { token: adm, cpf: cpfA, planoId: 'pilates-mensal-2x', metodo: 'Pix', inicio: ctx.somarDias(hoje, -6) });
+  ok(r.ok, 'plano mensal 2x vendido', r);
+  const pago = ctx.lerAba('Pagamentos').filter((p) => ctx.normCpf(p.cpf) === cpfA && p.status === 'pago').pop();
+  const reserva = (aula, cpf, forma) => chamar('b_agendar', { token: adm, cpf, aulaId: aula.id, forma, tapete: aula.modalidade === 'Yoga' ? 3 + (cpf === cpfB ? 1 : 0) : undefined });
+  const rA1 = reserva(pil[0], cpfA, 'credito');
+  const rB1 = reserva(pil[0], cpfB, 'cortesia');
+  const rA2 = reserva(pil[1], cpfA, 'wellhub');
+  const rA3 = reserva(pil[2], cpfA, 'credito');
+  reserva(yog, cpfA, 'cortesia'); reserva(yog, cpfB, 'cortesia');
+  ok(rA1.ok && rB1.ok && rA2.ok && rA3.ok, 'reservas em aulas que já passaram', [rA1, rB1, rA2, rA3].map((x) => x.erro));
+  chamar('b_presenca', { token: adm, reservaId: rA3.dados.id, status: 'falta' });
+  r = chamar('b_pagamentoAulas', { token: rec });
+  ok(!r.ok, 'recepção não vê o pagamento das professoras');
+  r = chamar('b_pagamentoAulas', { token: adm });
+  ok(r.ok && ['Kalliny', 'Sara', 'Ana Paula', 'Hanna'].every((n) => r.dados.professoras.some((p) => p.nome === n)), 'professoras vêm da grade', r.dados && r.dados.professoras.map((p) => p.nome));
+  r = chamar('b_salvarPagamentoAulas', { token: adm, wellhubValor: 30, professoras: [{ nome: 'Kalliny', pilatesPct: 40, wellhubPct: 50, desde: dd }, { nome: 'Ana Paula', yogaPorAula: 60, desde: dd }, { nome: 'Sara', pilatesPct: 40, desde: ctx.somarDias(hoje, 30) }] });
+  ok(r.ok && r.dados.wellhubValor === 30 && r.dados.professoras.find((p) => p.nome === 'Kalliny').pilatesPct === 40, 'valores salvos', r);
+  const mesDD = dd.slice(0, 7);
+  r = chamar('b_comissoes', { token: adm, mes: mesDD });
+  const ks = r.dados.lista.filter((c) => c.origem === 'aula' || c.origem === 'aula_fixa');
+  const kA1 = ks.find((c) => c.id === 'Kaula:' + rA1.dados.id);
+  const porAula = Math.round(((Number(pago.valor) + Number(pago.vale_usado || 0)) / 8) * 100) / 100;
+  ok(kA1 && kA1.base === porAula && kA1.pct === 40 && kA1.valor === Math.round(porAula * 40) / 100 && kA1.profissional === 'Kalliny', 'Pilates: 40% do valor da aula no plano (mensal 2x = 8 aulas)', kA1);
+  const kWh = ks.find((c) => c.id === 'Kaula:' + rA2.dados.id);
+  ok(kWh && kWh.base === 30 && kWh.valor === 15, 'Wellhub: 50% dos R$ 30 do check-in', kWh);
+  ok(!ks.some((c) => c.id === 'Kaula:' + rB1.dados.id), 'cortesia não gera comissão');
+  ok(!ks.some((c) => c.id === 'Kaula:' + rA3.dados.id), 'falta não gera comissão');
+  const kY = ks.filter((c) => c.origem === 'aula_fixa');
+  ok(kY.length === 1 && kY[0].valor === 60 && kY[0].profissional === 'Ana Paula' && /2 alunas/.test(kY[0].item), 'Yoga: R$ 60 pela aula, uma vez só', kY);
+  ok(!ks.some((c) => c.profissional === 'Sara'), 'antes da data "desde" não conta');
+  chamar('b_presenca', { token: adm, reservaId: rA1.dados.id, status: 'falta' });
+  r = chamar('b_comissoes', { token: adm, mes: mesDD });
+  ok(!r.dados.lista.some((c) => c.id === 'Kaula:' + rA1.dados.id), 'marcar falta depois tira a comissão');
+  chamar('b_presenca', { token: adm, reservaId: rA1.dados.id, status: 'check-in' });
+  r = chamar('b_comissoes', { token: adm, mes: mesDD });
+  ok(r.dados.lista.some((c) => c.id === 'Kaula:' + rA1.dados.id && c.status === 'a_pagar'), 'presença de volta, comissão de volta');
+  const n = ctx.lerAba('Comissoes').length;
+  chamar('b_comissoes', { token: adm, mes: mesDD }); ctx.esquecerComissoesAulas(); chamar('b_comissoes', { token: adm, mes: mesDD });
+  ok(ctx.lerAba('Comissoes').length === n, 'abrir de novo não duplica');
+}
+
 console.log('— resumo do dia');
 r = chamar('b_resumo', { token: rec });
 ok(r.ok && 'comandasAbertas' in r.dados && 'estoqueBaixo' in r.dados && r.dados.caixa === 'fechado', 'Hoje mostra comandas, estoque e caixa', r.dados && [r.dados.comandasAbertas, r.dados.estoqueBaixo, r.dados.caixa]);

@@ -89,6 +89,8 @@ var PERMISSOES = {
   b_pagarDespesa: ['admin'],
   b_excluirDespesa: ['admin'],
   b_comissoes: ['admin'],
+  b_pagamentoAulas: ['admin'],
+  b_salvarPagamentoAulas: ['admin'],
   b_pagarComissoes: ['admin'],
   b_meusGanhos: ['professora'],
   // bloqueio de horário das profissionais
@@ -399,6 +401,7 @@ function bancada_presenca(d, m) {
   if (!st) throw new Error('Situação inválida.');
   if (r.status === 'cancelado' || r.status === 'pendente') throw new Error('Esta reserva não está confirmada.');
   atualizarLinha('Reservas', r._linha, { status: st, checkin_em: st === 'check-in' ? agoraTexto() : '' });
+  esquecerComissoesAulas();
   registrar(m, 'presença', r.nome + ' · ' + r.aula_id + ' → ' + st);
   return { id: r.id, status: st };
 }
@@ -459,6 +462,7 @@ function bancada_cancelarReserva(d, m) {
   var r = acharReservaPorId(d.reservaId);
   if (r.status === 'cancelado') return true;
   atualizarLinha('Reservas', r._linha, { status: 'cancelado', cancelada_em: agoraTexto() });
+  esquecerComissoesAulas();
   registrar(m, 'cancelou reserva', r.nome + ' · ' + r.aula_id + (d.motivo ? ' · ' + d.motivo : ''));
   return true;
 }

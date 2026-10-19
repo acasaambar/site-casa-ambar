@@ -239,9 +239,169 @@ function resumoComissoes(lista) {
   return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.aPagar - a.aPagar || b.pago - a.pago; });
 }
 
+// ============================================================
+//  PAGAMENTO DAS PROFESSORAS DE AULA
+//  Pilates: % sobre o valor de cada aula da aluna (plano ÷ aulas do plano, avulsa ou Wellhub).
+//  Yoga: valor fixo por aula dada (hora/aula).
+//  Contam só aulas que já terminaram, a partir da data "desde" de cada professora;
+//  reserva cancelada ou com falta não conta. Tudo entra na aba Comissoes (pagar, Meus ganhos).
+// ============================================================
+function listarProfessoras() {
+  return lerAba('Professoras').filter(function (x) { return String(x.nome).trim(); }).map(function (x) {
+    return { nome: String(x.nome).trim(), ativo: String(x.ativo).toUpperCase() !== 'NÃO',
+      pilatesPct: String(x.pilates_pct) === '' ? null : numero(x.pilates_pct),
+      wellhubPct: String(x.wellhub_pct) === '' ? null : numero(x.wellhub_pct),
+      yogaPorAula: numero(x.yoga_por_aula), desde: x.desde ? dataTexto(x.desde) : '' };
+  });
+}
+
+// quanto a Casa recebe do Wellhub por check-in (base da comissão de quem dá a aula)
+function valorWellhubCheckin() {
+  return numero(PropertiesService.getScriptProperties().getProperty('WELLHUB_VALOR_CHECKIN'));
+}
+
+// valor de uma aula para a aluna: o que pagou pelo plano dividido pelas aulas do plano
+// (mensal 2x = 8 aulas; trimestral 2x = 26). Crédito lançado à mão vale o preço do plano.
+function valorDaAula(r, creditos, pagos, wellhub) {
+  var cid = String(r.credito_id || '');
+  if (cid === 'WELLHUB') return wellhub;
+  var c = creditos[cid];
+  if (!c) return 0;
+  var plano = buscarPlano(String(c.plano_id));
+  var total = pagos[cid] != null ? pagos[cid] : plano ? plano.preco : 0;
+  var aulas = c.aulas_total > 0 ? c.aulas_total : c.aulas_semana * Math.max(1, Math.round((diasEntre(c.inicio, c.fim) + 1) / 7));
+  return aulas > 0 ? dinheiro(total / aulas) : 0;
+}
+
+function esquecerComissoesAulas() {
+  try { CacheService.getScriptCache().remove('comissoes_aulas'); } catch (e) { /* ignora */ }
+}
+
+// Gera (ou corrige) as comissões das aulas do período. Refeito no máximo a cada 5 min,
+// ou na hora quando muda presença, reserva ou o valor das professoras.
+function sincronizarComissoesAulas(de, ate) {
+  var cache = CacheService.getScriptCache();
+  var chave = de + '_' + ate;
+  if (cache.get('comissoes_aulas') === chave) return;
+  var profs = {};
+  listarProfessoras().forEach(function (p) { if (p.ativo && p.desde) profs[semAcento(p.nome)] = p; });
+  var alvo = {};
+  if (Object.keys(profs).length) {
+    var agora = Date.now(), hoje = hojeTexto();
+    var creditos = mapaCreditos();
+    var pagos = {};
+    lerAba('Pagamentos').forEach(function (p) {
+      if (p.status === 'pago') pagos['C' + String(p.order_nsu).slice(1)] = numero(p.valor) + numero(p.vale_usado);
+    });
+    var wellhub = valorWellhubCheckin();
+    lerAba('Reservas').forEach(function (r) {
+      var data = dataTexto(r.data);
+      if (!r.id || data < de || data > ate || data > hoje) return;
+      if (r.status !== 'reservado' && r.status !== 'check-in') return;
+      var p = profs[semAcento(String(r.professor).trim())];
+      if (!p || data < p.desde) return;
+      if (inicio(r).getTime() + AJUSTES.duracaoAulaMin * 60000 > agora) return;
+      var hh = horaTexto(r.hora);
+      var hora = Number(hh.slice(0, 2)) + 'h' + (hh.slice(3) === '00' ? '' : hh.slice(3));
+      var quem = String(r.professor).trim();
+      if (r.modalidade === 'Pilates') {
+        var wh = String(r.credito_id) === 'WELLHUB';
+        var pct = wh && p.wellhubPct != null ? p.wellhubPct : p.pilatesPct;
+        if (!(pct > 0)) return;
+        alvo['aula:' + r.id] = { data: data, profissional: quem, origem: 'aula', pct: pct, base: valorDaAula(r, creditos, pagos, wellhub),
+          item: 'Pilates ' + hora + ' · ' + r.nome + (wh ? ' (Wellhub)' : '') };
+      } else if (r.modalidade === 'Yoga' && p.yogaPorAula > 0) {
+        var k = 'aula:' + r.aula_id;
+        alvo[k] = alvo[k] || { data: data, profissional: quem, origem: 'aula_fixa', pct: 100, base: p.yogaPorAula, alunas: 0 };
+        alvo[k].alunas++;
+        alvo[k].item = 'Yoga ' + hora + ' · ' + alvo[k].alunas + (alvo[k].alunas === 1 ? ' aluna' : ' alunas');
+      }
+    });
+  }
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    var existentes = {};
+    lerAba('Comissoes').forEach(function (c) { existentes[String(c.id)] = c; });
+    var novas = [];
+    Object.keys(alvo).forEach(function (ref) {
+      var c = alvo[ref], ex = existentes['K' + ref];
+      var valor = dinheiro(numero(c.base) * c.pct / 100);
+      if (ex && ex.status === 'pago') return;
+      if (!(valor > 0)) { if (ex && ex.status === 'a_pagar') atualizarLinha('Comissoes', ex._linha, { status: 'cancelada' }); return; }
+      var linha = { id: 'K' + ref, data: c.data, profissional: c.profissional, origem: c.origem, ref: ref, item: c.item, base: dinheiro(c.base), pct: c.pct, valor: valor, status: 'a_pagar' };
+      if (!ex) { linha.criado_em = agoraTexto(); novas.push(linha); }
+      else if (ex.status !== 'a_pagar' || numero(ex.valor) !== valor || String(ex.item) !== c.item || String(ex.profissional) !== c.profissional) atualizarLinha('Comissoes', ex._linha, linha);
+    });
+    // aula que deixou de contar (falta, reserva cancelada, professora sem valor)
+    Object.keys(existentes).forEach(function (id) {
+      var ex = existentes[id], dt = dataTexto(ex.data);
+      if ((ex.origem === 'aula' || ex.origem === 'aula_fixa') && ex.status === 'a_pagar' && dt >= de && dt <= ate && !alvo[String(ex.ref)]) {
+        atualizarLinha('Comissoes', ex._linha, { status: 'cancelada' });
+      }
+    });
+    adicionarLinhas('Comissoes', novas);
+  } finally {
+    trava.releaseLock();
+  }
+  cache.put('comissoes_aulas', chave, 300);
+}
+
+// tela: professoras da grade com o valor de cada uma
+function bancada_pagamentoAulas() {
+  var mods = {};
+  lerAba('Grade').forEach(function (g) {
+    var n = String(g.professor || '').trim();
+    if (!n || String(g.ativo).toUpperCase() === 'NÃO') return;
+    mods[n] = mods[n] || {};
+    mods[n][String(g.modalidade).trim()] = 1;
+  });
+  var cfg = {};
+  var naGrade = Object.keys(mods).map(semAcento);
+  listarProfessoras().forEach(function (p) {
+    cfg[semAcento(p.nome)] = p;
+    if (naGrade.indexOf(semAcento(p.nome)) < 0) mods[p.nome] = {}; // saiu da grade, mas tem valor salvo
+  });
+  return { wellhubValor: valorWellhubCheckin(), hoje: hojeTexto(),
+    professoras: Object.keys(mods).sort().map(function (n) {
+      var c = cfg[semAcento(n)] || {};
+      return { nome: n, modalidades: Object.keys(mods[n]).sort(), pilatesPct: c.pilatesPct == null ? null : c.pilatesPct, wellhubPct: c.wellhubPct == null ? null : c.wellhubPct,
+        yogaPorAula: c.yogaPorAula || 0, desde: c.desde || '', ativo: c.ativo !== false };
+    }) };
+}
+
+function bancada_salvarPagamentoAulas(d, m) {
+  var limite = function (v, max, rotulo) {
+    if (v === '' || v == null) return '';
+    var n = numero(String(v).replace(',', '.'));
+    if (isNaN(n) || n < 0 || n > max) throw new Error(rotulo + ': de 0 a ' + max + '.');
+    return n;
+  };
+  var wv = limite(d.wellhubValor, 500, 'Valor do check-in Wellhub');
+  var existentes = {};
+  lerAba('Professoras').forEach(function (p) { existentes[semAcento(String(p.nome).trim())] = p; });
+  var novas = [];
+  (d.professoras || []).forEach(function (x) {
+    var nome = String(x.nome || '').trim();
+    if (!nome) return;
+    var linha = { nome: nome, ativo: x.ativo === false ? 'NÃO' : 'SIM', pilates_pct: limite(x.pilatesPct, 100, 'Comissão de Pilates de ' + nome),
+      wellhub_pct: limite(x.wellhubPct, 100, 'Comissão Wellhub de ' + nome), yoga_por_aula: limite(x.yogaPorAula, 2000, 'Valor da aula de Yoga de ' + nome) || '',
+      desde: /^\d{4}-\d{2}-\d{2}$/.test(String(x.desde)) ? x.desde : hojeTexto(), atualizado_em: agoraTexto() };
+    var ex = existentes[semAcento(nome)];
+    if (ex) atualizarLinha('Professoras', ex._linha, linha);
+    else if (linha.pilates_pct !== '' || linha.wellhub_pct !== '' || linha.yoga_por_aula !== '') novas.push(linha);
+  });
+  adicionarLinhas('Professoras', novas);
+  PropertiesService.getScriptProperties().setProperty('WELLHUB_VALOR_CHECKIN', String(wv || 0));
+  esquecerComissoesAulas();
+  registrar(m, 'pagamento das professoras', (d.professoras || []).length + ' professoras · Wellhub R$ ' + (wv || 0));
+  return bancada_pagamentoAulas();
+}
+
 function bancada_comissoes(d) {
   var mes = mesValido(d.mes);
   var de = mes + '-01', ate = mes + '-' + diasNoMes(mes);
+  sincronizarComissoesAulas(de, ate);
   var lista = comissoesDoPeriodo(de, ate);
   return { mes: mes, lista: lista, porProfissional: resumoComissoes(lista),
     profissionais: listarProfissionais(true).map(function (p) { return { nome: p.nome, comissao: p.comissao, comissaoProduto: p.comissaoProduto }; }) };
@@ -280,6 +440,7 @@ function bancada_pagarComissoes(d, m) {
 function bancada_meusGanhos(d, m) {
   var mes = mesValido(d.mes);
   var de = mes + '-01', ate = mes + '-' + diasNoMes(mes);
+  sincronizarComissoesAulas(de, ate);
   var lista = comissoesDoPeriodo(de, ate, function (c) { return mesmaProfessora(c.profissional, m); });
   var atend = lerAba('Atendimentos').filter(function (a) {
     var dt = dataTexto(a.data);
@@ -421,6 +582,7 @@ function bancada_financeiro(d) {
   var mes = mesValido(d.mes);
   gerarRecorrentes(mes);
   var de = mes + '-01', ate = mes + '-' + diasNoMes(mes);
+  sincronizarComissoesAulas(de, ate);
   var pAnt = somarDias(de, -1).slice(0, 7);
   var deAnt = pAnt + '-01', ateAnt = pAnt + '-' + diasNoMes(pAnt);
   var pagos = lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && numero(p.valor) > 0; });

@@ -230,7 +230,7 @@ function Comissoes({ mes }) {
           </li>
         ))}
       </ul>
-      {dados.lista.length === 0 && <Vazio titulo="Nenhuma comissão neste mês" forma="presenca">Cada atendimento marcado como atendido gera a comissão da profissional.</Vazio>}
+      {dados.lista.length === 0 && <Vazio titulo="Nenhuma comissão neste mês" forma="presenca">Cada atendimento marcado como atendido e cada aula dada geram a comissão (valores em Catálogo).</Vazio>}
       {lista.length > 0 && (
         <div className="b-tabela-caixa">
           <table className="b-tabela">
@@ -245,7 +245,7 @@ function Comissoes({ mes }) {
                   <td data-rotulo="Profissional">{c.profissional}</td>
                   <td data-rotulo="Item">{c.item}</td>
                   <td data-rotulo="Base" className="num">{real(c.base)}</td>
-                  <td data-rotulo="%" className="num">{String(c.pct).replace('.', ',')}%</td>
+                  <td data-rotulo="%" className="num">{c.origem === 'aula_fixa' ? 'por aula' : `${String(c.pct).replace('.', ',')}%`}</td>
                   <td data-rotulo="Comissão" className="num"><strong>{real(c.valor)}</strong></td>
                   <td data-rotulo="Situação"><Tag tom={c.status === 'pago' ? 'ok' : 'aviso'}>{c.status === 'pago' ? `paga ${dataCurta(c.pagoEm)}` : 'a pagar'}</Tag></td>
                 </tr>
@@ -319,7 +319,7 @@ export function MeusGanhos() {
           </section>
           {g.lista.length === 0 ? <Vazio titulo="Nada neste mês ainda" forma="presenca" /> : (
             <ul className="b-lista-simples ganhos">
-              {g.lista.map((c) => <li key={c.id}><strong>{real(c.valor)} · {c.item}</strong><span>{dataBR(c.data)} · {String(c.pct).replace('.', ',')}% de {real(c.base)} · {c.status === 'pago' ? 'recebido' : 'a receber'}</span></li>)}
+              {g.lista.map((c) => <li key={c.id}><strong>{real(c.valor)} · {c.item}</strong><span>{dataBR(c.data)} · {c.origem === 'aula_fixa' ? 'valor da aula' : `${String(c.pct).replace('.', ',')}% de ${real(c.base)}`} · {c.status === 'pago' ? 'recebido' : 'a receber'}</span></li>)}
             </ul>
           )}
         </>
