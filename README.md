@@ -35,6 +35,12 @@ Enquanto `API_URL` em `src/config.js` estiver vazio, o site funciona em **modo d
 - **Sessoes**: logins ativos (não precisa mexer).
 - **Anamneses**: a ficha de saúde de cada aluno (uma linha por aluno, sempre a mais recente). A coluna `pdf` tem o link do PDF.
 
+### Minha conta (área do aluno)
+
+A aluna vê e corrige os próprios dados: nome, WhatsApp, data de nascimento, endereço e se quer receber novidades.
+O CPF não muda (é o login; correção pela recepção). Para trocar o e-mail ou a senha ela digita a senha atual;
+o e-mail antigo recebe um aviso da troca, e trocar a senha desconecta os outros aparelhos.
+
 ### Ficha de saúde (anamnese)
 
 Depois de criar a conta, o aluno preenche a ficha em 3 etapas: contato de emergência, questionário PAR-Q e histórico de saúde, com consentimento LGPD. Sem ficha não é possível reservar.

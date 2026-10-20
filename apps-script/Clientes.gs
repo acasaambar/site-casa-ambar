@@ -85,6 +85,107 @@ function enderecoPublico(a) {
     bairro: String(a.bairro || ''), cidade: String(a.cidade || ''), uf: String(a.uf || '') };
 }
 
+// ============================================================
+//  MINHA CONTA (área do aluno): a aluna vê e corrige os próprios dados.
+//  CPF não muda (é o login). Trocar e-mail ou senha pede a senha atual.
+// ============================================================
+function contaPublica(a) {
+  var cpf = normCpf(a.cpf);
+  var nasc = ehData(a.nascimento) ? dataTexto(a.nascimento) : String(a.nascimento || '').slice(0, 10);
+  // uma leitura só da ficha de saúde: diz se ela existe e traz a data de nascimento (se ainda não informada aqui)
+  var s = abaSemDescartar('Anamneses'), n = s.getLastRow(), ficha = null;
+  if (n >= 2) {
+    var colN = ABAS.Anamneses.indexOf('data_nascimento') + 1;
+    var v = s.getRange(2, 1, n - 1, colN).getValues();
+    for (var i = 0; i < v.length && !ficha; i++) if (normCpf(v[i][0]) === cpf) ficha = v[i];
+    if (ficha && !nasc) nasc = ehData(ficha[colN - 1]) ? dataTexto(ficha[colN - 1]) : String(ficha[colN - 1] || '').slice(0, 10);
+  }
+  return { aluno: publico(a, !!ficha), nome: String(a.nome || ''), cpf: cpf, whatsapp: soDigitos(a.whatsapp), email: String(a.email || ''),
+    nascimento: /^\d{4}-\d{2}-\d{2}$/.test(nasc) ? nasc : '', novidades: String(a.marketing).toUpperCase() !== 'NÃO', endereco: enderecoPublico(a) };
+}
+
+function minhaConta(d) {
+  return contaPublica(alunoDaSessao(d.token));
+}
+
+// dados: { nome, whatsapp, nascimento, novidades, endereco } (só o que vier é alterado)
+function salvarConta(d) {
+  var a = alunoDaSessao(d.token);
+  var x = d.dados || {};
+  var mud = {};
+  if (x.nome != null) {
+    var nome = String(x.nome).replace(/\s+/g, ' ').trim();
+    if (nome.split(' ').length < 2) throw new Error('Informe nome e sobrenome.');
+    if (nome.length > 100) throw new Error('Nome muito longo.');
+    mud.nome = nome;
+  }
+  if (x.whatsapp != null) {
+    var w = normWhats(x.whatsapp);
+    if (w.length < 10 || w.length > 11) throw new Error('Informe um WhatsApp com DDD.');
+    mud.whatsapp = w;
+  }
+  if (x.nascimento != null) {
+    var n = String(x.nascimento);
+    var ano = Number(n.slice(0, 4));
+    if (n && (!/^\d{4}-\d{2}-\d{2}$/.test(n) || ano < 1900 || n > hojeTexto())) throw new Error('Confira a data de nascimento.');
+    mud.nascimento = n;
+  }
+  if (x.novidades != null) mud.marketing = x.novidades ? '' : 'NÃO';
+  if (x.endereco) Object.assign(mud, exigirEndereco(enderecoDe(x.endereco)));
+  if (Object.keys(mud).length) atualizarLinha('Alunos', a._linha, mud);
+  return contaPublica(buscarAluno(a.cpf));
+}
+
+// senha atual da aluna logada: mesmo limite de tentativas do login
+function conferirSenhaAtual(a, senha) {
+  var chave = 'a_' + normCpf(a.cpf);
+  limitarTentativas(chave);
+  if (!verificarSenha(senha, a.senha_hash, a.sal).ok) {
+    registrarFalha(chave);
+    Utilities.sleep(600);
+    throw erroCod('A senha atual não confere.', 'SENHA_ATUAL');
+  }
+  limparFalhas(chave);
+}
+
+function avisarAluna(email, assunto, titulo, paragrafos) {
+  if (!emailValido(email)) return;
+  try {
+    enviarEmail(email, assunto, titulo, paragrafos);
+  } catch (e) { Logger.log('aviso da conta: ' + e.message); }
+}
+
+function trocarEmail(d) {
+  var a = alunoDaSessao(d.token);
+  var novo = String(d.email || '').trim().toLowerCase();
+  if (!emailValido(novo)) throw new Error('Informe um e-mail válido.');
+  conferirSenhaAtual(a, d.senha);
+  var antigo = String(a.email || '').trim().toLowerCase();
+  if (novo !== antigo) {
+    atualizarLinha('Alunos', a._linha, { email: novo });
+    // o e-mail antigo fica sabendo (se não foi ela, procura a recepção)
+    avisarAluna(antigo, 'Seu e-mail foi alterado · Casa Âmbar', 'E-mail alterado', ['Olá, ' + primeiroNome(a.nome) + '.',
+      'O e-mail da sua conta na Casa Âmbar foi trocado para ' + mascararEmail(novo) + '. A partir de agora, os avisos e o "Esqueci minha senha" vão para ele.',
+      'Se não foi você, fale com a recepção pelo WhatsApp (85) 99185-6528.']);
+  }
+  return contaPublica(buscarAluno(a.cpf));
+}
+
+// troca a senha, desconecta os outros aparelhos e devolve uma sessão nova para este
+function trocarSenha(d) {
+  var a = alunoDaSessao(d.token);
+  validarSenhaNova(d.senha);
+  conferirSenhaAtual(a, d.senhaAtual);
+  if (String(d.senha) === String(d.senhaAtual)) throw new Error('A nova senha precisa ser diferente da atual.');
+  gravarSenha('Alunos', a._linha, d.senha);
+  encerrarSessoes('Sessoes', 's_', normCpf(a.cpf));
+  var token = criarSessao(a.cpf);
+  avisarAluna(a.email, 'Sua senha foi alterada · Casa Âmbar', 'Senha alterada', ['Olá, ' + primeiroNome(a.nome) + '.',
+    'A senha da sua conta na Casa Âmbar acabou de ser trocada e os outros aparelhos foram desconectados.',
+    'Se não foi você, use "Esqueci minha senha" no site e fale com a recepção pelo WhatsApp (85) 99185-6528.']);
+  return { token: token, aluno: publico(buscarAluno(a.cpf)) };
+}
+
 // acha (pelo WhatsApp) ou cria cliente sem CPF. Quem chama segura a trava, se precisar.
 function clienteSemCpf(nome, whatsapp, email, origem) {
   var w = normWhats(whatsapp);

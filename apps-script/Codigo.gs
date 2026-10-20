@@ -305,6 +305,11 @@ function doPost(e) {
       novaSenha: novaSenha,
       salvarEmail: salvarEmail,
       salvarEndereco: salvarEndereco,
+      // minha conta
+      minhaConta: minhaConta,
+      salvarConta: salvarConta,
+      trocarEmail: trocarEmail,
+      trocarSenha: trocarSenha,
       regras: regrasPublicas,
       // cupons e vale-presente
       validarCodigo: validarCodigo,
@@ -487,9 +492,10 @@ function buscarAluno(cpf) {
   return null;
 }
 
-function publico(a) {
+// temFicha: se quem chama já sabe se há ficha de saúde (evita outra leitura)
+function publico(a, temFicha) {
   var cpf = normCpf(a.cpf);
-  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), email: String(a.email || ''), anamnese: !!linhaAnamnese(cpf), wellhub: statusWellhub(a),
+  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), email: String(a.email || ''), anamnese: temFicha != null ? !!temFicha : !!linhaAnamnese(cpf), wellhub: statusWellhub(a),
     endereco: temEndereco(a) };
 }
 

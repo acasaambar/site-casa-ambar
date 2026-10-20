@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
   const atualizarAluno = useCallback((dados) => guardar(sessao ? { ...sessao, aluno: { ...sessao.aluno, ...dados } } : null), [sessao, guardar]);
 
   return (
-    <AuthCtx.Provider value={{ token: sessao?.token, aluno: sessao?.aluno, entrar, cadastrar, sair, expirou, atualizarAluno }}>
+    <AuthCtx.Provider value={{ token: sessao?.token, aluno: sessao?.aluno, entrar, cadastrar, sair, expirou, atualizarAluno, guardarSessao: guardar }}>
       {children}
     </AuthCtx.Provider>
   );

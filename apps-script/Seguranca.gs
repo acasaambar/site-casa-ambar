@@ -235,6 +235,8 @@ function encerrarSessoes(nomeAba, prefixoCache, id) {
 // Aluno sem e-mail cadastra o e-mail pela área do aluno
 function salvarEmail(d) {
   var aluno = alunoDaSessao(d.token);
+  // quem já tem e-mail troca em Minha conta, confirmando a senha (trocarEmail)
+  if (String(aluno.email || '').trim()) throw new Error('Para trocar o e-mail, use Minha conta.');
   if (!emailValido(d.email)) throw new Error('Informe um e-mail válido.');
   atualizarLinha('Alunos', aluno._linha, { email: String(d.email).trim().toLowerCase() });
   return publico(buscarAluno(aluno.cpf));

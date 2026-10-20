@@ -11,6 +11,7 @@ class Range {
   getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push((this.sh.rows[this.r - 1 + i] || [])[this.c - 1 + j] ?? ''); o.push(row); } return o; }
   setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { const R = this.r - 1 + i; this.sh.rows[R] = this.sh.rows[R] || []; this.sh.rows[R][this.c - 1 + j] = this.sh.conv(x, this.c - 1 + j); })); return this; }
   setValue(x) { return this.setValues([[x]]); }
+  getValue() { return this.getValues()[0][0]; }
   clearContent() { for (let i = 0; i < this.nr; i++) { const R = this.r - 1 + i; if (!this.sh.rows[R]) continue; for (let j = 0; j < this.nc; j++) this.sh.rows[R][this.c - 1 + j] = ''; } return this; }
 }
 class Sheet {

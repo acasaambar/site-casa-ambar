@@ -63,7 +63,7 @@ console.log('— só as ações públicas e as da bancada (com permissão) podem
 
   // área do aluno com token da equipe ou inventado
   const doAluno = ['aulas', 'aula', 'reservar', 'cancelar', 'checkin', 'minhasReservas', 'salvarAnamnese', 'minhaFicha', 'meuPlano', 'comprar', 'confirmarPagamento',
-    'ativarWellhub', 'descartarPagamento', 'salvarEmail', 'salvarEndereco', 'validarCodigo', 'resgatarVale'];
+    'ativarWellhub', 'descartarPagamento', 'salvarEmail', 'salvarEndereco', 'validarCodigo', 'resgatarVale', 'minhaConta', 'salvarConta', 'trocarEmail', 'trocarSenha'];
   const alunoVazou = [];
   doAluno.forEach((acao) => [adm, undefined, 'A' + 'b'.repeat(40)].forEach((t) => { const x = chamar(acao, { token: t }); if (x.ok) alunoVazou.push([acao, String(t).slice(0, 4)]); }));
   ok(alunoVazou.length === 0, 'nenhuma ação da área do aluno funciona sem a sessão da própria aluna', alunoVazou);
@@ -216,6 +216,64 @@ console.log('— descadastro de e-mails');
   r = chamar('sairLista', { t: ctx.tokenLista('52998224725') });
   ok(r.ok && r.dados.nome === 'Maria', 'link verdadeiro funciona depois das tentativas falsas', r);
   ok(ctx.lerAba('Alunos').find((a) => ctx.normCpf(a.cpf) === '52998224725').marketing === 'NÃO', 'saiu da lista');
+}
+
+console.log('— minha conta (área do aluno)');
+{
+  chamar('cadastrar', { endereco: END_TESTE, cpf: '390.533.447-05', nome: 'Carla Dias', whatsapp: '85977776666', email: 'carla@gmail.com', senha: 'carla12345' });
+  const tc = chamar('entrar', { cpf: '39053344705', senha: 'carla12345' }).dados.token;
+  const tc2 = chamar('entrar', { cpf: '39053344705', senha: 'carla12345' }).dados.token;
+  r = chamar('minhaConta', { token: tc });
+  ok(r.ok && r.dados.nome === 'Carla Dias' && r.dados.cpf === '39053344705' && r.dados.email === 'carla@gmail.com' && r.dados.endereco.cep === '60150-160' && r.dados.novidades === true && r.dados.nascimento === '',
+    'mostra os dados do cadastro', r.dados);
+  ok(!JSON.stringify(r.dados).match(/senha|sal"|v2\$/), 'sem senha nem dados internos', Object.keys(r.dados));
+  chamar('salvarAnamnese', { token: tc, ficha: { ...FICHA, data_nascimento: '1991-02-03' } });
+  ok(chamar('minhaConta', { token: tc }).dados.nascimento === '1991-02-03', 'data de nascimento vem da ficha de saúde');
+  r = chamar('salvarConta', { token: tc, dados: { nome: '  Carla   Dias Souza ', whatsapp: '(85) 98888-7777', nascimento: '1991-02-04', novidades: false, endereco: { ...END_TESTE, numero: '500', complemento: 'Apto 3' } } });
+  ok(r.ok && r.dados.nome === 'Carla Dias Souza' && r.dados.whatsapp === '85988887777' && r.dados.nascimento === '1991-02-04' && r.dados.novidades === false && r.dados.endereco.numero === '500' && r.dados.aluno.nome === 'Carla Dias Souza',
+    'salva nome, WhatsApp, nascimento, novidades e endereço', r);
+  const linhaC = () => ctx.lerAba('Alunos').find((a) => ctx.normCpf(a.cpf) === '39053344705');
+  ok(linhaC().marketing === 'NÃO' && linhaC().complemento === 'Apto 3', 'gravado na planilha (fora das campanhas)');
+  r = chamar('salvarConta', { token: tc, dados: { cpf: '52998224725', email: 'outra@x.com', senha_hash: 'x', sal: 'y', ativo: 'NÃO', obs_internas: 'x', wellhub: 'SIM' } });
+  const lc = linhaC();
+  ok(r.ok && ctx.normCpf(lc.cpf) === '39053344705' && lc.email === 'carla@gmail.com' && String(lc.senha_hash).startsWith('v2$') && lc.ativo === 'SIM' && !lc.obs_internas && !lc.wellhub,
+    'não muda CPF, e-mail, senha, situação nem campos da recepção', lc);
+  ok(!chamar('salvarConta', { token: tc, dados: { nome: 'Carla' } }).ok, 'pede nome e sobrenome');
+  ok(!chamar('salvarConta', { token: tc, dados: { whatsapp: '8599' } }).ok, 'pede WhatsApp com DDD');
+  ok(!chamar('salvarConta', { token: tc, dados: { nascimento: '2999-01-01' } }).ok && !chamar('salvarConta', { token: tc, dados: { nascimento: '12/02/1990' } }).ok, 'recusa data de nascimento estranha');
+  r = chamar('salvarConta', { token: tc, dados: { endereco: { ...END_TESTE, bairro: '' } } });
+  ok(!r.ok && /Complete o endereço: bairro/.test(r.erro), 'endereço continua completo', r);
+  chamar('salvarConta', { token: tc, dados: { nome: '=HYPERLINK("x") Teste' } });
+  ok(String(m.ss.getSheetByName('Alunos').rows[linhaC()._linha - 1][1]).startsWith("'"), 'nome com fórmula vira texto');
+  chamar('salvarConta', { token: tc, dados: { nome: 'Carla Dias Souza' } });
+
+  r = chamar('salvarEmail', { token: tc, email: 'invasor@gmail.com' });
+  ok(!r.ok && /Minha conta/.test(r.erro) && linhaC().email === 'carla@gmail.com', 'quem já tem e-mail não troca sem a senha', r);
+  r = chamar('trocarEmail', { token: tc, email: 'carla.nova@gmail.com', senha: 'errada123' });
+  ok(!r.ok && r.codigo === 'SENHA_ATUAL' && linhaC().email === 'carla@gmail.com', 'trocar e-mail com senha errada: recusado', r);
+  const nEmails = emails.length;
+  r = chamar('trocarEmail', { token: tc, email: ' Carla.Nova@gmail.com ', senha: 'carla12345' });
+  ok(r.ok && r.dados.email === 'carla.nova@gmail.com' && linhaC().email === 'carla.nova@gmail.com', 'e-mail trocado com a senha certa', r);
+  ok(emails.length === nEmails + 1 && emails.at(-1).to === 'carla@gmail.com' && /e-mail foi alterado/.test(emails.at(-1).subject) && !emails.at(-1).body.includes('carla.nova@'),
+    'o e-mail antigo é avisado (com o novo mascarado)', emails.at(-1));
+
+  r = chamar('trocarSenha', { token: tc, senhaAtual: 'carla12345', senha: '123' });
+  ok(!r.ok && /8 caracteres/.test(r.erro), 'senha nova fraca recusada', r);
+  r = chamar('trocarSenha', { token: tc, senhaAtual: 'errada999', senha: 'novaSenha2026' });
+  ok(!r.ok && r.codigo === 'SENHA_ATUAL', 'senha atual errada: recusado', r);
+  r = chamar('trocarSenha', { token: tc, senhaAtual: 'carla12345', senha: 'carla12345' });
+  ok(!r.ok && /diferente/.test(r.erro), 'senha nova igual à atual: recusado', r);
+  r = chamar('trocarSenha', { token: tc, senhaAtual: 'carla12345', senha: 'novaSenha2026' });
+  const tNovo = r.ok && r.dados.token;
+  ok(tNovo && tNovo !== tc && r.dados.aluno.nome === 'Carla Dias Souza', 'senha trocada, com sessão nova', r);
+  ok(!chamar('aulas', { token: tc }).ok && !chamar('aulas', { token: tc2 }).ok && chamar('aulas', { token: tNovo }).ok, 'outros aparelhos desconectados; este continua');
+  ok(!chamar('entrar', { cpf: '39053344705', senha: 'carla12345' }).ok && chamar('entrar', { cpf: '39053344705', senha: 'novaSenha2026' }).ok, 'senha velha não entra; a nova entra');
+  ok(emails.at(-1).to === 'carla.nova@gmail.com' && /senha foi alterada/.test(emails.at(-1).subject), 'aviso de senha trocada por e-mail');
+  for (let i = 0; i < 8; i++) chamar('trocarEmail', { token: tNovo, email: 'x' + i + '@gmail.com', senha: 'chute' + i });
+  r = chamar('trocarEmail', { token: tNovo, email: 'x@gmail.com', senha: 'novaSenha2026' });
+  ok(!r.ok && /Muitas tentativas/.test(r.erro) && linhaC().email === 'carla.nova@gmail.com', 'sessão roubada não fica chutando a senha', r);
+  r = chamar('minhaConta', { token: maria });
+  ok(r.ok && r.dados.cpf === '52998224725' && r.dados.novidades === false, 'cada aluna vê só a própria conta (Maria saiu da lista antes)', r.dados && r.dados.cpf);
 }
 
 console.log('— sessões');

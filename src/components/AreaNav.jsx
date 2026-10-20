@@ -1,7 +1,6 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../lib/auth.jsx';
+import { NavLink } from 'react-router-dom';
 
-// Navegação da área do aluno: abas no computador, barra fixa embaixo no celular
+// Navegação da área do aluno: abas no computador, barra fixa embaixo no celular (Sair fica em Minha conta e no menu do topo)
 const ITENS = [
   {
     to: '/aulas',
@@ -43,36 +42,29 @@ const ITENS = [
       </svg>
     ),
   },
+  {
+    to: '/minha-conta',
+    texto: 'Minha conta',
+    classe: 'area-nav__conta',
+    icone: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+        <circle cx="12" cy="8.5" r="3.5" />
+        <path d="M5 19.5c1.2-3.3 3.9-5 7-5s5.8 1.7 7 5" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AreaNav() {
-  const { sair } = useAuth();
-  const nav = useNavigate();
   return (
     <nav className="area-nav" aria-label="Área do aluno">
       <div className="area-nav__in">
         {ITENS.map((i) => (
-          <NavLink key={i.to} to={i.to} state={i.to === '/ficha-saude' ? { de: '/minhas-reservas' } : undefined} className="area-nav__item">
+          <NavLink key={i.to} to={i.to} state={i.to === '/ficha-saude' ? { de: '/minhas-reservas' } : undefined} className={`area-nav__item ${i.classe || ''}`}>
             {i.icone}
             <span>{i.texto}</span>
           </NavLink>
         ))}
-        <button
-          type="button"
-          className="area-nav__item area-nav__sair"
-          onClick={() => {
-            if (window.confirm('Deseja sair da sua conta?')) {
-              sair();
-              nav('/');
-            }
-          }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-            <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
-            <path d="M10 16l-4-4 4-4M6 12h10" />
-          </svg>
-          <span>Sair</span>
-        </button>
       </div>
     </nav>
   );

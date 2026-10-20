@@ -7,6 +7,7 @@ import Entrar from './pages/Entrar.jsx';
 import Aulas from './pages/Aulas.jsx';
 import Reservar from './pages/Reservar.jsx';
 import MinhasReservas from './pages/MinhasReservas.jsx';
+import MinhaConta from './pages/MinhaConta.jsx';
 import ErroTela from './components/ErroTela.jsx';
 import FichaSaude from './pages/FichaSaude.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/pagamento" element={<Protegida><Pagamento /></Protegida>} />
           <Route path="/ficha-saude" element={<Protegida><FichaSaude /></Protegida>} />
           <Route path="/minhas-reservas" element={<Protegida><MinhasReservas /></Protegida>} />
+          <Route path="/minha-conta" element={<Protegida><MinhaConta /></Protegida>} />
           <Route path="/esqueci-senha" element={<EsqueciSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
           <Route path="/descadastrar" element={<Descadastrar />} />

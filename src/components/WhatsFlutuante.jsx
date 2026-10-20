@@ -16,7 +16,7 @@ export default function WhatsFlutuante() {
 
   // na tela de reserva existe a barra de confirmar embaixo: o botão sobe
   const elevado = pathname.startsWith('/aula/');
-  const naArea = ['/aulas', '/minhas-reservas', '/ficha-saude', '/meu-plano', '/pagamento'].includes(pathname);
+  const naArea = ['/aulas', '/minhas-reservas', '/ficha-saude', '/meu-plano', '/pagamento', '/minha-conta'].includes(pathname);
   const texto = encodeURIComponent('Olá, Casa Âmbar! Vim pelo site e gostaria de mais informações.');
 
   return (

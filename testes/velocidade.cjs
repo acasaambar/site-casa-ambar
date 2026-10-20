@@ -73,4 +73,5 @@ const ta = (rotulo, acao, dados) => { const x = medir(rotulo, acao, { ...dados, 
 ta('Aulas da semana', 'aulas', {});
 ta('Minhas reservas', 'minhasReservas', {});
 ta('Meu plano', 'meuPlano', {});
+ta('Minha conta', 'minhaConta', {});
 console.log(`\nSoma estimada: ${total.reduce((a, b) => a + b, 0).toFixed(1)} s`);

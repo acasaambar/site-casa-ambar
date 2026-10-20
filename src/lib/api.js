@@ -65,6 +65,10 @@ export const api = {
   novaSenha: (t, senha) => chamar('novaSenha', { t, senha }),
   salvarEmail: (token, email) => chamar('salvarEmail', { token, email }),
   salvarEndereco: (token, endereco) => chamar('salvarEndereco', { token, endereco }),
+  minhaConta: (token) => chamar('minhaConta', { token }),
+  salvarConta: (token, dados) => chamar('salvarConta', { token, dados }),
+  trocarEmail: (token, email, senha) => chamar('trocarEmail', { token, email, senha }),
+  trocarSenha: (token, senhaAtual, senha) => chamar('trocarSenha', { token, senhaAtual, senha }),
   regras: () => chamar('regras'),
   sairLista: (t) => chamar('sairLista', { t }),
   confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
@@ -406,6 +410,27 @@ async function demo(acao, d) {
     case 'salvarEmail': {
       const a = sessao(d.token);
       return { ...publico(a), email: d.email };
+    }
+    case 'minhaConta':
+    case 'salvarConta':
+    case 'trocarEmail': {
+      const a = alunos[sessao(d.token).cpf];
+      const x = d.dados || {};
+      if (acao === 'trocarEmail' && a.senha !== (await hash(a.cpf + ':' + d.senha))) throw new Error('A senha atual não confere.');
+      if (acao !== 'minhaConta') {
+        Object.assign(a, x.nome ? { nome: x.nome } : {}, x.whatsapp ? { whatsapp: x.whatsapp } : {}, x.endereco ? { endereco: x.endereco } : {},
+          x.nascimento != null ? { nascimento: x.nascimento } : {}, x.novidades != null ? { novidades: x.novidades } : {}, d.email ? { email: d.email } : {});
+        LS.gravar('ambar_demo_alunos', alunos);
+      }
+      return { aluno: publico(a), nome: a.nome, cpf: a.cpf, whatsapp: a.whatsapp, email: a.email || '', nascimento: a.nascimento || '', novidades: a.novidades !== false,
+        endereco: a.endereco || { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', complemento: '', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' } };
+    }
+    case 'trocarSenha': {
+      const a = alunos[sessao(d.token).cpf];
+      if (a.senha !== (await hash(a.cpf + ':' + d.senhaAtual))) throw new Error('A senha atual não confere.');
+      a.senha = await hash(a.cpf + ':' + d.senha);
+      LS.gravar('ambar_demo_alunos', alunos);
+      return { token: novoToken(a.cpf), aluno: publico(a) };
     }
     default:
       throw new Error('Ação desconhecida.');
