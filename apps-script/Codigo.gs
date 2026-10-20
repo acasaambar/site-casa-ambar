@@ -120,7 +120,9 @@ var ABAS = {
   // anamnese escrita pelas profissionais (texto livre + fotos), por cliente
   AnamnesesProf: ['id', 'cpf', 'nome', 'titulo', 'conteudo', 'fotos', 'profissional', 'criado_por', 'criado_em', 'atualizado_por', 'atualizado_em'],
   Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',
-    'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em', 'lembrete', 'comanda'],
+    'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em', 'lembrete', 'comanda',
+    // substituição: quem era a titular e de quem é a regra de comissão (vazio = de quem atende)
+    'titular', 'comissao_de'],
   // ---- gestão (Gestao.gs) ----
   Produtos: ['id', 'ativo', 'nome', 'categoria', 'marca', 'unidade', 'preco', 'custo', 'estoque', 'minimo', 'vende', 'obs'],
   MovEstoque: ['quando', 'produto_id', 'produto', 'tipo', 'qtd', 'custo_unit', 'valor', 'motivo', 'ref', 'quem'],
@@ -136,6 +138,9 @@ var ABAS = {
   FichasEstetica: ['cpf', 'nome', 'atualizada_em', 'atualizada_por', 'queixa', 'objetivo', 'alergias', 'medicamentos', 'condicoes', 'acidos', 'procedimentos',
     'exposicao_solar', 'fototipo', 'tipo_pele', 'obs', 'consentimento_fotos'],
   Evolucoes: ['id', 'cpf', 'nome', 'data', 'profissional', 'atendimento_id', 'servico', 'anotacao', 'fotos', 'criado_por', 'criado_em'],
+  // ---- substituições (Substituicoes.gs) ----
+  Substituicoes: ['id', 'tipo', 'ref', 'data', 'hora', 'titulo', 'titular', 'substituto', 'regra', 'status', 'motivo', 'resposta',
+    'pedido_por', 'pedido_em', 'feito_por', 'feito_em'],
 };
 
 // Catálogo inicial (vai para a aba Planos na configuração)
@@ -518,6 +523,7 @@ function gerarAulas(dataInicio, dias) {
   var bloqueios = valoresAba('Bloqueios').slice(1).map(function (b) {
     return dataTexto(b[0]) + '|' + horaTexto(b[1]) + '|' + String(b[2]).toLowerCase();
   });
+  var trocas = trocasDeAulas(); // substituições: a aula sai com quem vai dar de fato
   var hoje = dataInicio ? new Date(dataInicio + 'T12:00:00-03:00') : new Date();
   var total = dias || AJUSTES.diasVisiveis;
   var lista = [];
@@ -533,12 +539,15 @@ function gerarAulas(dataInicio, dias) {
       var mod = String(g.modalidade).trim();
       var chave = data + '|' + hora + '|' + mod.toLowerCase();
       if (bloqueios.indexOf(chave) >= 0 || bloqueios.indexOf(data + '||' + mod.toLowerCase()) >= 0 || bloqueios.indexOf(data + '||') >= 0) continue;
+      var id = data + '_' + hora + '_' + mod.toLowerCase();
+      var troca = trocas[id];
       lista.push({
-        id: data + '_' + hora + '_' + mod.toLowerCase(),
+        id: id,
         data: data,
         hora: hora,
         modalidade: mod,
-        professor: g.professor,
+        professor: troca ? troca.substituto : g.professor,
+        titular: troca ? String(g.professor) : '',
         capacidade: Number(g.capacidade) || 12,
         duracao: AJUSTES.duracaoAulaMin,
       });
@@ -1441,7 +1450,7 @@ function valoresAba(nome) {
 // ---------- cache entre pedidos (abas pequenas de catálogo) ----------
 // Ficam 2 min no cache do Google. Qualquer gravação pelo sistema limpa na hora;
 // mudança feita direto na planilha aparece em até 2 min. Dentro de trava, lê sempre da planilha.
-var ABAS_EM_CACHE = { Grade: 1, Planos: 1, Servicos: 1, Pacotes: 1, Profissionais: 1, Professoras: 1, Promocoes: 1 };
+var ABAS_EM_CACHE = { Grade: 1, Planos: 1, Servicos: 1, Pacotes: 1, Profissionais: 1, Professoras: 1, Promocoes: 1, Substituicoes: 1 };
 var SEGUNDOS_CACHE_ABA = 120;
 
 function lerCacheAba(nome) {
@@ -1491,7 +1500,7 @@ function abaSemDescartar(nome) {
 
 var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
   Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Professoras: 'A:B', AnamnesesProf: 'A:B', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
-  Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G' };
+  Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G', Substituicoes: 'A:E' };
 
 // Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem.
 // A conferência fica guardada por 6 h (muda sozinha quando o código ganha colunas novas).

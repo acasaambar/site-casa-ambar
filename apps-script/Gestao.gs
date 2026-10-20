@@ -220,8 +220,10 @@ function baseDoAtendimento(a) {
 function comissaoDoAtendimento(a, ativo) {
   try {
     if (!ativo) { cancelarComissao(a.id); return; }
+    // substituição: comissão de quem atendeu, pela regra dela ou da titular (comissao_de)
     gravarComissao({ ref: String(a.id), data: dataTexto(a.data), profissional: String(a.profissional), origem: 'atendimento',
-      item: a.servico + ' · ' + a.nome, base: baseDoAtendimento(a), pct: pctComissao(a.profissional, a.servico_id) });
+      item: a.servico + ' · ' + a.nome + (a.titular ? ' · no lugar de ' + a.titular : ''), base: baseDoAtendimento(a),
+      pct: pctComissao(String(a.comissao_de || '') || a.profissional, a.servico_id) });
   } catch (e) {
     Logger.log('comissão: ' + e.message);
   }
@@ -297,6 +299,7 @@ function sincronizarComissoesAulas(de, ate) {
   var profs = {};
   listarProfessoras().forEach(function (p) { if (p.ativo && p.desde) profs[semAcento(p.nome)] = p; });
   var alvo = {};
+  var trocas = trocasDeAulas();
   if (Object.keys(profs).length) {
     var agora = Date.now(), hoje = hojeTexto();
     var creditos = mapaCreditos();
@@ -309,8 +312,11 @@ function sincronizarComissoesAulas(de, ate) {
       var data = dataTexto(r.data);
       if (!r.id || data < de || data > ate || data > hoje) return;
       if (r.status !== 'reservado' && r.status !== 'check-in') return;
-      var p = profs[semAcento(String(r.professor).trim())];
+      // substituição com a regra da titular: valores dela, pagos a quem deu a aula
+      var troca = trocas[r.aula_id];
+      var p = profs[semAcento(troca && troca.regra === 'titular' ? troca.titular : String(r.professor).trim())];
       if (!p || data < p.desde) return;
+      var lugar = troca ? ' · no lugar de ' + troca.titular : '';
       if (inicio(r).getTime() + AJUSTES.duracaoAulaMin * 60000 > agora) return;
       var hh = horaTexto(r.hora);
       var hora = Number(hh.slice(0, 2)) + 'h' + (hh.slice(3) === '00' ? '' : hh.slice(3));
@@ -320,12 +326,12 @@ function sincronizarComissoesAulas(de, ate) {
         var pct = wh && p.wellhubPct != null ? p.wellhubPct : p.pilatesPct;
         if (!(pct > 0)) return;
         alvo['aula:' + r.id] = { data: data, profissional: quem, origem: 'aula', pct: pct, base: valorDaAula(r, creditos, pagos, wellhub),
-          item: 'Pilates ' + hora + ' · ' + r.nome + (wh ? ' (Wellhub)' : '') };
+          item: 'Pilates ' + hora + ' · ' + r.nome + (wh ? ' (Wellhub)' : '') + lugar };
       } else if (r.modalidade === 'Yoga' && p.yogaPorAula > 0) {
         var k = 'aula:' + r.aula_id;
         alvo[k] = alvo[k] || { data: data, profissional: quem, origem: 'aula_fixa', pct: 100, base: p.yogaPorAula, alunas: 0 };
         alvo[k].alunas++;
-        alvo[k].item = 'Yoga ' + hora + ' · ' + alvo[k].alunas + (alvo[k].alunas === 1 ? ' participante' : ' participantes');
+        alvo[k].item = 'Yoga ' + hora + ' · ' + alvo[k].alunas + (alvo[k].alunas === 1 ? ' participante' : ' participantes') + lugar;
       }
     });
   }

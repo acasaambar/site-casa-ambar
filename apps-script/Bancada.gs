@@ -103,6 +103,13 @@ var PERMISSOES = {
   b_folgas: ['admin', 'recepcao', 'professora'],
   b_salvarFolga: ['admin', 'recepcao'],
   b_excluirFolga: ['admin', 'recepcao'],
+  // substituições: a profissional pede; administração e recepção trocam
+  b_opcoesSubstituicao: ['admin', 'recepcao'],
+  b_substituir: ['admin', 'recepcao'],
+  b_ausencia: ['admin', 'recepcao'],
+  b_substituicoes: ['admin', 'recepcao', 'professora'],
+  b_pedirSubstituicao: ['professora'],
+  b_cancelarPedido: ['admin', 'recepcao', 'professora'],
   // marketing
   b_promocoes: ['admin', 'recepcao'],
   b_salvarPromocao: ['admin'],
@@ -343,6 +350,7 @@ function bancada_resumo(d, m) {
       return String(c.ativo).toUpperCase() !== 'NÃO' && c.tipo !== 'avulsa' && c.fim >= hoje && c.fim <= em7;
     }).length;
     r.comandasAbertas = lerAba('Comandas').filter(function (c) { return c.status === 'aberta'; }).length;
+    r.pedidosTroca = lerAba('Substituicoes').filter(function (s) { return s.status === 'pedido' && dataTexto(s.data) >= hoje; }).length;
     r.estoqueBaixo = listarProdutos().filter(function (p) { return p.minimo > 0 && p.estoque <= p.minimo; }).length;
     var cx = caixaDoDia(hoje);
     r.caixa = cx ? String(cx.status) : 'nao_aberto';
