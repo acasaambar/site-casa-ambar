@@ -634,3 +634,99 @@ function ultimasVisitas() {
   lerAba('Atendimentos').forEach(function (a) { if (a.cpf && a.status === 'atendido') marca(normCpf(a.cpf), dataTexto(a.data)); });
   return u;
 }
+
+// ============================================================
+//  EXCLUIR CLIENTE (só administração)
+//  Sem histórico: o cadastro some. Com histórico (aulas, pagamentos, comandas…): anonimiza (LGPD).
+//  Nome, CPF e contatos saem de todas as abas; vendas, comissões e caixa ficam com "Cliente excluído"
+//  e um código interno, para o financeiro não mudar. Ficha de saúde, estética, evolução, anamneses
+//  e fotos são sempre apagadas (inclusive os arquivos no Drive).
+// ============================================================
+var ABAS_COM_HISTORICO = ['Reservas', 'Pagamentos', 'Creditos', 'Atendimentos', 'Comandas', 'Vales'];
+var NOME_EXCLUIDO = 'Cliente excluído';
+
+function lixeiraDrive(id) {
+  if (!id) return;
+  try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* já apagado */ }
+}
+
+// apaga as linhas de um CPF numa aba (de baixo para cima); antes(linha) recebe cada uma
+function apagarLinhasDoCpf(nomeAba, cpf, antes) {
+  var linhas = linhasDoCpf(nomeAba, cpf);
+  if (!linhas.length) return 0;
+  var s = aba(nomeAba);
+  linhas.sort(function (a, b) { return b._linha - a._linha; }).forEach(function (l) {
+    if (antes) antes(l);
+    s.deleteRow(l._linha);
+  });
+  return linhas.length;
+}
+
+// troca CPF, nome e contatos de um CPF numa aba (coluna inteira de uma vez)
+function anonimizarNaAba(nomeAba, cpf, novo) {
+  var s = aba(nomeAba);
+  var v = s.getDataRange().getValues();
+  if (v.length < 2) return 0;
+  var k = indiceColunas(v[0]);
+  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo };
+  var cols = Object.keys(trocar).filter(function (c) { return k[c] != null; });
+  var n = 0;
+  for (var i = 1; i < v.length; i++) {
+    if (!v[i][k.cpf] || normCpf(v[i][k.cpf]) !== cpf) continue;
+    n++;
+    cols.forEach(function (c) { v[i][k[c]] = trocar[c]; });
+  }
+  if (!n) return 0;
+  cols.forEach(function (c) {
+    var r = s.getRange(2, k[c] + 1, v.length - 1, 1);
+    if (c === 'cpf' || c === 'resgatado_cpf') r.setNumberFormat('@');
+    r.setValues(v.slice(1).map(function (l) { return [l[k[c]]]; }));
+  });
+  return n;
+}
+
+function bancada_excluirCliente(d, m) {
+  var a = buscarAluno(d.cpf);
+  if (!a) throw new Error('Cliente não encontrado.');
+  var cpf = normCpf(a.cpf);
+  var nome = primeiroNome(a.nome);
+  if (String(d.confirmacao || '').trim().toLowerCase() !== nome.toLowerCase()) throw new Error('Para confirmar, digite o primeiro nome: ' + nome + '.');
+  if (lerAba('Comandas').some(function (c) { return c.status === 'aberta' && c.cpf && normCpf(c.cpf) === cpf; })) throw new Error('Feche ou cancele a comanda aberta antes de excluir.');
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 30000);
+  var resultado;
+  try {
+    // dados de saúde e fotos: sempre apagados
+    apagarLinhasDoCpf('Anamneses', cpf, function (l) { var id = (String(l.pdf || '').match(/\/d\/([\w-]+)/) || [])[1]; lixeiraDrive(id); });
+    apagarLinhasDoCpf('FichasEstetica', cpf);
+    apagarLinhasDoCpf('Evolucoes', cpf, function (l) { String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive); });
+    apagarLinhasDoCpf('AnamnesesProf', cpf, function (l) {
+      String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive);
+      lixeiraDrive(lerConteudoAnamnese(l.conteudo, false).arquivo);
+    });
+    encerrarSessoes('Sessoes', 's_', cpf);
+    var links = lerAba('Redefinicoes').filter(function (r) { return r.tipo === 'aluno' && normCpf(r.id) === cpf; }).sort(function (x, y) { return y._linha - x._linha; });
+    links.forEach(function (r) { aba('Redefinicoes').deleteRow(r._linha); });
+    var historico = ABAS_COM_HISTORICO.some(function (n) { return linhasDoCpf(n, cpf).length > 0; });
+    if (!historico) {
+      aba('Alunos').deleteRow(a._linha);
+      resultado = { apagado: true };
+    } else {
+      var novo = idSemCpf();
+      ABAS_COM_HISTORICO.forEach(function (n) { anonimizarNaAba(n, cpf, novo); });
+      var limpo = { cpf: novo, nome: NOME_EXCLUIDO, ativo: 'NÃO', origem_cadastro: 'excluído em ' + hojeTexto(), marketing: 'NÃO' };
+      ['whatsapp', 'email', 'senha_hash', 'sal', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'nascimento', 'cep', 'endereco', 'numero', 'complemento',
+        'bairro', 'cidade', 'uf', 'como_conheceu'].forEach(function (c) { limpo[c] = ''; });
+      var s = aba('Alunos');
+      s.getRange(a._linha, coluna('Alunos', 'cpf')).setNumberFormat('@');
+      atualizarLinha('Alunos', a._linha, limpo);
+      resultado = { anonimizado: true, codigo: novo };
+    }
+    esquecerListaClientes();
+    SpreadsheetApp.flush();
+  } finally {
+    trava.releaseLock();
+  }
+  registrar(m, 'excluiu cliente', resultado.apagado ? 'cadastro sem histórico' : 'anonimizado (código ' + resultado.codigo + ')');
+  return resultado;
+}

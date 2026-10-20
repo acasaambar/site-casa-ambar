@@ -173,10 +173,20 @@ Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, 
 - As pastas do Drive (anamneses e fotos) só são usadas se pertencerem à conta do sistema.
 - Mantenha a planilha e a pasta de anamneses com acesso **Restrito** (nunca "qualquer pessoa com o link").
 
+### Comanda editável, vale vendido e exclusão de cliente
+
+- Na comanda aberta, cada item pode trocar de serviço e de profissional (a agenda acompanha), ter desconto em % ou R$ com motivo e uma observação.
+  Tudo o que muda fica no **histórico** da comanda, com quem fez.
+- **Vale-presente vendido**: entra como item da comanda (valor em R$ ou um serviço/plano). O código nasce ao fechar e pode ir por e-mail
+  e WhatsApp para quem recebe. Vale de cortesia continua em Marketing → Vales.
+- **Reabrir comanda fechada** (só administração, com motivo): desfaz pagamentos, estoque e comissões para corrigir e fechar de novo.
+- **Excluir cliente** (só administração): sem histórico, o cadastro some; com histórico, os dados pessoais e de saúde são apagados
+  e as vendas ficam como "Cliente excluído" (LGPD), sem mudar o financeiro.
+
 ### Cupons e vales-presente
 
 - **Cupom**: desconto (% ou R$) que o aluno digita no pagamento; criado pela administração.
-- **Vale-presente**: cortesia (não é vendido). Dá uma aula/plano ou um valor em R$. A equipe gera, entrega por
+- **Vale-presente**: cortesia (Marketing → Vales) ou vendido na comanda. Dá uma aula/plano ou um valor em R$. A equipe gera, entrega por
   e-mail, WhatsApp ou no balcão, e o aluno usa em Meu plano → "Tenho um vale-presente".
 
 ## Publicação

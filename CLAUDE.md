@@ -30,7 +30,7 @@ Arquivos do backend:
 - `Gestao.gs`: produtos e estoque, comandas, comissões, despesas, financeiro, caixa do dia, bloqueio de horário (folgas).
 - `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico, endereço (`exigirEndereco`, `salvarEndereco` do site), **Clientes** da profissional e **anamnese da profissional** (aba `AnamnesesProf`; texto > 44 mil caracteres vai para arquivo no Drive) e comandas da cliente.
 - `Marketing.gs`: promoções automáticas, campanhas (e-mail e WhatsApp) com descadastro, lembretes da véspera.
-- `Vales.gs`: cupons, vales-presente (cortesia, **não são vendidos**) e `calcularPreco` (promoção × cupom: vale o maior; o vale entra depois).
+- `Vales.gs`: cupons, vales-presente e `calcularPreco` (promoção × cupom: vale o maior; o vale entra depois). Vale de cortesia nasce em Marketing → Vales; vale **vendido** só como item da comanda (`tipo: 'vale'`, Vales.origem = `vendido`, Vales.comanda).
 - `Relatorios.gs`: relatórios da administração.
 - `Substituicoes.gs`: troca de profissional em aula ou atendimento (aba `Substituicoes`), pedidos da profissional, "Alguém não vem".
 
@@ -44,6 +44,9 @@ Regras de negócio importantes:
 - Minha conta (área do aluno, `/minha-conta`; servidor em Clientes.gs: `minhaConta`, `salvarConta`, `trocarEmail`, `trocarSenha`): a aluna edita nome, WhatsApp, nascimento, endereço e "receber novidades" (`marketing`). CPF não muda. Trocar e-mail ou senha pede a senha atual (mesmo limite de tentativas do login), avisa por e-mail e a troca de senha desconecta os outros aparelhos (devolve sessão nova). `salvarEmail` só vale para quem ainda não tem e-mail. Na barra da área do aluno, "Minha conta" e "Sair" ficam juntos à direita (o Sair também está no menu do topo, no celular).
 - Profissional (papel `professora`, mostrado como "Profissional"): "Clientes" (`/bancada/clientes/:ref`, `ref` = id de um atendimento dela) com Anamnese (texto livre + fotos; só a autora ou admin edita), Ficha e evolução, Comandas. Ela nunca abre cliente pelo CPF (`cpfComAcesso`). Na Agenda do dia ela vê só a própria coluna (`ehDela` em `ui.jsx`, igual a `mesmaProfessora`); quem só dá aula abre em "Aulas e presença".
 - Substituição (`Substituicoes.gs`, tela `src/bancada/Trocas.jsx`, aba Agenda → Trocas): a profissional só PEDE (`b_pedirSubstituicao`); admin/recepção trocam (`b_substituir`, `b_ausencia`). Aula: vale só para aquele `aula_id` (`gerarAulas` aplica `trocasDeAulas()`, devolve `titular`; as Reservas passam para quem substitui). Atendimento: `profissional` muda, `titular` guarda a original, `comissao_de` = de quem é a regra (vazio = de quem atende); comanda aberta e Pagamentos acompanham. Regra da comissão escolhida na hora (padrão: de quem substitui). Clientes NÃO são avisados sozinhos: a resposta traz `avisos` com o texto para WhatsApp; quem cobre recebe e-mail. Escolher a titular desfaz.
+- Comanda (Gestao.gs): cada item tem `uid`; dá para trocar serviço e profissional (o atendimento ligado acompanha; item `pago` não troca de serviço), desconto por item em % ou R$ com motivo (`descontoTipo`/`descontoValor`/`motivoDesconto`) e observação (`obs`). Tudo o que muda vai para `Comandas.historico` (`diferencasComanda`, `anotarComanda`). Reabrir comanda fechada é só da administração (`b_reabrirComanda`, com motivo): estorna pagamentos, desativa créditos e vales vendidos nela, devolve vale usado, estoque e cancela comissões; recusa se plano/pacote/vale já foi usado ou comissão já paga.
+- Caixa do dia: a recepção mexe só no de hoje (pode fechar um caixa esquecido aberto); a administração abre, lança e fecha caixa de dias que passaram (`diaDoCaixa`), marcado como "aberto depois".
+- Excluir cliente (`b_excluirCliente`, só administração, confirma com o primeiro nome): sem histórico apaga o cadastro; com histórico anonimiza (CPF vira código interno, nome "Cliente excluído", contatos apagados em todas as abas de `ABAS_COM_HISTORICO`) e apaga ficha de saúde, estética, evolução, anamneses e fotos (Drive). O financeiro não muda.
 - Pagamento com cartão (comanda e balcão): a bandeira é obrigatória na tela (`BANDEIRAS`), gravada em `Pagamentos.bandeira`; na comanda o servidor também exige.
 - Profissionais de aula (Catálogo → Profissionais de aula, aba `Professoras`): Pilates = % sobre o valor da aula da aluna (plano ÷ aulas do plano; mensal 2x = 8; Wellhub = `WELLHUB_VALOR_CHECKIN` nas Propriedades); Yoga = R$ fixo por aula dada (hora/aula). Só aulas terminadas, a partir de `desde`; falta/cancelada não contam. `sincronizarComissoesAulas` (Gestao.gs) grava na aba Comissoes (origem `aula`/`aula_fixa`) ao abrir Comissões, Financeiro ou Meus ganhos (no máximo a cada 5 min; presença e cancelamento refazem na hora).
 - Abas novas: declarar em `ABAS` (Codigo.gs) e, se tiver CPF/IDs, em `FORMATO_TEXTO`. Colunas novas vão **no fim** da lista (a planilha já existe com dados).
@@ -74,7 +77,7 @@ Regras de negócio importantes:
 npm install
 npm run lint        # oxlint
 npm run build
-npm run teste       # testa o backend inteiro num simulador (sem tocar na planilha real), inclusive segurança e substituições
+npm run teste       # testa o backend inteiro num simulador (sem tocar na planilha real), inclusive segurança, substituições e comanda
 npm run velocidade  # quantas idas à planilha cada tela/ação faz
 npm run simulador   # cópia local com dados de exemplo em http://localhost:8787
 # em outro terminal: VITE_API_URL=http://localhost:8787 npm run dev

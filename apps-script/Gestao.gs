@@ -676,19 +676,30 @@ function bancada_caixa(d, m) {
   return r;
 }
 
+// dia do caixa: a recepção mexe só no de hoje; a administração (diretoria) também nos dias que passaram
+function diaDoCaixa(d, m) {
+  var hoje = hojeTexto();
+  var data = dataValida(d.data, hoje);
+  if (data > hoje) throw new Error('Não dá para mexer no caixa de um dia que ainda não chegou.');
+  if (data < hoje && m.papel !== 'admin') throw new Error('Só a administração mexe no caixa de dias anteriores.');
+  return data;
+}
+
 function bancada_abrirCaixa(d, m) {
-  var data = hojeTexto();
-  if (caixaDoDia(data)) throw new Error('O caixa de hoje já foi aberto.');
+  var data = diaDoCaixa(d, m);
+  var retro = data < hojeTexto();
+  if (caixaDoDia(data)) throw new Error('O caixa ' + (retro ? 'de ' + data.split('-').reverse().join('/') : 'de hoje') + ' já foi aberto.');
   var valor = dinheiro(d.valor);
   if (valor < 0) throw new Error('Valor inválido.');
-  adicionarLinha('Caixa', { data: data, status: 'aberto', abertura: valor, aberto_por: m.email, aberto_em: agoraTexto(), movimentos: '[]' });
-  registrar(m, 'abriu o caixa', brl(valor));
+  adicionarLinha('Caixa', { data: data, status: 'aberto', abertura: valor, aberto_por: m.email, aberto_em: agoraTexto(), movimentos: '[]',
+    obs: retro ? 'Aberto depois, em ' + agoraTexto() + ', por ' + m.email.split('@')[0] : '' });
+  registrar(m, retro ? 'abriu caixa retroativo' : 'abriu o caixa', (retro ? data + ' · ' : '') + brl(valor));
   return bancada_caixa({ data: data }, m);
 }
 
 // tipo: sangria (retirada) · suprimento (troco que entrou) · despesa (pago em dinheiro do caixa)
 function bancada_movimentoCaixa(d, m) {
-  var data = hojeTexto();
+  var data = diaDoCaixa(d, m);
   var c = caixaDoDia(data);
   if (!c || c.status !== 'aberto') throw new Error('Abra o caixa primeiro.');
   var tipo = ['sangria', 'suprimento', 'despesa'].indexOf(d.tipo) >= 0 ? d.tipo : '';
@@ -698,6 +709,7 @@ function bancada_movimentoCaixa(d, m) {
   var motivo = String(d.motivo || '').trim().slice(0, 150);
   if (!motivo) throw new Error('Diga o motivo.');
   var mov = { quando: agoraTexto(), tipo: tipo, valor: valor, motivo: motivo, quem: m.email.split('@')[0] };
+  if (data < hojeTexto()) mov.retroativo = data;
   if (tipo === 'despesa') {
     var desp = criarDespesa({ data: data, descricao: motivo, categoria: d.categoria, valor: valor, forma: 'Dinheiro', status: 'pago', ref: 'caixa' }, m);
     mov.despesaId = desp.id;
@@ -710,6 +722,7 @@ function bancada_movimentoCaixa(d, m) {
 }
 
 function bancada_fecharCaixa(d, m) {
+  // a recepção pode fechar um caixa esquecido aberto; abrir e lançar em dia passado é só da administração
   var data = dataValida(d.data, hojeTexto());
   var c = caixaDoDia(data);
   if (!c || c.status !== 'aberto') throw new Error('O caixa deste dia não está aberto.');
@@ -803,7 +816,8 @@ function comandaPublica(c) {
   return { id: String(c.id), status: String(c.status), abertaEm: String(c.aberta_em || ''), fechadaEm: String(c.fechada_em || ''),
     cpf: c.cpf ? normCpf(c.cpf) : '', nome: String(c.nome || ''), whatsapp: String(c.whatsapp || ''), itens: parseJson(c.itens, []),
     subtotal: dinheiro(c.subtotal), desconto: dinheiro(c.desconto), total: dinheiro(c.total), pagamentos: parseJson(c.pagamentos, []),
-    codigo: String(c.codigo || ''), obs: String(c.obs || ''), abertaPor: String(c.aberta_por || '').split('@')[0], fechadaPor: String(c.fechada_por || '').split('@')[0] };
+    codigo: String(c.codigo || ''), obs: String(c.obs || ''), abertaPor: String(c.aberta_por || '').split('@')[0], fechadaPor: String(c.fechada_por || '').split('@')[0],
+    historico: parseJson(c.historico, []) };
 }
 
 function acharComanda(id) {
@@ -828,13 +842,15 @@ function calcularItensComanda(itens, cpf, codigo) {
   var valeAulaUsado = false;
   var lista = itens.map(function (x, i) {
     var tipo = String(x.tipo || '');
+    if (tipo === 'vale') return itemValeVendido(x);
     var cat = itemDoCatalogo(tipo, x.id);
     if (!cat) throw new Error('Item não encontrado no catálogo: ' + (x.nome || x.id) + '.');
     if (tipo !== 'produto') tipo = cat.tipo === 'servico' ? 'servico' : cat.tipo === 'pacote' ? 'pacote' : 'plano';
     var qtd = tipo === 'produto' ? Math.min(Math.max(Math.round(numero(x.qtd)) || 1, 1), 99) : 1;
     var data = dataValida(x.data, hojeTexto());
-    var it = { tipo: tipo, id: String(cat.id), nome: cat.nome, qtd: qtd, preco: dinheiro(cat.preco), profissional: String(x.profissional || '').slice(0, 60),
-      atendimentoId: String(x.atendimentoId || ''), data: data, pago: !!x.pago, promocao: '', cupom: '', vale: '', valeUsado: 0 };
+    var it = { uid: String(x.uid || '') || novoId('I'), tipo: tipo, id: String(cat.id), nome: cat.nome, qtd: qtd, preco: dinheiro(cat.preco),
+      profissional: String(x.profissional || '').slice(0, 60), atendimentoId: String(x.atendimentoId || ''), data: data, pago: !!x.pago, promocao: '', cupom: '', vale: '',
+      valeUsado: 0, obs: String(x.obs || '').replace(/\s+/g, ' ').trim().slice(0, 200) };
     if (it.pago) { it.valor = 0; it.total = 0; it.desconto = 0; return it; }
     var calc;
     var cod = codigoLimpo(codigo);
@@ -858,7 +874,15 @@ function calcularItensComanda(itens, cpf, codigo) {
       unit = Math.max(0, dinheiro(x.valorManual));
       it.valorManual = unit;
       it.promocao = ''; it.cupom = ''; it.vale = ''; it.valeUsado = 0;
+    } else if ((x.descontoTipo === 'pct' || x.descontoTipo === 'valor') && numero(x.descontoValor) > 0) {
+      // desconto do balcão por item, em % ou R$, por cima da promoção/cupom
+      var dv = numero(x.descontoValor);
+      if (x.descontoTipo === 'pct') dv = Math.min(dv, 100);
+      unit = Math.max(0, dinheiro(x.descontoTipo === 'pct' ? unit * (1 - dv / 100) : unit - dv));
+      it.descontoTipo = x.descontoTipo;
+      it.descontoValor = dv;
     }
+    if (it.valorManual != null || it.descontoTipo) it.motivoDesconto = String(x.motivoDesconto || '').replace(/\s+/g, ' ').trim().slice(0, 120);
     it.valor = dinheiro(unit);
     it.total = dinheiro(unit * qtd);
     it.desconto = dinheiro((it.preco - unit) * qtd);
@@ -867,6 +891,51 @@ function calcularItensComanda(itens, cpf, codigo) {
   });
   if (codigoLimpo(codigo) && !usado) throw erroCod(erroCodigo || 'Este código não vale para nenhum item da comanda.', 'CODIGO_INVALIDO');
   return lista;
+}
+
+// vale-presente VENDIDO na comanda (quem compra paga; o código nasce ao fechar e vai para quem recebe)
+// x.vale = { tipo: 'valor' | 'plano', valor, planoId, nome, whatsapp, email, mensagem, validadeDias, enviarEmail }
+function itemValeVendido(x) {
+  var v = x.vale || x.dadosVale || {};
+  var tipo = v.tipo === 'plano' ? 'plano' : 'valor';
+  var plano = tipo === 'plano' ? buscarItemVenda(v.planoId) : null;
+  if (tipo === 'plano' && !plano) throw new Error('Escolha o serviço, a aula ou o plano do vale-presente.');
+  var valor = plano ? dinheiro(plano.preco) : dinheiro(v.valor);
+  if (!(valor >= 1 && valor <= 5000)) throw new Error('Informe o valor do vale-presente (de R$ 1 a R$ 5.000).');
+  var email = String(v.email || '').trim().toLowerCase();
+  if (email && !emailValido(email)) throw new Error('Confira o e-mail de quem vai receber o vale.');
+  var dados = { tipo: tipo, valor: valor, planoId: plano ? plano.id : '', nome: String(v.nome || '').replace(/\s+/g, ' ').trim().slice(0, 80), whatsapp: soDigitos(v.whatsapp).slice(0, 13),
+    email: email, mensagem: String(v.mensagem || '').trim().slice(0, 500), validadeDias: Math.min(Math.max(Number(v.validadeDias) || AJUSTES.valeValidadeDias, 30), 730),
+    enviarEmail: !!v.enviarEmail };
+  return { uid: String(x.uid || '') || novoId('I'), tipo: 'vale', id: 'vale', nome: 'Vale-presente · ' + (plano ? plano.nome : brl(valor)) + (dados.nome ? ' para ' + primeiroNome(dados.nome) : ''),
+    qtd: 1, preco: valor, valor: valor, total: valor, desconto: 0, profissional: '', atendimentoId: '', data: hojeTexto(), pago: false, promocao: '', cupom: '', vale: '',
+    valeUsado: 0, obs: String(x.obs || '').trim().slice(0, 200), dadosVale: dados };
+}
+
+// texto do que mudou entre duas versões da comanda (para o histórico)
+function diferencasComanda(antes, depois, existia) {
+  var t = [];
+  if (!existia) return depois.length ? ['abriu com ' + depois.map(function (i) { return i.nome; }).join(', ')] : ['abriu a comanda'];
+  var porUid = {};
+  antes.forEach(function (i, k) { porUid[i.uid || 'pos' + k] = i; });
+  var vistos = {};
+  depois.forEach(function (i, k) {
+    var a = porUid[i.uid] || (!i.uid ? porUid['pos' + k] : null);
+    if (!a) { t.push('incluiu ' + i.nome + ' (' + brl(i.total) + ')'); return; }
+    vistos[a.uid || 'pos' + k] = 1;
+    if (a.id !== i.id) t.push('trocou ' + a.nome + ' por ' + i.nome);
+    if (String(a.profissional || '') !== String(i.profissional || '')) t.push(i.nome + ': ' + (a.profissional || 'sem profissional') + ' → ' + (i.profissional || 'sem profissional'));
+    if (numero(a.total) !== numero(i.total)) t.push(i.nome + ': ' + brl(a.total) + ' → ' + brl(i.total) + (i.motivoDesconto ? ' · ' + i.motivoDesconto : ''));
+    if (numero(a.qtd) !== numero(i.qtd)) t.push(i.nome + ': quantidade ' + a.qtd + ' → ' + i.qtd);
+  });
+  Object.keys(porUid).forEach(function (k) { if (!vistos[k]) t.push('tirou ' + porUid[k].nome); });
+  return t;
+}
+
+function anotarComanda(c, quem, texto) {
+  var hist = parseJson(c.historico, []);
+  hist.push({ q: agoraTexto(), p: String(quem || '').split('@')[0], t: String(texto).slice(0, 300) });
+  return JSON.stringify(hist.slice(-100));
 }
 
 function clienteDaComanda(x) {
@@ -904,8 +973,9 @@ function bancada_comanda(d) {
 function bancada_salvarComanda(d, m) {
   var x = d.comanda || {};
   var itens = (x.itens || []).slice(0, 40).map(function (i) {
-    return { tipo: String(i.tipo || ''), id: String(i.id || ''), nome: String(i.nome || ''), qtd: i.qtd, profissional: i.profissional, atendimentoId: i.atendimentoId,
-      valorManual: i.valorManual, pago: !!i.pago, data: i.data };
+    return { uid: i.uid, tipo: String(i.tipo || ''), id: String(i.tipo === 'vale' ? 'vale' : i.id || ''), nome: String(i.nome || ''), qtd: i.qtd, profissional: i.profissional,
+      atendimentoId: i.atendimentoId, valorManual: i.valorManual, pago: !!i.pago, data: i.data, descontoTipo: i.descontoTipo, descontoValor: i.descontoValor,
+      motivoDesconto: i.motivoDesconto, obs: i.obs, vale: i.tipo === 'vale' ? i.vale || i.dadosVale : undefined };
   }).filter(function (i) { return i.id; });
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
@@ -914,13 +984,32 @@ function bancada_salvarComanda(d, m) {
     if (x.id && !ex) throw new Error('Comanda não encontrada.');
     if (ex && ex.status !== 'aberta') throw new Error('Esta comanda já foi ' + (ex.status === 'fechada' ? 'fechada' : 'cancelada') + '.');
     var cli = ex && !x.cpf && !x.cliente ? { cpf: ex.cpf ? normCpf(ex.cpf) : '', nome: ex.nome, whatsapp: String(ex.whatsapp || '') } : clienteDaComanda(x);
-    var precisaCadastro = itens.some(function (i) { var it = itemDoCatalogo(i.tipo, i.id); return it && (it.tipo === 'pacote' || (i.tipo !== 'produto' && it.modalidade !== 'Serviço')); });
+    var precisaCadastro = itens.some(function (i) { if (i.tipo === 'vale') return false; var it = itemDoCatalogo(i.tipo, i.id); return it && (it.tipo === 'pacote' || (i.tipo !== 'produto' && it.modalidade !== 'Serviço')); });
     if (precisaCadastro && !cli.cpf) throw new Error('Plano e pacote ficam na conta de quem compra: escolha alguém com cadastro (ou informe nome e WhatsApp).');
     var calc = calcularItensComanda(itens, cli.cpf, x.codigo);
     var subtotal = dinheiro(calc.reduce(function (s, i) { return s + (i.pago ? 0 : i.preco * i.qtd); }, 0));
     var total = dinheiro(calc.reduce(function (s, i) { return s + i.total; }, 0));
     var linha = { status: 'aberta', cpf: cli.cpf, nome: cli.nome, whatsapp: cli.whatsapp, itens: JSON.stringify(calc), subtotal: subtotal,
       desconto: dinheiro(subtotal - total), total: total, codigo: codigoLimpo(x.codigo), obs: String(x.obs || '').slice(0, 300) };
+    // o atendimento da agenda acompanha a troca de serviço ou de profissional feita na comanda
+    var mudancasAgenda = [];
+    calc.forEach(function (i) {
+      if (!i.atendimentoId || i.tipo !== 'servico') return;
+      var a = lerAba('Atendimentos').filter(function (y) { return y.id === i.atendimentoId; })[0];
+      if (!a) return;
+      var mud = {};
+      if (String(a.servico_id) !== i.id) {
+        if (i.pago) throw new Error('"' + a.servico + '" já foi pago (pacote ou antes). Para trocar o serviço, tire o item e inclua o novo.');
+        var sv = listarServicos(true).filter(function (s) { return s.id === i.id; })[0];
+        mud.servico_id = i.id; mud.servico = i.nome; if (sv) mud.categoria = sv.categoria;
+      }
+      if (i.profissional && semAcento(i.profissional) !== semAcento(a.profissional)) mud.profissional = i.profissional;
+      if (Object.keys(mud).length) { mud.atualizado_em = agoraTexto(); mudancasAgenda.push([a._linha, mud]); }
+    });
+    mudancasAgenda.forEach(function (x) { atualizarLinha('Atendimentos', x[0], x[1]); });
+    var hist = ex ? parseJson(ex.historico, []) : [];
+    diferencasComanda(ex ? parseJson(ex.itens, []) : [], calc, !!ex).forEach(function (t) { hist.push({ q: agoraTexto(), p: m.email.split('@')[0], t: t + (x.motivo ? ' (' + String(x.motivo).slice(0, 120) + ')' : '') }); });
+    linha.historico = JSON.stringify(hist.slice(-100));
     var id;
     if (ex) {
       id = String(ex.id);
@@ -968,9 +1057,82 @@ function bancada_cancelarComanda(d, m) {
   var c = acharComanda(d.id);
   if (!c) throw new Error('Comanda não encontrada.');
   if (c.status !== 'aberta') throw new Error('Só comandas abertas podem ser canceladas.');
-  atualizarLinha('Comandas', c._linha, { status: 'cancelada', fechada_em: agoraTexto(), fechada_por: m.email });
+  atualizarLinha('Comandas', c._linha, { status: 'cancelada', fechada_em: agoraTexto(), fechada_por: m.email,
+    historico: anotarComanda(c, m.email, 'cancelou' + (d.motivo ? ': ' + String(d.motivo).slice(0, 120) : '')) });
   registrar(m, 'cancelou comanda', c.nome + ' · ' + c.id);
   return true;
+}
+
+// Reabrir uma comanda fechada para corrigir (só administração). Desfaz o que o fechamento fez:
+// pagamentos estornados, créditos e vales vendidos desativados, vale usado volta a valer,
+// estoque devolvido, comissões canceladas. Recusa quando algo já foi usado ou pago depois.
+function bancada_reabrirComanda(d, m) {
+  var motivo = String(d.motivo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!motivo) throw new Error('Conte o motivo da correção (fica no histórico da comanda).');
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 30000);
+  try {
+    var c = acharComanda(d.id);
+    if (!c) throw new Error('Comanda não encontrada.');
+    if (c.status !== 'fechada') throw new Error('Só comandas fechadas podem ser reabertas.');
+    var cm = comandaPublica(c);
+    var pags = lerAba('Pagamentos').filter(function (p) { return String(p.comanda) === cm.id && p.status === 'pago'; });
+    // o que impede: plano/pacote já usado, vale vendido já usado, comissão já paga
+    var creditos = pags.map(function (p) { return 'C' + String(p.order_nsu).slice(1); });
+    var reservas = lerAba('Reservas').filter(function (r) { return r.status !== 'cancelado' && creditos.indexOf(String(r.credito_id)) >= 0; });
+    if (reservas.length) throw new Error('Um plano desta comanda já foi usado em aula (' + reservas.length + '). Corrija com estorno em Vendas.');
+    var usados = lerAba('Atendimentos').filter(function (a) { return a.status !== 'cancelado' && creditos.indexOf(String(a.credito_id)) >= 0 && String(a.comanda) !== cm.id; });
+    if (usados.length) throw new Error('Um pacote desta comanda já foi usado em outro atendimento. Corrija com estorno em Vendas.');
+    var valesVendidos = lerAba('Vales').filter(function (v) { return String(v.comanda) === cm.id && String(v.origem) === 'vendido'; });
+    var pagosAgora = pagamentosPagos();
+    valesVendidos.forEach(function (v) {
+      if (v.status !== 'ativo' || (v.tipo !== 'plano' && saldoVale(v, pagosAgora) + 0.009 < numero(v.valor))) throw new Error('O vale ' + v.codigo + ' vendido nesta comanda já foi usado.');
+    });
+    var refs = cm.itens.map(function (it, idx) { return it.atendimentoId ? String(it.atendimentoId) : cm.id + '-' + idx; });
+    var pagas = lerAba('Comissoes').filter(function (k) { return k.status === 'pago' && refs.indexOf(String(k.ref)) >= 0; });
+    if (pagas.length) throw new Error('A comissão de ' + pagas[0].profissional + ' sobre esta comanda já foi paga. Ajuste no Financeiro antes de reabrir.');
+
+    var obs = 'Comanda reaberta em ' + agoraTexto() + ' por ' + m.email + ': ' + motivo + '. ';
+    pags.forEach(function (p) {
+      atualizarLinha('Pagamentos', p._linha, { status: 'estornado', observacao: (obs + (p.observacao || '')).slice(0, 500) });
+      // vale usado para pagar volta a valer
+      if (p.vale) {
+        var v = acharVale(p.vale);
+        if (v && (v.status === 'resgatado' || v.status === 'usado')) atualizarLinha('Vales', v._linha, { status: 'ativo', resgatado_em: '', resgatado_cpf: '' });
+      }
+    });
+    var mc = mapaCreditos();
+    creditos.forEach(function (id) { if (mc[id]) atualizarLinha('Creditos', mc[id]._linha, { ativo: 'NÃO' }); });
+    valesVendidos.forEach(function (v) { atualizarLinha('Vales', v._linha, { status: 'cancelado' }); });
+    // estoque e comissões
+    cm.itens.forEach(function (it, idx) {
+      if (it.tipo === 'produto') {
+        try { movimentarEstoque(it.id, it.qtd, 'devolução', 'Comanda ' + cm.id + ' reaberta', 'comanda:' + cm.id, m.email); } catch (e) { Logger.log('estoque: ' + e.message); }
+        cancelarComissao(cm.id + '-' + idx);
+      } else if (it.tipo === 'servico') {
+        if (it.atendimentoId) {
+          var a = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
+          if (a) {
+            if (!it.pago) atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
+            cancelarComissao(String(a.id));
+            aplicarConsumo(a.servico_id, 'atend:' + a.id, a.nome, false, m.email);
+          }
+        } else {
+          cancelarComissao(cm.id + '-' + idx);
+          aplicarConsumo(it.id, 'comanda:' + cm.id + '-' + idx, cm.nome, false, m.email);
+        }
+      }
+    });
+    // itens de vale voltam sem código (um novo nasce ao fechar de novo)
+    var itens = cm.itens.map(function (it) { var x = Object.assign({}, it); delete x.valeCodigo; return x; });
+    atualizarLinha('Comandas', c._linha, { status: 'aberta', fechada_em: '', fechada_por: '', pagamentos: '', itens: JSON.stringify(itens),
+      historico: anotarComanda(c, m.email, 'reabriu para corrigir: ' + motivo) });
+    SpreadsheetApp.flush();
+    registrar(m, 'reabriu comanda', cm.nome + ' · ' + cm.id + ' · ' + motivo);
+    return comandaPublica(acharComanda(cm.id));
+  } finally {
+    trava.releaseLock();
+  }
 }
 
 // pagamentos: [{ metodo, valor, parcelas, codigo (vale em R$) }]. Pode dividir em várias formas.
@@ -995,6 +1157,7 @@ function bancada_fecharComanda(d, m) {
     if (Math.abs(pago - total) > 0.01) throw new Error('Os pagamentos somam ' + brl(pago) + ', mas a comanda é de ' + brl(total) + '.');
     var vales = pags.filter(function (p) { return p.metodo === 'Vale-presente'; });
     if (vales.length > 1) throw new Error('Use um vale-presente por comanda.');
+    if (vales.length && calc.some(function (i) { return i.tipo === 'vale'; })) throw new Error('Um vale-presente não pode ser pago com outro vale.');
     var vale = null;
     if (vales.length) {
       var v = acharVale(vales[0].codigo);
@@ -1012,6 +1175,7 @@ function bancada_fecharComanda(d, m) {
     var bandeiras = reais.map(function (p) { return p.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
     var obsPag = 'Comanda ' + cm.id + (pags.length > 1 ? ' · ' + pags.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '');
     var hoje = hojeTexto();
+    var valesCriados = [];
     calc.forEach(function (it, idx) {
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
       if (it.pago) {
@@ -1042,8 +1206,17 @@ function bancada_fecharComanda(d, m) {
         profissional: it.profissional, bandeira: bandeiras });
       SpreadsheetApp.flush();
       var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: parcelas, valor_pago: valorLinha, inicio: it.data || hoje,
-        origemCredito: 'comanda', observacao: obsPag, semCredito: it.tipo === 'produto' });
-      if (it.tipo === 'produto') {
+        origemCredito: 'comanda', observacao: obsPag, semCredito: it.tipo === 'produto' || it.tipo === 'vale' });
+      if (it.tipo === 'vale') {
+        // vale vendido: o código nasce agora; vale para quem recebe (sem CPF: qualquer pessoa com o código)
+        var dv = it.dadosVale || {};
+        var novo = { codigo: gerarCodigoVale(), status: 'ativo', tipo: dv.tipo, plano_id: dv.planoId || '', valor: dv.valor, cpf: '', nome: dv.nome || '',
+          email: dv.email || '', whatsapp: dv.whatsapp || '', motivo: 'Comprado por ' + cm.nome, campanha: '', mensagem: dv.mensagem || '', criado_em: agoraTexto(),
+          criado_por: m.email, validade: somarDias(hoje, dv.validadeDias || AJUSTES.valeValidadeDias), enviado: '', origem: 'vendido', comanda: cm.id };
+        adicionarLinha('Vales', novo);
+        it.valeCodigo = novo.codigo;
+        valesCriados.push({ vale: novo, enviarEmail: !!dv.enviarEmail });
+      } else if (it.tipo === 'produto') {
         try { movimentarEstoque(it.id, -it.qtd, 'venda', 'Comanda ' + cm.id + ' · ' + cm.nome, 'comanda:' + cm.id, m.email); } catch (e) { Logger.log('estoque: ' + e.message); }
         if (it.profissional) {
           var pr = profissionalPorNome(it.profissional);
@@ -1065,11 +1238,27 @@ function bancada_fecharComanda(d, m) {
     });
     atualizarLinha('Comandas', c._linha, { status: 'fechada', fechada_em: agoraTexto(), fechada_por: m.email, pagamentos: JSON.stringify(pags), itens: JSON.stringify(calc),
       total: total, subtotal: dinheiro(calc.reduce(function (s, i) { return s + (i.pago ? 0 : i.preco * i.qtd); }, 0)),
-      desconto: dinheiro(calc.reduce(function (s, i) { return s + i.desconto; }, 0)) });
+      desconto: dinheiro(calc.reduce(function (s, i) { return s + i.desconto; }, 0)),
+      historico: anotarComanda(c, m.email, 'fechou · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + ')) });
     SpreadsheetApp.flush();
     registrar(m, 'fechou comanda', cm.nome + ' · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + '));
-    return comandaPublica(acharComanda(cm.id));
   } finally {
     trava.releaseLock();
   }
+  // vales vendidos: e-mail para quem recebe (se pedido) e o texto pronto do WhatsApp
+  var saida = comandaPublica(acharComanda(d.id));
+  saida.valesCriados = valesCriados.map(function (x) {
+    var enviado = false;
+    if (x.enviarEmail && emailValido(x.vale.email)) {
+      try {
+        enviarEmailVale(x.vale);
+        var achado = acharVale(x.vale.codigo);
+        if (achado) atualizarLinha('Vales', achado._linha, { enviado: 'e-mail ' + agoraTexto() });
+        enviado = true;
+      } catch (e) { Logger.log('e-mail do vale: ' + e.message); }
+    }
+    return { codigo: x.vale.codigo, descricao: descreverVale(x.vale), nome: x.vale.nome, whatsapp: x.vale.whatsapp, email: x.vale.email, emailEnviado: enviado,
+      validade: x.vale.validade, textoWhats: textoWhatsVale(x.vale) };
+  });
+  return saida;
 }

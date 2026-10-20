@@ -78,6 +78,8 @@ var PERMISSOES = {
   b_comandaDoAtendimento: ['admin', 'recepcao'],
   b_fecharComanda: ['admin', 'recepcao'],
   b_cancelarComanda: ['admin', 'recepcao'],
+  b_reabrirComanda: ['admin'],
+  b_excluirCliente: ['admin'],
   b_caixa: ['admin', 'recepcao'],
   b_abrirCaixa: ['admin', 'recepcao'],
   b_movimentoCaixa: ['admin', 'recepcao'],
@@ -556,7 +558,7 @@ function montarListaClientes() {
   var al = valoresAba('Alunos'), k = indiceColunas(al[0]), lista = [];
   for (i = 1; i < al.length; i++) {
     var a = al[i];
-    if (!a[k.cpf] || /^unificado/.test(String(a[k.origem_cadastro]))) continue;
+    if (!a[k.cpf] || /^(unificado|exclu)/.test(String(a[k.origem_cadastro]))) continue;
     var cpf = normCpf(a[k.cpf]), pl = planos[cpf] || [];
     lista.push({
       cpf: cpf, nome: String(a[k.nome]), whatsapp: String(a[k.whatsapp] || ''), email: String(a[k.email] || ''), ativo: String(a[k.ativo]).toUpperCase() !== 'NÃO',

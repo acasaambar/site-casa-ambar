@@ -111,7 +111,9 @@ var ABAS = {
   Cupons: ['codigo', 'ativo', 'tipo', 'valor', 'modalidade', 'tipo_plano', 'inicio', 'fim', 'limite_total', 'limite_por_aluno', 'primeira_compra', 'descricao', 'criado_por', 'criado_em'],
   // Vale-presente é cortesia (não é vendido): dá uma aula/plano do catálogo ou um valor em R$
   Vales: ['codigo', 'status', 'tipo', 'plano_id', 'valor', 'cpf', 'nome', 'email', 'whatsapp', 'motivo', 'campanha', 'mensagem',
-    'criado_em', 'criado_por', 'validade', 'resgatado_em', 'resgatado_cpf', 'enviado'],
+    'criado_em', 'criado_por', 'validade', 'resgatado_em', 'resgatado_cpf', 'enviado',
+    // vale vendido na comanda: origem 'vendido' e a comanda (vazio = cortesia)
+    'origem', 'comanda'],
   // ---- serviços (estética, fisioterapia...) agendados pela bancada ----
   Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo'],
   Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
@@ -127,7 +129,9 @@ var ABAS = {
   Produtos: ['id', 'ativo', 'nome', 'categoria', 'marca', 'unidade', 'preco', 'custo', 'estoque', 'minimo', 'vende', 'obs'],
   MovEstoque: ['quando', 'produto_id', 'produto', 'tipo', 'qtd', 'custo_unit', 'valor', 'motivo', 'ref', 'quem'],
   Comandas: ['id', 'status', 'aberta_em', 'fechada_em', 'cpf', 'nome', 'whatsapp', 'itens', 'subtotal', 'desconto', 'total', 'pagamentos', 'codigo', 'obs',
-    'aberta_por', 'fechada_por'],
+    'aberta_por', 'fechada_por',
+    // o que mudou na comanda (JSON: [{ q: quando, p: quem, t: texto }])
+    'historico'],
   Comissoes: ['id', 'data', 'profissional', 'origem', 'ref', 'item', 'base', 'pct', 'valor', 'status', 'pago_em', 'pago_por', 'despesa_id', 'criado_em'],
   Despesas: ['id', 'data', 'descricao', 'categoria', 'valor', 'forma', 'status', 'pago_em', 'recorrente', 'fornecedor', 'obs', 'ref', 'criado_por', 'criado_em'],
   Caixa: ['data', 'status', 'abertura', 'aberto_por', 'aberto_em', 'movimentos', 'dinheiro_vendas', 'esperado', 'contado', 'diferenca', 'fechado_por', 'fechado_em', 'obs'],

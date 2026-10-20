@@ -120,7 +120,7 @@ function nascimentoDe(a, fichas) {
 // filtro: { tipo, dias, mes, servicoId, categoria, modalidade }
 function publicoCampanha(f) {
   var hoje = hojeTexto();
-  var alunos = lerAba('Alunos').filter(function (a) { return a.cpf && ativoSim(a.ativo) && !/^unificado/.test(String(a.origem_cadastro)); });
+  var alunos = lerAba('Alunos').filter(function (a) { return a.cpf && ativoSim(a.ativo) && !/^(unificado|exclu)/.test(String(a.origem_cadastro)); });
   var fichas = mapaAnamneses();
   var ultima = ultimasVisitas();
   var futuro = {};
