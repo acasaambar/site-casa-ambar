@@ -87,12 +87,26 @@ function mascararEmail(e) {
 
 // ---------------- limite de tentativas ----------------
 function limitarTentativas(chave) {
-  var n = Number(CacheService.getScriptCache().get('falha_' + chave) || 0);
+  var c = CacheService.getScriptCache();
+  var n = Number(c.get('falha_' + chave) || 0);
   if (n >= 8) throw new Error('Muitas tentativas. Aguarde 15 minutos ou use "Esqueci minha senha".');
+  // muitas senhas erradas no sistema todo (alguém testando uma senha em várias contas):
+  // cada tentativa demora mais, sem bloquear ninguém
+  var global = Number(c.get('falha_global') || 0);
+  if (global > 40) Utilities.sleep(Math.min(5000, (global - 40) * 150));
 }
 function registrarFalha(chave) {
   var c = CacheService.getScriptCache();
   c.put('falha_' + chave, String(Number(c.get('falha_' + chave) || 0) + 1), 900);
+  c.put('falha_global', String(Number(c.get('falha_global') || 0) + 1), 600);
+}
+
+// limite de pedidos de um tipo no sistema todo (ex.: cadastros em sequência)
+function limitarPorMinutos(chave, max, minutos) {
+  var c = CacheService.getScriptCache();
+  var n = Number(c.get('lim_' + chave) || 0) + 1;
+  c.put('lim_' + chave, String(n), minutos * 60);
+  if (n > max) throw new Error('Muitos pedidos agora. Tente de novo em alguns minutos.');
 }
 function limparFalhas(chave) {
   try { CacheService.getScriptCache().remove('falha_' + chave); } catch (e) { /* ignora */ }
@@ -209,7 +223,10 @@ function encerrarSessoes(nomeAba, prefixoCache, id) {
   for (var i = linhas.length - 1; i >= 1; i--) {
     var dono = nomeAba === 'Sessoes' ? normCpf(linhas[i][1]) : String(linhas[i][1]).toLowerCase();
     if (dono === id) {
-      try { cache.remove(prefixoCache + linhas[i][0]); } catch (e) { /* ignora */ }
+      try {
+        cache.remove(prefixoCache + linhas[i][0]);
+        if (prefixoCache === 'e_') cache.remove('m_' + linhas[i][0]);
+      } catch (e) { /* ignora */ }
       s.deleteRow(i + 1);
     }
   }

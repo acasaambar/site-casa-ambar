@@ -48,7 +48,9 @@ var PACOTES_INICIAIS = [
 
 // ---------------- catálogo ----------------
 function semearServicos() {
-  // confere uma vez por pedido (se a aba já foi lida, já tem catálogo)
+  // confere uma vez (se a aba está na memória ou no cache, já tem catálogo)
+  doCacheOuPreparar('Servicos', function () {});
+  doCacheOuPreparar('Pacotes', function () {});
   if (_memo.Servicos && _memo.Pacotes) return;
   if (abaSemDescartar('Servicos').getLastRow() < 2) aba('Servicos').getRange(2, 1, SERVICOS_INICIAIS.length, SERVICOS_INICIAIS[0].length).setValues(SERVICOS_INICIAIS);
   if (abaSemDescartar('Pacotes').getLastRow() < 2) aba('Pacotes').getRange(2, 1, PACOTES_INICIAIS.length, PACOTES_INICIAIS[0].length).setValues(PACOTES_INICIAIS);
@@ -163,7 +165,7 @@ function buscarItemVenda(id) {
   var plano = buscarPlano(id);
   if (plano) return plano;
   if (!_itensVenda) {
-    _itensVenda = {};
+    _itensVenda = Object.create(null);
     listarServicos(true).forEach(function (s) {
       _itensVenda[s.id] = { id: s.id, nome: s.nome, modalidade: 'Serviço', categoria: s.categoria, tipo: 'servico', aulas_semana: 0, aulas_total: 1,
         validade_dias: 90, preco: s.preco, sem_juros_ate: s.semJurosAte, servico_id: s.id };
@@ -262,8 +264,15 @@ function bancada_atendimentos(d, m) {
     }) };
 }
 
-function bancada_catalogoServicos() {
-  return { servicos: listarServicos(true), pacotes: listarPacotes(true), profissionais: listarProfissionais(true), categorias: CATEGORIAS_SERVICO, horarioCasa: HORARIO_CASA,
+function bancada_catalogoServicos(d, m) {
+  var profs = listarProfissionais(true);
+  var servicos = listarServicos(true);
+  // profissional não vê a comissão das colegas nem a dos serviços
+  if (m && m.papel === 'professora') {
+    profs = profs.map(function (p) { return Object.assign({}, p, { comissao: null, comissaoProduto: null, servicos: p.servicos.map(function (c) { return { id: c.id, duracao: c.duracao }; }) }); });
+    servicos = servicos.map(function (s) { return Object.assign({}, s, { comissao: null }); });
+  }
+  return { servicos: servicos, pacotes: listarPacotes(true), profissionais: profs, categorias: CATEGORIAS_SERVICO, horarioCasa: HORARIO_CASA,
     produtos: listarProdutos().map(function (p) { return { id: p.id, nome: p.nome, unidade: p.unidade, preco: p.preco, vende: p.vende, estoque: p.estoque }; }) };
 }
 
@@ -364,6 +373,8 @@ function bancada_atualizarAtendimento(d, m) {
   var st = ['agendado', 'confirmado', 'atendido', 'falta', 'cancelado'].indexOf(d.status) >= 0 ? d.status : '';
   if (!st) throw new Error('Situação inválida.');
   if (prof && ['atendido', 'falta', 'agendado'].indexOf(st) < 0) throw new Error('Seu acesso permite só marcar atendido ou falta.');
+  if (prof && a.status === 'cancelado') throw new Error('Este atendimento foi cancelado. Fale com a recepção.');
+  if (prof && st !== 'agendado' && inicio({ data: dataTexto(a.data), hora: horaTexto(a.hora) }) > new Date()) throw new Error('Só dá para marcar depois do horário do atendimento.');
   var mud = { status: st, atualizado_em: agoraTexto() };
   if (st === 'atendido' && a.pagamento === 'no_dia' && d.metodo && !prof) {
     var trava = LockService.getScriptLock();

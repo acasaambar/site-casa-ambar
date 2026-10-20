@@ -64,6 +64,7 @@ export const api = {
   verLinkSenha: (t) => chamar('verLinkSenha', { t }),
   novaSenha: (t, senha) => chamar('novaSenha', { t, senha }),
   salvarEmail: (token, email) => chamar('salvarEmail', { token, email }),
+  salvarEndereco: (token, endereco) => chamar('salvarEndereco', { token, endereco }),
   regras: () => chamar('regras'),
   sairLista: (t) => chamar('sairLista', { t }),
   confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
@@ -209,7 +210,7 @@ async function demo(acao, d) {
     return t;
   };
   const fichas = LS.ler('ambar_demo_fichas', {});
-  const publico = (a) => ({ nome: a.nome, cpf: a.cpf, whatsapp: a.whatsapp, anamnese: !!fichas[a.cpf] || a.cpf === '12345678909' });
+  const publico = (a) => ({ nome: a.nome, cpf: a.cpf, whatsapp: a.whatsapp, anamnese: !!fichas[a.cpf] || a.cpf === '12345678909', endereco: true });
 
   switch (acao) {
     case 'cadastrar': {
@@ -400,6 +401,8 @@ async function demo(acao, d) {
       throw new Error('Cupons e vales funcionam só no sistema real.');
     case 'esqueciSenha':
       return { email: 'ma***@gm***.com' };
+    case 'salvarEndereco':
+      return publico(sessao(d.token));
     case 'salvarEmail': {
       const a = sessao(d.token);
       return { ...publico(a), email: d.email };

@@ -5,6 +5,7 @@ import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Ta
   linkWhats, primeiro, baixarCSV, hojeIso } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
+import { AnamneseConteudo } from './Anamnese.jsx';
 import { FichaConteudo } from './Agenda.jsx';
 import { useItensVenda, OpcoesItens } from './Servicos.jsx';
 import { mascaraCPF, mascaraTelefone, soDigitos, cpfValido } from '../lib/util.js';
@@ -330,7 +331,7 @@ export function AlunoDetalhe() {
       <Erro>{erro}</Erro>
       {aviso && <p className="aviso">{aviso}</p>}
 
-      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['estetica', 'Estética'], ['planos', 'Planos e pacotes'], ['aulas', 'Aulas'],
+      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['anamnese', 'Anamnese'], ['estetica', 'Estética'], ['planos', 'Planos e pacotes'], ['aulas', 'Aulas'],
         ['pagamentos', 'Pagamentos'], ['saude', 'Saúde']]} />
 
       {aba === 'resumo' && (
@@ -372,6 +373,7 @@ export function AlunoDetalhe() {
 
       {aba === 'historico' && <Historico itens={a.historico} />}
       {aba === 'estetica' && <section className="b-cartao"><ProntuarioConteudo alvo={{ cpf: a.cpf }} /></section>}
+      {aba === 'anamnese' && <AnamneseConteudo alvo={{ cpf: a.cpf }} />}
       {aba === 'planos' && <Creditos a={a} aoMudar={recarregar} />}
 
       {aba === 'aulas' && (
@@ -413,7 +415,7 @@ export function AlunoDetalhe() {
   );
 }
 
-const TIPO_HIST = { aula: 'Aula', servico: 'Serviço', compra: 'Compra', produto: 'Produto', vale: 'Vale-presente', evolucao: 'Evolução' };
+const TIPO_HIST = { aula: 'Aula', servico: 'Serviço', compra: 'Compra', produto: 'Produto', vale: 'Vale-presente', evolucao: 'Evolução', anamnese: 'Anamnese' };
 function Historico({ itens }) {
   if (!itens?.length) return <Vazio titulo="Nada por aqui ainda" />;
   const linhas = [];

@@ -22,6 +22,12 @@ embrulhar(ProtoFaixa, 'getValues', 'leituras');
 ['setValues', 'setValue'].forEach((n) => embrulhar(ProtoFaixa, n, 'gravacoes'));
 embrulhar(ProtoAba, 'appendRow', 'gravacoes');
 ['getLastRow', 'getLastColumn'].forEach((n) => embrulhar(ProtoAba, n, 'outras'));
+// consultas ao cache do Google (rápidas, ~0,02 s) contam como "outras"
+const cacheOrig = m.ctx.CacheService.getScriptCache;
+m.ctx.CacheService.getScriptCache = () => {
+  const c = cacheOrig();
+  return { get: (k) => { cont.outras++; return c.get(k); }, put: (k, v, t) => { cont.outras++; return c.put(k, v, t); }, remove: (k) => { cont.outras++; return c.remove(k); } };
+};
 const ssGet = ss.getSheetByName;
 ss.getSheetByName = function (n) { cont.outras++; return ssGet.call(this, n); };
 
@@ -59,6 +65,12 @@ const ag = t('Agendar serviço', 'b_agendarServico', { servicoId: 'drenagem', pr
 t('Marcar atendido (comissão)', 'b_atualizarAtendimento', { id: ag.id, status: 'atendido' });
 const cm = t('Comanda do atendimento', 'b_comandaDoAtendimento', { atendimentoId: ag.id }).dados;
 t('Fechar comanda', 'b_fecharComanda', { id: cm.id, pagamentos: [{ metodo: 'Pix', valor: cm.total }] });
-t('Salvar profissional', 'b_salvarProfissional', { profissional: { ...cat.profissionais[0], nomeOriginal: prof,
+t('Salvar profissional', 'b_salvarProfissional', { profissional: { ...cat.profissionais[0], horarios: undefined, nomeOriginal: prof,
   servicos: cat.servicos.filter((s) => cat.profissionais[0].categorias.includes(s.categoria)).map((s) => ({ id: s.id, comissao: 30, duracao: '' })) } });
+console.log('— área do aluno (site)');
+const tokAluno = chamar('entrar', { cpf: '52998224725', senha: 'aluna2026' }).dados.token;
+const ta = (rotulo, acao, dados) => { const x = medir(rotulo, acao, { ...dados, token: tokAluno }); total.push(x.est); return x.r; };
+ta('Aulas da semana', 'aulas', {});
+ta('Minhas reservas', 'minhasReservas', {});
+ta('Meu plano', 'meuPlano', {});
 console.log(`\nSoma estimada: ${total.reduce((a, b) => a + b, 0).toFixed(1)} s`);

@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessaoBancada, useBancada, pode } from './sessao.jsx';
 import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
-import { Atualizando, preCarregar } from './ui.jsx';
+import { Atualizando, preCarregar, hojeIso } from './ui.jsx';
 import { CampoSenha } from '../components/CampoSenha.jsx';
 import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
@@ -17,6 +17,7 @@ import Relatorios from './Relatorios.jsx';
 import Grade from './Grade.jsx';
 import Equipe from './Equipe.jsx';
 import Ajustes from './Ajustes.jsx';
+import { MinhasClientes, ClienteProfissional } from './Anamnese.jsx';
 import '@fontsource/ibm-plex-sans/400.css';
 import '@fontsource/ibm-plex-sans/500.css';
 import '@fontsource/ibm-plex-sans/600.css';
@@ -50,6 +51,7 @@ const MENU = [
     ['', 'Hoje', 'inicio', ['admin', 'recepcao', 'professora']],
     ['agenda', 'Agenda', 'agenda', ['admin', 'recepcao', 'professora']],
     ['alunos', 'Clientes', 'alunos', ['admin', 'recepcao']],
+    ['clientes', 'Minhas clientes', 'alunos', ['professora']],
   ]],
   ['Caixa', [
     ['comandas', 'Comandas e caixa', 'comandas', ['admin', 'recepcao']],
@@ -92,11 +94,15 @@ function Painel() {
     document.title = 'Bancada · Casa Âmbar';
     return () => { document.title = 'Casa Âmbar · harmonia em estado natural'; };
   }, []);
-  // o que quase toda tela da recepção usa (catálogo e planos) já vem carregado
+  // as telas mais usadas já vêm carregadas por trás (abrem na hora): catálogo, planos,
+  // agenda e atendimentos de hoje, comandas abertas; para a profissional, as clientes dela
   useEffect(() => {
-    if (!pode(membro, 'admin', 'recepcao')) return undefined;
-    const t = setTimeout(() => { preCarregar(chamar, token, 'catalogoServicos'); preCarregar(chamar, token, 'planos'); }, 1500);
-    return () => clearTimeout(t);
+    const hoje = hojeIso();
+    const pedidos = pode(membro, 'admin', 'recepcao')
+      ? [['catalogoServicos'], ['planos'], ['agenda', { de: hoje, dias: 1 }], ['atendimentos', { de: hoje, dias: 1 }], ['comandas', { status: 'aberta' }]]
+      : [['agenda', { de: hoje, dias: 1 }], ['atendimentos', { de: hoje, dias: 1 }], ['minhasClientes']];
+    const timers = pedidos.map(([acao, params], i) => setTimeout(() => preCarregar(chamar, token, acao, params), 1500 + i * 400));
+    return () => timers.forEach(clearTimeout);
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
   const grupos = MENU.map(([g, l]) => [g, l.filter((m) => pode(membro, ...m[3]))]).filter(([, l]) => l.length);
   return (
@@ -164,7 +170,13 @@ function Painel() {
                 <Route path="ajustes" element={<Ajustes />} />
               </>
             )}
-            {pode(membro, 'professora') && <Route path="ganhos" element={<MeusGanhos />} />}
+            {pode(membro, 'professora') && (
+              <>
+                <Route path="ganhos" element={<MeusGanhos />} />
+                <Route path="clientes" element={<MinhasClientes />} />
+                <Route path="clientes/:ref" element={<ClienteProfissional />} />
+              </>
+            )}
             <Route path="*" element={<Navigate to="/bancada" replace />} />
           </Routes>
         </main>

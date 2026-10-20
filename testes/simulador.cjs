@@ -52,7 +52,8 @@ function criar(arquivos) {
     DriveApp: (() => { const arquivos = {}; let n = 0; const pasta = { getId: () => 'pastaX', searchFiles: () => ({ hasNext: () => false }),
       createFile: (b) => { const id = 'arquivo' + String(++n).padStart(8, '0'); arquivos[id] = b; return { getUrl: () => 'https://drive/pdf', getId: () => id }; } };
       return { arquivos, getFolderById: () => pasta, getFoldersByName: () => ({ hasNext: () => false }), createFolder: () => pasta,
-        getFileById: (id) => { if (!arquivos[id]) throw new Error('nao existe'); return { getBlob: () => arquivos[id], setTrashed: () => { delete arquivos[id]; } }; } }; })(),
+        getFileById: (id) => { if (!arquivos[id]) throw new Error('nao existe'); return { getBlob: () => arquivos[id], setTrashed: () => { delete arquivos[id]; },
+          setContent: (t) => { arquivos[id] = { getDataAsString: () => String(t), getBytes: () => [...Buffer.from(String(t))], getContentType: () => 'text/plain' }; } }; } }; })(),
     MailApp: { sendEmail: o => emails.push(o), getRemainingDailyQuota: () => 1500 },
     Session: { getEffectiveUser: () => ({ getEmail: () => 'contato@acasaambar.com.br' }) },
     Utilities: {
@@ -62,7 +63,7 @@ function criar(arquivos) {
       base64Encode: b => Buffer.from(b.map(x => x & 255)).toString('base64'),
       formatDate: (d, _tz, f) => { const z = n => String(n).padStart(2, '0'); const loc = new Date(d.getTime() - (_tz === 'GMT' ? 0 : 3 * 3600e3));
         return f.replace('yyyy', loc.getUTCFullYear()).replace('yy', String(loc.getUTCFullYear()).slice(2)).replace('MM', z(loc.getUTCMonth() + 1)).replace('dd', z(loc.getUTCDate())).replace('HH', z(loc.getUTCHours())).replace('mm', z(loc.getUTCMinutes())).replace('ss', z(loc.getUTCSeconds())).replace('u', loc.getUTCDay() || 7); },
-      newBlob: (dados, tipo) => ({ getAs: () => ({ setName() { return this; } }), getBytes: () => dados, getContentType: () => tipo }),
+      newBlob: (dados, tipo) => ({ getAs: () => ({ setName() { return this; } }), getBytes: () => dados, getContentType: () => tipo, getDataAsString: () => String(dados) }),
       base64Decode: (t) => [...Buffer.from(t, 'base64')],
       DigestAlgorithm: { SHA_256: 1 }, Charset: { UTF_8: 1 },
     },

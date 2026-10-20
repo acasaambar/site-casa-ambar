@@ -208,6 +208,24 @@ function tokenLista(cpf) {
     .map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('').slice(0, 32);
 }
 
+// acha a cliente pelo link de descadastro. O índice (começo do código → CPF) fica 6 h no cache e
+// é refeito no máximo a cada 10 min: link falso não trava o descadastro de ninguém nem pesa o sistema.
+function alunoDoLinkLista(t) {
+  var cache = CacheService.getScriptCache();
+  var indice = parseJson(cache.get('lista_indice'), null);
+  var acha = function (ind) {
+    var cpf = ind && ind[t.slice(0, 12)];
+    var a = cpf ? buscarAluno(cpf) : null;
+    return a && iguais(tokenLista(a.cpf), t) ? a : null;
+  };
+  var a = acha(indice);
+  if (a || cache.get('lista_indice_novo')) return a;
+  indice = {};
+  lerAba('Alunos').forEach(function (x) { if (x.cpf) indice[tokenLista(x.cpf).slice(0, 12)] = normCpf(x.cpf); });
+  try { cache.put('lista_indice', JSON.stringify(indice), 21600); cache.put('lista_indice_novo', '1', 600); } catch (e) { /* lista grande: segue sem cache */ }
+  return acha(indice);
+}
+
 function linkDescadastro(cpf) {
   return AJUSTES.siteUrl + '#/descadastrar?t=' + tokenLista(cpf);
 }
@@ -219,10 +237,8 @@ function sairLista(d) {
   var chave = 'lista_' + t;
   var cache = CacheService.getScriptCache();
   if (cache.get(chave)) return { ok: true, nome: cache.get(chave) };
-  // links falsos em sequência: trava por alguns minutos (cada tentativa confere toda a lista)
-  limitarCodigos('lista');
-  var a = lerAba('Alunos').filter(function (x) { return x.cpf && iguais(tokenLista(x.cpf), t); })[0];
-  if (!a) { contarErroCodigo('lista'); throw new Error('Link inválido.'); }
+  var a = alunoDoLinkLista(t);
+  if (!a) throw new Error('Link inválido.');
   atualizarLinha('Alunos', a._linha, { marketing: 'NÃO' });
   cache.put(chave, primeiroNome(a.nome), 3600);
   return { ok: true, nome: primeiroNome(a.nome) };

@@ -73,7 +73,7 @@ Endereço: **www.acasambar.com.br/#/bancada**. Cada pessoa entra com o próprio 
 |---|---|
 | Administração | tudo, inclusive relatórios, equipe, planos/preços, cupons e ajustes |
 | Recepção | agenda, agendar/cancelar, presença, alunos, vendas no balcão, vales-presente e bloqueios |
-| Professora | só as próprias aulas: lista de presença e ficha de saúde das alunas |
+| Professora / profissional | só as próprias aulas e atendimentos: presença, ficha de saúde, **Minhas clientes** (anamnese com fotos e comandas da cliente), Meus ganhos |
 
 Primeiro acesso: no editor do Apps Script, execute **uma vez** a função `autorizarEmails` (arquivo Seguranca.gs).
 Ela autoriza o envio de e-mails e manda para o dono da conta Google o link para criar a senha de administrador.
@@ -105,7 +105,8 @@ Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
 
 ### Clientes: endereço e "Como nos conheceu?"
 
-Cadastro com endereço (o CEP preenche rua, bairro e cidade) para nota fiscal e a pergunta "Como nos conheceu?" (também no cadastro do site).
+Cadastro com endereço (o CEP preenche rua, bairro e cidade) para nota fiscal e a pergunta "Como nos conheceu?".
+No **cadastro do site** o endereço é obrigatório; quem se cadastrou antes vê o aviso "Complete seu endereço" na área do aluno.
 Relatórios → Alunos e marketing mostra de onde vêm as clientes, quanto cada canal vendeu e os bairros.
 
 ### Gestão da casa (comandas, caixa, estoque, financeiro)
@@ -127,16 +128,34 @@ Relatórios → Alunos e marketing mostra de onde vêm as clientes, quanto cada 
   Histórico completo, ficha de estética e evolução com fotos de antes e depois (pasta privada "Casa Âmbar · Fotos de clientes" no Drive).
   **Importar planilha** (Avec ou outro sistema, em CSV) em Clientes.
 
-Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, Promocoes, Campanhas, FichasEstetica, Evolucoes.
+- **Minhas clientes** (profissional): as clientes que ela atende, com três abas: **Anamnese** (anotações de texto livre, sem limite de tamanho, com até 30 fotos cada),
+  **Ficha e evolução** e **Comandas** (abertas e as últimas fechadas, sem CPF nem WhatsApp). Abre também pelo atendimento na agenda.
+  Cada anotação mostra quem escreveu; só a autora (ou a administração) edita. Recepção e administração leem tudo na ficha da cliente (aba Anamnese).
+  Texto curto fica na aba AnamnesesProf; texto muito longo vai para um arquivo na pasta privada de fotos do Drive.
+
+Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, Promocoes, Campanhas, FichasEstetica, Evolucoes, AnamnesesProf.
+
+### Velocidade
+
+- Durante um pedido, cada aba é lida uma vez só. Entre pedidos, o catálogo (Grade, Planos, Servicos, Pacotes, Profissionais, Professoras, Promocoes)
+  fica 2 minutos no cache do Google. O que a bancada salva aparece na hora; **o que for editado direto na planilha aparece em até 2 minutos**.
+- A sessão da equipe fica 10 minutos no cache (mudar o papel, desativar, trocar a senha ou sair vale na hora).
+- A bancada guarda na tela o que já carregou e atualiza por trás; ao entrar, já busca a agenda do dia, o catálogo e as comandas abertas.
 
 ### Segurança
 
-- Sessões: a planilha guarda só o hash do token (aba Sessoes e SessoesEquipe). Sair invalida na hora.
+- Só duas portas: o site e a bancada falam com o servidor por `doPost`, que aceita uma lista fechada de ações. As da bancada (`b_…`)
+  só rodam se estiverem em `PERMISSOES` e se a pessoa tiver o papel certo. Nenhuma outra função do Apps Script pode ser chamada de fora
+  (o "_" no fim do nome não é o que protege aqui: a lista fechada é). `npm run teste` confere isso em todas as ações.
+- Sessões: a planilha guarda só o hash do token (aba Sessoes e SessoesEquipe), no máximo 10 por aluna. Sair invalida na hora.
+- Pagamentos: o aviso da InfinitePay só vale com o valor certo e uma transação ainda não usada. Vale e cupom ficam reservados enquanto o link
+  de pagamento está em aberto (24 h), para não serem usados duas vezes. Reserva aguardando pagamento não faz check-in.
 - Textos que chegam do site nunca viram fórmula na planilha (proteção contra IMPORTXML/HYPERLINK).
 - Limite de tentativas: login, link de senha e códigos de cupom/vale.
-- "Esqueci minha senha" não revela se o CPF tem cadastro.
-- Senha da equipe: no mínimo 10 caracteres. Professora/profissional só vê a própria agenda, sem CPF e WhatsApp.
-- O site tem política de segurança de conteúdo (CSP) no index.html.
+- Login e "Esqueci minha senha" não revelam se o CPF ou e-mail tem cadastro. Muitas tentativas erradas no geral deixam o login mais lento.
+- Senha da equipe: no mínimo 10 caracteres. Professora/profissional só vê a própria agenda, sem CPF e WhatsApp, e não vê comissões das outras.
+- O site tem política de segurança de conteúdo (CSP) no index.html e não abre dentro de outro site (proteção contra clickjacking).
+- As pastas do Drive (anamneses e fotos) só são usadas se pertencerem à conta do sistema.
 - Mantenha a planilha e a pasta de anamneses com acesso **Restrito** (nunca "qualquer pessoa com o link").
 
 ### Cupons e vales-presente

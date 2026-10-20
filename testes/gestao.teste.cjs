@@ -1,4 +1,6 @@
 const { criar } = require('./simulador.cjs');
+// endereço de exemplo (o cadastro do site exige endereço completo)
+const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
 const R = require('path').join(__dirname, '..', 'apps-script');
 const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs']);
 const { ctx, chamar, emails } = m;
@@ -57,7 +59,7 @@ ok(r.ok && r.dados.valorFinal === 159.2, 'cupom maior que a promoção vence', r
 r = chamar('b_simularPreco', { token: rec, planoId: 'limpeza-pele', codigo: 'MINI5' });
 ok(r.ok && r.dados.valorFinal === 179.1 && /não foi usado/.test(r.dados.mensagem), 'promoção maior que o cupom: não somam', r);
 r = chamar('b_salvarPromocao', { token: adm, promocao: { nome: 'Yoga de terça', tipo: 'preco_fixo', valor: 50, itens: ['yoga-avulsa'], onde: 'site' } });
-r = chamar('cadastrar', { cpf: '529.982.247-25', nome: 'Mariana Costa', whatsapp: '85999990000', email: 'mari@gmail.com', senha: 'aluna2026' });
+r = chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Mariana Costa', whatsapp: '85999990000', email: 'mari@gmail.com', senha: 'aluna2026' });
 const tokMari = r.dados.token;
 r = chamar('meuPlano', { token: tokMari });
 const av = r.dados.catalogo.find((p) => p.id === 'yoga-avulsa');
@@ -305,8 +307,22 @@ console.log('— cadastro do cliente: endereço e "Como nos conheceu?"');
   ok(r.ok && r.dados.endereco.complemento === 'Apto 101' && r.dados.endereco.endereco === 'Rua Eduardo Salgado' && r.dados.comoConheceu === 'Indicação de alguém', 'editar um campo não apaga o resto', r.dados && r.dados.endereco);
   r = chamar('b_salvarAluno', { token: rec, cpf: a.cpf, dados: { endereco: { cep: '1234' } } });
   ok(!r.ok && /8 números/.test(r.erro), 'CEP incompleto é recusado', r);
-  r = chamar('cadastrar', { cpf: '71428793860', nome: 'Site Conheceu', whatsapp: '85991114444', email: 'site.c@gmail.com', senha: 'aluna2026', comoConheceu: 'Google' });
+  r = chamar('cadastrar', { endereco: END_TESTE, cpf: '71428793860', nome: 'Site Conheceu', whatsapp: '85991114444', email: 'site.c@gmail.com', senha: 'aluna2026', comoConheceu: 'Google' });
   ok(r.ok && ctx.buscarAluno('71428793860').como_conheceu === 'Google', 'cadastro do site guarda como conheceu', r);
+  r = chamar('cadastrar', { cpf: '15350946056', nome: 'Sem Endereco', whatsapp: '85991115555', email: 'sem.end@gmail.com', senha: 'aluna2026' });
+  ok(!r.ok && /Complete o endereço: CEP, rua, número, bairro, cidade, UF/.test(r.erro), 'cadastro do site exige endereço', r);
+  r = chamar('cadastrar', { cpf: '15350946056', nome: 'Com Endereco', whatsapp: '85991115555', email: 'com.end@gmail.com', senha: 'aluna2026', endereco: { ...END_TESTE, numero: '' } });
+  ok(!r.ok && /número/.test(r.erro), 'falta só o número: avisa qual', r);
+  r = chamar('cadastrar', { cpf: '15350946056', nome: 'Com Endereco', whatsapp: '85991115555', email: 'com.end@gmail.com', senha: 'aluna2026', endereco: { ...END_TESTE, cep: '60150160', complemento: 'Apto 3' } });
+  ok(r.ok && r.dados.aluno.endereco === true && ctx.buscarAluno('15350946056').cep === '60150-160', 'cadastro do site com endereço completo', r);
+  // aluna antiga sem endereço completa pela área do aluno
+  ctx.atualizarLinha('Alunos', ctx.buscarAluno('15350946056')._linha, { endereco: '', numero: '' });
+  const tokEnd = chamar('entrar', { cpf: '15350946056', senha: 'aluna2026' }).dados;
+  ok(tokEnd.aluno.endereco === false, 'sem endereço completo, o site avisa', tokEnd.aluno);
+  r = chamar('salvarEndereco', { token: tokEnd.token, endereco: { ...END_TESTE, numero: '10' } });
+  ok(r.ok && r.dados.endereco === true && ctx.buscarAluno('15350946056').numero == 10, 'aluna completa o endereço', r);
+  r = chamar('salvarEndereco', { token: 'token-falso-1234567890', endereco: END_TESTE });
+  ok(!r.ok, 'sem login não salva endereço');
   r = chamar('b_importarClientes', { token: adm, linhas: [{ nome: 'Importada Avec', whatsapp: '85997776666', cep: '60.170-001', endereco: 'Av. Santos Dumont', numero: '100', bairro: 'Meireles', cidade: 'Fortaleza', uf: 'CE', comoConheceu: 'Wellhub' }] });
   const imp = ctx.lerAba('Alunos').find((x) => x.nome === 'Importada Avec');
   ok(r.ok && imp && imp.cep === '60170-001' && imp.bairro === 'Meireles' && imp.como_conheceu === 'Wellhub', 'importação traz endereço e como conheceu', imp);
@@ -377,8 +393,8 @@ console.log('— pagamento das professoras de aula (Pilates %, Yoga por aula)');
   const pil = passadas.filter((a) => a.data === dd && a.modalidade === 'Pilates' && a.professor === 'Kalliny');
   const yog = passadas.find((a) => a.data === dd && a.modalidade === 'Yoga');
   const cpfA = '52998224725', cpfB = '39053344705';
-  chamar('cadastrar', { cpf: cpfA, nome: 'Alice Pilates', whatsapp: '85991112222', email: 'alice.p@gmail.com', senha: 'aluna2026' });
-  chamar('cadastrar', { cpf: cpfB, nome: 'Bruna Yoga', whatsapp: '85991113333', email: 'bruna.y@gmail.com', senha: 'aluna2026' });
+  chamar('cadastrar', { endereco: END_TESTE, cpf: cpfA, nome: 'Alice Pilates', whatsapp: '85991112222', email: 'alice.p@gmail.com', senha: 'aluna2026' });
+  chamar('cadastrar', { endereco: END_TESTE, cpf: cpfB, nome: 'Bruna Yoga', whatsapp: '85991113333', email: 'bruna.y@gmail.com', senha: 'aluna2026' });
   r = chamar('b_vender', { token: adm, cpf: cpfA, planoId: 'pilates-mensal-2x', metodo: 'Pix', inicio: ctx.somarDias(hoje, -6) });
   ok(r.ok, 'plano mensal 2x vendido', r);
   const pago = ctx.lerAba('Pagamentos').filter((p) => ctx.normCpf(p.cpf) === cpfA && p.status === 'pago').pop();
@@ -418,6 +434,83 @@ console.log('— pagamento das professoras de aula (Pilates %, Yoga por aula)');
   const n = ctx.lerAba('Comissoes').length;
   chamar('b_comissoes', { token: adm, mes: mesDD }); ctx.esquecerComissoesAulas(); chamar('b_comissoes', { token: adm, mes: mesDD });
   ok(ctx.lerAba('Comissoes').length === n, 'abrir de novo não duplica');
+}
+
+console.log('— profissional: minhas clientes, anamnese (texto sem limite + fotos) e comanda');
+{
+  r = chamar('b_minhasClientes', { token: lia });
+  const cli = r.ok && r.dados.find((c) => c.nome === at1.nome);
+  ok(cli && cli.ref && !('cpf' in cli) && !('whatsapp' in cli), 'Lia vê as clientes dela, sem CPF nem WhatsApp', r.dados);
+  r = chamar('b_minhasClientes', { token: rosa });
+  ok(r.ok && !r.dados.some((c) => c.nome === at1.nome), 'outra profissional não vê a cliente da Lia');
+  r = chamar('b_minhasClientes', { token: rec });
+  ok(!r.ok, 'recepção usa a tela Clientes (não esta)');
+  const textoMedio = 'Queixa: manchas na testa.\n'.repeat(120);
+  r = chamar('b_salvarAnamneseProf', { token: lia, atendimentoId: cli.ref, titulo: 'Primeira consulta', texto: textoMedio, fotos: [png] });
+  ok(r.ok && r.dados.anotacoes.length === 1 && r.dados.anotacoes[0].texto === textoMedio && r.dados.anotacoes[0].fotos.length === 1 && r.dados.anotacoes[0].podeEditar, 'anamnese com texto e foto', r);
+  const an1 = r.dados.anotacoes[0];
+  const enorme = ('Histórico detalhado da pele, rotina, alimentação e sono. ' + 'x'.repeat(40) + '\n').repeat(1300);
+  r = chamar('b_salvarAnamneseProf', { token: lia, atendimentoId: cli.ref, titulo: 'Anamnese completa', texto: enorme });
+  const an2 = r.ok && r.dados.anotacoes.find((x) => x.titulo === 'Anamnese completa');
+  ok(an2 && an2.longo && an2.texto.length === 1500 && an2.tamanho === enorme.length, 'texto enorme (' + enorme.length + ' caracteres) vai para o Drive; a lista traz o começo', an2 && [an2.longo, an2.texto.length, an2.tamanho]);
+  r = chamar('b_anamneseProf', { token: lia, id: an2.id });
+  ok(r.ok && r.dados.texto === enorme, 'abrir mostra o texto inteiro, sem cortar', r.ok && r.dados.texto.length);
+  const arqLongo = Object.keys(ctx.DriveApp.arquivos).length;
+  r = chamar('b_salvarAnamneseProf', { token: lia, atendimentoId: cli.ref, id: an2.id, titulo: 'Anamnese completa', texto: 'Resumo curto.' });
+  ok(r.ok && r.dados.anotacoes.find((x) => x.id === an2.id).texto === 'Resumo curto.' && Object.keys(ctx.DriveApp.arquivos).length === arqLongo - 1, 'editar para texto curto volta para a planilha e apaga o arquivo', r);
+  r = chamar('b_anamnesesProf', { token: rosa, atendimentoId: cli.ref });
+  ok(!r.ok, 'outra profissional não abre a anamnese');
+  r = chamar('b_foto', { token: rosa, id: an1.fotos[0] });
+  ok(!r.ok, 'outra profissional não vê a foto da anamnese');
+  r = chamar('b_foto', { token: lia, id: an1.fotos[0] });
+  ok(r.ok && /^data:image/.test(r.dados), 'a foto volta para quem atende');
+  r = chamar('b_anamnesesProf', { token: lia, cpf: '11144477735' });
+  ok(!r.ok && /agenda/.test(r.erro), 'profissional não abre pelo CPF');
+  r = chamar('b_anamnesesProf', { token: rec, cpf: ctx.normCpf(ctx.lerAba('Atendimentos').find((a) => a.id === cli.ref).cpf) });
+  ok(r.ok && r.dados.anotacoes.length === 2 && !r.dados.anotacoes[0].podeEditar, 'recepção lê, mas não edita o que a Lia escreveu', r.dados && r.dados.anotacoes.map((x) => x.podeEditar));
+  r = chamar('b_salvarAnamneseProf', { token: rec, cpf: ctx.normCpf(ctx.lerAba('Atendimentos').find((a) => a.id === cli.ref).cpf), id: an1.id, texto: 'mudando' });
+  ok(!r.ok && /Só quem escreveu/.test(r.erro), 'só quem escreveu edita', r);
+  r = chamar('b_salvarAnamneseProf', { token: lia, atendimentoId: cli.ref, id: an1.id, texto: textoMedio, remover: [an1.fotos[0]] });
+  ok(r.ok && r.dados.anotacoes.find((x) => x.id === an1.id).fotos.length === 0, 'tirar uma foto da anamnese', r);
+  r = chamar('b_comandasCliente', { token: lia, atendimentoId: cli.ref });
+  ok(r.ok && Array.isArray(r.dados.abertas) && [...r.dados.abertas, ...r.dados.fechadas].every((c) => !c.cpf && !c.whatsapp) && r.dados.abertas.length + r.dados.fechadas.length > 0,
+    'Lia vê as comandas da cliente, sem CPF nem WhatsApp', r.dados);
+  r = chamar('b_comandasCliente', { token: rosa, atendimentoId: cli.ref });
+  ok(!r.ok, 'outra profissional não vê a comanda');
+  r = chamar('b_aluno', { token: rec, cpf: ctx.normCpf(ctx.lerAba('Atendimentos').find((a) => a.id === cli.ref).cpf) });
+  ok(r.ok && r.dados.historico.some((h) => h.tipo === 'anamnese'), 'anamnese aparece no histórico da cliente');
+  r = chamar('b_excluirAnamneseProf', { token: rosa, id: an2.id });
+  ok(!r.ok, 'outra pessoa não apaga');
+  r = chamar('b_excluirAnamneseProf', { token: adm, id: an2.id });
+  ok(r.ok, 'administração apaga');
+}
+
+console.log('— velocidade: cache da sessão e do catálogo sem dados velhos');
+{
+  // a sessão da equipe fica no cache: desativar ou mudar o papel vale na hora
+  chamar('b_salvarMembro', { token: adm, membro: { email: 'cache@gmail.com', nome: 'Teste Cache', papel: 'recepcao' } });
+  chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'cacheteste12' });
+  const tc = chamar('b_entrar', { email: 'cache@gmail.com', senha: 'cacheteste12' }).dados.token;
+  ok(chamar('b_alunos', { token: tc }).ok && chamar('b_alunos', { token: tc }).ok, 'recepção usa a bancada (2ª vez vem do cache)');
+  chamar('b_salvarMembro', { token: adm, membro: { email: 'cache@gmail.com', nome: 'Teste Cache', papel: 'professora', professorNome: 'Teste Cache' } });
+  r = chamar('b_alunos', { token: tc });
+  ok(!r.ok && /não permite/.test(r.erro), 'mudou para profissional: perde o acesso de recepção na hora', r);
+  chamar('b_salvarMembro', { token: adm, membro: { email: 'cache@gmail.com', nome: 'Teste Cache', papel: 'recepcao', ativo: false } });
+  r = chamar('b_resumo', { token: tc });
+  ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', 'desativada: sai na hora', r);
+  // catálogo no cache: o que a bancada salva aparece na hora, e os horários voltam iguais do cache
+  const aulas1 = JSON.stringify(chamar('b_grade', { token: adm }).dados);
+  const aulas2 = JSON.stringify(chamar('b_grade', { token: adm }).dados);
+  ok(aulas1 === aulas2 && /"hora":"\d{2}:\d{2}"/.test(aulas2), 'grade igual vinda do cache (horários continuam 06:30…)');
+  const g = chamar('b_grade', { token: adm }).dados;
+  r = chamar('b_salvarGrade', { token: adm, linhas: g.map((x, i) => (i === 0 ? { ...x, professor: 'Professora Nova' } : x)) });
+  ok(r.ok && chamar('b_grade', { token: adm }).dados[0].professor === 'Professora Nova', 'grade salva aparece na hora (cache limpo)');
+  chamar('b_salvarGrade', { token: adm, linhas: g });
+  const cat = chamar('b_catalogoServicos', { token: adm }).dados;
+  const sv = cat.servicos[0];
+  chamar('b_salvarServico', { token: adm, servico: { ...sv, preco: sv.preco + 1 } });
+  ok(chamar('b_catalogoServicos', { token: adm }).dados.servicos.find((x) => x.id === sv.id).preco === sv.preco + 1, 'preço de serviço salvo aparece na hora');
+  chamar('b_salvarServico', { token: adm, servico: sv });
 }
 
 console.log('— resumo do dia');

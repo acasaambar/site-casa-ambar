@@ -5,6 +5,8 @@ import AreaNav from '../components/AreaNav.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { DIAS_CURTOS, MESES, dataDeIso, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
+import { ENDERECO_VAZIO, faltaNoEndereco } from '../lib/clientes.js';
+import { EnderecoSite } from '../components/EnderecoSite.jsx';
 
 export default function Aulas() {
   const { token, aluno, expirou } = useAuth();
@@ -49,6 +51,7 @@ export default function Aulas() {
 
       <AreaNav />
       <AvisoEmail />
+      <AvisoEndereco />
       <div className="largura app__corpo">
         {erro && <p className="erro" role="alert">{erro}</p>}
         {!aulas && !erro && <Carregando />}
@@ -136,6 +139,50 @@ export function Carregando() {
     <div className="carregando" role="status">
       <Sol tamanho={36} className="girando" />
       <span>Carregando…</span>
+    </div>
+  );
+}
+
+// Aluna antiga sem endereço completo (para a nota fiscal): completa aqui mesmo
+function AvisoEndereco() {
+  const { token, aluno, atualizarAluno } = useAuth();
+  const [aberto, setAberto] = useState(false);
+  const [endereco, setEndereco] = useState(ENDERECO_VAZIO);
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  if (!aluno || aluno.endereco !== false || aluno.email === '') return null;
+  async function salvar(e) {
+    e.preventDefault();
+    const falta = faltaNoEndereco(endereco);
+    if (falta) return setErro(falta);
+    setErro('');
+    setSalvando(true);
+    try {
+      const a = await api.salvarEndereco(token, endereco);
+      atualizarAluno({ endereco: a.endereco });
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+  return (
+    <div className="largura">
+      <form className="aviso-email aviso-email--endereco form" onSubmit={salvar} noValidate>
+        <div>
+          <strong>Complete seu endereço</strong>
+          <p>Precisamos dele para emitir os recibos e notas da Casa Âmbar.</p>
+        </div>
+        {!aberto ? (
+          <button type="button" className="botao botao--cheio botao--p" onClick={() => setAberto(true)}>Preencher agora</button>
+        ) : (
+          <>
+            <EnderecoSite valor={endereco} aoMudar={setEndereco} />
+            <button type="submit" className="botao botao--cheio botao--p" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar endereço'}</button>
+          </>
+        )}
+        {erro && <p className="erro" role="alert">{erro}</p>}
+      </form>
     </div>
   );
 }

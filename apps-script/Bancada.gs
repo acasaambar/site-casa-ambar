@@ -64,6 +64,12 @@ var PERMISSOES = {
   b_salvarEvolucao: ['admin', 'recepcao', 'professora'],
   b_excluirEvolucao: ['admin', 'recepcao', 'professora'],
   b_foto: ['admin', 'recepcao', 'professora'],
+  b_minhasClientes: ['professora'],
+  b_anamnesesProf: ['admin', 'recepcao', 'professora'],
+  b_anamneseProf: ['admin', 'recepcao', 'professora'],
+  b_salvarAnamneseProf: ['admin', 'recepcao', 'professora'],
+  b_excluirAnamneseProf: ['admin', 'recepcao', 'professora'],
+  b_comandasCliente: ['admin', 'recepcao', 'professora'],
   b_importarClientes: ['admin'],
   // comandas e caixa
   b_comandas: ['admin', 'recepcao'],
@@ -147,8 +153,8 @@ function bancadaEntrar(d) {
   if (!v.ok) {
     registrarFalha('e_' + email);
     Utilities.sleep(600);
-    if (m && !m.senha_hash) throw new Error('Você ainda não criou sua senha. Use o link do convite ou "Esqueci minha senha".');
-    throw new Error('E-mail ou senha incorretos.');
+    // mesma mensagem para tudo: não revela quem é da equipe
+    throw new Error('E-mail ou senha incorretos. Se você nunca criou uma senha, use o link do convite ou "Esqueci minha senha".');
   }
   limparFalhas('e_' + email);
   if (v.atualizar) gravarSenha('Equipe', m._linha, d.senha);
@@ -182,6 +188,12 @@ function membroDaSessao(token) {
   if (!token || String(token).charAt(0) !== 'E' || String(token).length < 30) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
   var cache = CacheService.getScriptCache();
   var h = hashToken(token);
+  // sessão conferida há pouco: a pessoa vem do cache (sem ler a planilha). Sai do cache se ela for
+  // desativada, mudar de papel, trocar a senha ou sair.
+  var guardado = cache.get('m_' + h);
+  if (guardado) {
+    try { return JSON.parse(guardado); } catch (e) { /* refaz abaixo */ }
+  }
   var email = cache.get('e_' + h);
   if (!email) {
     var linhas = valoresAba('SessoesEquipe');
@@ -193,9 +205,18 @@ function membroDaSessao(token) {
   }
   var m = buscarMembro(email);
   if (!m || String(m.ativo).toUpperCase() === 'NÃO') throw erroCod('Seu acesso à bancada foi desativado.', 'SESSAO_EQUIPE');
-  m.email = String(m.email).toLowerCase();
-  m.professor_nome = String(m.professor_nome || '');
-  return m;
+  var pessoa = { email: String(m.email).toLowerCase(), nome: String(m.nome || ''), papel: String(m.papel), professor_nome: String(m.professor_nome || '') };
+  cache.put('m_' + h, JSON.stringify(pessoa), 600);
+  return pessoa;
+}
+
+// tira do cache as sessões de alguém (mudou de papel, nome de professora ou foi desativado)
+function esquecerSessoesEmCache(email) {
+  var cache = CacheService.getScriptCache();
+  valoresAba('SessoesEquipe').slice(1).forEach(function (l) {
+    if (String(l[1]).toLowerCase() !== email) return;
+    try { cache.remove('m_' + l[0]); cache.remove('e_' + l[0]); } catch (e) { /* ignora */ }
+  });
 }
 
 function bancada_eu(d, m) { return membroPublico(m); }
@@ -210,7 +231,7 @@ function encerrarSessaoToken(token) {
   var h = hashToken(token);
   var linhas = s.getDataRange().getValues();
   for (var i = linhas.length - 1; i >= 1; i--) if (linhas[i][0] === h || linhas[i][0] === token) s.deleteRow(i + 1);
-  try { CacheService.getScriptCache().remove('e_' + h); } catch (e) { /* ignora */ }
+  try { CacheService.getScriptCache().remove('e_' + h); CacheService.getScriptCache().remove('m_' + h); } catch (e) { /* ignora */ }
 }
 
 function enviarConviteEquipe(m) {
@@ -238,7 +259,7 @@ function mapaAnamneses() {
 }
 
 function mapaCreditos() {
-  var m = {};
+  var m = Object.create(null);
   var linhas = valoresCreditos();
   var cab = linhas[0];
   for (var i = 1; i < linhas.length; i++) {
@@ -575,7 +596,10 @@ function bancada_ficha(d, m) {
     cpf = normCpf(acharReservaPorId(d.reservaId).cpf);
   }
   var a = buscarAluno(cpf);
-  return { nome: a ? a.nome : '', ficha: fichaPublica(mapaAnamneses()[cpf]) };
+  var f = fichaPublica(mapaAnamneses()[cpf]);
+  // professora: a ficha vem sem CPF e sem o link do PDF
+  if (f && m.papel === 'professora') { delete f.cpf; delete f.pdf; }
+  return { nome: a ? a.nome : '', ficha: f };
 }
 
 function bancada_salvarAluno(d, m) {
@@ -1039,6 +1063,7 @@ function bancada_salvarMembro(d, m) {
   var convite = false;
   if (existente) {
     atualizarLinha('Equipe', existente._linha, linha);
+    esquecerSessoesEmCache(email);
     if (ativo === 'NÃO') encerrarSessoes('SessoesEquipe', 'e_', email);
     if (x.reenviarConvite) { enviarConviteEquipe(buscarMembro(email)); convite = true; }
   } else {

@@ -28,8 +28,19 @@ function pagamentosPagos() {
   return lerAba('Pagamentos').filter(function (p) { return p.status === 'pago'; });
 }
 
+// pagos + pagamentos do site ainda em aberto (até 24 h): um vale ou cupom num link não pago
+// fica reservado, para não ser usado em vários links ao mesmo tempo
+function pagamentosQueContam(excetoNsu) {
+  var limite = Date.now() - PENDENTE_VALE_HORAS * 3600000;
+  return lerAba('Pagamentos').filter(function (p) {
+    if (excetoNsu && String(p.order_nsu) === String(excetoNsu)) return false;
+    if (p.status === 'pago') return true;
+    return p.status === 'pendente' && new Date(String(p.criado_em).replace(' ', 'T') + '-03:00').getTime() >= limite;
+  });
+}
+
 function usosCupom(codigo, cpf, pagos) {
-  pagos = pagos || pagamentosPagos();
+  pagos = pagos || pagamentosQueContam();
   var c = codigoLimpo(codigo);
   var vistos = {};
   // uma comanda com vários itens conta como um uso só
@@ -46,7 +57,7 @@ function usosCupom(codigo, cpf, pagos) {
 
 function saldoVale(v, pagos) {
   if (v.tipo === 'plano') return v.status === 'ativo' ? 1 : 0;
-  pagos = pagos || pagamentosPagos();
+  pagos = pagos || pagamentosQueContam();
   var c = codigoLimpo(v.codigo);
   var usado = pagos.filter(function (p) { return codigoLimpo(p.vale) === c; }).reduce(function (s, p) { return s + numero(p.vale_usado); }, 0);
   return Math.max(0, Math.round((numero(v.valor) - usado) * 100) / 100);
@@ -65,10 +76,10 @@ function motivoCupomInvalido(c, plano, cpf) {
   if (c.fim && dataTexto(c.fim) < hoje) return 'Este cupom expirou.';
   if (c.modalidade && c.modalidade !== 'Todas' && plano && String(plano.modalidade) !== String(c.modalidade)) return 'Este cupom vale só para ' + c.modalidade + '.';
   if (c.tipo_plano && c.tipo_plano !== 'todos' && plano && String(plano.tipo) !== String(c.tipo_plano)) return 'Este cupom não vale para este tipo de plano.';
-  var pagos = pagamentosPagos();
+  var pagos = pagamentosQueContam();
   var u = usosCupom(c.codigo, cpf, pagos);
   if (numero(c.limite_total) > 0 && u.total >= numero(c.limite_total)) return 'Este cupom já atingiu o limite de usos.';
-  if (numero(c.limite_por_aluno) > 0 && cpf && u.doAluno >= numero(c.limite_por_aluno)) return 'Você já usou este cupom.';
+  if (numero(c.limite_por_aluno) > 0 && cpf && u.doAluno >= numero(c.limite_por_aluno)) return 'Você já usou este cupom (se há um pagamento dele em aberto, conclua ou remova em Meu plano).';
   if (String(c.primeira_compra).toUpperCase() === 'SIM' && cpf && pagos.some(function (p) { return normCpf(p.cpf) === normCpf(cpf) && numero(p.valor) > 0; })) {
     return 'Este cupom é só para a primeira compra.';
   }

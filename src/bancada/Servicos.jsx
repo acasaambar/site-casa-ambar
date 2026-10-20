@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana } from './ui.jsx';
@@ -503,6 +504,9 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
         </button>
       )}
       <button type="button" className="link-acao s-prontuario" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
+      {!balcao && (
+        <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="link-acao s-prontuario">Anamnese e comanda da cliente</Link>
+      )}
       {!fechado && (
         <div className="s-acoes">
           {a.pagamento === 'no_dia' && balcao ? (

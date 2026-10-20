@@ -1681,3 +1681,16 @@ a.rodape__item:hover > svg { color: var(--creme); }
 .senha__regras li { display: inline-flex; gap: 6px; align-items: center; }
 .senha__regras li.ok { color: #3E5A22; }
 .senha__regras li span { font-weight: 700; }
+
+/* endereço no cadastro do site */
+.end-site { border: 0; margin: 4px 0 0; padding: 0; min-width: 0; display: grid; gap: 12px; }
+.end-site legend { padding: 0; margin-bottom: 12px; font-family: var(--display); font-size: 26px; color: var(--verde, #2F3821); }
+.end-site__grade { display: grid; gap: 16px 14px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 110px;
+  grid-template-areas: 'cep rua rua' 'num comp comp' 'bairro cidade uf'; }
+.end-site__cep { grid-area: cep; } .end-site__rua { grid-area: rua; } .end-site__num { grid-area: num; } .end-site__comp { grid-area: comp; }
+.end-site__bairro { grid-area: bairro; } .end-site__cidade { grid-area: cidade; } .end-site__uf { grid-area: uf; }
+.end-site__aviso { margin: 0; font-size: 13px; color: #7E3717; }
+@media (max-width: 560px) {
+  .end-site__grade { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 92px; grid-template-areas: 'cep cep cep' 'rua rua rua' 'num comp comp' 'bairro bairro bairro' 'cidade cidade uf'; }
+}
+.aviso-email--endereco { display: grid; gap: 16px; }

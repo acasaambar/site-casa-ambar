@@ -33,10 +33,18 @@ import ErroTela from './components/ErroTela.jsx';
   window.history.replaceState(null, '', window.location.pathname + '#/pagamento');
 })();
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ErroTela>
-      <App />
-    </ErroTela>
-  </StrictMode>
-);
+// o site não abre dentro de outra página (protege a bancada contra "clickjacking":
+// um site falso por cima, enganando a equipe para clicar sem ver)
+const emMoldura = (() => { try { return window.top !== window.self; } catch { return true; } })();
+
+if (emMoldura) {
+  document.getElementById('root').textContent = 'Abra a Casa Âmbar direto em www.acasambar.com.br';
+} else {
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <ErroTela>
+        <App />
+      </ErroTela>
+    </StrictMode>
+  );
+}

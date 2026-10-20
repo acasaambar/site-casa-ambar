@@ -61,6 +61,25 @@ function enderecoDe(x) {
   return o;
 }
 
+// endereço completo (para nota fiscal): só o complemento é opcional
+var CAMPOS_ENDERECO = [['cep', 'CEP'], ['endereco', 'rua'], ['numero', 'número'], ['bairro', 'bairro'], ['cidade', 'cidade'], ['uf', 'UF']];
+function exigirEndereco(o) {
+  var falta = CAMPOS_ENDERECO.filter(function (c) { return !String(o[c[0]] || '').trim(); }).map(function (c) { return c[1]; });
+  if (falta.length) throw new Error('Complete o endereço: ' + falta.join(', ') + '.');
+  return o;
+}
+function temEndereco(a) {
+  return CAMPOS_ENDERECO.every(function (c) { return String(a[c[0]] == null ? '' : a[c[0]]).trim(); });
+}
+
+// área do aluno: a aluna completa o próprio endereço
+function salvarEndereco(d) {
+  var aluno = alunoDaSessao(d.token);
+  var e = exigirEndereco(enderecoDe(d.endereco || {}));
+  atualizarLinha('Alunos', aluno._linha, e);
+  return publico(buscarAluno(aluno.cpf));
+}
+
 function enderecoPublico(a) {
   return { cep: String(a.cep || ''), endereco: String(a.endereco || ''), numero: String(a.numero == null ? '' : a.numero), complemento: String(a.complemento || ''),
     bairro: String(a.bairro || ''), cidade: String(a.cidade || ''), uf: String(a.uf || '') };
@@ -270,15 +289,7 @@ function evolucoesDe(cpf) {
 }
 
 function pastaFotos() {
-  var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty('PASTA_FOTOS_ID');
-  if (id) {
-    try { return DriveApp.getFolderById(id); } catch (e) { /* apagada: cria outra */ }
-  }
-  var it = DriveApp.getFoldersByName(PASTA_FOTOS);
-  var pasta = it.hasNext() ? it.next() : DriveApp.createFolder(PASTA_FOTOS);
-  props.setProperty('PASTA_FOTOS_ID', pasta.getId());
-  return pasta;
+  return pastaPrivada(PASTA_FOTOS, 'PASTA_FOTOS_ID');
 }
 
 function salvarFoto(dataUrl, nome) {
@@ -317,18 +328,164 @@ function bancada_excluirEvolucao(d, m) {
   return true;
 }
 
-// a foto só sai se pertencer a uma evolução que esta pessoa pode ver
+// profissional: só clientes que ela atende (algum atendimento com ela, de qualquer data)
+function profissionalAtende(cpf, m) {
+  return lerAba('Atendimentos').some(function (a) { return a.cpf && normCpf(a.cpf) === normCpf(cpf) && mesmaProfessora(a.profissional, m); });
+}
+
+// a foto só sai se pertencer a uma evolução ou anamnese que esta pessoa pode ver
 function bancada_foto(d, m) {
   var id = String(d.id || '');
   if (!/^[A-Za-z0-9_-]{10,}$/.test(id)) throw new Error('Foto inválida.');
-  var e = lerAba('Evolucoes').filter(function (x) { return String(x.fotos || '').split(',').indexOf(id) >= 0; })[0];
+  var temFoto = function (x) { return String(x.fotos || '').split(',').indexOf(id) >= 0; };
+  var e = lerAba('Evolucoes').filter(temFoto)[0] || lerAba('AnamnesesProf').filter(temFoto)[0];
   if (!e) throw new Error('Foto não encontrada.');
-  if (m.papel === 'professora') {
-    var atende = lerAba('Atendimentos').some(function (a) { return a.cpf && normCpf(a.cpf) === normCpf(e.cpf) && mesmaProfessora(a.profissional, m); });
-    if (!atende) throw new Error('Esta cliente não é sua.');
-  }
+  if (m.papel === 'professora' && !profissionalAtende(e.cpf, m)) throw new Error('Esta cliente não é sua.');
   var b = DriveApp.getFileById(id).getBlob();
   return 'data:' + b.getContentType() + ';base64,' + Utilities.base64Encode(b.getBytes());
+}
+
+// ============================================================
+//  ANAMNESE DAS PROFISSIONAIS (texto livre, sem limite, com fotos)
+//  Até ~44 mil caracteres o texto fica na planilha (rápido); acima disso vai para
+//  um arquivo de texto na pasta privada do Drive e a planilha guarda só o começo.
+// ============================================================
+var MAX_TEXTO_ANAMNESE = 1000000;
+var MAX_FOTOS_ANAMNESE = 30;
+
+function conteudoAnamnese(texto, nome, arquivoAntigo) {
+  var inline = JSON.stringify({ t: texto });
+  if (inline.length <= 44000) {
+    if (arquivoAntigo) { try { DriveApp.getFileById(arquivoAntigo).setTrashed(true); } catch (e) { /* já apagado */ } }
+    return inline;
+  }
+  var id = '';
+  if (arquivoAntigo) {
+    try { DriveApp.getFileById(arquivoAntigo).setContent(texto); id = arquivoAntigo; } catch (e) { id = ''; }
+  }
+  if (!id) id = pastaFotos().createFile(Utilities.newBlob(texto, 'text/plain', nome + '.txt')).getId();
+  return JSON.stringify({ arq: id, p: texto.slice(0, 1500), n: texto.length });
+}
+
+function lerConteudoAnamnese(c, completo) {
+  var o = parseJson(c, {});
+  if (o.arq) {
+    if (!completo) return { texto: String(o.p || ''), longo: true, tamanho: numero(o.n), arquivo: String(o.arq) };
+    try { return { texto: DriveApp.getFileById(o.arq).getBlob().getDataAsString(), longo: false, tamanho: numero(o.n), arquivo: String(o.arq) }; }
+    catch (e) { return { texto: String(o.p || '') + '\n\n(não foi possível abrir o texto completo)', longo: false, tamanho: numero(o.n), arquivo: String(o.arq) }; }
+  }
+  return { texto: String(o.t || ''), longo: false, tamanho: String(o.t || '').length, arquivo: '' };
+}
+
+function anamneseProfPublica(x, m, completo) {
+  var c = lerConteudoAnamnese(x.conteudo, completo);
+  var autor = String(x.criado_por || '').toLowerCase();
+  return { id: String(x.id), titulo: String(x.titulo || ''), texto: c.texto, longo: c.longo, tamanho: c.tamanho,
+    fotos: String(x.fotos || '').split(',').filter(String), profissional: String(x.profissional || ''), autor: autor.split('@')[0],
+    criadoEm: String(x.criado_em || ''), atualizadoEm: String(x.atualizado_em || ''), atualizadoPor: String(x.atualizado_por || '').split('@')[0],
+    podeEditar: m.papel === 'admin' || autor === m.email };
+}
+
+function anamnesesProfDe(cpf) {
+  return lerAba('AnamnesesProf').filter(function (x) { return x.id && normCpf(x.cpf) === normCpf(cpf); });
+}
+
+function bancada_anamnesesProf(d, m) {
+  var cpf = cpfComAcesso(d, m);
+  var a = buscarAluno(cpf);
+  return { nome: a ? a.nome : '', anotacoes: anamnesesProfDe(cpf).map(function (x) { return anamneseProfPublica(x, m, false); })
+    .sort(function (x, y) { return y.criadoEm.localeCompare(x.criadoEm); }) };
+}
+
+// texto completo de uma anamnese longa
+function bancada_anamneseProf(d, m) {
+  var x = lerAba('AnamnesesProf').filter(function (y) { return String(y.id) === String(d.id); })[0];
+  if (!x) throw new Error('Anamnese não encontrada.');
+  if (m.papel === 'professora' && !profissionalAtende(x.cpf, m)) throw new Error('Esta cliente não é sua.');
+  return anamneseProfPublica(x, m, true);
+}
+
+// d: { atendimentoId | cpf, id (para editar), titulo, texto, fotos: [dataUrl novas], remover: [ids] }
+function bancada_salvarAnamneseProf(d, m) {
+  var cpf = cpfComAcesso(d, m);
+  var a = buscarAluno(cpf);
+  var texto = String(d.texto == null ? '' : d.texto).replace(/\r\n/g, '\n');
+  if (texto.length > MAX_TEXTO_ANAMNESE) throw new Error('Texto longo demais (máximo de 1 milhão de caracteres).');
+  var titulo = String(d.titulo || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  var novas = (d.fotos || []).slice(0, MAX_FOTOS_ANAMNESE);
+  var ex = d.id ? lerAba('AnamnesesProf').filter(function (y) { return String(y.id) === String(d.id); })[0] : null;
+  if (d.id && !ex) throw new Error('Anamnese não encontrada.');
+  if (ex && normCpf(ex.cpf) !== cpf) throw new Error('Esta anamnese é de outra cliente.');
+  if (ex && m.papel !== 'admin' && String(ex.criado_por).toLowerCase() !== m.email) throw new Error('Só quem escreveu (ou a administração) pode editar.');
+  var fotosAntes = ex ? String(ex.fotos || '').split(',').filter(String) : [];
+  var remover = (d.remover || []).map(String).filter(function (f) { return fotosAntes.indexOf(f) >= 0; });
+  if (fotosAntes.length - remover.length + novas.length > MAX_FOTOS_ANAMNESE) throw new Error('No máximo ' + MAX_FOTOS_ANAMNESE + ' fotos por anamnese.');
+  if (!texto.trim() && !novas.length && fotosAntes.length === remover.length) throw new Error('Escreva a anamnese ou adicione uma foto.');
+  var id = ex ? String(ex.id) : novoId('AN');
+  var ids = novas.map(function (f, i) { return salvarFoto(f, cpf + ' · ' + id + ' · ' + (fotosAntes.length + i + 1)); });
+  remover.forEach(function (f) { try { DriveApp.getFileById(f).setTrashed(true); } catch (e) { /* já apagada */ } });
+  var fotos = fotosAntes.filter(function (f) { return remover.indexOf(f) < 0; }).concat(ids);
+  var arquivoAntigo = ex ? lerConteudoAnamnese(ex.conteudo, false).arquivo : '';
+  var linha = { titulo: titulo || 'Anamnese', conteudo: conteudoAnamnese(texto, cpf + ' · ' + id, arquivoAntigo), fotos: fotos.join(','),
+    atualizado_por: m.email, atualizado_em: agoraTexto() };
+  if (ex) atualizarLinha('AnamnesesProf', ex._linha, linha);
+  else {
+    linha.id = id; linha.cpf = cpf; linha.nome = a ? a.nome : ''; linha.profissional = m.professor_nome || m.nome;
+    linha.criado_por = m.email; linha.criado_em = agoraTexto();
+    adicionarLinha('AnamnesesProf', linha);
+  }
+  registrar(m, ex ? 'editou anamnese' : 'escreveu anamnese', (a ? a.nome : cpf) + ' · ' + texto.length + ' caracteres' + (fotos.length ? ' · ' + fotos.length + ' foto(s)' : ''));
+  return bancada_anamnesesProf(d, m);
+}
+
+function bancada_excluirAnamneseProf(d, m) {
+  var x = lerAba('AnamnesesProf').filter(function (y) { return String(y.id) === String(d.id); })[0];
+  if (!x) throw new Error('Anamnese não encontrada.');
+  if (m.papel !== 'admin' && String(x.criado_por).toLowerCase() !== m.email) throw new Error('Só quem escreveu (ou a administração) pode apagar.');
+  String(x.fotos || '').split(',').filter(String).forEach(function (f) { try { DriveApp.getFileById(f).setTrashed(true); } catch (e) { /* já apagada */ } });
+  var arq = lerConteudoAnamnese(x.conteudo, false).arquivo;
+  if (arq) { try { DriveApp.getFileById(arq).setTrashed(true); } catch (e) { /* já apagado */ } }
+  aba('AnamnesesProf').deleteRow(x._linha);
+  registrar(m, 'apagou anamnese', x.nome + ' · ' + String(x.criado_em).slice(0, 10));
+  return true;
+}
+
+// ============================================================
+//  MINHAS CLIENTES (profissional): quem ela atende, sem CPF nem WhatsApp
+//  "ref" é o id de um atendimento dela com a cliente (é por ele que a tela pede os dados)
+// ============================================================
+function bancada_minhasClientes(d, m) {
+  var hoje = hojeTexto();
+  var porCpf = {};
+  lerAba('Atendimentos').forEach(function (a) {
+    if (!a.id || !a.cpf || a.status === 'cancelado' || !mesmaProfessora(a.profissional, m)) return;
+    var cpf = normCpf(a.cpf), dt = dataTexto(a.data);
+    var c = porCpf[cpf] = porCpf[cpf] || { ref: String(a.id), refData: dt, nome: String(a.nome), ultima: '', proxima: '', atendimentos: 0, servicos: {} };
+    c.atendimentos++;
+    c.servicos[String(a.servico)] = 1;
+    if (dt <= hoje && dt > c.ultima) c.ultima = dt;
+    if (dt > hoje && (!c.proxima || dt < c.proxima)) c.proxima = dt;
+    if (dt >= c.refData) { c.ref = String(a.id); c.refData = dt; }
+  });
+  var anams = {};
+  lerAba('AnamnesesProf').forEach(function (x) { if (x.cpf) anams[normCpf(x.cpf)] = (anams[normCpf(x.cpf)] || 0) + 1; });
+  return Object.keys(porCpf).map(function (cpf) {
+    var c = porCpf[cpf];
+    return { ref: c.ref, nome: c.nome, ultima: c.ultima, proxima: c.proxima, atendimentos: c.atendimentos, servicos: Object.keys(c.servicos).slice(0, 4), anamneses: anams[cpf] || 0 };
+  }).sort(function (a, b) { return (b.proxima || b.ultima).localeCompare(a.proxima || a.ultima) || a.nome.localeCompare(b.nome); });
+}
+
+// comandas da cliente (abertas e as últimas fechadas). Profissional vê sem CPF/WhatsApp.
+function bancada_comandasCliente(d, m) {
+  var cpf = cpfComAcesso(d, m);
+  var lista = lerAba('Comandas').filter(function (c) { return c.id && c.cpf && normCpf(c.cpf) === cpf && c.status !== 'cancelada'; }).map(comandaPublica);
+  var abertas = lista.filter(function (c) { return c.status === 'aberta'; });
+  var fechadas = lista.filter(function (c) { return c.status === 'fechada'; }).sort(function (a, b) { return b.fechadaEm.localeCompare(a.fechadaEm); }).slice(0, 12);
+  var limpar = function (c) {
+    if (m.papel === 'professora') { c.cpf = ''; c.whatsapp = ''; c.pagamentos = []; c.codigo = ''; }
+    return c;
+  };
+  return { abertas: abertas.map(limpar), fechadas: fechadas.map(limpar) };
 }
 
 // ============================================================
@@ -353,6 +510,11 @@ function historicoCliente(cpf) {
   lerAba('Vales').forEach(function (v) {
     if (!v.cpf || normCpf(v.cpf) !== cpf) return;
     ev.push({ data: String(v.criado_em).slice(0, 10), hora: '', tipo: 'vale', titulo: 'Vale-presente ' + v.codigo, detalhe: String(v.motivo || v.campanha || ''), status: String(v.status) });
+  });
+  anamnesesProfDe(cpf).forEach(function (x) {
+    var c = lerConteudoAnamnese(x.conteudo, false);
+    ev.push({ data: String(x.criado_em).slice(0, 10), hora: String(x.criado_em).slice(11, 16), tipo: 'anamnese', titulo: String(x.titulo || 'Anamnese') + ' · ' + String(x.profissional || ''),
+      detalhe: c.texto.slice(0, 140) + (String(x.fotos || '') ? ' · com fotos' : ''), status: '' });
   });
   evolucoesDe(cpf).forEach(function (e) {
     ev.push({ data: e.data, hora: '', tipo: 'evolucao', titulo: 'Evolução' + (e.servico ? ' · ' + e.servico : ''), detalhe: e.anotacao.slice(0, 140) + (e.fotos.length ? ' · ' + e.fotos.length + ' foto(s)' : ''), status: '' });

@@ -27,3 +27,12 @@ export async function buscarCep(cep) {
     clearTimeout(t);
   }
 }
+
+// o que falta para o endereço ficar completo (mesma regra do servidor)
+export function faltaNoEndereco(e) {
+  const nomes = [['cep', 'CEP'], ['endereco', 'rua'], ['numero', 'número'], ['bairro', 'bairro'], ['cidade', 'cidade'], ['uf', 'UF']];
+  const falta = nomes.filter(([k]) => !String(e[k] || '').trim()).map(([, t]) => t);
+  if (falta.length) return `Complete o endereço: ${falta.join(', ')}.`;
+  if (String(e.cep).replace(/\D/g, '').length !== 8) return 'O CEP tem 8 números.';
+  return '';
+}

@@ -117,6 +117,8 @@ var ABAS = {
   Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
   Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos', 'horarios', 'especiais'],
   Professoras: ['nome', 'ativo', 'pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde', 'atualizado_em'],
+  // anamnese escrita pelas profissionais (texto livre + fotos), por cliente
+  AnamnesesProf: ['id', 'cpf', 'nome', 'titulo', 'conteudo', 'fotos', 'profissional', 'criado_por', 'criado_em', 'atualizado_por', 'atualizado_em'],
   Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',
     'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em', 'lembrete', 'comanda'],
   // ---- gestão (Gestao.gs) ----
@@ -269,11 +271,14 @@ function doPost(e) {
   }
   // aviso automático da InfinitePay (pagamento aprovado)
   if (corpo && !corpo.acao && corpo.order_nsu) {
+    // só códigos de pagamento do site, com a confirmação da InfinitePay (o resto nem pega a trava)
+    if (!/^P\d{14,20}$/.test(String(corpo.order_nsu)) || !corpo.transaction_nsu || !(corpo.invoice_slug || corpo.slug)) return responder(false, null, 'Pedido inválido.');
     try {
       processarPagamento(String(corpo.order_nsu), corpo.transaction_nsu, corpo.invoice_slug || corpo.slug, 'webhook');
       return responder(true, { recebido: true });
     } catch (err) {
-      return responder(false, null, err.message);
+      Logger.log('webhook: ' + err.message);
+      return responder(false, null, 'Não processado.');
     }
   }
   try {
@@ -299,6 +304,7 @@ function doPost(e) {
       verLinkSenha: verLinkSenha,
       novaSenha: novaSenha,
       salvarEmail: salvarEmail,
+      salvarEndereco: salvarEndereco,
       regras: regrasPublicas,
       // cupons e vale-presente
       validarCodigo: validarCodigo,
@@ -309,7 +315,7 @@ function doPost(e) {
       b_entrar: bancadaEntrar,
       b_esqueci: bancadaEsqueci,
     };
-    var fn = acoes[corpo.acao];
+    var fn = Object.prototype.hasOwnProperty.call(acoes, corpo.acao) ? acoes[corpo.acao] : null;
     if (!fn && /^b_/.test(String(corpo.acao))) return responder(true, executarBancada(corpo));
     if (!fn) return responder(false, null, 'Ação desconhecida.');
     return responder(true, fn(corpo));
@@ -319,6 +325,9 @@ function doPost(e) {
     if (/permiss|authoriz|autoriza/i.test(msg)) {
       Logger.log('Falta autorização: ' + msg);
       msg = 'Esta função está sendo ativada pela Casa Âmbar. Tente de novo mais tarde ou fale com a recepção.';
+    } else if (/lock|timeout|too many times|quota|Exception:|Service .*(unavailable|error)|limit exceeded/i.test(msg)) {
+      Logger.log('Google ocupado em ' + (corpo && corpo.acao) + ': ' + msg);
+      msg = 'O sistema está muito ocupado agora. Tente de novo em alguns segundos.';
     } else if (err instanceof TypeError || err instanceof ReferenceError || /is not a function|undefined|null|Cannot read/i.test(msg)) {
       // erro interno: registra para a equipe e mostra mensagem neutra
       Logger.log('Erro interno em ' + (corpo && corpo.acao) + ': ' + msg + '\n' + (err.stack || ''));
@@ -358,14 +367,19 @@ function cadastrar(d) {
   if (soDigitos(d.whatsapp).length < 10) throw new Error('Informe um WhatsApp com DDD.');
   if (!emailValido(d.email)) throw new Error('Informe um e-mail válido. É por ele que você recupera a senha.');
   validarSenhaNova(d.senha);
+  var endereco = exigirEndereco(enderecoDe(d.endereco || {}));
+  limitarPorMinutos('cadastro', 40, 10);
+  // a senha é processada antes da trava (é a parte demorada; a fila anda mais rápido)
+  var sal = Utilities.getUuid();
+  var hash = hashSenhaV2(d.senha, sal);
 
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 15000);
   try {
     if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro. Use "Entrar".');
-    var sal = Utilities.getUuid();
     adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email).trim().toLowerCase(),
-      senha_hash: hashSenhaV2(d.senha, sal), sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site', como_conheceu: textoComoConheceu(d.comoConheceu) });
+      senha_hash: hash, sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site', como_conheceu: textoComoConheceu(d.comoConheceu),
+      cep: endereco.cep, endereco: endereco.endereco, numero: endereco.numero, complemento: endereco.complemento || '', bairro: endereco.bairro, cidade: endereco.cidade, uf: endereco.uf });
   } finally {
     trava.releaseLock();
   }
@@ -381,7 +395,8 @@ function entrar(d) {
   if (!v.ok) {
     registrarFalha('a_' + cpf);
     Utilities.sleep(600); // dificulta tentativas em massa
-    throw new Error(aluno && !aluno.senha_hash ? 'Você ainda não criou sua senha. Toque em "Esqueci minha senha" para receber o link no e-mail.' : 'CPF ou senha incorretos.');
+    // mesma mensagem para tudo: não revela se o CPF é cliente da casa
+    throw new Error('CPF ou senha incorretos. Se você nunca criou uma senha, toque em "Esqueci minha senha".');
   }
   limparFalhas('a_' + cpf);
   // senha no formato antigo: regrava com sal + pimenta
@@ -409,8 +424,17 @@ function hashToken(token) {
 function criarSessao(cpf) {
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
   var expira = new Date(Date.now() + AJUSTES.validadeSessaoDias * 86400000);
-  aba('Sessoes').appendRow([hashToken(token), normCpf(cpf), agoraTexto(), expira.toISOString()]);
+  var s = aba('Sessoes');
+  s.appendRow([hashToken(token), normCpf(cpf), agoraTexto(), expira.toISOString()]);
   limparSessoesVencidas('Sessoes');
+  // muitas sessões da mesma pessoa: apaga as mais antigas
+  var linhas = s.getDataRange().getValues(), minhas = [];
+  for (var i = 1; i < linhas.length; i++) if (normCpf(linhas[i][1]) === normCpf(cpf)) minhas.push(i + 1);
+  var cache = CacheService.getScriptCache();
+  minhas.slice(0, Math.max(0, minhas.length - 10)).reverse().forEach(function (l) {
+    try { cache.remove('s_' + linhas[l - 1][0]); } catch (e) { /* ignora */ }
+    s.deleteRow(l);
+  });
   return token;
 }
 
@@ -465,7 +489,8 @@ function buscarAluno(cpf) {
 
 function publico(a) {
   var cpf = normCpf(a.cpf);
-  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), email: String(a.email || ''), anamnese: !!linhaAnamnese(cpf), wellhub: statusWellhub(a) };
+  return { nome: a.nome, cpf: cpf, whatsapp: String(a.whatsapp), email: String(a.email || ''), anamnese: !!linhaAnamnese(cpf), wellhub: statusWellhub(a),
+    endereco: temEndereco(a) };
 }
 
 function hashSenha(senha, sal) {
@@ -661,6 +686,7 @@ function cancelar(d) {
 
 function fazerCheckin(d) {
   var r = acharMinhaReserva(d);
+  if (r.status !== 'reservado' && r.status !== 'check-in') throw new Error('Esta reserva ainda não foi confirmada. Conclua o pagamento primeiro.');
   var ini = inicio(r).getTime();
   if (Date.now() < ini - AJUSTES.checkinAbreMinAntes * 60000) throw new Error('O check-in abre ' + AJUSTES.checkinAbreMinAntes + ' min antes da aula.');
   if (Date.now() > ini + AJUSTES.duracaoAulaMin * 60000) throw new Error('Esta aula já terminou.');
@@ -715,7 +741,7 @@ function salvarAnamnese(d) {
     emergencia_telefone: soDigitos(f.emergencia_telefone),
     plano_saude: limpar(f.plano_saude),
     parq_algum_sim: algumSim ? 'SIM' : 'NÃO',
-    comorbidades: (f.comorbidades || []).map(limpar).join(', '),
+    comorbidades: (Array.isArray(f.comorbidades) ? f.comorbidades : []).slice(0, 30).map(limpar).join(', '),
     comorbidade_outra: limpar(f.comorbidade_outra),
     gestante: limpar(f.gestante),
     gestante_semanas: limpar(f.gestante_semanas),
@@ -781,14 +807,28 @@ function linhaAnamnese(cpf) {
 }
 
 function pastaAnamneses() {
+  return pastaPrivada(PASTA_ANAMNESES, 'PASTA_ANAMNESES_ID');
+}
+
+// Pasta privada da Casa no Drive (anamneses, fotos). Guarda o ID nas Propriedades.
+// Se precisar procurar pelo nome, só aceita pasta que é da própria conta da Casa
+// (uma pasta de mesmo nome compartilhada por outra pessoa não recebe os arquivos).
+function pastaPrivada(nome, prop) {
   var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty('PASTA_ANAMNESES_ID');
+  var id = props.getProperty(prop);
   if (id) {
     try { return DriveApp.getFolderById(id); } catch (e) { /* pasta apagada: cria outra */ }
   }
-  var it = DriveApp.getFoldersByName(PASTA_ANAMNESES);
-  var pasta = it.hasNext() ? it.next() : DriveApp.createFolder(PASTA_ANAMNESES);
-  props.setProperty('PASTA_ANAMNESES_ID', pasta.getId());
+  var dono = '';
+  try { dono = String(Session.getEffectiveUser().getEmail() || '').toLowerCase(); } catch (e) { dono = ''; }
+  var pasta = null;
+  var it = DriveApp.getFoldersByName(nome);
+  while (!pasta && it.hasNext()) {
+    var p = it.next();
+    try { if (dono && String(p.getOwner().getEmail()).toLowerCase() === dono) pasta = p; } catch (e) { /* sem dono visível: ignora */ }
+  }
+  if (!pasta) pasta = DriveApp.createFolder(nome);
+  props.setProperty(prop, pasta.getId());
   return pasta;
 }
 
@@ -853,7 +893,7 @@ function numero(v) {
 
 function listarPlanos() {
   // conferências feitas uma vez por pedido (depois os planos vêm da memória)
-  if (!_memo.Planos) prepararPlanos();
+  doCacheOuPreparar('Planos', prepararPlanos);
   var linhas = valoresAba('Planos');
   var cab = linhas[0];
   var lista = [];
@@ -871,9 +911,10 @@ function listarPlanos() {
 }
 
 function prepararPlanos() {
-  var abaPlanos = aba('Planos');
+  var abaPlanos = abaSemDescartar('Planos');
   // aba vazia (criada automaticamente): preenche com o catálogo padrão
   if (abaPlanos.getLastRow() < 2) {
+    abaPlanos = aba('Planos');
     abaPlanos.getRange('A:E').setNumberFormat('@');
     abaPlanos.getRange(2, 1, CATALOGO_INICIAL.length, CATALOGO_INICIAL[0].length).setValues(CATALOGO_INICIAL);
     SpreadsheetApp.flush();
@@ -881,6 +922,7 @@ function prepararPlanos() {
   // ajuste único: aula avulsa passou a valer 30 dias (antes 60)
   var props = PropertiesService.getScriptProperties();
   if (!props.getProperty('AVULSA_30_DIAS')) {
+    abaPlanos = aba('Planos');
     var dadosPlanos = abaPlanos.getDataRange().getValues();
     var cabP = dadosPlanos[0];
     var colTipo = cabP.indexOf('tipo'), colVal = cabP.indexOf('validade_dias'), colDesc = cabP.indexOf('descricao');
@@ -938,7 +980,7 @@ function completarCreditosManuais(abaC, linhas) {
     };
     Object.keys(valores).forEach(function (k) {
       if (col(k) >= 0) {
-        abaC.getRange(i + 1, col(k) + 1).setValue(valores[k]);
+        abaC.getRange(i + 1, col(k) + 1).setValue(seguro(valores[k]));
         linhas[i][col(k)] = valores[k];
       }
     });
@@ -1077,7 +1119,13 @@ function comprar(d) {
   if (String(plano.tipo) === 'trimestral' && !chaveInfinitePay()) {
     throw erroCod('O plano trimestral em até 3x sem juros é feito com a nossa atendente.', 'TRIMESTRAL_ATENDENTE');
   }
-  return criarPagamento(aluno, plano, {}, d.codigo);
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    return criarPagamento(aluno, plano, {}, d.codigo);
+  } finally {
+    trava.releaseLock();
+  }
 }
 
 // Cria o pagamento (com cupom ou vale-presente, se houver).
@@ -1170,7 +1218,17 @@ function confirmarPagamento(d) {
       reserva = { id: r.id, status: r.status, data: r.data, hora: r.hora, modalidade: r.modalidade, professor: r.professor, tapete: r.tapete ? Number(r.tapete) : null };
     }
   }
-  return { status: pg.status, descricao: pg.descricao, valor: numero(pg.valor), recibo: pg.recibo, observacao: pg.observacao, reserva: reserva };
+  return { status: pg.status, descricao: pg.descricao, valor: numero(pg.valor), recibo: pg.recibo, observacao: observacaoParaAluna(pg.observacao), reserva: reserva };
+}
+
+// a observação do pagamento também guarda notas internas (estorno, conferência de vale):
+// para a aluna, só os avisos feitos para ela
+function observacaoParaAluna(obs) {
+  obs = String(obs || '');
+  if (/lugar foi ocupado/i.test(obs)) return 'O lugar foi ocupado antes da confirmação; o crédito ficou disponível para outra aula.';
+  var j = /DEVOLVER R\$ ([\d.,]+) de juros/.exec(obs);
+  if (j) return 'Você pagou R$ ' + j[1] + ' de juros que não deveria. A recepção vai devolver.';
+  return '';
 }
 
 function linhaPagamento(orderNsu) {
@@ -1199,7 +1257,10 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
 
     var conf = infinitepayConferir(orderNsu, transactionNsu, slug);
     var esperado = Math.round(numero(pg.valor) * 100);
-    if (!conf || !conf.paid || Number(conf.amount) < esperado) {
+    var transacaoJaUsada = lerAba('Pagamentos').some(function (p) {
+      return String(p.order_nsu) !== String(orderNsu) && p.status === 'pago' && String(p.transaction_nsu) === String(transactionNsu);
+    });
+    if (!conf || conf.paid !== true || !(Number(conf.amount) >= esperado) || transacaoJaUsada) {
       Logger.log('Pagamento não confirmado (' + origem + '): ' + JSON.stringify(conf));
       return pg;
     }
@@ -1235,7 +1296,7 @@ function concluirPagamento(pg, info) {
     var v = acharVale(pg.vale);
     if (v && v.tipo === 'plano') {
       atualizarLinha('Vales', v._linha, { status: 'resgatado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });
-    } else if (v && saldoVale(v) + 0.009 < numero(pg.vale_usado)) {
+    } else if (v && saldoVale(v, pagamentosQueContam(pg.order_nsu)) + 0.009 < numero(pg.vale_usado)) {
       obs.push('ATENÇÃO: o vale ' + pg.vale + ' não tinha mais saldo suficiente (diferença de R$ ' + (numero(pg.vale_usado) - saldoVale(v)).toFixed(2).replace('.', ',') + ').');
     }
   }
@@ -1246,7 +1307,7 @@ function concluirPagamento(pg, info) {
   });
   if (pg.vale) {
     var v2 = acharVale(pg.vale);
-    if (v2 && v2.tipo !== 'plano' && saldoVale(v2) <= 0.009) atualizarLinha('Vales', v2._linha, { status: 'usado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });
+    if (v2 && v2.tipo !== 'plano' && saldoVale(v2, pagamentosPagos()) <= 0.009) atualizarLinha('Vales', v2._linha, { status: 'usado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });
   }
 
   // crédito novo (cliente de serviço sem cadastro não tem crédito)
@@ -1333,7 +1394,9 @@ function ativarWellhub(d) {
 // descarta a cópia daquela aba, então a próxima leitura vem atualizada.
 var _abas = {};
 var _memo = {};
+var _semCacheGlobal = false;
 function novaExecucao() {
+  _semCacheGlobal = false;
   _abas = {};
   _memo = {};
   _planilha = null;
@@ -1347,20 +1410,59 @@ function novaExecucao() {
 function esperarTrava(trava, ms) {
   trava.waitLock(ms);
   _memo = {};
+  _semCacheGlobal = true;
 }
 
 function aba(nome) {
   delete _memo[nome];
+  if (ABAS_EM_CACHE[nome]) esquecerCacheAba(nome);
   return abaSemDescartar(nome);
 }
 
 // valores da aba (com o cabeçalho), lidos uma vez por pedido. Não altere o resultado.
 function valoresAba(nome) {
   if (!_memo[nome]) {
-    var v = abaSemDescartar(nome).getDataRange().getValues();
+    var v = ABAS_EM_CACHE[nome] && !_semCacheGlobal ? lerCacheAba(nome) : null;
+    if (!v) {
+      v = abaSemDescartar(nome).getDataRange().getValues();
+      if (ABAS_EM_CACHE[nome]) guardarCacheAba(nome, v);
+    }
     _memo[nome] = { valores: v, objetos: null };
   }
   return _memo[nome].valores;
+}
+
+// ---------- cache entre pedidos (abas pequenas de catálogo) ----------
+// Ficam 2 min no cache do Google. Qualquer gravação pelo sistema limpa na hora;
+// mudança feita direto na planilha aparece em até 2 min. Dentro de trava, lê sempre da planilha.
+var ABAS_EM_CACHE = { Grade: 1, Planos: 1, Servicos: 1, Pacotes: 1, Profissionais: 1, Professoras: 1, Promocoes: 1 };
+var SEGUNDOS_CACHE_ABA = 120;
+
+function lerCacheAba(nome) {
+  try {
+    var t = CacheService.getScriptCache().get('aba_' + nome);
+    if (!t) return null;
+    return JSON.parse(t, function (k, v) { return v && typeof v === 'object' && v.$d != null ? new Date(v.$d) : v; });
+  } catch (e) { return null; }
+}
+
+function guardarCacheAba(nome, valores) {
+  try {
+    var t = JSON.stringify(valores.map(function (l) { return l.map(function (c) { return ehData(c) ? { $d: c.getTime() } : c; }); }));
+    if (t.length < 90000) CacheService.getScriptCache().put('aba_' + nome, t, SEGUNDOS_CACHE_ABA);
+  } catch (e) { /* sem cache: segue lendo da planilha */ }
+}
+
+// usa o cache se houver; senão roda as conferências da aba (preencher, migrar) e lê da planilha
+function doCacheOuPreparar(nome, preparar) {
+  if (_memo[nome]) return;
+  var c = _semCacheGlobal ? null : lerCacheAba(nome);
+  if (c) _memo[nome] = { valores: c, objetos: null };
+  else preparar();
+}
+
+function esquecerCacheAba(nome) {
+  try { CacheService.getScriptCache().remove('aba_' + nome); } catch (e) { /* ignora */ }
 }
 
 function abaSemDescartar(nome) {
@@ -1382,7 +1484,7 @@ function abaSemDescartar(nome) {
 }
 
 var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
-  Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Professoras: 'A:B', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
+  Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Professoras: 'A:B', AnamnesesProf: 'A:B', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
   Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G' };
 
 // Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem.
@@ -1407,6 +1509,7 @@ function garantirCabecalho(s, nome) {
 // Texto vindo de fora nunca vira fórmula na planilha (=, +, -, @ no início
 // poderiam executar IMPORTXML/HYPERLINK e vazar dados). Também limita o tamanho.
 function seguro(v) {
+  if (v && typeof v === 'object' && !ehData(v)) v = JSON.stringify(v);
   if (typeof v !== 'string') return v;
   // listas em JSON (itens de comanda, movimentos de caixa) podem ser longas; nunca começam com fórmula
   var lim = /^[\[{]/.test(v) ? 45000 : 2000;

@@ -1365,3 +1365,48 @@
 .seguir__item strong { font-size: 15px; }
 .seguir__item span { font-size: 13.5px; }
 .pr__topo h3 { font-family: var(--texto); font-weight: 600; font-size: 19px; letter-spacing: -0.01em; }
+
+/* ============================================================
+   ANAMNESE DAS PROFISSIONAIS, MINHAS CLIENTES E COMANDA (só leitura)
+   ============================================================ */
+.an { display: grid; gap: 16px; }
+.an-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.an-topo p { margin: 0; max-width: 620px; }
+.an-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.an-item { background: var(--b-linho); border: 1px solid var(--b-linha); border-radius: 20px; padding: 20px 22px; display: grid; gap: 12px; min-width: 0; }
+.an-item__topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.an-item__topo h3 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: var(--b-tinta); }
+.an-item__acoes { display: inline-flex; gap: 16px; align-items: center; }
+.an-item__texto { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15.5px; line-height: 1.65; color: #232A18; }
+.an-item__texto--curto { max-height: 16.5em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.an-item__mais { justify-self: start; }
+.an-fotos { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.an-editor { background: #FFFDF6; border: 1.5px solid rgba(111, 120, 77, 0.45); border-radius: 22px; padding: 20px; display: grid; gap: 12px; box-shadow: 0 18px 40px -30px rgba(47, 56, 33, 0.7); }
+.an-editor__texto { min-height: 260px; resize: vertical; font-size: 16px !important; line-height: 1.6; padding: 14px 16px !important; overflow: hidden; }
+.an-editor__conta { justify-self: end; margin-top: -6px; font-size: 13px; color: var(--b-suave); font-variant-numeric: tabular-nums; }
+.an-editor__acoes { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.an-editor__dir { display: inline-flex; align-items: center; gap: 16px; margin-left: auto; }
+.an-comandas { display: grid; gap: 16px; }
+.an-comanda { max-width: 560px; }
+.an-itens { list-style: none; margin: 12px 0 0; padding: 0; display: grid; }
+.an-itens li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px dotted rgba(47, 56, 33, 0.25); font-size: 15px; }
+.an-itens small { color: var(--b-suave); font-size: 13px; }
+.an-total { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 6px; font-size: 15px; }
+.an-total strong { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.an-fechadas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; }
+.an-fechadas li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; padding: 10px 0; border-top: 1px solid var(--b-linha); font-size: 14.5px; align-items: baseline; }
+.an-fechadas__data { color: var(--b-suave); font-size: 13.5px; }
+.an-busca { width: 100%; max-width: 480px; margin-bottom: 16px; }
+.an-clientes { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.an-cliente { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--b-linha); background: var(--b-linho); color: var(--b-tinta); text-decoration: none; min-width: 0; transition: box-shadow var(--rapido), transform var(--rapido); }
+.an-cliente:hover, .an-cliente:focus-visible { box-shadow: 0 12px 26px -18px rgba(47, 56, 33, 0.7); transform: translateY(-1px); outline: none; }
+.an-cliente__ini { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--c-facial); color: #FFFDF6; font-weight: 600; font-size: 14px; }
+.an-cliente__info { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.an-cliente__info strong { font-size: 16px; font-weight: 600; }
+.an-cliente__info span { font-size: 13.5px; color: #4A4D3F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an-cliente__info small { font-size: 13px; color: var(--b-suave); }
+.an-voltar { display: inline-block; margin-bottom: 8px; }
+@media (max-width: 560px) {
+  .an-item, .an-editor { padding: 16px; border-radius: 18px; }
+  .an-editor__dir { width: 100%; justify-content: space-between; margin-left: 0; }
+}

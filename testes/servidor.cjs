@@ -3,6 +3,8 @@
 // Servidor local: o site conversa com o backend simulado (mesmo código do Apps Script)
 const http = require('http');
 const { criar } = require('./simulador.cjs');
+// endereço de exemplo (o cadastro do site exige endereço completo)
+const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
 const R = require('path').join(__dirname, '..', 'apps-script');
 const m = criar([R+'/Codigo.gs', R+'/Seguranca.gs', R+'/Vales.gs', R+'/Bancada.gs', R+'/Relatorios.gs', R+'/Servicos.gs', R+'/Gestao.gs', R+'/Clientes.gs', R+'/Marketing.gs']);
 const { ctx, chamar, emails } = m;
@@ -18,7 +20,7 @@ chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'recep2026ok' });
 const nomes = [['52998224725','Mariana Costa'],['11144477735','Joana Lima'],['39053344705','Carla Dias'],['86288366757','Beatriz Rocha'],['71428793860','Luana Freitas'],['15350946056','Paula Mendes'],['93541134780','Renata Alves']];
 const toks = {};
 nomes.forEach(([cpf, nome], i) => {
-  const r = chamar('cadastrar', { cpf, nome, whatsapp: '8599' + String(1000000 + i * 1111).slice(0, 7), email: nome.split(' ')[0].toLowerCase() + '@gmail.com', senha: 'aluna2026' });
+  const r = chamar('cadastrar', { endereco: END_TESTE, cpf, nome, whatsapp: '8599' + String(1000000 + i * 1111).slice(0, 7), email: nome.split(' ')[0].toLowerCase() + '@gmail.com', senha: 'aluna2026' });
   toks[cpf] = r.dados.token;
   chamar('salvarAnamnese', { token: r.dados.token, ficha: { emergencia_nome: 'Mãe', emergencia_telefone: '85999998888', parq_1: 'nao', parq_2: 'nao', parq_3: 'nao', parq_4: 'nao', parq_5: i === 1 ? 'sim' : 'nao', parq_6: 'nao', parq_7: 'nao', declaracao: true, consentimento: true, lesoes: i === 1 ? 'Dor no joelho direito' : '', data_nascimento: '1990-10-' + (10 + i) } });
 });

@@ -16,7 +16,7 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 | Parte | Onde | Observação |
 |---|---|---|
 | Site (React 19 + Vite) | `src/` | HashRouter. Fontes: Italiana (títulos), IBM Plex Mono (texto do site), IBM Plex Sans (texto da bancada), Pinyon Script (detalhe). |
-| Área do aluno | `src/pages/` | Só **Yoga e Pilates**: reserva com escolha de tapete, check-in, planos, Wellhub, ficha de saúde. |
+| Área do aluno | `src/pages/` | Só **Yoga e Pilates**: reserva com escolha de tapete, check-in, planos, Wellhub, ficha de saúde. Cadastro exige endereço (`EnderecoSite.jsx`). |
 | Bancada interna | `src/bancada/` | Carregada à parte (lazy). Papéis: `admin`, `recepcao`, `professora` (também cobre profissional de estética/fisio). |
 | Backend | `apps-script/*.gs` | Google Apps Script + Google Sheets (a planilha é o banco). Um único `doPost`; ações da bancada começam com `b_`. |
 | Configuração do site | `src/config.js` | URL da API, WhatsApp, e-mail. `VITE_API_URL` troca a API (para testes locais). |
@@ -27,7 +27,7 @@ Arquivos do backend:
 - `Bancada.gs`: login da equipe, `PERMISSOES` (lista do que cada papel pode), agenda, clientes, vendas, vales, cupons, ajustes.
 - `Servicos.gs`: catálogo de serviços e pacotes, profissionais (com os serviços que cada uma faz, comissão e tempo próprios), horários livres, agendamento de serviços.
 - `Gestao.gs`: produtos e estoque, comandas, comissões, despesas, financeiro, caixa do dia, bloqueio de horário (folgas).
-- `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico.
+- `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico, endereço (`exigirEndereco`, `salvarEndereco` do site), **Minhas clientes** e **anamnese da profissional** (aba `AnamnesesProf`; texto > 44 mil caracteres vai para arquivo no Drive) e comandas da cliente.
 - `Marketing.gs`: promoções automáticas, campanhas (e-mail e WhatsApp) com descadastro, lembretes da véspera.
 - `Vales.gs`: cupons, vales-presente (cortesia, **não são vendidos**) e `calcularPreco` (promoção × cupom: vale o maior; o vale entra depois).
 - `Relatorios.gs`: relatórios da administração.
@@ -38,7 +38,8 @@ Regras de negócio importantes:
 - Comissão de um serviço: a da profissional naquele serviço (Catálogo → Profissionais) → a do serviço → a padrão da profissional. O tempo da profissional no serviço vale para horários livres e agenda. Na aba Profissionais, coluna `servicos` = `id:comissão:minutos;…` (vazio = padrão).
 - Horário das profissionais: por dia da semana com até 3 turnos (`horarios`, JSON) e datas especiais (`especiais`, JSON; `[]` = não atende). Sem `horarios`, vale o cadastro antigo (dias + início/fim dentro de `HORARIO_CASA`). `turnosDoProfissional` decide; a agenda do dia recebe os turnos em `equipe`.
 - Agenda (bancada): "Agenda do dia" no estilo Avec (todas lado a lado: estética, fisio, Pilates, Yoga; horas nas linhas; listrado = fora do horário) e "Aulas e presença".
-- Cliente: endereço (CEP com ViaCEP, rua, número, complemento, bairro, cidade, UF) e "Como nos conheceu?" (`como_conheceu`; opções em `src/lib/clientes.js`). Relatórios → Alunos mostra canais, vendas por canal e bairros.
+- Cliente: endereço (CEP com ViaCEP, rua, número, complemento, bairro, cidade, UF) e "Como nos conheceu?" (`como_conheceu`; opções em `src/lib/clientes.js`). Relatórios → Alunos mostra canais, vendas por canal e bairros. No site o endereço é obrigatório no cadastro; `publico()` devolve `endereco: false` para quem ainda não tem (aviso em Aulas).
+- Profissional (papel `professora`): "Minhas clientes" (`/bancada/clientes/:ref`, `ref` = id de um atendimento dela) com Anamnese (texto livre + fotos; só a autora ou admin edita), Ficha e evolução, Comandas. Ela nunca abre cliente pelo CPF (`cpfComAcesso`).
 - Pagamento com cartão (comanda e balcão): a bandeira é obrigatória na tela (`BANDEIRAS`), gravada em `Pagamentos.bandeira`; na comanda o servidor também exige.
 - Professoras de aula (Catálogo → Professoras de aula, aba `Professoras`): Pilates = % sobre o valor da aula da aluna (plano ÷ aulas do plano; mensal 2x = 8; Wellhub = `WELLHUB_VALOR_CHECKIN` nas Propriedades); Yoga = R$ fixo por aula dada (hora/aula). Só aulas terminadas, a partir de `desde`; falta/cancelada não contam. `sincronizarComissoesAulas` (Gestao.gs) grava na aba Comissoes (origem `aula`/`aula_fixa`) ao abrir Comissões, Financeiro ou Meus ganhos (no máximo a cada 5 min; presença e cancelamento refazem na hora).
 - Abas novas: declarar em `ABAS` (Codigo.gs) e, se tiver CPF/IDs, em `FORMATO_TEXTO`. Colunas novas vão **no fim** da lista (a planilha já existe com dados).
@@ -54,6 +55,8 @@ Regras de negócio importantes:
 ## Velocidade (Apps Script é lento: cada leitura da planilha custa 0,1 a 0,5 s)
 
 - Servidor: durante um pedido, o que já foi lido fica em memória (`valoresAba`/`lerAba`). `aba(nome)` descarta a cópia daquela aba (use-o para gravar). Dentro de trava, use `esperarTrava(trava, ms)`, que relê tudo. Não grave por fora dessas funções depois de ler a mesma aba no mesmo pedido.
+- Entre pedidos: as abas de `ABAS_EM_CACHE` (catálogo) ficam 120 s no CacheService; `aba(nome)` também apaga esse cache. Para ler sem intenção de gravar, use `abaSemDescartar`. A sessão da equipe fica 600 s no cache (`m_`+hash); `esquecerSessoesEmCache(email)` ao mudar papel/desativar.
+- Bancada pré-carrega ao entrar (efeito em `Bancada.jsx`): agenda do dia, catálogo, comandas abertas; profissional também "Minhas clientes".
 - `atualizarLinha` grava colunas vizinhas juntas. Prefira-a a `getRange().setValue()` solto.
 - Tela: `useDados` mostra na hora o que já foi carregado e atualiza por trás (`src/bancada/memoria.js`, aviso "Atualizando…"). Catálogo e planos são pré-carregados.
 - `npm run velocidade` conta leituras/gravações de cada tela e ação. Rode antes e depois de mexer no backend.
@@ -65,7 +68,7 @@ Regras de negócio importantes:
 npm install
 npm run lint        # oxlint
 npm run build
-npm run teste       # testa o backend inteiro num simulador (sem tocar na planilha real)
+npm run teste       # testa o backend inteiro num simulador (sem tocar na planilha real), inclusive segurança
 npm run velocidade  # quantas idas à planilha cada tela/ação faz
 npm run simulador   # cópia local com dados de exemplo em http://localhost:8787
 # em outro terminal: VITE_API_URL=http://localhost:8787 npm run dev
@@ -74,6 +77,10 @@ Contas de exemplo do simulador: `contato@acasaambar.com.br` / `ambar2026adm` (ad
 Ao criar algo novo no backend, acrescente casos em `testes/*.teste.cjs`.
 
 ## Segurança: não negociável
+
+- Só `doPost`/`doGet` são acessíveis de fora (não há `google.script.run` nem API executável): o "_" no nome das funções não protege nada aqui. A proteção é a lista fechada de ações em `doPost` (`hasOwnProperty`) e `PERMISSOES` + papel em `executarBancada`. `testes/seguranca.teste.cjs` confere todas as ações; rode-o ao criar ação nova.
+- Webhook da InfinitePay: só `P` + dígitos, exige transação e valor ≥ o do pedido, e a mesma transação não paga dois pedidos. Vale/cupom em link pendente (24 h) já contam como usados (`pagamentosQueContam`).
+- Para a aluna, `observacao` do pagamento passa por `observacaoParaAluna` (notas internas não saem).
 
 - **Nunca** colocar chaves no código (o repositório é público). A chave da InfinitePay fica só nas Propriedades do script (`INFINITEPAY_API_KEY`) e só o servidor a usa.
 - **Nunca** apagar nem alterar a propriedade `SENHA_PIMENTA` (todas as senhas deixariam de funcionar).
