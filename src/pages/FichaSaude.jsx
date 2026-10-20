@@ -118,7 +118,7 @@ export default function FichaSaude() {
             {feito.alerta && (
               <p className="aviso">
                 Você respondeu “sim” a alguma pergunta do questionário. Recomendamos conversar com seu médico e trazer uma
-                liberação para a prática. A professora também vai conversar com você na primeira aula.
+                liberação para a prática. Quem dá a aula também vai conversar com você na primeira prática.
               </p>
             )}
             <Link to={destino} className="botao botao--cheio">{destino === '/aulas' ? 'Ver aulas e reservar' : 'Continuar'}</Link>
@@ -138,7 +138,7 @@ export default function FichaSaude() {
             <p className="ficha__intro">
               {anterior
                 ? 'Estas são as respostas que você enviou. Mudou alguma coisa? Atualize e salve de novo.'
-                : 'Leva uns 2 minutos. Assim a professora sabe como cuidar de você durante a prática.'}
+                : 'Leva uns 2 minutos. Assim quem dá a aula sabe como cuidar de você durante a prática.'}
             </p>
           )}
         </div>

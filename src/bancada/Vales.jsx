@@ -53,7 +53,7 @@ export function ListaVales({ abrirNovo }) {
       </div>
       <Erro>{erro}</Erro>
       {carregando && !dados && <Carregando />}
-      {dados && lista.length === 0 && <Vazio titulo="Nenhum vale aqui" forma="presenca">Gere um vale para presentear uma aluna no aniversário ou numa campanha.</Vazio>}
+      {dados && lista.length === 0 && <Vazio titulo="Nenhum vale aqui" forma="presenca">Gere um vale para presentear alguém no aniversário ou numa campanha.</Vazio>}
       <ul className="b-vales">
         {lista.map((v) => (
           <li key={v.codigo} className={`b-vale b-vale--${v.status}`}>
@@ -321,10 +321,10 @@ function EditarCupom({ c, aoFechar, aoSalvar }) {
         </div>
         <div className="b-linha2">
           <label className="b-campo"><span className="rotulo">Limite de usos (total)</span><input type="number" min={0} {...campo('limiteTotal')} placeholder="sem limite" /></label>
-          <label className="b-campo"><span className="rotulo">Usos por aluno</span><input type="number" min={0} {...campo('limitePorAluno')} placeholder="sem limite" /></label>
+          <label className="b-campo"><span className="rotulo">Usos por cliente</span><input type="number" min={0} {...campo('limitePorAluno')} placeholder="sem limite" /></label>
         </div>
         <label className="b-campo"><span className="rotulo">Descrição interna</span><input {...campo('descricao')} placeholder="Ex.: parceria com a loja X" /></label>
-        <label className="b-check"><input type="checkbox" checked={f.primeiraCompra} onChange={(e) => setF({ ...f, primeiraCompra: e.target.checked })} /> Só para a primeira compra do aluno</label>
+        <label className="b-check"><input type="checkbox" checked={f.primeiraCompra} onChange={(e) => setF({ ...f, primeiraCompra: e.target.checked })} /> Só para a primeira compra de cada cliente</label>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Cupom ativo</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {

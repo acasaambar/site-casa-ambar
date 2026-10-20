@@ -73,8 +73,8 @@ export default function Estoque() {
                 <span className="est__barra"><i style={{ width: `${Math.max(0, Math.min(100, (p.estoque / cheio) * 100))}%` }} />{p.minimo > 0 && <b style={{ left: `${(p.minimo / cheio) * 100}%` }} />}</span>
                 <span className="est__qtd"><strong>{qtdFmt(p.estoque)}</strong> {p.unidade}</span>
               </div>
+              <span className="est__aviso">{falta && <Tag tom="alerta">repor</Tag>}</span>
               <div className="b-botoes">
-                {falta && <Tag tom="alerta">repor</Tag>}
                 <button type="button" className="link-acao" onClick={() => setMover({ p, tipo: 'entrada' })}>entrada</button>
                 <button type="button" className="link-acao" onClick={() => setMover({ p, tipo: 'ajuste' })}>contar</button>
                 <button type="button" className="link-acao" onClick={() => setMover({ p, tipo: 'perda' })}>baixa</button>
@@ -107,7 +107,7 @@ function EditarProduto({ p, categorias, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">Marca</span><input {...campo('marca')} /></label>
           <label className="b-campo"><span className="rotulo">Categoria</span><select {...campo('categoria')}>{categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
         </div>
-        <label className="b-check"><input type="checkbox" checked={f.vende} onChange={(e) => setF({ ...f, vende: e.target.checked })} /> Vende para a cliente (aparece na comanda)</label>
+        <label className="b-check"><input type="checkbox" checked={f.vende} onChange={(e) => setF({ ...f, vende: e.target.checked })} /> Produto de revenda (aparece na comanda)</label>
         <div className="b-linha2">
           {f.vende && <label className="b-campo"><span className="rotulo">Preço de venda (R$)</span><input inputMode="decimal" {...campo('preco')} /></label>}
           <label className="b-campo"><span className="rotulo">Custo (R$ por {f.unidade || 'unidade'})</span><input inputMode="decimal" {...campo('custo')} /></label>

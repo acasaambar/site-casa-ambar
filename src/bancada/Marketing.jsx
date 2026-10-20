@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, real, dataBR, dataCurta, hora, linkWhats, primeiro, telFmt, somarDias, hojeIso,
-  numBR, MESES_LONGOS, DIAS_LONGOS, diaSemana } from './ui.jsx';
+  numBR, MESES_LONGOS, DIAS_LONGOS, diaSemana, plural } from './ui.jsx';
 import { ListaVales, Cupons } from './Vales.jsx';
 import { useCatalogoComanda } from './Comandas.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -16,7 +16,7 @@ export default function Marketing() {
   const [aba, setAba] = useState(local.state?.aba || 'promocoes');
   return (
     <>
-      <Cabecalho titulo="Marketing">Promoções automáticas, campanhas para trazer as clientes de volta, lembretes, vales-presente e cupons.</Cabecalho>
+      <Cabecalho titulo="Marketing">Promoções automáticas, campanhas para trazer de volta quem sumiu, lembretes, vales-presente e cupons.</Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={[['promocoes', 'Promoções'], ['campanhas', 'Campanhas'], ['lembretes', 'Lembretes'], ['vales', 'Vales-presente'], ['cupons', 'Cupons']]} />
       {aba === 'promocoes' && <Promocoes admin={pode(membro, 'admin')} />}
       {aba === 'campanhas' && <Campanhas admin={pode(membro, 'admin')} />}
@@ -44,7 +44,7 @@ function Promocoes({ admin }) {
   return (
     <>
       <div className="b-barra-acoes">
-        <p className="b-suave">A promoção entra sozinha no preço, sem código. Se a cliente tiver cupom também, vale o maior desconto.</p>
+        <p className="b-suave">A promoção entra sozinha no preço, sem código. Se também houver cupom, vale o maior desconto.</p>
         {admin && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ tipo: 'percentual', onde: 'ambos', ativo: true, grupos: [], itens: [], dias: [] })}>Nova promoção</button>}
       </div>
       <Erro>{erro}</Erro>
@@ -70,7 +70,7 @@ function Promocoes({ admin }) {
                   </span>
                   <span className="b-suave">{p.de || p.ate ? `${p.de ? dataCurta(p.de) : '…'} a ${p.ate ? dataCurta(p.ate) : '…'}` : 'sem prazo'}</span>
                   <span className="b-suave">{p.onde === 'ambos' ? 'site e balcão' : p.onde === 'site' ? 'só no site' : 'só no balcão'}</span>
-                  <span className="b-suave">{p.usos} uso(s) · {real(p.descontoTotal)} em descontos</span>
+                  <span className="b-suave">{plural(p.usos, 'uso', 'usos')} · {real(p.descontoTotal)} em descontos</span>
                 </div>
               </div>
               {admin && <button type="button" className="link-acao pr__editar" onClick={() => setEditar(p)}>editar</button>}
@@ -169,14 +169,14 @@ function EditarPromocao({ p, catalogo, aoFechar, aoSalvar }) {
 //  CAMPANHAS
 // ============================================================
 const PUBLICOS = [
-  ['sumidos', 'Sumidas', 'não vêm há um tempo e não têm nada marcado'],
+  ['sumidos', 'Quem sumiu', 'não vem há um tempo e não tem nada marcado'],
   ['aniversariantes', 'Aniversariantes', 'do mês escolhido'],
   ['semRetorno', 'Vieram uma vez', 'e não voltaram'],
   ['pacoteAcabando', 'Pacote acabando', 'última sessão ou vencendo em 15 dias'],
   ['categoria', 'Por área', 'quem já fez estética facial, corporal…'],
   ['servico', 'Por serviço', 'quem já fez um serviço'],
   ['modalidade', 'Yoga ou Pilates', 'quem já fez aula'],
-  ['todos', 'Todas as clientes', ''],
+  ['todos', 'Todo mundo', 'todos os cadastros'],
 ];
 const MODELOS = {
   sumidos: ['Sentimos sua falta, {nome}', 'Oi, {nome}! Faz um tempinho que você não vem à Casa Âmbar e a gente sentiu sua falta.\n\nQue tal reservar um momento para você esta semana? É só responder esta mensagem ou chamar no WhatsApp.'],
@@ -252,7 +252,7 @@ function Campanhas({ admin }) {
             </div>
             <button type="button" className="botao botao--linha botao--p" disabled={buscando} onClick={buscar}>{buscando ? 'Procurando…' : 'Ver quem entra'}</button>
             {publico && (
-              <p className="cp__contagem"><strong>{publico.total}</strong> cliente{publico.total === 1 ? '' : 's'} · {publico.comWhats} com WhatsApp · {publico.comEmail} recebem e-mail</p>
+              <p className="cp__contagem"><strong>{publico.total}</strong> cliente{publico.total === 1 ? '' : 's'} · {publico.comWhats} com WhatsApp · {publico.comEmail} {publico.comEmail === 1 ? 'recebe' : 'recebem'} e-mail</p>
             )}
           </div>
         </div>
@@ -284,11 +284,11 @@ function Campanhas({ admin }) {
                   admin ? (
                     <>
                       <p className="b-suave">Sai da conta Google da Casa Âmbar, com o link “não quero mais receber” no rodapé. Hoje ainda dá para enviar {publico.cotaEmail} e-mails.</p>
-                      <BotaoAcao className="botao botao--cheio" confirmar={`Enviar para ${publico.comEmail} cliente(s) por e-mail?`} acao={async () => {
+                      <BotaoAcao className="botao botao--cheio" confirmar={`Enviar para ${plural(publico.comEmail, 'pessoa', 'pessoas')} por e-mail?`} acao={async () => {
                         setErro(''); setResultado('');
                         try {
                           const r = await chamar('enviarCampanha', { filtro, assunto, mensagem, nome: assunto });
-                          setResultado(`${r.enviados} e-mail(s) enviados.${r.faltaram ? ` ${r.faltaram} ficaram para amanhã (limite diário).` : ''}`);
+                          setResultado(`${plural(r.enviados, 'e-mail enviado', 'e-mails enviados')}.${r.faltaram ? ` ${r.faltaram} ${r.faltaram === 1 ? 'ficou' : 'ficaram'} para amanhã (limite diário).` : ''}`);
                           setHistorico(await chamar('campanhas', {}));
                         } catch (e) { setErro(e.message); }
                       }}>Enviar {publico.comEmail} e-mails</BotaoAcao>
@@ -352,8 +352,8 @@ function Lembretes() {
         <label className="b-campo"><span className="rotulo">Horários de</span><input type="date" value={data} onChange={(e) => e.target.value && setData(e.target.value)} /></label>
         <p className="b-suave">{dados.automatico ? 'O e-mail da véspera sai sozinho quando a bancada é aberta.' : 'Lembrete automático desligado em Ajustes.'}{dados.ultimoEnvio ? ` Último envio: ${dataBR(dados.ultimoEnvio)} ${hora(dados.ultimoEnvio.slice(11, 16))}.` : ''}</p>
         <BotaoAcao className="botao botao--cheio botao--p" disabled={!comEmail.length} acao={async () => {
-          try { const r = await chamar('enviarLembretes', { data }); setDados(r); setAviso(`${r.enviados} e-mail(s) enviados.`); } catch (e) { setAviso(e.message); }
-        }}>Enviar {comEmail.length} e-mail(s) agora</BotaoAcao>
+          try { const r = await chamar('enviarLembretes', { data }); setDados(r); setAviso(`${plural(r.enviados, 'e-mail enviado', 'e-mails enviados')}.`); } catch (e) { setAviso(e.message); }
+        }}>Enviar {plural(comEmail.length, 'e-mail', 'e-mails')} agora</BotaoAcao>
       </div>
       {aviso && <p className="aviso">{aviso}</p>}
       {dados.lista.length === 0 ? <Vazio titulo={`Nada marcado para ${dia}`} forma="presenca" /> : (

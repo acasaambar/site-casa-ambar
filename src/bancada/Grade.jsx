@@ -9,7 +9,7 @@ export default function Grade() {
   const admin = pode(membro, 'admin');
   const [aba, setAba] = useState('bloqueios');
   const itens = [['bloqueios', 'Feriados e bloqueios']];
-  if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais'], ['professoras', 'Professoras de aula']);
+  if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais'], ['professoras', 'Profissionais de aula']);
   return (
     <>
       <Cabecalho titulo="Catálogo">Aulas, serviços, preços e quem atende. O que mudar aqui vale na hora para o site e para a bancada.</Cabecalho>
@@ -48,8 +48,8 @@ function ProfessorasDeAula() {
     <>
       <div className="b-barra-acoes">
         <p className="b-suave">
-          Pilates: comissão sobre o valor de cada aluna na aula (o plano dividido pelas aulas dele; mensal 2x = 8 aulas). Yoga: valor fixo por aula dada.
-          Contam as aulas que já terminaram; falta e reserva cancelada não contam. Tudo aparece em Financeiro → Comissões e em "Meus ganhos" da professora.
+          Pilates: comissão sobre o valor de cada aluno na aula (o plano dividido pelas aulas dele; mensal 2x = 8 aulas). Yoga: valor fixo por aula dada.
+          Contam as aulas que já terminaram; falta e reserva cancelada não contam. Tudo aparece em Financeiro → Comissões e em "Meus ganhos" de cada profissional.
         </p>
       </div>
       {temPilates && (
@@ -58,7 +58,7 @@ function ProfessorasDeAula() {
           <input inputMode="decimal" value={f.wellhubValor} placeholder="Ex.: 30" onChange={(e) => { setSalvo(false); setF({ ...f, wellhubValor: num(e.target.value) }); }} />
         </label>
       )}
-      {f.professoras.length === 0 && <Vazio titulo="Nenhuma professora na grade" forma="presenca">Cadastre os horários em Grade de aulas.</Vazio>}
+      {f.professoras.length === 0 && <Vazio titulo="Ninguém na grade de aulas" forma="presenca">Cadastre os horários em Grade de aulas.</Vazio>}
       <ul className="pa-lista">
         {f.professoras.map((p, i) => {
           const pilates = p.modalidades.includes('Pilates') || !p.modalidades.length;
@@ -71,11 +71,11 @@ function ProfessorasDeAula() {
               </div>
               <div className="pa-campos">
                 {pilates && (
-                  <label className="b-campo"><span className="rotulo">Pilates · % por aluna</span>
+                  <label className="b-campo"><span className="rotulo">Pilates · % por aluno</span>
                     <input inputMode="decimal" value={p.pilatesPct} placeholder="Ex.: 40" onChange={(e) => mudar(i, 'pilatesPct', num(e.target.value))} /></label>
                 )}
                 {pilates && (
-                  <label className="b-campo"><span className="rotulo">Aluna Wellhub · %</span>
+                  <label className="b-campo"><span className="rotulo">Aluno Wellhub · %</span>
                     <input inputMode="decimal" value={p.wellhubPct} placeholder={p.pilatesPct ? `${p.pilatesPct} (igual)` : 'Ex.: 40'} onChange={(e) => mudar(i, 'wellhubPct', num(e.target.value))} /></label>
                 )}
                 {yoga && (
@@ -91,14 +91,16 @@ function ProfessorasDeAula() {
       </ul>
       <Erro>{erroS}</Erro>
       {salvo && <p className="b-ok" role="status">Salvo. As comissões das aulas já foram recalculadas.</p>}
-      <BotaoAcao className="botao botao--cheio" acao={async () => {
-        setErroS('');
-        try {
-          const r = await chamar('salvarPagamentoAulas', { wellhubValor: f.wellhubValor, professoras: f.professoras.map(({ nome, pilatesPct, wellhubPct, yogaPorAula, desde, ativo }) => ({ nome, pilatesPct, wellhubPct, yogaPorAula, desde, ativo })) });
-          setDados(r);
-          setSalvo(true);
-        } catch (e) { setErroS(e.message); }
-      }}>Salvar valores</BotaoAcao>
+      <div className="b-salvar-fixo">
+        <BotaoAcao className="botao botao--cheio" acao={async () => {
+          setErroS('');
+          try {
+            const r = await chamar('salvarPagamentoAulas', { wellhubValor: f.wellhubValor, professoras: f.professoras.map(({ nome, pilatesPct, wellhubPct, yogaPorAula, desde, ativo }) => ({ nome, pilatesPct, wellhubPct, yogaPorAula, desde, ativo })) });
+            setDados(r);
+            setSalvo(true);
+          } catch (e) { setErroS(e.message); }
+        }}>Salvar valores</BotaoAcao>
+      </div>
     </>
   );
 }
@@ -183,24 +185,24 @@ function GradeSemanal() {
     <>
       <p className="b-suave">Cada linha é uma aula que se repete toda semana. As mudanças valem para as próximas aulas; reservas já feitas continuam.</p>
       <div className="b-tabela-caixa">
-        <table className="b-tabela b-tabela--edicao">
-          <thead><tr><th>Dia</th><th>Horário</th><th>Modalidade</th><th>Professora</th><th className="num">Vagas</th><th>Ativa</th><th /></tr></thead>
+        <table className="b-tabela b-tabela--edicao b-tabela--grade">
+          <thead><tr><th>Dia</th><th>Horário</th><th>Modalidade</th><th>Profissional</th><th className="num">Vagas</th><th>Ativa</th><th /></tr></thead>
           <tbody>
             {ordenadas.map((l) => (
               <tr key={l._k} className={l.ativo ? '' : 'inativa'}>
                 <td data-rotulo="Dia"><select value={l.dia} onChange={(e) => mudar(l._k, 'dia', Number(e.target.value))}>{DIAS_LONGOS.map((d, i) => <option key={i} value={i}>{d}</option>)}</select></td>
                 <td data-rotulo="Horário"><input type="time" value={l.hora} onChange={(e) => mudar(l._k, 'hora', e.target.value)} /></td>
                 <td data-rotulo="Modalidade"><select value={l.modalidade} onChange={(e) => mudar(l._k, 'modalidade', e.target.value)}><option>Yoga</option><option>Pilates</option></select></td>
-                <td data-rotulo="Professora"><input value={l.professor} onChange={(e) => mudar(l._k, 'professor', e.target.value)} /></td>
+                <td data-rotulo="Profissional"><input value={l.professor} onChange={(e) => mudar(l._k, 'professor', e.target.value)} /></td>
                 <td data-rotulo="Vagas" className="num"><input type="number" min={1} max={30} value={l.capacidade} onChange={(e) => mudar(l._k, 'capacidade', Number(e.target.value))} /></td>
                 <td data-rotulo="Ativa"><input type="checkbox" checked={l.ativo} onChange={(e) => mudar(l._k, 'ativo', e.target.checked)} aria-label="Aula ativa" /></td>
-                <td><button type="button" className="link-sair" onClick={() => setLinhas((ls) => ls.filter((x) => x._k !== l._k))}>remover</button></td>
+                <td className="b-tabela__remover"><button type="button" className="link-sair" onClick={() => setLinhas((ls) => ls.filter((x) => x._k !== l._k))}>remover</button></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="b-botoes">
+      <div className="b-botoes b-salvar-fixo">
         <button type="button" className="botao botao--linha botao--p" onClick={() => setLinhas((ls) => [...ls, { _k: Date.now(), dia: 1, hora: '07:00', modalidade: 'Yoga', professor: '', capacidade: 12, ativo: true }])}>+ Adicionar horário</button>
         <BotaoAcao className="botao botao--cheio botao--p" acao={async () => {
           setAviso(''); setErroS('');

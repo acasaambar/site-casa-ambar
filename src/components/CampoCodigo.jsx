@@ -45,7 +45,8 @@ export default function CampoCodigo({ token, planoId, aplicado, aoAplicar, inici
   if (!aberto) {
     return (
       <button type="button" className="link-acao codigo__abrir" onClick={() => setAberto(true)}>
-        Tenho um cupom ou vale-presente
+        {/* um span só: dentro do link (flex) o espaço antes de "vale-presente" sumiria */}
+        <span>Tenho um cupom ou <span className="sem-quebra">vale-presente</span></span>
       </button>
     );
   }

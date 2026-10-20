@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
-  DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt } from './ui.jsx';
+import { useDados, useFazServicos, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+  DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { AgendaServicos } from './Servicos.jsx';
@@ -16,9 +16,13 @@ export default function Agenda() {
   const [agendar, setAgendar] = useState(null);
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
-  const [vista, setVista] = useState(local.state?.abrir ? 'aulas' : 'dia');
+  const [vistaEscolhida, setVista] = useState(local.state?.abrir ? 'aulas' : null);
   const { dados, erro, carregando, recarregar, setDados } = useDados('agenda', { de: dia, dias: 1 });
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
+  // quem só dá aula (não atende serviços) abre a agenda direto em "Aulas e presença"
+  const fazServicos = useFazServicos();
+  const vista = vistaEscolhida || (fazServicos === false ? 'aulas' : 'dia');
+  const modalidades = new Set((dados || []).map((a) => a.modalidade));
 
   const aulas = useMemo(() => (dados || []).filter((a) => filtro === 'Todas' || a.modalidade === filtro), [dados, filtro]);
   const tira = Array.from({ length: 7 }, (_, i) => somarDias(dia, i - 3));
@@ -82,7 +86,7 @@ export default function Agenda() {
           <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}>Agenda do dia</button>
           <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas e presença</button>
         </div>
-        {vista === 'aulas' && (
+        {vista === 'aulas' && (equipeBalcao || modalidades.size > 1) && (
           <div className="b-filtros">
             {['Todas', 'Yoga', 'Pilates'].map((f) => (
               <button key={f} type="button" className={`b-chip${filtro === f ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(f)}>{f}</button>
@@ -103,7 +107,9 @@ export default function Agenda() {
 
       <Erro>{erro || aviso}</Erro>
       {carregando && !dados && <Carregando />}
-      {dados && aulas.length === 0 && <Vazio titulo="Sem aulas neste dia">Domingo, feriado ou dia bloqueado. Confira em Grade e planos.</Vazio>}
+      {dados && aulas.length === 0 && (
+        <Vazio titulo="Sem aulas neste dia">{equipeBalcao ? 'Domingo, feriado ou dia bloqueado. Confira em Catálogo → Grade de aulas.' : 'Você não tem aula neste dia.'}</Vazio>
+      )}
 
       <div className="b-aulas">
         {aulas.map((a) => {
@@ -119,7 +125,7 @@ export default function Agenda() {
                 </span>
                 <span className="b-aula__num">
                   <strong>{a.ocupadosQtd}/{a.capacidade}</strong>
-                  <small>{a.passada ? `${presentes} presentes` : a.ocupadosQtd >= a.capacidade ? 'lotada' : `${a.capacidade - a.ocupadosQtd} livres`}</small>
+                  <small>{a.passada ? plural(presentes, 'presente', 'presentes') : a.ocupadosQtd >= a.capacidade ? 'lotada' : plural(a.capacidade - a.ocupadosQtd, 'livre', 'livres')}</small>
                 </span>
                 <span className="b-aula__seta" aria-hidden="true">{aberta ? '−' : '+'}</span>
               </button>
@@ -132,7 +138,12 @@ export default function Agenda() {
                       const st = STATUS_RESERVA[r.status] || [r.status, 'neutro'];
                       return (
                         <li key={r.id} className={`b-reserva b-reserva--${r.status}`}>
-                          <span className="b-reserva__tapete" title={a.modalidade === 'Yoga' ? 'Tapete' : ''}>{r.tapete || '·'}</span>
+                          {a.modalidade === 'Yoga' ? (
+                            <span className="b-reserva__tapete" title="Tapete">{r.tapete || '–'}</span>
+                          ) : (
+                            // Pilates não tem tapete: o quadrado só marca presença (✓) ou falta (×)
+                            <span className="b-reserva__tapete b-reserva__tapete--sem" aria-hidden="true">{r.status === 'check-in' ? '✓' : r.status === 'falta' ? '×' : ''}</span>
+                          )}
                           <div className="b-reserva__quem">
                             <strong>{r.nome}</strong>
                             <span className="b-reserva__tags">
@@ -229,7 +240,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
       {!aluno ? (
         <>
           <BuscaAluno aoEscolher={setAluno} autoFocus excluir={aula.reservas.map((r) => r.cpf).filter(Boolean)} />
-          <p className="b-suave b-nota">Aluno novo? Cadastre em <strong>Alunos → Novo aluno</strong> e volte aqui.</p>
+          <p className="b-suave b-nota">Ainda sem cadastro? Cadastre em <strong>Clientes → Novo cliente</strong> e volte aqui.</p>
         </>
       ) : (
         <div className="b-form">
@@ -249,7 +260,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
                   <button key={n} type="button" disabled={ocupados.includes(n)} aria-pressed={tapete === n} onClick={() => setTapete(n)}>{n}</button>
                 ))}
               </div>
-              <span className="b-suave">frente da sala · professora</span>
+              <span className="b-suave">frente da sala</span>
             </fieldset>
           )}
 
@@ -301,7 +312,7 @@ export function FichaModal({ reservaId, cpf, nome, aoFechar }) {
     <Modal rotulo="Ficha de saúde" titulo={dados?.nome || nome} aoFechar={aoFechar} largo>
       <Erro>{erro}</Erro>
       {carregando && <Carregando />}
-      {dados && !f && <Vazio titulo="Ficha não preenchida">Peça para a aluna preencher em Área do aluno → Ficha de saúde antes da aula.</Vazio>}
+      {dados && !f && <Vazio titulo="Ficha não preenchida">A ficha é preenchida na Área do aluno → Ficha de saúde. Peça para preencher antes da aula.</Vazio>}
       {f && <FichaConteudo f={f} />}
     </Modal>
   );
@@ -328,7 +339,7 @@ export function FichaConteudo({ f }) {
         {item('Cirurgias recentes', f.cirurgias)}
         {item('Alergias', f.alergias)}
         {f.gestante === 'sim' && item('Gestante', 'Sim' + (f.gestante_semanas ? ` · ${f.gestante_semanas} semanas` : ''))}
-        {item('Observações para a professora', f.observacoes)}
+        {item('Observações para a aula', f.observacoes)}
         {item('Pratica atividade física', f.atividade_regular)}
       </div>
       <div className="b-ficha__emergencia">

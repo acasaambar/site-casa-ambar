@@ -171,7 +171,7 @@ function Aulas({ a }) {
         <BarrasH itens={a.porHorario.map((g) => ({ nome: g.nome.replace(':00', 'h').replace(':', 'h'), valor: g.ocupacao, detalhe: `${g.reservas} reservas em ${g.aulas} aulas` }))} formato={pct} max={100} limite={12} />
       </Grafico>
       <div className="b-duas">
-        <Grafico titulo="Por professora" sub="Reservas no período" csv={csvGrupo('professoras', a.porProfessora)}>
+        <Grafico titulo="Por profissional" sub="Reservas no período" csv={csvGrupo('profissionais', a.porProfessora)}>
           <BarrasH itens={a.porProfessora.map((g) => ({ nome: g.nome, valor: g.reservas, detalhe: `${g.aulas} aulas · ${pct(g.ocupacao)} de ocupação` }))} />
         </Grafico>
         <Grafico titulo="Como as aulas foram pagas">
@@ -218,13 +218,13 @@ function Alunos({ a }) {
             ? <BarrasH itens={a.comoConheceram.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} />
             : <p className="b-suave">Nenhum cliente novo no período.</p>}
         </Grafico>
-        <Grafico titulo="Vendas por canal" sub="Quanto cada canal trouxe no período (pelo que a cliente respondeu)">
+        <Grafico titulo="Vendas por canal" sub="Quanto cada canal trouxe no período (pela resposta no cadastro)">
           {a.vendasPorCanal.length
             ? <BarrasH itens={a.vendasPorCanal.map((c) => ({ nome: c.nome, valor: c.valor }))} formato={realCurto} />
             : <p className="b-suave">Sem vendas no período.</p>}
         </Grafico>
       </div>
-      <Grafico titulo="Bairros das clientes" sub={`${a.comEndereco} de ${a.total} clientes com endereço completo (para nota fiscal)`}>
+      <Grafico titulo="Bairros dos clientes" sub={`${a.comEndereco} de ${a.total} clientes com endereço completo (para nota fiscal)`}>
         {a.bairros.length
           ? <BarrasH itens={a.bairros.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} limite={15} />
           : <p className="b-suave">Ainda ninguém com bairro cadastrado. Preencha o endereço em Clientes → editar.</p>}

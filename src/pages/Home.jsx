@@ -185,8 +185,8 @@ export default function Home() {
 
           <ol className="como">
             {[
-              ['Crie sua conta', 'Com CPF e senha, e uma ficha de saúde rápida para a professora te conhecer.'],
-              ['Escolha aula e tapete', 'Veja horários, professora e vagas livres. No Yoga, escolha o número do seu tapete.'],
+              ['Crie sua conta', 'Com CPF e senha, e uma ficha de saúde rápida para quem dá a aula te conhecer.'],
+              ['Escolha aula e tapete', 'Veja horários, quem conduz a aula e as vagas livres. No Yoga, escolha o número do seu tapete.'],
               ['Faça o check-in', 'Ao chegar, confirme sua presença pelo celular. Seu tapete estará te esperando.'],
             ].map(([t, d], i) => (
               <li key={t} className="revelar" style={{ transitionDelay: `${i * 120}ms` }}>

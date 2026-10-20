@@ -44,7 +44,7 @@ export function ProntuarioConteudo({ alvo, editavel = true }) {
           <h3 className="pt-titulo">Ficha de estética</h3>
           {editavel && <button type="button" className="link-acao" onClick={() => setEditarFicha(true)}>{f ? 'atualizar' : 'preencher'}</button>}
         </header>
-        {!f ? <p className="b-suave">Ainda não preenchida. Preencha na primeira sessão, com a cliente.</p> : (
+        {!f ? <p className="b-suave">Ainda não preenchida. Preencha na primeira sessão, durante o atendimento.</p> : (
           <>
             <dl className="b-dados">
               {f.queixa && <><dt>Queixa principal</dt><dd>{f.queixa}</dd></>}
@@ -126,7 +126,7 @@ function NovaEvolucao({ alvo, fotosOk, aoSalvar }) {
         <button type="button" className="botao botao--linha botao--p" disabled={fotos.length >= 6} onClick={() => input.current?.click()}>
           {fotos.length ? 'Mais fotos' : 'Fotos de antes e depois'}
         </button>
-        {!fotosOk && fotos.length > 0 && <span className="b-alerta-txt">A ficha diz que a cliente não autorizou fotos.</span>}
+        {!fotosOk && fotos.length > 0 && <span className="b-alerta-txt">A ficha diz que as fotos não foram autorizadas.</span>}
         <BotaoAcao className="botao botao--cheio botao--p" disabled={!texto.trim() && !fotos.length} acao={async () => {
           setErro('');
           try { aoSalvar(await chamar('salvarEvolucao', { ...alvo, anotacao: texto, fotos, data: hojeIso() })); setTexto(''); setFotos([]); } catch (e) { setErro(e.message); }
@@ -146,7 +146,7 @@ function EditarFicha({ alvo, f, condicoes, aoFechar, aoSalvar }) {
   const campo = (k) => ({ value: x[k], onChange: (e) => setX({ ...x, [k]: e.target.value }) });
   const alterna = (c) => setX({ ...x, condicoes: x.condicoes.includes(c) ? x.condicoes.filter((y) => y !== c) : [...x.condicoes, c] });
   return (
-    <Modal titulo="Ficha de estética" rotulo="Preencha com a cliente. Só a equipe vê." aoFechar={aoFechar} largo>
+    <Modal titulo="Ficha de estética" rotulo="Preencha durante o atendimento. Só a equipe vê." aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Queixa principal</span><input {...campo('queixa')} placeholder="Ex.: manchas na testa, flacidez" /></label>
         <label className="b-campo"><span className="rotulo">Objetivo</span><input {...campo('objetivo')} /></label>
@@ -157,7 +157,7 @@ function EditarFicha({ alvo, f, condicoes, aoFechar, aoSalvar }) {
             <select {...campo('fototipo')}><option value="">—</option>{['I', 'II', 'III', 'IV', 'V', 'VI'].map((t) => <option key={t}>{t}</option>)}</select></label>
         </div>
         <fieldset className="b-opcoes">
-          <legend className="rotulo">Condições de saúde (marque as que a cliente tem)</legend>
+          <legend className="rotulo">Condições de saúde (marque as que se aplicam)</legend>
           <div className="b-filtros">{condicoes.map((c) => <button key={c} type="button" className={`b-chip${x.condicoes.includes(c) ? ' b-chip--ativo' : ''}`} onClick={() => alterna(c)}>{c}</button>)}</div>
         </fieldset>
         <div className="b-linha2">
@@ -169,7 +169,7 @@ function EditarFicha({ alvo, f, condicoes, aoFechar, aoSalvar }) {
         <label className="b-campo"><span className="rotulo">Exposição ao sol</span>
           <select {...campo('exposicaoSolar')}><option value="">—</option>{['Pouca', 'Moderada', 'Muita', 'Usa protetor todo dia', 'Não usa protetor'].map((t) => <option key={t}>{t}</option>)}</select></label>
         <label className="b-campo"><span className="rotulo">Observações</span><textarea rows={3} {...campo('obs')} /></label>
-        <label className="b-check"><input type="checkbox" checked={x.consentimentoFotos} onChange={(e) => setX({ ...x, consentimentoFotos: e.target.checked })} /> A cliente autoriza fotos de antes e depois (uso interno, não publicadas)</label>
+        <label className="b-check"><input type="checkbox" checked={x.consentimentoFotos} onChange={(e) => setX({ ...x, consentimentoFotos: e.target.checked })} /> Autoriza fotos de antes e depois (uso interno, não publicadas)</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');

@@ -117,7 +117,7 @@ export function DiasEspeciais({ valor, aoMudar }) {
   return (
     <fieldset className="hr">
       <legend className="rotulo">Dias especiais</legend>
-      <p className="b-suave">Um sábado com horário diferente, um feriado em que ela atende ou um dia de folga. Vale só naquela data.</p>
+      <p className="b-suave">Um sábado com horário diferente, um feriado com atendimento ou um dia de folga. Vale só naquela data.</p>
       {datas.length > 0 && (
         <ul className="hr-dias">
           {datas.map((d) => {

@@ -302,7 +302,7 @@ export function Abas({ itens, atual, aoMudar }) {
 }
 
 // Busca de aluno (nome, CPF, WhatsApp ou e-mail)
-export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar aluno por nome, CPF ou WhatsApp', excluir = [], motivoExcluir = 'já está nesta aula' }) {
+export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por nome, CPF ou WhatsApp', excluir = [], motivoExcluir = 'já está nesta aula' }) {
   const { chamar } = useBancada();
   const [q, setQ] = useState('');
   const [lista, setLista] = useState([]);
@@ -317,7 +317,7 @@ export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar aluno 
   }, [q, chamar]);
   return (
     <div className="b-busca">
-      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} aria-label="Buscar aluno" />
+      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} aria-label="Buscar cadastro" />
       {buscando && <span className="b-busca__status">buscando…</span>}
       {lista.length > 0 && (
         <ul className="b-busca__lista">
@@ -331,7 +331,7 @@ export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar aluno 
           ))}
         </ul>
       )}
-      {q.trim().length >= 2 && !buscando && lista.length === 0 && <p className="b-busca__nada">Nenhum aluno encontrado.</p>}
+      {q.trim().length >= 2 && !buscando && lista.length === 0 && <p className="b-busca__nada">Ninguém encontrado com essa busca.</p>}
     </div>
   );
 }

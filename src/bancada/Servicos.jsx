@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
-  MESES, diaSemana } from './ui.jsx';
+import { useDados, useMaisADireita, CampoBandeira, faltaBandeira, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+  MESES, diaSemana, plural, ehDela } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { ComandaModal } from './Comandas.jsx';
@@ -45,6 +45,7 @@ const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filte
 export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
   const { membro } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
+  const [gruposRef, maisGrupos] = useMaisADireita();
   const { dados, erro, carregando, recarregar } = useDados('atendimentos', { de: dia, dias: 1 });
   const { dados: catalogo } = useDados('catalogoServicos', {});
   const [novo, setNovo] = useState(null);
@@ -75,9 +76,11 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
       cols.push({ nome, tipo: 'aula', grupo: m.includes('Pilates') ? 'pilates' : 'yoga', detalhe: m.join(' e '), turnos: null, aulas: true });
     });
     const ordem = GRUPOS.map(([g]) => g);
-    return cols.sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo) || a.nome.localeCompare(b.nome));
-  }, [dados, lista, aulas]);
-  const mostradas = colunas.filter((c) => !ocultos.includes(c.grupo));
+    // a profissional vê só a própria coluna (as colegas apareceriam vazias, como se estivessem livres)
+    return cols.filter((c) => balcao || ehDela(c.nome, membro))
+      .sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo) || a.nome.localeCompare(b.nome));
+  }, [dados, lista, aulas, balcao, membro]);
+  const mostradas = balcao ? colunas.filter((c) => !ocultos.includes(c.grupo)) : colunas;
 
   // faixa de horas: das 6h às 20h, ou mais se alguém começa antes / termina depois
   const [INI, FIM] = useMemo(() => {
@@ -115,34 +118,36 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
   return (
     <>
       <Erro>{erro}</Erro>
-      <div className="ag-barra">
-        <div className="ag-grupos" role="group" aria-label="Mostrar na agenda">
-          {GRUPOS.filter(([g]) => contagem(g)).map(([g, t]) => (
-            <button key={g} type="button" className={`ag-grupo ag-grupo--${g}`} aria-pressed={!ocultos.includes(g)} onClick={() => alternarGrupo(g)}>
-              <i aria-hidden="true" />{t}<small>{contagem(g)}</small>
-            </button>
-          ))}
-        </div>
-        <div className="ag-colunas" role="group" aria-label="Colunas na tela">
-          <span>Colunas</span>
-          {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
-        </div>
-        {balcao && (
+      {balcao && (
+        <div className="ag-barra">
+          <div className={`ag-grupos${maisGrupos ? ' b-rola--mais' : ''}`} role="group" aria-label="Mostrar na agenda" ref={gruposRef}>
+            {GRUPOS.filter(([g]) => contagem(g)).map(([g, t]) => (
+              <button key={g} type="button" className={`ag-grupo ag-grupo--${g}`} aria-pressed={!ocultos.includes(g)} onClick={() => alternarGrupo(g)}>
+                <i aria-hidden="true" />{t}<small>{contagem(g)}</small>
+              </button>
+            ))}
+          </div>
+          <div className="ag-colunas" role="group" aria-label="Colunas na tela">
+            <span>Colunas</span>
+            {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
+          </div>
           <span className="b-botoes ag-acoes">
             <button type="button" className="botao botao--linha botao--p" onClick={() => setBloquear({ data: dia })}>Bloquear horário</button>
             <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo({ data: dia })}>Agendar serviço</button>
           </span>
-        )}
-      </div>
-
-      {colunas.length === 0 && (
-        <Vazio titulo="Ninguém atende neste dia" forma="presenca">
-          {pode(membro, 'admin') ? 'Cadastre as profissionais em Catálogo → Profissionais e as aulas em Catálogo → Grade de aulas.' : 'Peça à administração para cadastrar as profissionais em Catálogo.'}
-        </Vazio>
+        </div>
       )}
 
+      {colunas.length === 0 && (balcao ? (
+        <Vazio titulo="Ninguém atende neste dia" forma="presenca">
+          {pode(membro, 'admin') ? 'Cadastre a equipe em Catálogo → Profissionais e as aulas em Catálogo → Grade de aulas.' : 'Peça à administração para cadastrar a equipe em Catálogo.'}
+        </Vazio>
+      ) : (
+        <Vazio titulo="Nada na sua agenda neste dia" forma="presenca">Escolha outro dia acima. As aulas e os atendimentos marcados com você aparecem aqui.</Vazio>
+      ))}
+
       {mostradas.length > 0 && (
-        <div className="ag" style={{ '--visiveis': Math.min(visiveis, mostradas.length) }}>
+        <div className="ag" style={{ '--visiveis': balcao ? Math.min(visiveis, mostradas.length) : mostradas.length }}>
           <div className="ag-grade" style={{ '--n': mostradas.length, '--alt': `${ALT}px` }}>
             <div className="ag-canto" aria-hidden="true" />
             {mostradas.map((c) => (
@@ -188,7 +193,7 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
                       style={{ top: y(min(a.hora)) + 2, height: dur * PX - 4 }} onClick={() => aoAbrirAula?.(a)}>
                       <span className="ag-bloco__hora">{hora(a.hora)}–{hora(hhmm(min(a.hora) + dur))}</span>
                       <strong>{a.modalidade}</strong>
-                      <span className="ag-bloco__info">{a.ocupadosQtd} de {a.capacidade} alunas</span>
+                      <span className="ag-bloco__info">{a.ocupadosQtd} de {a.capacidade} {a.capacidade === 1 ? 'lugar' : 'lugares'}</span>
                     </button>
                   );
                 })}
@@ -343,7 +348,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
                   <label className="b-campo"><span className="rotulo">Nome e sobrenome</span><input value={semCadastro.nome} onChange={(e) => setSemCadastro({ ...semCadastro, nome: e.target.value })} /></label>
                   <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" value={semCadastro.whatsapp} onChange={(e) => setSemCadastro({ ...semCadastro, whatsapp: mascaraTelefone(e.target.value) })} /></label>
                 </div>
-                <button type="button" className="link-acao" onClick={() => setModoCliente('busca')}>Buscar cliente cadastrado</button>
+                <button type="button" className="link-acao" onClick={() => setModoCliente('busca')}>Buscar no cadastro</button>
               </>
             )}
           </fieldset>
@@ -377,7 +382,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select></label>
         )}
         {pagamento === 'pago' && !re && <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />}
-        <label className="b-campo"><span className="rotulo">Observação para a profissional</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
+        <label className="b-campo"><span className="rotulo">Observação para quem vai atender</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
         <Erro>{erro}</Erro>
         <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaBandeira(metodo, bandeira))} onClick={salvar}>
           {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
@@ -414,7 +419,7 @@ function BloquearHorario({ inicial, profissionais, aoFechar, aoSalvar }) {
         <div className="b-form">
           <p>{aviso.criadas} bloqueio{aviso.criadas > 1 ? 's' : ''} criado{aviso.criadas > 1 ? 's' : ''}.</p>
           {aviso.conflitos.length > 0 && (
-            <div className="aviso"><strong>Já havia atendimento marcado nesse horário:</strong><ul>{aviso.conflitos.map((c) => <li key={c}>{c}</li>)}</ul>Reagende essas clientes pela agenda.</div>
+            <div className="aviso"><strong>Já havia atendimento marcado nesse horário:</strong><ul>{aviso.conflitos.map((c) => <li key={c}>{c}</li>)}</ul>Reagende esses horários pela agenda.</div>
           )}
           <button type="button" className="botao botao--cheio" onClick={aoSalvar}>Ok</button>
         </div>
@@ -422,7 +427,7 @@ function BloquearHorario({ inicial, profissionais, aoFechar, aoSalvar }) {
     );
   }
   return (
-    <Modal titulo="Bloquear horário" rotulo="Folga, almoço, curso ou compromisso da profissional" aoFechar={aoFechar}>
+    <Modal titulo="Bloquear horário" rotulo="Folga, almoço, curso ou outro compromisso de quem atende" aoFechar={aoFechar}>
       <div className="b-form">
         <div className="b-linha2">
           <label className="b-campo"><span className="rotulo">Profissional</span>
@@ -505,7 +510,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
       )}
       <button type="button" className="link-acao s-prontuario" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
       {!balcao && (
-        <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="link-acao s-prontuario">Anamnese e comanda da cliente</Link>
+        <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="link-acao s-prontuario">Anamnese e comanda</Link>
       )}
       {!fechado && (
         <div className="s-acoes">
@@ -520,7 +525,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
             <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido')}>Marcar atendido</BotaoAcao>
           )}
           <div className="b-botoes">
-            {balcao && a.status === 'agendado' && <BotaoAcao acao={() => mudar('confirmado')}>Confirmado pelo cliente</BotaoAcao>}
+            {balcao && a.status === 'agendado' && <BotaoAcao acao={() => mudar('confirmado')}>Cliente confirmou</BotaoAcao>}
             <BotaoAcao className="botao botao--linha botao--p botao--perigo" acao={() => mudar('falta')}>Faltou</BotaoAcao>
           </div>
         </div>
@@ -615,7 +620,7 @@ function EditarServico({ s, categorias, produtos = [], aoFechar, aoSalvar }) {
         </div>
         <label className="b-campo"><span className="rotulo">Descrição curta</span><input {...campo('descricao')} /></label>
         <label className="b-campo"><span className="rotulo">Comissão deste serviço (%)</span>
-          <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Vazio = a da profissional" /></label>
+          <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Vazio = a comissão padrão de quem atende" /></label>
         <fieldset className="b-opcoes">
           <legend className="rotulo">Produtos usados em cada sessão (baixa o estoque sozinho)</legend>
           {f.consumo.map((c, i) => {
@@ -687,16 +692,16 @@ export function Profissionais() {
   return (
     <>
       <div className="b-barra-acoes">
-        <p className="b-suave">Quem atende os serviços de estética e fisioterapia, as áreas de cada uma e o horário. Para a profissional ver a própria agenda, crie um acesso em Equipe com o mesmo nome.</p>
-        <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true })}>Nova profissional</button>
+        <p className="b-suave">Quem atende os serviços de estética e fisioterapia, as áreas de cada pessoa e o horário. Para ver a própria agenda, a pessoa precisa de um acesso em Equipe com o mesmo nome.</p>
+        <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true })}>Cadastrar profissional</button>
       </div>
-      {dados.profissionais.length === 0 && <Vazio titulo="Ninguém cadastrado ainda" forma="presenca">Cadastre as esteticistas e a fisioterapeuta para começar a agendar serviços.</Vazio>}
+      {dados.profissionais.length === 0 && <Vazio titulo="Ninguém cadastrado ainda" forma="presenca">Cadastre a equipe de estética e fisioterapia para começar a agendar serviços.</Vazio>}
       <ul className="b-equipe">
         {dados.profissionais.map((p) => (
           <li key={p.nome} className={p.ativo ? '' : 'inativo'}>
             <div className="b-equipe__ini" aria-hidden="true">{p.nome.slice(0, 1)}</div>
             <div><strong>{p.nome}</strong><span className="b-suave">{p.servicos?.length ? `${p.servicos.length} serviço${p.servicos.length === 1 ? '' : 's'} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'todas as áreas'}</span></div>
-            <span className="b-suave">{resumoHorario(p)}{Object.keys(p.especiais || {}).length ? ` · ${Object.keys(p.especiais).length} dia(s) especial(is)` : ''}</span>
+            <span className="b-suave">{resumoHorario(p)}{Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}</span>
             <span className="b-suave">{p.comissao ? `comissão padrão ${p.comissao}%` : 'sem comissão padrão'}</span>
             <button type="button" className="link-acao" onClick={() => setEditar({ ...p, nomeOriginal: p.nome })}>editar</button>
           </li>
@@ -733,7 +738,7 @@ function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar 
 
   async function salvar() {
     setErro('');
-    if (!qtd) { setErro('Marque pelo menos um serviço que ela faz.'); return; }
+    if (!qtd) { setErro('Marque pelo menos um serviço que esta pessoa faz.'); return; }
     if (!Object.keys(f.horarios).length) { setErro('Marque pelo menos um dia de atendimento.'); return; }
     const lista = Object.entries(f.servicos).map(([id, c]) => ({ id, comissao: c.comissao === '' ? '' : num(c.comissao), duracao: c.duracao === '' ? '' : num(c.duracao) }));
     try {
@@ -742,7 +747,7 @@ function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar 
   }
 
   return (
-    <Modal rotulo="Profissional" titulo={p.nome || 'Nova profissional'} aoFechar={aoFechar} largo>
+    <Modal rotulo="Profissional" titulo={p.nome || 'Cadastrar profissional'} aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
         <HorarioSemanal valor={f.horarios} aoMudar={(h) => setF((x) => ({ ...x, horarios: h }))} />
@@ -754,7 +759,7 @@ function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar 
 
         <fieldset className="pf-servicos">
           <legend className="rotulo">Serviços e comissão · {qtd} marcado{qtd === 1 ? '' : 's'}</legend>
-          <p className="b-suave">Marque o que ela faz. Comissão ou tempo em branco seguem o padrão (o número cinza).</p>
+          <p className="b-suave">Marque o que esta pessoa faz. Comissão ou tempo em branco seguem o padrão (o número cinza).</p>
           {porArea.map(([area, lista]) => {
             const n = lista.filter((s) => f.servicos[s.id]).length;
             return (

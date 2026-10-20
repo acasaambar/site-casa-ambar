@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
-  METODOS, mesTexto } from './ui.jsx';
+  METODOS, mesTexto, plural } from './ui.jsx';
 import { BarrasH } from './Graficos.jsx';
 
 const mesAtual = () => hojeIso().slice(0, 7);
@@ -39,7 +39,7 @@ function Mes({ mes, irPara }) {
         <div className="b-kpi"><span className="b-kpi__rotulo">Saídas pagas</span><strong className="b-kpi__valor">{realCurto(f.saidas)}</strong><span className="b-kpi__detalhe">mês anterior {realCurto(f.saidasAnterior)}</span></div>
         <div className={`b-kpi b-kpi--destaque${f.resultado < 0 ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Resultado</span><strong className="b-kpi__valor">{realCurto(f.resultado)}</strong><span className="b-kpi__detalhe">entradas − saídas pagas</span></div>
         <div className={`b-kpi${f.aPagar + f.comissoesAPagar > 0 ? ' b-kpi--aviso' : ''}`}><span className="b-kpi__rotulo">Ainda a pagar</span><strong className="b-kpi__valor">{realCurto(f.aPagar + f.comissoesAPagar)}</strong>
-          <span className="b-kpi__detalhe">{f.aPagarQtd} conta(s) · comissões {realCurto(f.comissoesAPagar)}</span></div>
+          <span className="b-kpi__detalhe">{plural(f.aPagarQtd, 'conta', 'contas')} · comissões {realCurto(f.comissoesAPagar)}</span></div>
       </section>
       <section className="b-cartao b-grafico">
         <header className="b-cartao__topo">
@@ -60,7 +60,10 @@ function Mes({ mes, irPara }) {
         <section className="b-cartao">
           <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Contas dos próximos dias</h2><button type="button" className="link-acao" onClick={() => irPara('despesas')}>Ver despesas</button></header>
           {f.vencendo.length === 0 ? <p className="b-suave">Nada vencendo nos próximos 7 dias.</p> : (
-            <ul className="b-lista-simples">{f.vencendo.map((x) => <li key={x.id}><strong>{x.descricao} · {real(x.valor)}</strong><span>{x.data < hojeIso() ? 'venceu' : 'vence'} {dataBR(x.data)}</span></li>)}</ul>
+            <ul className="b-lista-simples">{f.vencendo.map((x) => (
+              <li key={x.id}><strong>{x.descricao} · {real(x.valor)}</strong>
+                {x.data < hojeIso() ? <span className="b-alerta-txt">venceu {dataBR(x.data)}</span> : <span>vence {dataBR(x.data)}</span>}</li>
+            ))}</ul>
           )}
         </section>
       </div>
@@ -214,6 +217,9 @@ function Comissoes({ mes }) {
   if (carregando && !dados) return <Carregando />;
   if (!dados) return <Erro>{erro}</Erro>;
   const escolhidas = lista.filter((c) => sel[c.id] && c.status === 'a_pagar');
+  const aPagarLista = lista.filter((c) => c.status === 'a_pagar');
+  const todasMarcadas = escolhidas.length > 0 && escolhidas.length === aPagarLista.length;
+  const marcarTodas = (sim) => setSel(Object.fromEntries(aPagarLista.map((c) => [c.id, sim])));
   const totalSel = escolhidas.reduce((s, c) => s + c.valor, 0);
   const semRegra = dados.profissionais.filter((p) => !p.comissao);
   return (
@@ -225,22 +231,28 @@ function Comissoes({ mes }) {
             <button type="button" className={`k-pessoa${prof === p.nome ? ' k-pessoa--ativa' : ''}`} onClick={() => setProf(prof === p.nome ? '' : p.nome)}>
               <span className="k-pessoa__nome">{p.nome}</span>
               <strong className="k-pessoa__valor">{real(p.aPagar)}</strong>
-              <span className="b-suave">a pagar · {real(p.pago)} já pago · {p.qtd} lançamentos</span>
+              <span className="b-suave">a pagar · {real(p.pago)} já pago · {plural(p.qtd, 'lançamento', 'lançamentos')}</span>
             </button>
           </li>
         ))}
       </ul>
       {dados.lista.length === 0 && <Vazio titulo="Nenhuma comissão neste mês" forma="presenca">Cada atendimento marcado como atendido e cada aula dada geram a comissão (valores em Catálogo).</Vazio>}
+      {lista.length > 0 && aPagarLista.length > 0 && (
+        <label className="b-check k-todas">
+          <input type="checkbox" checked={todasMarcadas} onChange={(e) => marcarTodas(e.target.checked)} /> Marcar todas as comissões a pagar
+        </label>
+      )}
       {lista.length > 0 && (
         <div className="b-tabela-caixa">
           <table className="b-tabela">
-            <thead><tr><th><input type="checkbox" aria-label="Marcar todas a pagar" checked={escolhidas.length > 0 && escolhidas.length === lista.filter((c) => c.status === 'a_pagar').length}
-              onChange={(e) => setSel(Object.fromEntries(lista.filter((c) => c.status === 'a_pagar').map((c) => [c.id, e.target.checked])))} /></th>
+            <thead><tr><th><input type="checkbox" aria-label="Marcar todas a pagar" checked={todasMarcadas} onChange={(e) => marcarTodas(e.target.checked)} /></th>
               <th>Data</th><th>Profissional</th><th>Atendimento ou venda</th><th className="num">Base</th><th className="num">%</th><th className="num">Comissão</th><th>Situação</th></tr></thead>
             <tbody>
               {lista.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.status === 'a_pagar' && <input type="checkbox" checked={!!sel[c.id]} onChange={(e) => setSel({ ...sel, [c.id]: e.target.checked })} aria-label="Selecionar" />}</td>
+                  <td className="k-marcar">{c.status === 'a_pagar' && (
+                    <label><input type="checkbox" checked={!!sel[c.id]} onChange={(e) => setSel({ ...sel, [c.id]: e.target.checked })} aria-label="Pagar esta comissão" /><span aria-hidden="true">Pagar esta</span></label>
+                  )}</td>
                   <td data-rotulo="Data">{dataCurta(c.data)}</td>
                   <td data-rotulo="Profissional">{c.profissional}</td>
                   <td data-rotulo="Item">{c.item}</td>
@@ -256,7 +268,7 @@ function Comissoes({ mes }) {
       )}
       {escolhidas.length > 0 && (
         <div className="k-pagar">
-          <span>{escolhidas.length} selecionada(s) · <strong>{real(totalSel)}</strong></span>
+          <span>{plural(escolhidas.length, 'selecionada', 'selecionadas')} · <strong>{real(totalSel)}</strong></span>
           <select value={forma} onChange={(e) => setForma(e.target.value)} aria-label="Forma de pagamento">{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
           <BotaoAcao className="botao botao--cheio botao--p" acao={async () => {
             setErroA('');
@@ -315,7 +327,7 @@ export function MeusGanhos() {
             <div className="b-kpi b-kpi--destaque"><span className="b-kpi__rotulo">Ganhos em {mesTexto(mes).split(' ')[0]}</span><strong className="b-kpi__valor">{real(g.total)}</strong></div>
             <div className="b-kpi"><span className="b-kpi__rotulo">A receber</span><strong className="b-kpi__valor">{real(g.aPagar)}</strong></div>
             <div className="b-kpi"><span className="b-kpi__rotulo">Já recebido</span><strong className="b-kpi__valor">{real(g.pago)}</strong></div>
-            <div className="b-kpi"><span className="b-kpi__rotulo">Atendimentos</span><strong className="b-kpi__valor">{g.atendidos}</strong><span className="b-kpi__detalhe">{g.agendados} na agenda · {g.faltas} falta(s)</span></div>
+            <div className="b-kpi"><span className="b-kpi__rotulo">Atendimentos</span><strong className="b-kpi__valor">{g.atendidos}</strong><span className="b-kpi__detalhe">{g.agendados} na agenda · {plural(g.faltas, 'falta', 'faltas')}</span></div>
           </section>
           {g.lista.length === 0 ? <Vazio titulo="Nada neste mês ainda" forma="presenca" /> : (
             <ul className="b-lista-simples ganhos">

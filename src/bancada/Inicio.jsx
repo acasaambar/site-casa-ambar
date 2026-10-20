@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Kpi, realCurto, hora, primeiro, DIAS_LONGOS, MESES, diaSemana } from './ui.jsx';
+import { useDados, useFazServicos, Carregando, Erro, Kpi, realCurto, hora, primeiro, plural, DIAS_LONGOS, MESES, diaSemana } from './ui.jsx';
 import { Sol } from '../components/Marca.jsx';
 import { COR_CATEGORIA } from './Servicos.jsx';
 
@@ -116,6 +116,15 @@ export default function Inicio() {
   const h = agora.getHours();
   const saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const balcao = pode(membro, 'admin', 'recepcao');
+  // profissional: mostra só o que é dela (aulas, serviços ou os dois)
+  const fazServicos = useFazServicos();
+  const daAula = balcao || !!r?.aulasHoje || fazServicos === false;
+  const daServico = balcao || !!r?.servicosHoje || fazServicos === true;
+  const faixas = balcao ? undefined : [
+    ...['Yoga', 'Pilates'].filter((mod) => (r?.linha || []).some((a) => a.modalidade === mod)),
+    ...(daServico ? ['Serviços'] : []),
+  ];
+  const resumo = r && [daAula && plural(r.aulasHoje, 'aula', 'aulas'), daServico && plural(r.servicosHoje || 0, 'atendimento', 'atendimentos')].filter(Boolean).join(' e ');
 
   const aSeguir = r
     ? [
@@ -134,21 +143,17 @@ export default function Inicio() {
           </p>
           <h1 className="inicio__saudacao">{saud}, {primeiro(membro.nome)}</h1>
         </div>
-        {r && (
-          <p className="inicio__resumo">
-            {r.aulasHoje} aula{r.aulasHoje === 1 ? '' : 's'} e {r.servicosHoje || 0} atendimento{r.servicosHoje === 1 ? '' : 's'} hoje
-          </p>
-        )}
+        {r && <p className="inicio__resumo">{resumo ? `${resumo} hoje` : 'Nada na sua agenda hoje'}</p>}
       </header>
       <Erro>{erro}</Erro>
       {carregando && !r && <Carregando />}
       {r && (
         <>
-          <LinhaDoDia aulas={r.linha || []} servicos={r.servicos || []} agora={agora} />
+          <LinhaDoDia aulas={r.linha || []} servicos={r.servicos || []} agora={agora} faixas={faixas} />
 
           <section className="b-kpis">
-            <Kpi rotulo="Reservas de aula hoje" valor={r.reservasHoje} detalhe={`${r.presentesHoje} com presença marcada`} />
-            <Kpi rotulo="Atendimentos hoje" valor={r.servicosHoje || 0} detalhe="estética e fisioterapia" />
+            {daAula && <Kpi rotulo="Reservas de aula hoje" valor={r.reservasHoje} detalhe={`${r.presentesHoje} com presença marcada`} />}
+            {daServico && <Kpi rotulo="Atendimentos hoje" valor={r.servicosHoje || 0} detalhe="estética e fisioterapia" />}
             {balcao && <Kpi rotulo="Recebido hoje" valor={realCurto(r.vendasHoje)} detalhe={r.caixa === 'nao_aberto' ? 'caixa ainda não aberto' : r.caixa === 'aberto' ? 'caixa aberto' : 'caixa fechado'} />}
             {balcao && <Kpi rotulo="Recebido no mês" valor={realCurto(r.vendasMes)} />}
             {!balcao && <Kpi rotulo="Meus ganhos no mês" valor={realCurto(r.meusGanhosMes || 0)} detalhe="comissões" />}
@@ -203,9 +208,9 @@ export default function Inicio() {
             ) : (
               <section className="b-cartao">
                 <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Lembretes</h2></header>
-                <p className="b-suave">Marque a presença de cada aluna e confira a ficha de saúde de quem tem o aviso “saúde: atenção”.</p>
-                <p className="b-suave">Nos serviços, abra o atendimento na agenda para preencher a ficha de estética e registrar a evolução com fotos.</p>
-                <nav className="atalhos" aria-label="Atalhos"><Link to="/bancada/ganhos">Meus ganhos</Link><Link to="/bancada/agenda" state={{ vista: 'servicos' }}>Minha agenda</Link></nav>
+                {daAula && <p className="b-suave">Marque a presença de cada pessoa na aula e confira a ficha de saúde de quem tem o aviso “saúde: atenção”.</p>}
+                {daServico && <p className="b-suave">Nos serviços, abra o atendimento na agenda para preencher a ficha de estética e registrar a evolução com fotos.</p>}
+                <nav className="atalhos" aria-label="Atalhos"><Link to="/bancada/ganhos">Meus ganhos</Link><Link to="/bancada/agenda">Minha agenda</Link></nav>
               </section>
             )}
           </div>

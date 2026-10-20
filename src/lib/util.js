@@ -80,7 +80,7 @@ export function apontarCampo(form, nome) {
   alvo.setAttribute('aria-invalid', 'true');
   // ao mexer no campo, o destaque some
   const limpar = () => alvo.removeAttribute('aria-invalid');
-  (grupo || el).addEventListener(el.type === 'checkbox' || grupo ? 'change' : 'input', limpar, { once: true });
+  alvo.addEventListener(el.type === 'checkbox' || grupo ? 'change' : 'input', limpar, { once: true });
   el.focus({ preventScroll: true });
   alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }

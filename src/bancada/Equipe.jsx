@@ -4,8 +4,8 @@ import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Tag } from './
 
 const PAPEIS = {
   admin: ['Administração', 'Vê e faz tudo: relatórios, equipe, planos, cupons e ajustes.'],
-  recepcao: ['Recepção', 'Agenda, alunos, vendas no balcão, vales e bloqueios. Não vê relatórios.'],
-  professora: ['Professora ou profissional', 'Só a própria agenda: aulas (presença e ficha de saúde) ou atendimentos de estética e fisioterapia.'],
+  recepcao: ['Recepção', 'Agenda, clientes, vendas no balcão, vales e bloqueios. Não vê relatórios.'],
+  professora: ['Profissional', 'Só a própria agenda: aulas (presença e ficha de saúde) ou atendimentos de estética e fisioterapia.'],
 };
 
 export default function Equipe() {
@@ -68,7 +68,7 @@ function EditarMembro({ m, aoFechar, aoSalvar }) {
         </fieldset>
         {f.papel === 'professora' && (
           <label className="b-campo"><span className="rotulo">Nome na agenda</span><input value={f.professorNome} onChange={(e) => setF({ ...f, professorNome: e.target.value })} placeholder="Ex.: Kalliny" />
-            <span className="b-suave">Exatamente como aparece na grade de aulas ou em Catálogo → Profissionais. É assim que ela vê só a própria agenda.</span></label>
+            <span className="b-suave">Exatamente como aparece na grade de aulas ou em Catálogo → Profissionais. É assim que a pessoa vê só a própria agenda.</span></label>
         )}
         {!novo && <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Pode acessar a bancada</label>}
         <Erro>{erro}</Erro>

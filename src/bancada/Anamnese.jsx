@@ -212,7 +212,7 @@ export function ComandasCliente({ alvo }) {
   }, [chave]); // eslint-disable-line react-hooks/exhaustive-deps
   if (erro && !dados) return <Erro>{erro}</Erro>;
   if (!dados) return <Carregando />;
-  if (!dados.abertas.length && !dados.fechadas.length) return <Vazio titulo="Nenhuma comanda" forma="presenca">Quando a recepção abrir a comanda desta cliente, ela aparece aqui.</Vazio>;
+  if (!dados.abertas.length && !dados.fechadas.length) return <Vazio titulo="Nenhuma comanda" forma="presenca">Quando a recepção abrir uma comanda para este atendimento, ela aparece aqui.</Vazio>;
   return (
     <div className="an-comandas">
       {dados.abertas.map((c) => (
@@ -268,13 +268,13 @@ export function MinhasClientes() {
   }, [dados, busca]);
   return (
     <>
-      <Cabecalho titulo="Minhas clientes">Quem você atende. Toque na cliente para ver a anamnese, a ficha e a comanda.</Cabecalho>
+      <Cabecalho titulo="Clientes">Quem você atende. Toque no nome para ver a anamnese, a ficha e a comanda.</Cabecalho>
       <div className="b-barra-busca an-busca">
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome" aria-label="Buscar cliente" />
       </div>
       <Erro>{erro}</Erro>
       {carregando && !dados && <Carregando />}
-      {dados && !dados.length && <Vazio titulo="Nenhuma cliente ainda" forma="presenca">As clientes aparecem aqui quando a recepção agenda um atendimento com você.</Vazio>}
+      {dados && !dados.length && <Vazio titulo="Ninguém por aqui ainda" forma="presenca">Cada pessoa aparece aqui quando a recepção agenda um atendimento com você.</Vazio>}
       <ul className="an-clientes">
         {lista.map((c) => (
           <li key={c.ref}>
@@ -303,7 +303,7 @@ export function ClienteProfissional() {
   const nome = dados?.find((c) => c.ref === ref)?.nome || local.state?.nome || 'Cliente';
   return (
     <>
-      <Link to="/bancada/clientes" className="link-acao an-voltar">← Minhas clientes</Link>
+      <Link to="/bancada/clientes" className="link-acao an-voltar">← Clientes</Link>
       <Cabecalho titulo={nome} />
       <Abas atual={aba} aoMudar={setAba} itens={[['anamnese', 'Anamnese'], ['ficha', 'Ficha e evolução'], ['comandas', 'Comandas']]} />
       {aba === 'anamnese' && <AnamneseConteudo alvo={alvo} />}

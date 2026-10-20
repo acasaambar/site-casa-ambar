@@ -24,7 +24,7 @@ import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/ibm-plex-sans/700.css';
 import './bancada.css';
 
-const PAPEL = { admin: 'Administração', recepcao: 'Recepção', professora: 'Professora · profissional' };
+const PAPEL = { admin: 'Administração', recepcao: 'Recepção', professora: 'Profissional' };
 
 const I = {
   inicio: <path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z" />,
@@ -51,7 +51,7 @@ const MENU = [
     ['', 'Hoje', 'inicio', ['admin', 'recepcao', 'professora']],
     ['agenda', 'Agenda', 'agenda', ['admin', 'recepcao', 'professora']],
     ['alunos', 'Clientes', 'alunos', ['admin', 'recepcao']],
-    ['clientes', 'Minhas clientes', 'alunos', ['professora']],
+    ['clientes', 'Clientes', 'alunos', ['professora']],
   ]],
   ['Caixa', [
     ['comandas', 'Comandas e caixa', 'comandas', ['admin', 'recepcao']],
@@ -219,7 +219,7 @@ function Login() {
       <div className="b-login__caixa">
         <Logo variante="verde" largura={120} />
         <span className="rotulo-espacado cor-terracota">Bancada interna</span>
-        <h1 className="display-m">{esqueci ? 'Nova senha' : 'Bem-vinda'}</h1>
+        <h1 className="display-m">{esqueci ? 'Nova senha' : 'Boas-vindas'}</h1>
         {enviado ? (
           <>
             <p className="b-login__sub">Se este e-mail tiver acesso à bancada, enviamos um link para criar uma nova senha. Confira também o spam.</p>

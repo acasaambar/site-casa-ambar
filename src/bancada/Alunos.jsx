@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
-  linkWhats, primeiro, baixarCSV, hojeIso } from './ui.jsx';
+  linkWhats, primeiro, baixarCSV, hojeIso, plural } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
 import { AnamneseConteudo } from './Anamnese.jsx';
@@ -48,7 +48,7 @@ export function Alunos() {
     <>
       <Cabecalho titulo="Clientes" acoes={
         <>
-          <button type="button" className="botao botao--linha botao--p" disabled={!dados} onClick={() => baixarCSV('alunos-casa-ambar', [
+          <button type="button" className="botao botao--linha botao--p" disabled={!dados} onClick={() => baixarCSV('clientes-casa-ambar', [
             ['nome', 'Nome'], [(a) => cpfFmt(a.cpf), 'CPF'], [(a) => telFmt(a.whatsapp), 'WhatsApp'], ['email', 'E-mail'], ['plano', 'Plano ativo'],
             [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaVisita || a.ultimaAula), 'Última visita'], ['presencas', 'Presenças em aula'], ['servicos', 'Serviços feitos'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
             ['wellhub', 'Wellhub'], [(a) => dataBR(a.criadoEm), 'Cadastro']], lista)}>Exportar CSV</button>
@@ -57,7 +57,7 @@ export function Alunos() {
         </>
       } />
       <div className="b-barra-busca">
-        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar aluno" />
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar cliente" />
       </div>
       <div className="b-filtros">
         {[['todos', 'Todos'], ['ativos', 'Com plano'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'], ['wellhub', 'Wellhub'], ['inativos', 'Desativados']].map(([id, t]) => (
@@ -78,7 +78,7 @@ export function Alunos() {
             <tbody>
               {lista.map((a) => (
                 <tr key={a.cpf} onClick={() => nav('/bancada/alunos/' + a.cpf)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && nav('/bancada/alunos/' + a.cpf)}>
-                  <td data-rotulo="Aluno"><strong>{a.nome}</strong><span className="b-suave b-bloco">{telFmt(a.whatsapp)}</span></td>
+                  <td data-rotulo="Cliente"><strong>{a.nome}</strong><span className="b-suave b-bloco b-nowrap">{telFmt(a.whatsapp)}</span></td>
                   <td data-rotulo="Plano">{a.plano || <span className="b-suave">sem plano ativo</span>}{a.planoFim && <span className="b-suave b-bloco">até {dataCurta(a.planoFim)}</span>}</td>
                   <td data-rotulo="Última visita">{a.ultimaVisita || a.ultimaAula ? dataCurta(a.ultimaVisita || a.ultimaAula) : <span className="b-suave">—</span>}</td>
                   <td data-rotulo="Visitas" className="num">{a.presencas + (a.servicos || 0)}</td>
@@ -164,7 +164,7 @@ function Importar({ aoFechar, aoImportar }) {
       <div className="b-form">
         {feito ? (
           <>
-            <p className="aviso">{feito.novos} cliente(s) novas importadas · {feito.atualizados} completadas · {feito.repetidos} já existiam.</p>
+            <p className="aviso">{plural(feito.novos, 'cadastro novo importado', 'cadastros novos importados')} · {plural(feito.atualizados, 'completado', 'completados')} · {feito.repetidos} já {feito.repetidos === 1 ? 'existia' : 'existiam'}.</p>
             <button type="button" className="botao botao--cheio" onClick={aoImportar}>Ver clientes</button>
           </>
         ) : (
@@ -189,7 +189,7 @@ function Importar({ aoFechar, aoImportar }) {
               <textarea rows={4} onPaste={(e) => { e.preventDefault(); carregar(e.clipboardData.getData('text')); }} placeholder="Nome	Celular	E-mail	CPF	Nascimento" /></label>
             {tabela && (
               <>
-                <p className="b-suave">{tabela.length - 1} linha(s). Confira qual coluna é cada informação:</p>
+                <p className="b-suave">{plural(tabela.length - 1, 'linha', 'linhas')}. Confira qual coluna é cada informação:</p>
                 <div className="imp-mapa">
                   {CAMPOS_IMPORT.map(([k, t]) => (
                     <label key={k} className="b-campo"><span className="rotulo">{t}</span>
@@ -205,7 +205,7 @@ function Importar({ aoFechar, aoImportar }) {
                 </div>
                 {previa && (
                   <div className="aviso">
-                    Vão entrar <strong>{previa.novos}</strong> cliente(s) novas ({previa.semCpf} sem CPF) · {previa.atualizados} completadas · {previa.repetidos} já existem · {previa.totalIgnorados} ignoradas.
+                    Vão entrar <strong>{plural(previa.novos, 'cadastro novo', 'cadastros novos')}</strong> ({previa.semCpf} sem CPF) · {plural(previa.atualizados, 'completado', 'completados')} · {previa.repetidos} já {previa.repetidos === 1 ? 'existe' : 'existem'} · {plural(previa.totalIgnorados, 'linha ignorada', 'linhas ignoradas')}.
                     {previa.ignorados.length > 0 && <span className="b-bloco b-suave">Ignoradas: {previa.ignorados.slice(0, 8).map((x) => `linha ${x.linha + 1}${x.nome ? ' (' + x.nome + ')' : ''}: ${x.motivo}`).join('; ')}</span>}
                   </div>
                 )}
@@ -213,7 +213,7 @@ function Importar({ aoFechar, aoImportar }) {
                 {!previa ? (
                   <BotaoAcao className="botao botao--linha" disabled={mapa.nome == null} acao={() => enviar(true)}>Conferir antes de importar</BotaoAcao>
                 ) : (
-                  <BotaoAcao className="botao botao--cheio" disabled={!previa.novos && !previa.atualizados} acao={() => enviar(false)}>Importar {previa.novos} cliente(s)</BotaoAcao>
+                  <BotaoAcao className="botao botao--cheio" disabled={!previa.novos && !previa.atualizados} acao={() => enviar(false)}>Importar {plural(previa.novos, 'cliente', 'clientes')}</BotaoAcao>
                 )}
               </>
             )}
@@ -246,7 +246,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
     }
   }
   return (
-    <Modal rotulo="Sem CPF a cliente não acessa a área do aluno, mas tem agenda, comandas e histórico" titulo="Novo cliente" aoFechar={aoFechar} largo>
+    <Modal rotulo="Sem CPF não há acesso à área do aluno, mas ficam agenda, comandas e histórico" titulo="Novo cliente" aoFechar={aoFechar} largo>
       <form className="b-form" onSubmit={salvar} noValidate>
         <label className="b-campo"><span className="rotulo">Nome completo</span><input {...campo('nome')} autoComplete="off" /></label>
         <div className="b-linha2">
@@ -344,10 +344,10 @@ export function AlunoDetalhe() {
               <dt>Nascimento</dt><dd>{a.nascimento ? dataBR(a.nascimento) : '—'}</dd>
               <dt>Como conheceu</dt><dd>{a.comoConheceu || <button type="button" className="link-acao" onClick={() => setEditar(true)}>perguntar e anotar</button>}</dd>
               <dt>Endereço</dt><dd>{a.endereco?.endereco
-                ? <>{a.endereco.endereco}{a.endereco.numero ? `, ${a.endereco.numero}` : ''}{a.endereco.complemento ? ` · ${a.endereco.complemento}` : ''}<span className="b-suave b-bloco">{[a.endereco.bairro, a.endereco.cidade && `${a.endereco.cidade}${a.endereco.uf ? '/' + a.endereco.uf : ''}`, a.endereco.cep].filter(Boolean).join(' · ')}</span></>
+                ? <>{a.endereco.endereco}{a.endereco.numero ? `, ${a.endereco.numero}` : ''}{a.endereco.complemento ? ` · ${a.endereco.complemento}` : ''}<span className="b-suave b-bloco">{[a.endereco.bairro, a.endereco.cidade && `${a.endereco.cidade}${a.endereco.uf ? '/' + a.endereco.uf : ''}`, a.endereco.cep && a.endereco.cep.replace('-', '\u2011')].filter(Boolean).join(' · ')}</span></>
                 : '—'}</dd>
               <dt>Última visita</dt><dd>{a.ultimaVisita ? dataBR(a.ultimaVisita) : '—'}</dd>
-              <dt>Visitas</dt><dd>{a.presencas} aula(s) · {a.servicos || 0} serviço(s)</dd>
+              <dt>Visitas</dt><dd>{plural(a.presencas, 'aula', 'aulas')} · {plural(a.servicos || 0, 'serviço', 'serviços')}</dd>
               <dt>Já gastou</dt><dd>{real(a.totalGasto)}</dd>
               <dt>Acesso ao site</dt><dd>{a.semCpf ? 'precisa de CPF' : <>{a.temSenha ? 'com senha' : 'sem senha'} · <button type="button" className="link-acao" onClick={linkSenha}>{a.temSenha ? 'enviar link de nova senha' : 'enviar convite'}</button></>}</dd>
             </dl>
@@ -404,7 +404,7 @@ export function AlunoDetalhe() {
       {aba === 'pagamentos' && <ListaPagamentos lista={a.pagamentos} />}
 
       {aba === 'saude' && (
-        <section className="b-cartao">{a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">A aluna preenche pela área do aluno, em Ficha de saúde.</Vazio>}</section>
+        <section className="b-cartao">{a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">A ficha é preenchida pela área do aluno, em Ficha de saúde.</Vazio>}</section>
       )}
 
       {editar && <EditarAluno a={a} aoFechar={() => setEditar(false)} aoSalvar={async (d) => { await salvar(d); setEditar(false); }} />}
@@ -495,7 +495,7 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
   const [erro, setErro] = useState('');
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
   return (
-    <Modal rotulo="Aluno" titulo="Editar dados" aoFechar={aoFechar} largo>
+    <Modal rotulo="Cliente" titulo="Editar dados" aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
         <div className="b-linha2">
@@ -507,7 +507,7 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
           <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
         </div>
         {a.semCpf && (
-          <label className="b-campo"><span className="rotulo">CPF (todo o histórico passa para o CPF; se ela já tiver cadastro no site, juntamos os dois)</span>
+          <label className="b-campo"><span className="rotulo">CPF (todo o histórico passa para o CPF; se já houver cadastro no site com ele, juntamos os dois)</span>
             <input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
         )}
         <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
@@ -616,7 +616,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
               <label className="b-campo">
                 <span className="rotulo">Cupom ou vale (opcional)</span>
                 <span className="codigo__linha">
-                  <input value={codigo} onChange={(e) => { setCodigo(e.target.value.toUpperCase()); setSimulado(null); }} placeholder="CÓDIGO" />
+                  <input value={codigo} onChange={(e) => { setCodigo(e.target.value.toUpperCase()); setSimulado(null); }} placeholder="Código" />
                   <button type="button" className="botao botao--linha botao--p" disabled={!codigo.trim()} onClick={aplicarCodigo}>Aplicar</button>
                 </span>
               </label>
@@ -640,7 +640,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
         <button type="button" className="botao botao--cheio" disabled={!aluno || !planoId || enviando || faltaBandeira(metodo, bandeira)} onClick={confirmar}>
           {enviando ? 'Registrando…' : 'Registrar venda'}
         </button>
-        <p className="b-suave b-nota">O plano entra na hora para o aluno. Pagamentos pelo site entram sozinhos — não precisa registrar aqui.</p>
+        <p className="b-suave b-nota">O plano entra na hora no cadastro. Pagamentos pelo site entram sozinhos — não precisa registrar aqui.</p>
       </div>
     </Modal>
   );
@@ -654,7 +654,7 @@ function AplicarVale({ aluno, aoFechar, aoAplicar }) {
   return (
     <Modal rotulo={aluno.nome} titulo="Aplicar vale-presente" aoFechar={aoFechar}>
       <div className="b-form">
-        <p className="b-suave">Vale de aula ou plano entra como crédito na hora. Vale em R$ fica ligado a este aluno para usar na próxima compra.</p>
+        <p className="b-suave">Vale de aula ou plano entra como crédito na hora. Vale em R$ fica ligado a este cadastro para usar na próxima compra.</p>
         <label className="b-campo"><span className="rotulo">Código</span><input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="AMBAR-XXXX-XXXX" /></label>
         <Erro>{erro}</Erro>
         {ok && <p className="aviso">{ok}</p>}
@@ -677,19 +677,19 @@ export function ListaPagamentos({ lista, acoes }) {
   return (
     <div className="b-tabela-caixa">
       <table className="b-tabela">
-        <thead><tr><th>Data</th><th>Aluno</th><th>Item</th><th className="num">Valor</th><th>Forma</th><th>Situação</th>{acoes && <th />}</tr></thead>
+        <thead><tr><th>Data</th><th>Cliente</th><th>Item</th><th className="num">Valor</th><th>Forma</th><th>Situação</th>{acoes && <th />}</tr></thead>
         <tbody>
           {lista.map((p) => (
             <tr key={p.orderNsu}>
               <td data-rotulo="Data">{dataBR(p.pagoEm || p.criadoEm)}</td>
-              <td data-rotulo="Aluno">{p.nome}</td>
+              <td data-rotulo="Cliente"><span className="b-nowrap">{p.nome}</span></td>
               <td data-rotulo="Item">
                 {p.descricao}
                 {(p.cupom || p.vale) && <span className="b-suave b-bloco">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
                 {p.observacao && <span className={`b-bloco ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
               </td>
               <td data-rotulo="Valor" className="num">{real(p.valor)}</td>
-              <td data-rotulo="Forma">{p.metodo || '—'}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
+              <td data-rotulo="Forma"><span className="b-nowrap">{p.metodo || '—'}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}</span><span className="b-suave b-bloco">{p.origem}</span></td>
               <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{p.status}</Tag></td>
               {acoes && <td>{acoes(p)}</td>}
             </tr>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV } from './ui.jsx';
+import { useDados, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural } from './ui.jsx';
 import { VenderModal, ListaPagamentos } from './Alunos.jsx';
 
 export default function Vendas() {
@@ -32,7 +32,7 @@ export default function Vendas() {
       <Cabecalho titulo="Vendas" acoes={
         <>
           <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={() => baixarCSV(`vendas-${de}-a-${ate}`, [
-            [(p) => dataBR(p.pagoEm || p.criadoEm), 'Data'], ['nome', 'Aluno'], [(p) => cpfFmt(p.cpf), 'CPF'], ['descricao', 'Item'],
+            [(p) => dataBR(p.pagoEm || p.criadoEm), 'Data'], ['nome', 'Cliente'], [(p) => cpfFmt(p.cpf), 'CPF'], ['descricao', 'Item'],
             [(p) => String(p.valorOriginal).replace('.', ','), 'Preço'], [(p) => String(p.desconto).replace('.', ','), 'Desconto'], [(p) => p.cupom || p.vale, 'Cupom/vale'],
             [(p) => String(p.valor).replace('.', ','), 'Valor cobrado'], ['metodo', 'Forma'], ['bandeira', 'Bandeira'], ['parcelas', 'Parcelas'], ['origem', 'Origem'], ['status', 'Situação'],
             ['observacao', 'Observação'], ['orderNsu', 'Código']], lista)}>Exportar CSV</button>
@@ -44,7 +44,7 @@ export default function Vendas() {
         <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>
       </div>
       <section className="b-kpis">
-        <Kpi rotulo="Recebido no período" valor={realCurto(total)} detalhe={`${pagos.filter((p) => p.valor > 0).length} vendas`} />
+        <Kpi rotulo="Recebido no período" valor={realCurto(total)} detalhe={plural(pagos.filter((p) => p.valor > 0).length, 'venda', 'vendas')} />
         <Kpi rotulo="Aguardando pagamento" valor={(dados || []).filter((p) => p.status === 'pendente').length} detalhe="links gerados e não pagos" />
         <Kpi rotulo="Juros a devolver" valor={devolver.length} tom={devolver.length ? 'alerta' : ''} detalhe="parcelou dentro do sem juros" />
       </section>
@@ -80,8 +80,8 @@ function Estorno({ p, aoFechar, aoEstornar }) {
         <p>{p.descricao}</p>
         <p className="b-suave">
           {p.origem === 'site'
-            ? 'Faça o estorno no app da InfinitePay (Vendas → esta venda → Estornar). Depois registre aqui: o plano do aluno é desativado.'
-            : 'Devolva o valor ao aluno e registre aqui: o plano do aluno é desativado.'}
+            ? 'Faça o estorno no app da InfinitePay (Vendas → esta venda → Estornar). Depois registre aqui: o plano é desativado.'
+            : 'Devolva o valor e registre aqui: o plano é desativado.'}
         </p>
         <label className="b-campo"><span className="rotulo">Motivo</span><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: mudou de cidade" /></label>
         <Erro>{erro}</Erro>

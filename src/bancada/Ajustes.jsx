@@ -59,7 +59,7 @@ function Regras() {
       <section className="b-cartao">
         <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Sistema</h2></header>
         <dl className="b-dados">
-          <dt>Pagamento online</dt><dd>{f.pagamentoComChave ? <Tag tom="ok">chave InfinitePay ativa</Tag> : <Tag tom="aviso">sem chave: trimestral pela atendente</Tag>}</dd>
+          <dt>Pagamento online</dt><dd>{f.pagamentoComChave ? <Tag tom="ok">chave InfinitePay ativa</Tag> : <Tag tom="aviso">sem chave: trimestral pela recepção</Tag>}</dd>
           <dt>E-mails restantes hoje</dt><dd>{f.emailsRestantes ?? '—'}</dd>
           <dt>Últimos lembretes</dt><dd>{f.ultimosLembretes ? f.ultimosLembretes.slice(0, 16).split(' ').map((x, i) => (i ? x : x.split('-').reverse().join('/'))).join(' ') : 'nenhum ainda'}</dd>
           <dt>Versão</dt><dd className="b-suave">{f.versao}</dd>

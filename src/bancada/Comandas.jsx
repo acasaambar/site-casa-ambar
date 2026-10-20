@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, BANDEIRAS, ehCartao, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, dataBR, linkWhats, primeiro,
-  telFmt, numBR, METODOS } from './ui.jsx';
+  telFmt, numBR, plural, METODOS } from './ui.jsx';
 import { mascaraTelefone } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 
@@ -207,7 +207,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   const nomeCliente = c?.nome || cliente?.nome || semCadastro?.nome;
 
   return (
-    <Modal titulo={fechada ? 'Comanda fechada' : c ? 'Comanda' : 'Nova comanda'} rotulo={c ? `${c.nome} · aberta ${dataBR(c.abertaEm)} por ${c.abertaPor}` : 'Escolha a cliente e adicione os itens'} aoFechar={aoFechar} largo>
+    <Modal titulo={fechada ? 'Comanda fechada' : c ? 'Comanda' : 'Nova comanda'} rotulo={c ? `${c.nome} · aberta ${dataBR(c.abertaEm)} por ${c.abertaPor}` : 'Escolha quem vai pagar e adicione os itens'} aoFechar={aoFechar} largo>
       <div className="cm">
         {!c && (
           <fieldset className="b-opcoes">
@@ -298,7 +298,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
             <label className="b-campo">
               <span className="rotulo">Cupom ou vale de serviço (opcional)</span>
               <span className="codigo__linha">
-                <input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="CÓDIGO" />
+                <input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="Código" />
                 <button type="button" className="botao botao--linha botao--p" disabled={salvando || codigo === c.codigo} onClick={() => salvar({ codigo })}>{codigo || !c.codigo ? 'Aplicar' : 'Tirar'}</button>
               </span>
             </label>
@@ -351,20 +351,20 @@ function Pagamento({ c, aoVoltar, aoFechar }) {
   const troco = linhas.find((l) => l.metodo === 'Dinheiro');
   return (
     <section className="cm-pagar" aria-label="Pagamento">
-      <h3 className="cm-pagar__titulo">Como a cliente pagou</h3>
+      <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
       {linhas.map((l, i) => (
-        <div key={i} className="cm-pagar__linha">
-          <select value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label="Forma">
+        <div key={i} className={`cm-pagar__linha${linhas.length > 1 ? ' cm-pagar__linha--tirar' : ''}${/Cartão de crédito|Link/.test(l.metodo) ? ' cm-pagar__linha--parcelas' : ''}${ehCartao(l.metodo) || l.metodo === 'Vale-presente' ? ' cm-pagar__linha--extra' : ''}`}>
+          <select className="cm-pagar__metodo" value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label="Forma">
             {METODOS.concat(['Vale-presente']).map((m) => <option key={m}>{m}</option>)}
           </select>
-          <input inputMode="decimal" value={l.valor} onChange={(e) => mudar(i, { valor: e.target.value.replace(/[^\d,.]/g, '') })} aria-label="Valor" />
+          <input className="cm-pagar__valor" inputMode="decimal" value={l.valor} onChange={(e) => mudar(i, { valor: e.target.value.replace(/[^\d,.]/g, '') })} aria-label="Valor" />
           {/Cartão de crédito|Link/.test(l.metodo) && (
-            <select className="cm-pagar__extra" value={l.parcelas} onChange={(e) => mudar(i, { parcelas: Number(e.target.value) })} aria-label="Parcelas">
+            <select className="cm-pagar__extra cm-pagar__parcelas" value={l.parcelas} onChange={(e) => mudar(i, { parcelas: Number(e.target.value) })} aria-label="Parcelas">
               {Array.from({ length: 12 }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}x</option>)}
             </select>
           )}
           {ehCartao(l.metodo) && (
-            <select className="cm-pagar__extra" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={!l.bandeira}>
+            <select className="cm-pagar__extra cm-pagar__bandeira" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={!l.bandeira}>
               <option value="">Bandeira…</option>
               {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
             </select>
@@ -414,7 +414,7 @@ function TrocoCalc({ valor }) {
 }
 
 function Recibo({ c }) {
-  const texto = `Olá, ${primeiro(c.nome)}! Obrigada pela visita à Casa Âmbar ✨\n\n` +
+  const texto = `Olá, ${primeiro(c.nome)}! Agradecemos a sua visita à Casa Âmbar ✨\n\n` +
     c.itens.map((i) => `• ${i.nome}${i.qtd > 1 ? ` × ${i.qtd}` : ''}: ${i.pago ? 'já pago' : real(i.total)}`).join('\n') +
     `\n\nTotal: ${real(c.total)} (${c.pagamentos.map((p) => p.metodo).join(' + ')})`;
   return (
@@ -457,7 +457,7 @@ export function CaixaDoDia() {
             <input inputMode="decimal" value={abertura} onChange={(e) => setAbertura(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="0,00" /></label>
           <Erro>{erroA}</Erro>
           <BotaoAcao className="botao botao--cheio" acao={() => acao('abrirCaixa', { valor: numBR(abertura) })}>Abrir caixa</BotaoAcao>
-          {cx.qtdVendas > 0 && <p className="b-suave">Já entraram {cx.qtdVendas} venda(s) hoje: {real(cx.vendas)}.</p>}
+          {cx.qtdVendas > 0 && <p className="b-suave">Já {cx.qtdVendas === 1 ? 'entrou' : 'entraram'} {plural(cx.qtdVendas, 'venda', 'vendas')} hoje: {real(cx.vendas)}.</p>}
         </div>
       </section>
     );
@@ -467,7 +467,7 @@ export function CaixaDoDia() {
     <>
       <section className="b-kpis">
         <div className="b-kpi"><span className="b-kpi__rotulo">Troco inicial</span><strong className="b-kpi__valor">{real(cx.abertura)}</strong><span className="b-kpi__detalhe">aberto por {cx.abertoPor} às {hora(cx.abertoEm.slice(11, 16))}</span></div>
-        <div className="b-kpi"><span className="b-kpi__rotulo">Vendas de hoje</span><strong className="b-kpi__valor">{real(cx.vendas)}</strong><span className="b-kpi__detalhe">{cx.qtdVendas} lançamento(s)</span></div>
+        <div className="b-kpi"><span className="b-kpi__rotulo">Vendas de hoje</span><strong className="b-kpi__valor">{real(cx.vendas)}</strong><span className="b-kpi__detalhe">{plural(cx.qtdVendas, 'lançamento', 'lançamentos')}</span></div>
         <div className="b-kpi b-kpi--destaque"><span className="b-kpi__rotulo">Dinheiro na gaveta</span><strong className="b-kpi__valor">{real(cx.esperado)}</strong><span className="b-kpi__detalhe">o que deve ter agora</span></div>
       </section>
       <div className="b-duas">

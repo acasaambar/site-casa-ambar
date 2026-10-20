@@ -198,7 +198,7 @@ export default function Reservar() {
                 <strong>{livres}</strong> de {aula.capacidade} aparelhos livres
               </p>
               <dl className="detalhes__lista">
-                <div><dt>Professora</dt><dd>{aula.professor}</dd></div>
+                <div><dt>Quem conduz</dt><dd>{aula.professor}</dd></div>
                 <div><dt>Dia</dt><dd>{dataExtensa(aula.data)}</dd></div>
                 <div><dt>Horário</dt><dd>{formatarHora(aula.hora)} às {formatarHora(horaFim(aula.hora, aula.duracao || 60))}</dd></div>
                 <div><dt>Duração</dt><dd>{aula.duracao || 60} minutos</dd></div>
