@@ -207,6 +207,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   const [motivoCancelar, setMotivoCancelar] = useState('');
   const [reabrindo, setReabrindo] = useState(false);
   const [motivoReabrir, setMotivoReabrir] = useState('');
+  const [erroReabrir, setErroReabrir] = useState('');
   const [valesCriados, setValesCriados] = useState([]);
 
   useEffect(() => {
@@ -406,21 +407,22 @@ export function ComandaModal({ id, inicial, aoFechar }) {
               <p className="b-suave">Os pagamentos desta comanda são estornados, o estoque volta e as comissões ficam suspensas. Planos, pacotes e vales-presentes vendidos nela ficam desativados até a comanda ser fechada de novo.</p>
               <label className="b-campo"><span className="rotulo">Motivo da correção (obrigatório, fica no histórico)</span>
                 <textarea rows={2} value={motivoReabrir} onChange={(e) => setMotivoReabrir(e.target.value)} maxLength={200} placeholder="Ex.: cobrei o protetor a mais" autoFocus /></label>
+              <Erro>{erroReabrir}</Erro>
               <div className="cm-acoes">
                 <BotaoAcao className="botao botao--cheio botao--p" disabled={!motivoReabrir.trim()} acao={async () => {
-                  setErro('');
+                  setErroReabrir('');
                   try {
                     const r = await chamar('reabrirComanda', { id: c.id, motivo: motivoReabrir.trim() });
                     setC(r); setCodigo(r.codigo); setReabrindo(false); setValesCriados([]);
                     setAviso('Comanda reaberta. Corrija o que precisar e receba de novo: os pagamentos anteriores foram estornados.');
-                  } catch (e) { setErro(e.message); }
+                  } catch (e) { setErroReabrir(e.message); }
                 }}>Reabrir comanda</BotaoAcao>
                 <button type="button" className="link-acao" onClick={() => setReabrindo(false)}>Voltar</button>
               </div>
             </section>
           ) : (
             <div className="cm-corrigir">
-              <button type="button" className="link-acao" onClick={() => { setReabrindo(true); setMotivoReabrir(''); }}>Reabrir para corrigir</button>
+              <button type="button" className="link-acao" onClick={() => { setReabrindo(true); setMotivoReabrir(''); setErroReabrir(''); }}>Reabrir para corrigir</button>
               <span className="b-suave">Só a administração. Estorna os pagamentos para lançar de novo.</span>
             </div>
           )
@@ -447,7 +449,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
 
 // linha pequena embaixo do nome: tipo, profissional, agenda, promoção…
 function MetaItem({ it, fechada }) {
-  const partes = [ROTULO_TIPO[it.tipo]];
+  const partes = it.tipo === 'vale' ? [] : [ROTULO_TIPO[it.tipo]];
   if (it.atendimentoId) partes.push('da agenda');
   if (it.profissional) partes.push(`com ${it.profissional}`);
   if (it.pago) partes.push('pago antes (pacote, antecipado ou cortesia)');
@@ -455,10 +457,12 @@ function MetaItem({ it, fechada }) {
   if (it.cupom) partes.push(`cupom ${it.cupom}`);
   if (it.vale && it.tipo !== 'vale') partes.push(`vale ${it.vale}`);
   if (it.valeCodigo) partes.push(`código ${it.valeCodigo}`);
+  const falta = !fechada && it.tipo === 'servico' && !it.profissional;
+  if (!partes.length && !falta) return null;
   return (
     <span className="b-suave cm-item__meta">
       {partes.join(' · ')}
-      {!fechada && it.tipo === 'servico' && !it.profissional && <span className="b-alerta-txt"> · falta quem atendeu</span>}
+      {falta && <span className="b-alerta-txt"> · falta quem atendeu</span>}
     </span>
   );
 }
@@ -552,7 +556,7 @@ function EditarItem({ it, catalogo, aoFechar, aoSalvar }) {
   return (
     <Modal titulo="Editar item" rotulo={`${ROTULO_TIPO[it.tipo]} · ${it.nome}`} aoFechar={aoFechar}>
       <div className="b-form cm-editar">
-        <fieldset className="b-opcoes">
+        <fieldset className="cm-grupo">
           <legend className="rotulo">{ROTULO_TIPO[it.tipo]}</legend>
           <div className="b-escolhido">
             <div><strong>{novo ? novo.nome : it.nome}</strong><span>{novo ? `${real(novo.preco)} · no lugar de ${it.nome}` : `${real(it.preco)} na tabela`}</span></div>
@@ -593,7 +597,7 @@ function EditarItem({ it, catalogo, aoFechar, aoSalvar }) {
         )}
 
         {comPreco && (
-          <fieldset className="b-opcoes cm-preco">
+          <fieldset className="cm-grupo cm-preco">
             <legend className="rotulo">Preço</legend>
             <div className="cm-seg">
               <Segmento rotulo="Preço do item" atual={modo} aoMudar={setModo} itens={[['normal', 'Preço normal'], ['desconto', 'Desconto'], ['combinado', 'Valor combinado']]} />
@@ -625,7 +629,8 @@ function EditarItem({ it, catalogo, aoFechar, aoSalvar }) {
               {modo === 'normal'
                 ? <>Fica <strong>{real(base * q)}</strong>{q > 1 && ` (${real(base)} cada)`}</>
                 : <>De {real(base * q)} por <strong>{real(unit * q)}</strong>{q > 1 && ` (${real(unit)} cada)`}</>}
-              {modo === 'desconto' && <span className="b-suave"> · o desconto entra por cima de promoção ou cupom</span>}
+              {novo && modo !== 'combinado' && <span className="b-suave"> · com promoção ou cupom, o valor final aparece ao salvar</span>}
+              {!novo && modo === 'desconto' && <span className="b-suave"> · o desconto entra por cima de promoção ou cupom</span>}
               {modo === 'combinado' && <span className="b-suave"> · substitui promoção e cupom</span>}
             </p>
           </fieldset>
@@ -678,7 +683,7 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
   return (
     <Modal titulo="Vale-presente" rotulo="Venda: quem compra paga nesta comanda; o código é criado ao fechar" aoFechar={aoFechar}>
       <div className="b-form">
-        <fieldset className="b-opcoes">
+        <fieldset className="cm-grupo">
           <legend className="rotulo">O que o vale dá</legend>
           <div className="cm-seg">
             <Segmento rotulo="Tipo de vale" atual={tipo} aoMudar={setTipo} itens={[['valor', 'Valor em R$'], ['plano', 'Um serviço ou plano']]} />
@@ -694,7 +699,7 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
           <EscolherItem catalogo={catalogo} filtro={filtroPlano} placeholder="Buscar serviço, pacote, aula ou plano" aoEscolher={setPlano} />
         )}
 
-        <fieldset className="b-opcoes">
+        <fieldset className="cm-grupo">
           <legend className="rotulo">Para quem</legend>
           <label className="b-campo"><span className="rotulo">Nome</span><input value={nome} onChange={(e) => setNome(e.target.value)} maxLength={80} placeholder="Quem vai receber" /></label>
           <div className="b-linha2">

@@ -1083,7 +1083,8 @@ function bancada_reabrirComanda(d, m) {
     if (reservas.length) throw new Error('Um plano desta comanda já foi usado em aula (' + reservas.length + '). Corrija com estorno em Vendas.');
     var usados = lerAba('Atendimentos').filter(function (a) { return a.status !== 'cancelado' && creditos.indexOf(String(a.credito_id)) >= 0 && String(a.comanda) !== cm.id; });
     if (usados.length) throw new Error('Um pacote desta comanda já foi usado em outro atendimento. Corrija com estorno em Vendas.');
-    var valesVendidos = lerAba('Vales').filter(function (v) { return String(v.comanda) === cm.id && String(v.origem) === 'vendido'; });
+    // (vale cancelado numa reabertura anterior não conta: um novo nasceu ao fechar de novo)
+    var valesVendidos = lerAba('Vales').filter(function (v) { return String(v.comanda) === cm.id && String(v.origem) === 'vendido' && v.status !== 'cancelado'; });
     var pagosAgora = pagamentosPagos();
     valesVendidos.forEach(function (v) {
       if (v.status !== 'ativo' || (v.tipo !== 'plano' && saldoVale(v, pagosAgora) + 0.009 < numero(v.valor))) throw new Error('O vale ' + v.codigo + ' vendido nesta comanda já foi usado.');

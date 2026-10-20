@@ -89,6 +89,11 @@ r = chamar('b_reabrirComanda', { token: adm, id: outra.id, motivo: 'pagou errado
 ok(r.ok && r.dados.status === 'aberta', 'reabre a comanda que usou o vale', r);
 r = chamar('b_reabrirComanda', { token: adm, id: cv.id, motivo: 'cliente desistiu' });
 ok(r.ok && ctx.lerAba('Vales').find((v) => v.codigo === novoVale.codigo).status === 'cancelado', 'com o vale de volta, a venda pode ser reaberta e o vale é cancelado', r);
+r = chamar('b_fecharComanda', { token: rec, id: cv.id, pagamentos: [{ metodo: 'Pix', valor: 150 }] });
+const segundo = r.ok && r.dados.valesCriados[0];
+ok(segundo && segundo.codigo !== novoVale.codigo, 'fechada de novo: nasce outro código', r);
+r = chamar('b_reabrirComanda', { token: adm, id: cv.id, motivo: 'segunda correção' });
+ok(r.ok && ctx.lerAba('Vales').find((v) => v.codigo === segundo.codigo).status === 'cancelado', 'pode reabrir de novo (o vale antigo cancelado não atrapalha)', r);
 
 console.log('— excluir cliente (só administração)');
 chamar('b_cancelarComanda', { token: rec, id: outra.id });
