@@ -159,5 +159,38 @@ console.log('— Link InfinitePay: bandeira opcional');
   ok(!r.ok && /bandeira/.test(r.erro), 'no cartão da maquininha continua obrigatória', r);
 }
 
+console.log('— vale-presente na agenda (sem abrir comanda)');
+{
+  const vender = (valor) => {
+    const c = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Rita Gomes', whatsapp: '85991234567' }, itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor } }] } }).dados;
+    return chamar('b_fecharComanda', { token: rec, id: c.id, pagamentos: [{ metodo: 'Pix', valor }] }).dados.valesCriados[0].codigo;
+  };
+  const quem = { cliente: { nome: 'Clara Gomes', whatsapp: '85998765432' } };
+  const v300 = vender(300);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '14:00', ...quem, pagamento: 'pago', metodo: 'Vale-presente', codigo: 'AMBAR-XXXX-XXXX' });
+  ok(!r.ok && /não encontrado/.test(r.erro), 'código errado recusado', r);
+  r = chamar('b_simularPreco', { token: rec, planoId: 'drenagem', codigo: v300 });
+  ok(r.ok && r.dados.vale && r.dados.valeUsado === 199 && r.dados.valorFinal === 0, 'conferir: o vale cobre a drenagem', r);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '14:00', ...quem, pagamento: 'pago', metodo: 'Vale-presente', codigo: v300 });
+  const at1 = ctx.lerAba('Atendimentos').find((a) => a.id === r.dados.id);
+  const pg1 = ctx.lerAba('Pagamentos').find((p) => p.order_nsu === at1.order_nsu);
+  ok(r.ok && at1.pagamento === 'pago' && Number(at1.valor) === 199 && pg1.vale === v300 && Number(pg1.vale_usado) === 199 && Number(pg1.valor) === 0 && pg1.metodo === 'Vale-presente',
+    'agendado como pago com o vale (atendimento vale R$ 199 para a comissão)', [at1, pg1]);
+  ok(chamar('b_vales', { token: rec }).dados.find((v) => v.codigo === v300).saldo === 101, 'sobram R$ 101 no vale');
+  // vale menor que o serviço: o resto em outra forma
+  const v50 = vender(50);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '15:00', ...quem, pagamento: 'pago', metodo: 'Vale-presente', codigo: v50 });
+  ok(!r.ok && /resto/.test(r.erro), 'vale menor sem forma para o resto: pede a forma', r);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '15:00', ...quem, pagamento: 'no_dia' });
+  const at2 = r.dados.id;
+  r = chamar('b_atualizarAtendimento', { token: rec, id: at2, status: 'atendido', metodo: 'Vale-presente', codigo: v50, resto: 'Cartão de crédito', bandeira: 'Visa' });
+  const a2 = ctx.lerAba('Atendimentos').find((a) => a.id === at2);
+  const pg2 = ctx.lerAba('Pagamentos').find((p) => p.order_nsu === a2.order_nsu);
+  ok(r.ok && a2.status === 'atendido' && Number(a2.valor) === 199 && Number(pg2.valor) === 149 && Number(pg2.vale_usado) === 50 && pg2.metodo === 'Cartão de crédito' && pg2.bandeira === 'Visa',
+    'marcar atendido: R$ 50 do vale + R$ 149 no cartão Visa', [a2, pg2]);
+  { const ks = ctx.lerAba('Comissoes').filter((k) => k.id === 'K' + at2); ok(ks.length === 1 && Number(ks[0].base) === 199, 'comissão sobre o valor cheio do serviço', ks); }
+  ok(chamar('b_vales', { token: rec }).dados.find((v) => v.codigo === v50).status === 'usado', 'vale de R$ 50 usado');
+}
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);

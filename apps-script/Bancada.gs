@@ -472,7 +472,7 @@ function bancada_agendar(d, m) {
     } else if (forma === 'avulsa') {
       var avulsa = buscarPlano(aula.modalidade.toLowerCase() + '-avulsa');
       if (!avulsa) throw new Error('Não há aula avulsa de ' + aula.modalidade + ' no catálogo.');
-      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, inicio: aula.data, obs: 'aula ' + aula.id }, m);
+      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: aula.data, obs: 'aula ' + aula.id }, m);
       creditoId = venda.creditoId; descricao = avulsa.nome + ' · ' + venda.metodo;
     } else {
       throw new Error('Forma inválida.');
@@ -799,14 +799,22 @@ function registrarVenda(aluno, plano, o, membro) {
   var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay'];
   var metodo = metodos.indexOf(o.metodo) >= 0 ? o.metodo : '';
   if (!metodo) throw new Error('Escolha como foi pago.');
-  var bandeira = bandeiraDe(metodo, o.bandeira, false);
   if (!plano) throw new Error('Item de venda não encontrado.');
+  // pago com vale-presente: o código é obrigatório; se o vale não cobre tudo, o resto vai na forma escolhida em o.resto
+  var comVale = metodo === 'Vale-presente';
+  if (comVale && !acharVale(o.codigo)) throw new Error('Vale-presente não encontrado. Confira o código.');
   var cpf = soDigitos(aluno.cpf) ? normCpf(aluno.cpf) : '';
   var calc = calcularPreco(plano, cpf, o.codigo, { canal: 'bancada', data: /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto() });
   var valor = calc.valorFinal;
   var promocao = calc.promocao;
   var desconto = calc.desconto;
-  if (o.valor != null && o.valor !== '' && !isNaN(numero(o.valor))) {
+  if (comVale && valor > 0.009) {
+    var resto = metodos.indexOf(o.resto) >= 0 && o.resto !== 'Cortesia' && o.resto !== 'Vale-presente' ? o.resto : '';
+    if (!resto) throw new Error('O vale cobre ' + brl(calc.valeUsado) + '. Escolha como será pago o resto (' + brl(valor) + ').');
+    metodo = resto;
+  }
+  var bandeira = bandeiraDe(metodo, o.bandeira, false);
+  if (!comVale && o.valor != null && o.valor !== '' && !isNaN(numero(o.valor))) {
     // valor combinado no balcão
     valor = Math.max(0, numero(o.valor));
     desconto = Math.max(0, Math.round((plano.preco - valor) * 100) / 100);
@@ -822,14 +830,15 @@ function registrarVenda(aluno, plano, o, membro) {
   var inicioC = /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto();
   var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: Number(o.parcelas) || 1, valor_pago: valor, inicio: inicioC,
     origemCredito: 'balcão', observacao: String(o.obs || '').slice(0, 300) });
-  return { orderNsu: nsu, creditoId: creditoId, valor: valor, metodo: metodo };
+  // valeUsado: parte paga com vale-presente (conta na comissão do atendimento, como na comanda)
+  return { orderNsu: nsu, creditoId: creditoId, valor: valor, metodo: metodo, valeUsado: numero(calc.valeUsado) };
 }
 
 function bancada_simularPreco(d) {
   var plano = buscarItemVenda(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
   var r = calcularPreco(plano, d.cpf ? normCpf(d.cpf) : '', d.codigo, { canal: 'bancada', data: d.data });
-  return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem, promocao: r.promocao };
+  return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem, promocao: r.promocao, vale: r.vale, valeUsado: r.valeUsado };
 }
 
 function bancada_vender(d, m) {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useMaisADireita, CampoBandeira, faltaBandeira, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+import { useDados, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana, plural, ehDela } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -250,8 +250,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const [semCadastro, setSemCadastro] = useState({ nome: '', whatsapp: '' });
   const [modoCliente, setModoCliente] = useState('busca');
   const [pagamento, setPagamento] = useState(re ? re.pagamento : 'no_dia');
-  const [metodo, setMetodo] = useState('Pix');
-  const [bandeira, setBandeira] = useState('');
+  const [pg, setPg] = useState(PAGAMENTO_INICIAL);
   const [pacote, setPacote] = useState(null);
   const [obs, setObs] = useState(re ? re.obs : '');
   const [erro, setErro] = useState('');
@@ -284,7 +283,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
     setEnviando(true);
     try {
       await chamar('agendarServico', {
-        servicoId, profissional, data, hora: horaSel, obs, pagamento, metodo, bandeira,
+        servicoId, profissional, data, hora: horaSel, obs, pagamento, ...pg,
         cpf: cliente?.cpf || undefined,
         cliente: cliente?.cpf ? undefined : cliente ? { nome: cliente.nome, whatsapp: cliente.whatsapp } : { ...semCadastro, whatsapp: soDigitos(semCadastro.whatsapp) },
         reagendarId: re?.id,
@@ -386,14 +385,10 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             </label>
           </fieldset>
         )}
-        {pagamento === 'pago' && !re && (
-          <label className="b-campo"><span className="rotulo">Recebido por</span>
-            <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select></label>
-        )}
-        {pagamento === 'pago' && !re && <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />}
+        {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={servicoId} cpf={cliente?.cpf} data={data} />}
         <label className="b-campo"><span className="rotulo">Observação para quem vai atender</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaBandeira(metodo, bandeira))} onClick={salvar}>
+        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaPagamento(pg))} onClick={salvar}>
           {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
         </button>
       </div>
@@ -483,8 +478,7 @@ function DetalheFolga({ f, aoFechar, aoMudar }) {
 function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoProntuario, aoTrocar, aoPedir }) {
   const { membro, chamar } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
-  const [metodo, setMetodo] = useState('Pix');
-  const [bandeira, setBandeira] = useState('');
+  const [pg, setPg] = useState(PAGAMENTO_INICIAL);
   const [erro, setErro] = useState('');
   const st = STATUS[a.status] || [a.status, 'neutro'];
   const mudar = async (status, extra = {}) => {
@@ -528,10 +522,8 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
         <div className="s-acoes">
           {a.pagamento === 'no_dia' && balcao ? (
             <div className="s-receber">
-              <label className="b-campo"><span className="rotulo">Atendido · recebido por</span>
-                <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select></label>
-              <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
-              <BotaoAcao className="botao botao--cheio botao--p" disabled={faltaBandeira(metodo, bandeira)} acao={() => mudar('atendido', { metodo, bandeira })}>Marcar atendido</BotaoAcao>
+              <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} rotulo="Atendido · recebido por" itemId={a.servicoId} cpf={a.cpf} data={a.data} />
+              <BotaoAcao className="botao botao--cheio botao--p" disabled={faltaPagamento(pg)} acao={() => mudar('atendido', pg)}>Marcar atendido</BotaoAcao>
             </div>
           ) : (
             <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido')}>Marcar atendido</BotaoAcao>

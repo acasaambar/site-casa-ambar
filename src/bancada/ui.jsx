@@ -25,6 +25,54 @@ export function CampoBandeira({ metodo, valor, aoMudar, className = 'b-campo' })
   );
 }
 
+// Forma de pagamento do balcão (agenda, aula avulsa). "Vale-presente" pede o código; se o vale não cobrir
+// tudo, o resto vai na forma escolhida. itemId (serviço/plano) permite conferir o saldo antes de salvar.
+export const PAGAMENTO_INICIAL = { metodo: 'Pix', bandeira: '', codigo: '', resto: 'Pix' };
+export const faltaPagamento = (p) => (p.metodo === 'Vale-presente' ? !p.codigo.trim() : faltaBandeira(p.metodo, p.bandeira));
+
+export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', itemId, cpf, data }) {
+  const { chamar } = useBancada();
+  const [conferido, setConferido] = useState(null);
+  const [erro, setErro] = useState('');
+  const vale = p.metodo === 'Vale-presente';
+  const formas = metodos.includes('Vale-presente') ? metodos : [...metodos, 'Vale-presente'];
+  const formasResto = metodos.filter((m) => m !== 'Vale-presente' && m !== 'Cortesia');
+  const mudar = (mud) => { aoMudar({ ...p, ...mud }); if ('codigo' in mud || 'metodo' in mud) { setConferido(null); setErro(''); } };
+  async function conferir() {
+    setErro('');
+    try {
+      const r = await chamar('simularPreco', { planoId: itemId, cpf, codigo: p.codigo, data });
+      if (!r.vale) { setConferido(null); setErro('Este código é de um cupom, não de um vale-presente.'); return; }
+      setConferido(r);
+    } catch (e) { setConferido(null); setErro(e.message); }
+  }
+  const cobreTudo = conferido && conferido.valorFinal <= 0.009;
+  return (
+    <div className="b-pagar">
+      <label className="b-campo"><span className="rotulo">{rotulo}</span>
+        <select value={p.metodo} onChange={(e) => mudar({ metodo: e.target.value })}>{formas.map((m) => <option key={m}>{m}</option>)}</select></label>
+      {vale && (
+        <label className="b-campo b-pagar__codigo">
+          <span className="rotulo">Código do vale-presente</span>
+          <span className="codigo__linha">
+            <input value={p.codigo} onChange={(e) => mudar({ codigo: e.target.value.toUpperCase() })} placeholder="AMBAR-XXXX-XXXX" autoCapitalize="characters" spellCheck={false} />
+            {itemId && <button type="button" className="botao botao--linha botao--p" disabled={!p.codigo.trim()} onClick={conferir}>Conferir</button>}
+          </span>
+        </label>
+      )}
+      {vale && conferido && (
+        <p className="aviso">{cobreTudo ? `O vale cobre tudo (${real(conferido.valeUsado)}).` : `O vale cobre ${real(conferido.valeUsado)}. Faltam ${real(conferido.valorFinal)}.`}</p>
+      )}
+      <Erro>{erro}</Erro>
+      {vale && !cobreTudo && (
+        <label className="b-campo"><span className="rotulo">Se o vale não cobrir tudo, o resto em</span>
+          <select value={p.resto} onChange={(e) => mudar({ resto: e.target.value })}>{formasResto.map((m) => <option key={m}>{m}</option>)}</select></label>
+      )}
+      {!(vale && cobreTudo) && <CampoBandeira metodo={vale ? p.resto : p.metodo} valor={p.bandeira} aoMudar={(b) => mudar({ bandeira: b })} />}
+    </div>
+  );
+}
+
 // ---------- formatos ----------
 export const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 export const realCurto = (v) => {

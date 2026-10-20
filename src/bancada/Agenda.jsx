@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useFazServicos, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import { useDados, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -237,8 +237,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
   const [aluno, setAluno] = useState(null);
   const [tapete, setTapete] = useState(null);
   const [forma, setForma] = useState('credito');
-  const [metodo, setMetodo] = useState('Pix');
-  const [bandeira, setBandeira] = useState('');
+  const [pg, setPg] = useState(PAGAMENTO_INICIAL);
   const [encaixe, setEncaixe] = useState(false);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -250,7 +249,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('agendar', { aulaId: aula.id, cpf: aluno.cpf, tapete, forma, metodo, bandeira, encaixe });
+      await chamar('agendar', { aulaId: aula.id, cpf: aluno.cpf, tapete, forma, ...pg, encaixe });
       aoAgendar();
     } catch (e) {
       setErro(e.message);
@@ -298,20 +297,14 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
               </label>
             ))}
           </fieldset>
-          {forma === 'avulsa' && (
-            <label className="b-campo">
-              <span className="rotulo">Recebido por</span>
-              <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
-            </label>
-          )}
-          {forma === 'avulsa' && <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />}
+          {forma === 'avulsa' && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} />}
           {lotada && (
             <label className="b-check">
               <input type="checkbox" checked={encaixe} onChange={(e) => setEncaixe(e.target.checked)} /> Aula lotada: fazer encaixe mesmo assim
             </label>
           )}
           <Erro>{erro}</Erro>
-          <button type="button" className="botao botao--cheio" disabled={enviando || (yoga && !tapete) || (lotada && !encaixe) || (forma === 'avulsa' && faltaBandeira(metodo, bandeira))} onClick={confirmar}>
+          <button type="button" className="botao botao--cheio" disabled={enviando || (yoga && !tapete) || (lotada && !encaixe) || (forma === 'avulsa' && faltaPagamento(pg))} onClick={confirmar}>
             {enviando ? 'Agendando…' : yoga && !tapete ? 'Escolha o tapete' : 'Confirmar agendamento'}
           </button>
         </div>

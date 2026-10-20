@@ -342,10 +342,10 @@ function bancada_agendarServico(d, m) {
       linha.credito_id = cred.id;
       linha.valor = 0;
     } else if (forma === 'pago') {
-      var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, inicio: d.data, obs: 'serviço ' + serv.nome }, m);
+      var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: d.data, obs: 'serviço ' + serv.nome }, m);
       linha.order_nsu = venda.orderNsu;
       linha.credito_id = venda.creditoId || '';
-      linha.valor = venda.valor;
+      linha.valor = dinheiro(venda.valor + venda.valeUsado);
     } else if (forma === 'cortesia') {
       linha.valor = 0;
     } else {
@@ -382,11 +382,11 @@ function bancada_atualizarAtendimento(d, m) {
     try {
       var cliente = { cpf: a.cpf ? normCpf(a.cpf) : '', nome: a.nome, whatsapp: a.whatsapp };
       var venda = registrarVenda(cliente, buscarItemVenda(a.servico_id) || { id: a.servico_id, nome: a.servico, modalidade: 'Serviço', tipo: 'servico', aulas_total: 1, aulas_semana: 0, validade_dias: 90, preco: numero(a.valor) },
-        { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
+        { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
       mud.pagamento = 'pago';
       mud.order_nsu = venda.orderNsu;
       mud.credito_id = venda.creditoId || '';
-      mud.valor = venda.valor;
+      mud.valor = dinheiro(venda.valor + venda.valeUsado);
     } finally {
       trava.releaseLock();
     }

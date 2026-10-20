@@ -1895,3 +1895,12 @@
 .ex-cliente .rotulo strong { font-weight: 600; color: var(--b-tinta); }
 .cm-grupo { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 10px; }
 .cm-grupo > legend { padding: 0; margin-bottom: 8px; }
+
+/* forma de pagamento com vale-presente (agenda, aula avulsa) */
+.b-pagar { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; align-items: end; min-width: 0; }
+.b-pagar > .aviso, .b-pagar > .erro { grid-column: 1 / -1; margin: 0; }
+.b-pagar .codigo__linha { display: flex; gap: 8px; }
+.b-pagar .codigo__linha input { flex: 1 1 auto; min-width: 0; }
+.s-receber { grid-template-columns: minmax(0, 1fr); }
+.s-receber > .botao { justify-self: start; }
+.b-pagar > .b-pagar__codigo { grid-column: 1 / -1; }
