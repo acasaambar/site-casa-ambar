@@ -36,8 +36,12 @@ aulas.forEach((a) => {
   });
 });
 chamar('b_salvarCupom', { token: adm, cupom: { codigo: 'BEMVINDA10', tipo: 'percentual', valor: 10, limitePorAluno: 1, descricao: 'Primeira compra' } });
-chamar('b_criarVales', { token: adm, tipo: 'plano', planoId: 'pilates-avulsa', pessoas: [{ cpf: '52998224725' }], motivo: 'Aniversário', mensagem: 'Feliz aniversário, Mari!' });
-chamar('b_criarVales', { token: adm, tipo: 'valor', valor: 50, quantidade: 5, motivo: 'Campanha', campanha: 'Outubro Rosa' });
+// vales-presente vendidos na comanda
+[[{ cpf: '52998224725' }, [{ tipo: 'plano', planoId: 'pilates-avulsa', nome: 'Mariana', mensagem: 'Feliz aniversário, Mari!' }]],
+  [{ cliente: { nome: 'Rita Gomes', whatsapp: '85991234567' } }, [{ tipo: 'valor', valor: 150, nome: 'Clara Gomes', whatsapp: '85998765432' }, { tipo: 'valor', valor: 50 }]]].forEach(([quem, vales]) => {
+  const cm = chamar('b_salvarComanda', { token: adm, comanda: { ...quem, itens: vales.map((v) => ({ tipo: 'vale', vale: v })) } });
+  if (cm.ok) chamar('b_fecharComanda', { token: adm, id: cm.dados.id, pagamentos: [{ metodo: 'Pix', valor: cm.dados.total }] });
+});
 // PENDENTES de teste: um recente e um de 2 dias atrás
 chamar('comprar', { token: toks['93541134780'], planoId: 'yoga-mensal-2x' });
 chamar('comprar', { token: toks['93541134780'], planoId: 'yoga-avulsa' });

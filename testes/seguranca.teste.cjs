@@ -112,8 +112,9 @@ console.log('— reserva aguardando pagamento não faz check-in');
 
 console.log('— vale-presente e cupom não são usados em dois pagamentos ao mesmo tempo');
 {
-  r = chamar('b_criarVales', { token: rec, tipo: 'valor', valor: 100, quantidade: 1, campanha: 'Teste' });
-  const vale = r.dados.vales[0].codigo;
+  const cmv = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Compra no balcão', whatsapp: '85987654321' }, itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor: 100 } }] } });
+  r = chamar('b_fecharComanda', { token: rec, id: cmv.dados.id, pagamentos: [{ metodo: 'Pix', valor: 100 }] });
+  const vale = r.dados.valesCriados[0].codigo;
   const p1 = chamar('comprar', { token: maria, planoId: 'yoga-mensal-2x', codigo: vale });
   ok(p1.ok && p1.dados.valor === 250, '1º link com o vale (R$ 350 − R$ 100)', p1);
   r = chamar('comprar', { token: maria, planoId: 'pilates-mensal-2x', codigo: vale });

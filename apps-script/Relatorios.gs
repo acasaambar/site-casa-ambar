@@ -3,7 +3,7 @@
  *  CASA ÂMBAR — RELATÓRIOS (financeiro, aulas e marketing)
  * ============================================================
  *  Faturamento = pagamentos aprovados (valor efetivamente cobrado).
- *  Cortesias (vales-presente e aulas cortesia) aparecem à parte.
+ *  Vales-presente vendidos e aulas cortesia aparecem à parte.
  */
 
 function bancada_relatorio(d) {
@@ -270,7 +270,7 @@ function relVales(pagamentos, de, ate) {
     resgatados: usos.length,
     valorResgatado: soma(usos, function (p) { return numero(p.vale_usado); }),
     abertos: vales.filter(function (v) { return v.status === 'ativo' && !valeVencido(v); }).length,
-    porMotivo: agrupar(gerados, function (v) { return String(v.motivo || v.campanha || 'sem motivo'); }, function (v) { return numero(v.valor); }),
+    porTipo: agrupar(gerados, function (v) { return descreverVale(v); }, function (v) { return numero(v.valor); }),
     porCampanha: agrupar(gerados.filter(function (v) { return v.campanha; }), function (v) { return String(v.campanha); }, function (v) { return numero(v.valor); }).map(function (g) {
       g.resgatados = usos.filter(function (p) { var v = vales.filter(function (x) { return codigoLimpo(x.codigo) === codigoLimpo(p.vale); })[0]; return v && v.campanha === g.nome; }).length;
       return g;

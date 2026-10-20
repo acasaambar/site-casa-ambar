@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, real, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
+import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, real, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
 import { Sol, Forma, IconeWhatsapp, Logo } from '../components/Marca.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
-import { useItensVenda, OpcoesItens } from './Servicos.jsx';
+import { ComandaModal } from './Comandas.jsx';
 
 const TOM_VALE = { ativo: 'ok', resgatado: 'apagado', usado: 'apagado', cancelado: 'alerta', vencido: 'aviso' };
-const MOTIVOS = ['Aniversário', 'Campanha', 'Indicação', 'Cortesia', 'Parceria', 'Pedido de desculpas'];
 
 export default function Vales() {
   const local = useLocation();
@@ -16,7 +15,7 @@ export default function Vales() {
   return (
     <>
       <Cabecalho titulo="Vales e cupons">
-        Vale-presente é cortesia da casa (aniversário, campanha, indicação). Cupom é desconto no pagamento.
+        Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga. Cupom é desconto no pagamento.
       </Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={[['vales', 'Vales-presente'], ['cupons', 'Cupons de desconto']]} />
       {aba === 'vales' ? <ListaVales abrirNovo={!!local.state?.novo} /> : <Cupons podeEditar={pode(membro, 'admin')} />}
@@ -39,12 +38,12 @@ export function ListaVales({ abrirNovo }) {
   return (
     <>
       <div className="b-barra-acoes">
-        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, nome ou campanha" aria-label="Buscar vale" />
+        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, nome ou quem comprou" aria-label="Buscar vale" />
         <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={() => baixarCSV('vales-presente', [
           ['codigo', 'Código'], ['descricao', 'Presente'], ['nome', 'Para'], [(v) => cpfFmt(v.cpf), 'CPF'], ['email', 'E-mail'], ['whatsapp', 'WhatsApp'],
           ['motivo', 'Motivo'], ['campanha', 'Campanha'], ['status', 'Situação'], [(v) => (v.saldo == null ? '' : String(v.saldo).replace('.', ',')), 'Saldo'],
           [(v) => dataBR(v.validade), 'Validade'], ['enviado', 'Entregue'], [(v) => dataBR(v.criadoEm), 'Criado em'], ['criadoPor', 'Criado por']], lista)}>Exportar CSV</button>
-        <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Gerar vale</button>
+        <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Vender vale-presente</button>
       </div>
       <div className="b-filtros">
         {[['ativo', 'Ativos'], ['usado', 'Usados'], ['vencido', 'Vencidos'], ['cancelado', 'Cancelados'], ['todos', 'Todos']].map(([id, t]) => (
@@ -53,7 +52,7 @@ export function ListaVales({ abrirNovo }) {
       </div>
       <Erro>{erro}</Erro>
       {carregando && !dados && <Carregando />}
-      {dados && lista.length === 0 && <Vazio titulo="Nenhum vale aqui" forma="presenca">Gere um vale para presentear alguém no aniversário ou numa campanha.</Vazio>}
+      {dados && lista.length === 0 && <Vazio titulo="Nenhum vale aqui" forma="presenca">Venda um vale-presente pela comanda: o código aparece aqui quando ela é paga.</Vazio>}
       <ul className="b-vales">
         {lista.map((v) => (
           <li key={v.codigo} className={`b-vale b-vale--${v.status}`}>
@@ -71,125 +70,9 @@ export function ListaVales({ abrirNovo }) {
           </li>
         ))}
       </ul>
-      {novo && <NovoVale aoFechar={() => setNovo(false)} aoCriar={(vales) => { setNovo(false); recarregar(); if (vales.length === 1) setEntregar(vales[0]); }} />}
+      {novo && <ComandaModal inicial={{ vale: true }} aoFechar={() => { setNovo(false); recarregar(); }} />}
       {entregar && <Entregar v={entregar} aoFechar={() => { setEntregar(null); recarregar(); }} />}
     </>
-  );
-}
-
-function NovoVale({ aoFechar, aoCriar }) {
-  const { chamar } = useBancada();
-  const itens = useItensVenda();
-  const [tipo, setTipo] = useState('plano');
-  const [planoId, setPlanoId] = useState('');
-  const [valor, setValor] = useState('');
-  const [para, setPara] = useState('pessoa'); // pessoa | varios
-  const [pessoa, setPessoa] = useState({ nome: '', cpf: '', email: '', whatsapp: '' });
-  const [qtd, setQtd] = useState(10);
-  const [motivo, setMotivo] = useState('Aniversário');
-  const [campanha, setCampanha] = useState('');
-  const [mensagem, setMensagem] = useState('');
-  const [validadeDias, setValidadeDias] = useState(60);
-  const [enviarEmail, setEnviarEmail] = useState(true);
-  const [erro, setErro] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const [criados, setCriados] = useState(null);
-
-  async function gerar() {
-    setErro('');
-    setEnviando(true);
-    try {
-      const r = await chamar('criarVales', {
-        tipo, planoId, valor: Number(String(valor).replace(',', '.')), motivo, campanha, mensagem, validadeDias,
-        pessoas: para === 'pessoa' ? [{ ...pessoa, whatsapp: soDigitos(pessoa.whatsapp), cpf: soDigitos(pessoa.cpf) }] : [],
-        quantidade: para === 'varios' ? qtd : 1, enviarEmail: para === 'pessoa' && enviarEmail && !!pessoa.email,
-      });
-      if (r.vales.length > 1) setCriados(r.vales);
-      else aoCriar(r.vales);
-    } catch (e) {
-      setErro(e.message);
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  if (criados) {
-    return (
-      <Modal rotulo={campanha || motivo} titulo={`${criados.length} vales gerados`} aoFechar={() => aoCriar(criados)} largo>
-        <p className="b-suave">Baixe a lista para distribuir. Cada código vale uma vez.</p>
-        <ul className="b-codigos">{criados.map((v) => <li key={v.codigo}><code>{v.codigo}</code></li>)}</ul>
-        <button type="button" className="botao botao--cheio" onClick={() => baixarCSV(`vales-${campanha || motivo}`.replace(/\s+/g, '-').toLowerCase(), [
-          ['codigo', 'Código'], ['descricao', 'Presente'], [(v) => dataBR(v.validade), 'Validade']], criados)}>Baixar lista (CSV)</button>
-      </Modal>
-    );
-  }
-
-  return (
-    <Modal rotulo="Cortesia da casa" titulo="Gerar vale-presente" aoFechar={aoFechar} largo>
-      <div className="b-form">
-        <fieldset className="b-opcoes b-opcoes--linha">
-          <legend className="rotulo">O que o vale dá</legend>
-          <label className={tipo === 'plano' ? 'ativo' : ''}><input type="radio" checked={tipo === 'plano'} onChange={() => setTipo('plano')} /><span><strong>Uma aula, plano ou serviço</strong><small>entra como crédito ao usar</small></span></label>
-          <label className={tipo === 'valor' ? 'ativo' : ''}><input type="radio" checked={tipo === 'valor'} onChange={() => setTipo('valor')} /><span><strong>Um valor em R$</strong><small>desconta numa compra</small></span></label>
-        </fieldset>
-        {tipo === 'plano' ? (
-          <label className="b-campo">
-            <span className="rotulo">O que o vale dá</span>
-            <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
-              <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
-              <OpcoesItens itens={itens} />
-            </select>
-          </label>
-        ) : (
-          <label className="b-campo"><span className="rotulo">Valor (R$)</span><input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="100" /></label>
-        )}
-
-        <fieldset className="b-opcoes b-opcoes--linha">
-          <legend className="rotulo">Para quem</legend>
-          <label className={para === 'pessoa' ? 'ativo' : ''}><input type="radio" checked={para === 'pessoa'} onChange={() => setPara('pessoa')} /><span><strong>Uma pessoa</strong><small>aniversário, cortesia, indicação</small></span></label>
-          <label className={para === 'varios' ? 'ativo' : ''}><input type="radio" checked={para === 'varios'} onChange={() => setPara('varios')} /><span><strong>Vários códigos</strong><small>campanha ou evento</small></span></label>
-        </fieldset>
-
-        {para === 'pessoa' ? (
-          <>
-            <BuscaAluno placeholder="Já é aluno? Busque pelo nome (opcional)" aoEscolher={(a) => setPessoa({ nome: a.nome, cpf: a.cpf, email: a.email, whatsapp: mascaraTelefone(a.whatsapp) })} />
-            <div className="b-linha2">
-              <label className="b-campo"><span className="rotulo">Nome</span><input value={pessoa.nome} onChange={(e) => setPessoa({ ...pessoa, nome: e.target.value })} /></label>
-              <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" value={pessoa.whatsapp} onChange={(e) => setPessoa({ ...pessoa, whatsapp: mascaraTelefone(e.target.value) })} /></label>
-            </div>
-            <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" value={pessoa.email} onChange={(e) => setPessoa({ ...pessoa, email: e.target.value })} /></label>
-            {pessoa.cpf && <p className="b-suave b-nota">Só {pessoa.nome.split(' ')[0]} (CPF {cpfFmt(pessoa.cpf)}) poderá usar este vale. <button type="button" className="link-acao" onClick={() => setPessoa({ ...pessoa, cpf: '' })}>liberar para qualquer pessoa</button></p>}
-          </>
-        ) : (
-          <div className="b-linha2">
-            <label className="b-campo"><span className="rotulo">Quantidade</span><input type="number" min={2} max={200} value={qtd} onChange={(e) => setQtd(Number(e.target.value))} /></label>
-            <label className="b-campo"><span className="rotulo">Nome da campanha</span><input value={campanha} onChange={(e) => setCampanha(e.target.value)} placeholder="Ex.: Dia das Mães 2026" /></label>
-          </div>
-        )}
-
-        <div className="b-linha2">
-          <label className="b-campo">
-            <span className="rotulo">Motivo</span>
-            <select value={motivo} onChange={(e) => setMotivo(e.target.value)}>{MOTIVOS.map((m) => <option key={m}>{m}</option>)}</select>
-          </label>
-          <label className="b-campo">
-            <span className="rotulo">Validade</span>
-            <select value={validadeDias} onChange={(e) => setValidadeDias(Number(e.target.value))}>
-              {[[30, '30 dias'], [60, '60 dias'], [90, '3 meses'], [180, '6 meses'], [365, '1 ano']].map(([d, t]) => <option key={d} value={d}>{t}</option>)}
-            </select>
-          </label>
-        </div>
-        <label className="b-campo"><span className="rotulo">Mensagem (vai no e-mail e no WhatsApp)</span>
-          <textarea rows={2} value={mensagem} onChange={(e) => setMensagem(e.target.value)} placeholder={motivo === 'Aniversário' ? 'Feliz aniversário! Que seu novo ciclo seja leve.' : 'Opcional'} /></label>
-        {para === 'pessoa' && pessoa.email && (
-          <label className="b-check"><input type="checkbox" checked={enviarEmail} onChange={(e) => setEnviarEmail(e.target.checked)} /> Enviar por e-mail agora</label>
-        )}
-        <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={enviando || (tipo === 'plano' ? !planoId : !valor)} onClick={gerar}>
-          {enviando ? 'Gerando…' : para === 'varios' ? `Gerar ${qtd} vales` : 'Gerar vale'}
-        </button>
-      </div>
-    </Modal>
   );
 }
 

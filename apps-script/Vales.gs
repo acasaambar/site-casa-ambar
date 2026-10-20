@@ -3,7 +3,7 @@
  *  CASA ÂMBAR — CUPONS DE DESCONTO E VALES-PRESENTE
  * ============================================================
  *  Cupom: código de desconto (% ou R$) aplicado no pagamento.
- *  Vale-presente: CORTESIA gerada pela equipe (aniversário, campanha...).
+ *  Vale-presente: sempre VENDIDO, como item da comanda (Gestao.gs); o código nasce ao fechar.
  *    tipo "plano": dá uma aula/plano do catálogo (vira crédito ao resgatar)
  *    tipo "valor": dá um valor em R$ para usar nas compras (tem saldo)
  */
@@ -227,7 +227,7 @@ function descreverVale(v) {
 function textoWhatsVale(v) {
   var nome = primeiroNome(v.nome);
   var val = dataTexto(v.validade).split('-').reverse().join('/');
-  return (nome ? 'Olá, ' + nome + '! ' : 'Olá! ') + 'A Casa Âmbar preparou um presente para você ✨\n\n' +
+  return (nome ? 'Olá, ' + nome + '! ' : 'Olá! ') + 'Você ganhou um vale-presente da Casa Âmbar ✨\n\n' +
     (v.mensagem ? v.mensagem + '\n\n' : '') +
     '🎁 Vale-presente: ' + descreverVale(v) + '\nCódigo: *' + v.codigo + '*\nVálido até ' + val + '.\n\n' +
     'Para usar: entre em ' + AJUSTES.siteUrl + ' → Área do aluno → Meu plano → "Tenho um vale-presente".';
@@ -240,8 +240,8 @@ function enviarEmailVale(v) {
     '<div style="font-size:20px;color:#FBF3E2;margin:10px 0 14px">' + escHtml(descreverVale(v)) + '</div>' +
     '<div style="font-family:\'Courier New\',monospace;font-size:22px;letter-spacing:3px;color:#E9DDC5;background:rgba(233,221,197,.1);padding:10px;border-radius:10px">' +
     escHtml(v.codigo) + '</div><div style="font-family:Arial,sans-serif;font-size:11px;color:#BDB49C;margin-top:12px">válido até ' + val + '</div></div>';
-  var pars = ['Olá' + (v.nome ? ', ' + primeiroNome(v.nome) : '') + '!'];
+  var pars = ['Olá' + (v.nome ? ', ' + primeiroNome(v.nome) : '') + '! Você ganhou um vale-presente da Casa Âmbar.'];
   if (v.mensagem) pars.push(String(v.mensagem));
-  pars.push('A Casa Âmbar preparou um presente para você. Para usar, entre na área do aluno, abra "Meu plano" e toque em "Tenho um vale-presente".');
+  pars.push('Para usar, entre na área do aluno, abra "Meu plano" e toque em "Tenho um vale-presente". Se preferir, mostre o código na recepção.');
   enviarEmail(v.email, 'Um presente para você · Casa Âmbar', 'Um presente para você', pars, { texto: 'Usar meu vale', url: AJUSTES.siteUrl + '#/meu-plano?vale=' + v.codigo }, cartao);
 }

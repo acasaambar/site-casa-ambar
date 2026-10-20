@@ -113,10 +113,18 @@ ok(pg.status === 'pago' && pg.cupom === 'BEMVINDA10' && pg.desconto === 20, 'pag
 r = chamar('validarCodigo', { token: tokA, codigo: 'bemvinda10', planoId: 'yoga-mensal-1x' });
 ok(!r.ok && /já usou/.test(r.erro), 'limite por aluno', r);
 
-console.log('— vales-presente (cortesia)');
-r = chamar('b_criarVales', { token: rec, tipo: 'plano', planoId: 'pilates-avulsa', pessoas: [{ cpf: '52998224725' }], motivo: 'Aniversário', mensagem: 'Feliz aniversário!', enviarEmail: true });
-ok(r.ok && r.dados.vales.length === 1 && r.dados.emailsEnviados === 1, 'vale de aniversário gerado e enviado', r);
-const vale1 = r.dados.vales[0];
+// vale-presente é sempre vendido: comanda com o(s) vale(s), paga no Pix
+function venderVale(token, vales) {
+  const cm = chamar('b_salvarComanda', { token, comanda: { cliente: { nome: 'Compra no balcão', whatsapp: '85987654321' }, itens: vales.map((v) => ({ tipo: 'vale', vale: v })) } });
+  if (!cm.ok) return cm;
+  return chamar('b_fecharComanda', { token, id: cm.dados.id, pagamentos: [{ metodo: 'Pix', valor: cm.dados.total }] });
+}
+console.log('— vales-presente (sempre vendidos na comanda)');
+r = chamar('b_criarVales', { token: rec, tipo: 'valor', valor: 100 });
+ok(!r.ok, 'não existe mais gerar vale sem venda', r);
+r = venderVale(rec, [{ tipo: 'plano', planoId: 'pilates-avulsa', nome: 'Mariana Souza', email: 'mari.presente@gmail.com', mensagem: 'Feliz aniversário!', enviarEmail: true }]);
+ok(r.ok && r.dados.valesCriados.length === 1 && r.dados.valesCriados[0].emailEnviado, 'vale de aniversário vendido e enviado', r);
+const vale1 = r.dados.valesCriados[0];
 ok(/^AMBAR-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(vale1.codigo) && /Feliz/.test(vale1.textoWhats), 'código e texto de WhatsApp', vale1);
 ok(/Um presente/.test(emails[emails.length - 1].subject) && emails[emails.length - 1].htmlBody.includes(vale1.codigo), 'e-mail do vale com o código');
 r = chamar('resgatarVale', { token: chamar('entrar', { cpf: '11144477735', senha: 'velha123' }).dados ? '' : '', codigo: vale1.codigo });
@@ -124,9 +132,9 @@ r = chamar('resgatarVale', { token: tokA, codigo: vale1.codigo.toLowerCase() });
 ok(r.ok && r.dados.tipo === 'plano', 'aluna resgatou o vale', r);
 r = chamar('meuPlano', { token: tokA }); ok(r.dados.creditos.some(c => c.planoId === 'pilates-avulsa'), 'crédito de Pilates entrou');
 r = chamar('resgatarVale', { token: tokA, codigo: vale1.codigo }); ok(!r.ok && /já foi usado/.test(r.erro), 'não resgata 2x', r);
-r = chamar('b_criarVales', { token: rec, tipo: 'valor', valor: 100, quantidade: 3, campanha: 'Dia das Mães' });
-ok(r.ok && r.dados.vales.length === 3, 'campanha: 3 vales de R$ 100', r);
-const v100 = r.dados.vales[0].codigo, v100b = r.dados.vales[1].codigo;
+r = venderVale(rec, [{ tipo: 'valor', valor: 100 }, { tipo: 'valor', valor: 100 }, { tipo: 'valor', valor: 100 }]);
+ok(r.ok && r.dados.valesCriados.length === 3, 'uma comanda com 3 vales de R$ 100', r);
+const v100 = r.dados.valesCriados[0].codigo, v100b = r.dados.valesCriados[1].codigo;
 r = chamar('comprar', { token: tokA, planoId: 'yoga-mensal-2x', codigo: v100 });
 ok(r.ok && r.dados.valor === 250, 'vale R$ 100 abate em R$ 350 → R$ 250', r);
 global.__valor = 25000;
@@ -134,8 +142,8 @@ chamar(undefined, { order_nsu: r.dados.order_nsu, transaction_nsu: 't2', invoice
 r = chamar('b_vales', { token: rec });
 let vv = r.dados.find(v => v.codigo === v100);
 ok(vv.status === 'usado' && vv.saldo === 0, 'vale R$ 100 usado, saldo 0', vv);
-r = chamar('b_criarVales', { token: rec, tipo: 'valor', valor: 300 });
-r = chamar('comprar', { token: tokA, planoId: 'yoga-mensal-1x', codigo: r.dados.vales[0].codigo });
+r = venderVale(rec, [{ tipo: 'valor', valor: 300 }]);
+r = chamar('comprar', { token: tokA, planoId: 'yoga-mensal-1x', codigo: r.dados.valesCriados[0].codigo });
 ok(r.ok && r.dados.pago === true, 'vale maior que o preço: concluído sem InfinitePay', r);
 r = chamar('b_vales', { token: rec }); vv = r.dados.find(v => v.saldo === 100 && v.valor === 300);
 ok(!!vv && vv.status === 'ativo', 'sobra R$ 100 no vale de R$ 300', r.dados.map(v => [v.valor, v.saldo, v.status]));
@@ -178,7 +186,7 @@ ok(r.ok, 'relatório gerado', r.erro);
 if (r.ok) {
   const f = r.dados.financeiro;
   console.log('    receita', f.receita, 'vendas', f.vendas, 'formas', JSON.stringify(f.porForma), 'cupons', JSON.stringify(f.cupons));
-  ok(f.receita === 350 + 63 + 180 + 250, 'receita = 350 + 63 + 180 + 250', f.receita);
+  ok(f.receita === 350 + 63 + 180 + 250 + 75 + 300 + 300, 'receita = vendas + vales vendidos (aula R$ 75, 3 × R$ 100, R$ 300)', f.receita);
   ok(r.dados.vales.gerados === 5, 'vales gerados no período', r.dados.vales);
   ok(r.dados.alunos.aniversariantes.length === 1, 'aniversariante do mês', r.dados.alunos.aniversariantes);
   console.log('    aulas', JSON.stringify(r.dados.aulas.geral), 'alunos', JSON.stringify({ t: r.dados.alunos.total, at: r.dados.alunos.ativos }));

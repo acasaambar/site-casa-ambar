@@ -30,7 +30,7 @@ Arquivos do backend:
 - `Gestao.gs`: produtos e estoque, comandas, comissões, despesas, financeiro, caixa do dia, bloqueio de horário (folgas).
 - `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico, endereço (`exigirEndereco`, `salvarEndereco` do site), **Clientes** da profissional e **anamnese da profissional** (aba `AnamnesesProf`; texto > 44 mil caracteres vai para arquivo no Drive) e comandas da cliente.
 - `Marketing.gs`: promoções automáticas, campanhas (e-mail e WhatsApp) com descadastro, lembretes da véspera.
-- `Vales.gs`: cupons, vales-presente e `calcularPreco` (promoção × cupom: vale o maior; o vale entra depois). Vale de cortesia nasce em Marketing → Vales; vale **vendido** só como item da comanda (`tipo: 'vale'`, Vales.origem = `vendido`, Vales.comanda).
+- `Vales.gs`: cupons, vales-presente e `calcularPreco` (promoção × cupom: vale o maior; o vale entra depois). Vale-presente é **sempre vendido** (decisão do dono, não há vale de cortesia): nasce só como item da comanda (`tipo: 'vale'`, Vales.origem = `vendido`, Vales.comanda); "Vender vale-presente" em Marketing → Vales abre a comanda já na venda do vale.
 - `Relatorios.gs`: relatórios da administração.
 - `Substituicoes.gs`: troca de profissional em aula ou atendimento (aba `Substituicoes`), pedidos da profissional, "Alguém não vem".
 

@@ -178,7 +178,7 @@ Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, 
 - Na comanda aberta, cada item pode trocar de serviço e de profissional (a agenda acompanha), ter desconto em % ou R$ com motivo e uma observação.
   Tudo o que muda fica no **histórico** da comanda, com quem fez.
 - **Vale-presente vendido**: entra como item da comanda (valor em R$ ou um serviço/plano). O código nasce ao fechar e pode ir por e-mail
-  e WhatsApp para quem recebe. Vale de cortesia continua em Marketing → Vales.
+  e WhatsApp para quem recebe. Todo vale-presente é vendido (não há vale de cortesia).
 - **Reabrir comanda fechada** (só administração, com motivo): desfaz pagamentos, estoque e comissões para corrigir e fechar de novo.
 - **Excluir cliente** (só administração): sem histórico, o cadastro some; com histórico, os dados pessoais e de saúde são apagados
   e as vendas ficam como "Cliente excluído" (LGPD), sem mudar o financeiro.
@@ -186,8 +186,9 @@ Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, 
 ### Cupons e vales-presente
 
 - **Cupom**: desconto (% ou R$) que o aluno digita no pagamento; criado pela administração.
-- **Vale-presente**: cortesia (Marketing → Vales) ou vendido na comanda. Dá uma aula/plano ou um valor em R$. A equipe gera, entrega por
-  e-mail, WhatsApp ou no balcão, e o aluno usa em Meu plano → "Tenho um vale-presente".
+- **Vale-presente**: sempre vendido, como item da comanda ("Vender vale-presente" em Marketing → Vales abre a comanda pronta).
+  Dá uma aula/plano/serviço ou um valor em R$. O código nasce quando a comanda é paga; a equipe entrega por e-mail, WhatsApp
+  ou no balcão, e o aluno usa em Meu plano → "Tenho um vale-presente" (serviços: na comanda, pagando com o vale).
 
 ## Publicação
 

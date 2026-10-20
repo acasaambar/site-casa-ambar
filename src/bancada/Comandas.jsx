@@ -187,7 +187,7 @@ function quandoHist(q) {
 // ============================================================
 //  A COMANDA (folha lateral)
 // ============================================================
-// id: comanda existente · inicial: { cpf, nome, itens } para abrir uma nova já preenchida
+// id: comanda existente · inicial: { cpf, nome, itens } para abrir uma nova já preenchida; { vale: true } = venda de vale-presente
 export function ComandaModal({ id, inicial, aoFechar }) {
   const { membro, chamar } = useBancada();
   const catalogo = useCatalogoComanda();
@@ -209,6 +209,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   const [motivoReabrir, setMotivoReabrir] = useState('');
   const [erroReabrir, setErroReabrir] = useState('');
   const [valesCriados, setValesCriados] = useState([]);
+  const [querVale, setQuerVale] = useState(!!inicial?.vale); // veio de "Vender vale-presente": abre a folha do vale ao escolher quem compra
 
   useEffect(() => {
     if (!id) return;
@@ -243,16 +244,20 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   const temVale = itens.some((i) => i.tipo === 'vale');
   const terminou = (r) => { setC(r); setPagar(false); setValesCriados(r.valesCriados || []); };
 
+  useEffect(() => {
+    if (querVale && cliente && catalogo) { setQuerVale(false); setVale({}); }
+  }, [querVale, cliente, catalogo]);
+
   if (id && !c) return <Modal titulo="Comanda" aoFechar={aoFechar}>{erro ? <Erro>{erro}</Erro> : <Carregando />}</Modal>;
   const nomeCliente = c?.nome || cliente?.nome || semCadastro?.nome;
   const titulo = !c ? 'Nova comanda' : c.status === 'cancelada' ? 'Comanda cancelada' : fechada ? 'Comanda fechada' : 'Comanda';
 
   return (
-    <Modal titulo={titulo} rotulo={c ? `${c.nome} · aberta ${dataBR(c.abertaEm)} por ${c.abertaPor}` : 'Escolha quem vai pagar e adicione os itens'} aoFechar={aoFechar} largo>
+    <Modal titulo={titulo} rotulo={c ? `${c.nome} · aberta ${dataBR(c.abertaEm)} por ${c.abertaPor}` : querVale ? 'Venda de vale-presente: escolha quem compra' : 'Escolha quem vai pagar e adicione os itens'} aoFechar={aoFechar} largo>
       <div className="cm">
         {!c && (
           <fieldset className="b-opcoes">
-            <legend className="rotulo">Cliente</legend>
+            <legend className="rotulo">{querVale ? 'Quem compra o vale' : 'Cliente'}</legend>
             {cliente ? (
               <div className="b-escolhido"><div><strong>{cliente.nome}</strong><span>com cadastro</span></div><button type="button" className="link-sair" onClick={() => setCliente(null)}>trocar</button></div>
             ) : semCadastro ? (
@@ -715,7 +720,6 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
           <input type="checkbox" checked={enviar && okEmail} disabled={!okEmail} onChange={(e) => setEnviar(e.target.checked)} />
           {okEmail ? `Enviar por e-mail para ${email.trim()} ao fechar a comanda` : 'Enviar por e-mail ao fechar a comanda (informe o e-mail)'}
         </label>
-        <p className="b-suave b-nota">Vale de cortesia (sem venda) continua em Marketing → Vales.</p>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={salvar}>{inicial ? 'Salvar vale' : 'Incluir na comanda'}</BotaoAcao>
       </div>

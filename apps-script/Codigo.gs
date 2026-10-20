@@ -109,10 +109,10 @@ var ABAS = {
   Redefinicoes: ['token_hash', 'tipo', 'id', 'email', 'criado_em', 'expira_ms', 'usado_em', 'motivo'],
   Registro: ['quando', 'quem', 'acao', 'detalhe'],
   Cupons: ['codigo', 'ativo', 'tipo', 'valor', 'modalidade', 'tipo_plano', 'inicio', 'fim', 'limite_total', 'limite_por_aluno', 'primeira_compra', 'descricao', 'criado_por', 'criado_em'],
-  // Vale-presente é cortesia (não é vendido): dá uma aula/plano do catálogo ou um valor em R$
+  // Vale-presente é sempre vendido (item da comanda): dá uma aula/plano/serviço do catálogo ou um valor em R$
   Vales: ['codigo', 'status', 'tipo', 'plano_id', 'valor', 'cpf', 'nome', 'email', 'whatsapp', 'motivo', 'campanha', 'mensagem',
     'criado_em', 'criado_por', 'validade', 'resgatado_em', 'resgatado_cpf', 'enviado',
-    // vale vendido na comanda: origem 'vendido' e a comanda (vazio = cortesia)
+    // origem 'vendido' e a comanda da venda (vazio = vale antigo, gerado antes da venda pela comanda)
     'origem', 'comanda'],
   // ---- serviços (estética, fisioterapia...) agendados pela bancada ----
   Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo'],

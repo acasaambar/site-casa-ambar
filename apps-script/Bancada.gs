@@ -29,7 +29,6 @@ var PERMISSOES = {
   b_marcarDevolvido: ['admin', 'recepcao'],
   b_ajustarCredito: ['admin', 'recepcao'],
   b_vales: ['admin', 'recepcao'],
-  b_criarVales: ['admin', 'recepcao'],
   b_cancelarVale: ['admin', 'recepcao'],
   b_enviarVale: ['admin', 'recepcao'],
   b_aplicarVale: ['admin', 'recepcao'],
@@ -898,7 +897,7 @@ function bancada_ajustarCredito(d, m) {
 }
 
 // ============================================================
-//  VALES-PRESENTE (cortesia) E CUPONS
+//  VALES-PRESENTE (vendidos na comanda: Gestao.gs) E CUPONS
 // ============================================================
 // pagos: pagamentosQueContam() calculado uma vez por quem lista vários vales
 function valePublico(v, pagos) {
@@ -912,50 +911,6 @@ function valePublico(v, pagos) {
 function bancada_vales() {
   var pagos = pagamentosQueContam();
   return lerAba('Vales').filter(function (v) { return v.codigo; }).map(function (v) { return valePublico(v, pagos); }).reverse();
-}
-
-// gera 1 ou vários vales (campanha). Cada pessoa: { nome, cpf, email, whatsapp }
-function bancada_criarVales(d, m) {
-  var tipo = d.tipo === 'valor' ? 'valor' : 'plano';
-  var plano = tipo === 'plano' ? buscarItemVenda(d.planoId) : null;
-  if (tipo === 'plano' && !plano) throw new Error('Escolha a aula ou o plano do vale.');
-  var valor = tipo === 'valor' ? numero(d.valor) : 0;
-  if (tipo === 'valor' && (valor < 1 || valor > 5000)) throw new Error('Informe o valor do vale.');
-  var dias = Number(d.validadeDias) || AJUSTES.valeValidadeDias;
-  var pessoas = (d.pessoas && d.pessoas.length ? d.pessoas : [{}]).slice(0, 200);
-  var qtdSemNome = Math.min(Math.max(Number(d.quantidade) || 1, 1), 200);
-  if (!(d.pessoas && d.pessoas.length) && qtdSemNome > 1) { pessoas = []; for (var q = 0; q < qtdSemNome; q++) pessoas.push({}); }
-  var trava = LockService.getScriptLock();
-  esperarTrava(trava, 20000);
-  var criados = [];
-  try {
-    pessoas.forEach(function (p) {
-      var cpf = p.cpf ? soDigitos(p.cpf) : '';
-      if (cpf && !cpfValido(cpf) && !buscarAluno(cpf)) throw new Error('CPF inválido: ' + p.cpf);
-      var al = cpf ? buscarAluno(cpf) : null;
-      var v = { codigo: gerarCodigoVale(), status: 'ativo', tipo: tipo, plano_id: plano ? plano.id : '', valor: plano ? plano.preco : valor,
-        cpf: cpf ? normCpf(cpf) : '', nome: String(p.nome || (al ? al.nome : '')).trim(), email: String(p.email || (al ? al.email : '')).trim().toLowerCase(),
-        whatsapp: soDigitos(p.whatsapp || (al ? al.whatsapp : '')), motivo: String(d.motivo || ''), campanha: String(d.campanha || ''),
-        mensagem: String(d.mensagem || '').slice(0, 500), criado_em: agoraTexto(), criado_por: m.email, validade: somarDias(hojeTexto(), dias), enviado: '' };
-      adicionarLinha('Vales', v);
-      criados.push(v);
-    });
-    SpreadsheetApp.flush();
-  } finally {
-    trava.releaseLock();
-  }
-  var enviados = 0;
-  if (d.enviarEmail) {
-    criados.forEach(function (v) {
-      if (!emailValido(v.email)) return;
-      enviarEmailVale(v);
-      var achado = acharVale(v.codigo);
-      if (achado) atualizarLinha('Vales', achado._linha, { enviado: 'e-mail ' + agoraTexto() });
-      enviados++;
-    });
-  }
-  registrar(m, 'gerou vales', criados.length + ' × ' + (plano ? plano.nome : 'R$ ' + valor) + (d.campanha ? ' · ' + d.campanha : ''));
-  return { vales: criados.map(function (v) { return valePublico(acharVale(v.codigo)); }), emailsEnviados: enviados };
 }
 
 function bancada_enviarVale(d, m) {

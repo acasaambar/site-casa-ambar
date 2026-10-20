@@ -259,14 +259,14 @@ function ValesCupons({ v, f }) {
   return (
     <>
       <section className="b-kpis">
-        <Kpi rotulo="Vales gerados" valor={v.gerados} detalhe={`${realCurto(v.valorGerado)} em cortesias`} />
+        <Kpi rotulo="Vales vendidos" valor={v.gerados} detalhe={`${realCurto(v.valorGerado)} em vales`} />
         <Kpi rotulo="Vales usados" valor={v.resgatados} detalhe={`${realCurto(v.valorResgatado)} usados no período`} />
         <Kpi rotulo="Vales em aberto" valor={v.abertos} detalhe="ainda podem ser usados" />
         <Kpi rotulo="Aulas cortesia" valor={v.aulasCortesia} detalhe="agendadas pela bancada" />
       </section>
       <div className="b-duas">
-        <Grafico titulo="Vales por motivo">
-          <BarrasH itens={v.porMotivo.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n} vale${n === 1 ? '' : 's'}`} />
+        <Grafico titulo="Vales vendidos por tipo">
+          <BarrasH itens={v.porTipo.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n} vale${n === 1 ? '' : 's'}`} />
         </Grafico>
         <Grafico titulo="Cupons mais usados" sub={`Desconto total: ${real(f.descontosCupom)}`}>
           <BarrasH itens={f.cupons.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: 'desconto ' + real(i.valor) }))} formato={(n) => `${n} uso${n === 1 ? '' : 's'}`} />
