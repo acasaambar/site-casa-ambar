@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useDados, Carregando, Erro, Cabecalho, Kpi, Abas, Vazio, real, realCurto, dataBR, dataCurta, hojeIso, somarDias, MESES, linkWhats, primeiro,
-  telFmt, baixarCSV } from './ui.jsx';
+  telFmt, baixarCSV, plural } from './ui.jsx';
 import { BarrasH, Colunas, MapaCalor } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 
@@ -109,27 +109,27 @@ function Financeiro({ f, de, ate }) {
       </Grafico>
       <div className="b-duas">
         <Grafico titulo="Por modalidade" csv={csvItens('faturamento-modalidade', f.porModalidade)}>
-          <BarrasH itens={f.porModalidade.map((i) => ({ ...i, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+          <BarrasH itens={f.porModalidade.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
         </Grafico>
         <Grafico titulo="Por tipo de plano" csv={csvItens('faturamento-tipo', f.porTipo)}>
-          <BarrasH itens={f.porTipo.map((i) => ({ ...i, nome: TIPOS[i.nome] || i.nome, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+          <BarrasH itens={f.porTipo.map((i) => ({ ...i, nome: TIPOS[i.nome] || i.nome, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
         </Grafico>
       </div>
       <Grafico titulo="Planos que mais vendem" sub="Ordenado pelo faturamento" csv={csvItens('planos-mais-vendidos', f.porPlano)}>
-        <BarrasH itens={f.porPlano.map((i) => ({ ...i, detalhe: `${i.qtd} vendas` }))} formato={realCurto} limite={12} />
+        <BarrasH itens={f.porPlano.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} limite={12} />
       </Grafico>
       <div className="b-duas">
         <Grafico titulo="Formas de pagamento" csv={csvItens('formas-pagamento', f.porForma)}>
-          <BarrasH itens={f.porForma.map((i) => ({ ...i, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+          <BarrasH itens={f.porForma.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
           {f.porBandeira?.length > 0 && (
             <>
               <h3 className="b-subtitulo">Cartões por bandeira</h3>
-              <BarrasH itens={f.porBandeira.map((i) => ({ ...i, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+              <BarrasH itens={f.porBandeira.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
             </>
           )}
         </Grafico>
         <Grafico titulo="Site × balcão" sub={f.porParcelas.length ? 'Cartão: ' + f.porParcelas.map((p) => `${p.nome} (${p.qtd})`).join(' · ') : ''}>
-          <BarrasH itens={f.porOrigem.map((i) => ({ ...i, nome: i.nome === 'site' ? 'Pelo site' : 'No balcão', detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+          <BarrasH itens={f.porOrigem.map((i) => ({ ...i, nome: i.nome === 'site' ? 'Pelo site' : 'No balcão', detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
         </Grafico>
       </div>
       {f.jurosDevolver.length > 0 && (
@@ -150,8 +150,8 @@ function Aulas({ a }) {
   return (
     <>
       <section className="b-kpis">
-        <Kpi rotulo="Ocupação média" valor={pct(a.geral.ocupacao)} detalhe={`${a.geral.reservas} reservas em ${a.geral.aulas} aulas`} />
-        <Kpi rotulo="Presença" valor={passadas ? pct(Math.round((a.presencas / passadas) * 1000) / 10) : '—'} detalhe={`${a.presencas} presentes · ${a.faltas} faltas · ${a.semRegistro} sem registro`} />
+        <Kpi rotulo="Ocupação média" valor={pct(a.geral.ocupacao)} detalhe={`${plural(a.geral.reservas, 'reserva', 'reservas')} em ${plural(a.geral.aulas, 'aula', 'aulas')}`} />
+        <Kpi rotulo="Presença" valor={passadas ? pct(Math.round((a.presencas / passadas) * 1000) / 10) : '—'} detalhe={`${plural(a.presencas, 'presente', 'presentes')} · ${plural(a.faltas, 'falta', 'faltas')} · ${a.semRegistro} sem registro`} />
         <Kpi rotulo="Cancelamentos" valor={a.cancelamentos} />
         <Kpi rotulo="Pelo Wellhub" valor={a.wellhub} detalhe="reservas no período" />
       </section>
@@ -160,7 +160,7 @@ function Aulas({ a }) {
           <BarrasH itens={a.porModalidade.map((g) => ({ nome: g.nome, valor: g.ocupacao, detalhe: `${g.reservas}/${g.capacidade} vagas` }))} formato={pct} max={100} />
         </Grafico>
         <Grafico titulo="Ocupação por dia da semana" csv={csvGrupo('ocupacao-dia', a.porDiaSemana)}>
-          <BarrasH itens={a.porDiaSemana.map((g) => ({ nome: g.nome, valor: g.ocupacao, detalhe: `${g.aulas} aulas` }))} formato={pct} max={100} />
+          <BarrasH itens={a.porDiaSemana.map((g) => ({ nome: g.nome, valor: g.ocupacao, detalhe: plural(g.aulas, 'aula', 'aulas') }))} formato={pct} max={100} />
         </Grafico>
       </div>
       <Grafico titulo="Mapa de ocupação" sub="Cada quadrado é um horário da semana. Quanto mais escuro, mais cheio — bom para decidir abrir ou fechar turmas.">
@@ -168,11 +168,11 @@ function Aulas({ a }) {
         <MapaCalor celulas={a.mapaCalor.filter((c) => c.modalidade === mod)} nomesDias={nomes} />
       </Grafico>
       <Grafico titulo="Horários mais procurados" csv={csvGrupo('horarios', a.porHorario)}>
-        <BarrasH itens={a.porHorario.map((g) => ({ nome: g.nome.replace(':00', 'h').replace(':', 'h'), valor: g.ocupacao, detalhe: `${g.reservas} reservas em ${g.aulas} aulas` }))} formato={pct} max={100} limite={12} />
+        <BarrasH itens={a.porHorario.map((g) => ({ nome: g.nome.replace(':00', 'h').replace(':', 'h'), valor: g.ocupacao, detalhe: `${plural(g.reservas, 'reserva', 'reservas')} em ${plural(g.aulas, 'aula', 'aulas')}` }))} formato={pct} max={100} limite={12} />
       </Grafico>
       <div className="b-duas">
         <Grafico titulo="Por profissional" sub="Reservas no período" csv={csvGrupo('profissionais', a.porProfessora)}>
-          <BarrasH itens={a.porProfessora.map((g) => ({ nome: g.nome, valor: g.reservas, detalhe: `${g.aulas} aulas · ${pct(g.ocupacao)} de ocupação` }))} />
+          <BarrasH itens={a.porProfessora.map((g) => ({ nome: g.nome, valor: g.reservas, detalhe: `${plural(g.aulas, 'aula', 'aulas')} · ${pct(g.ocupacao)} de ocupação` }))} />
         </Grafico>
         <Grafico titulo="Como as aulas foram pagas">
           <BarrasH itens={a.porForma.map((g) => ({ nome: g.nome, valor: g.qtd }))} />
@@ -289,7 +289,7 @@ function ServicosRel({ s }) {
       <section className="b-kpis">
         <Kpi rotulo="Faturamento com serviços" valor={realCurto(s.receita)} detalhe={`${s.pacotesVendidos} pacote${s.pacotesVendidos === 1 ? '' : 's'} vendido${s.pacotesVendidos === 1 ? '' : 's'}`} />
         <Kpi rotulo="Atendimentos" valor={s.agendados} detalhe={`${s.atendidos} já atendidos`} />
-        <Kpi rotulo="Faltas" valor={pct(s.taxaFalta)} detalhe={`${s.faltas} faltas · ${s.cancelados} cancelados`} tom={s.taxaFalta > 15 ? 'alerta' : ''} />
+        <Kpi rotulo="Faltas" valor={pct(s.taxaFalta)} detalhe={`${plural(s.faltas, 'falta', 'faltas')} · ${plural(s.cancelados, 'cancelado', 'cancelados')}`} tom={s.taxaFalta > 15 ? 'alerta' : ''} />
       </section>
       <div className="b-duas">
         <Grafico titulo="Serviços mais agendados">
@@ -304,7 +304,7 @@ function ServicosRel({ s }) {
           <BarrasH itens={s.porProfissional.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} />
         </Grafico>
         <Grafico titulo="Faturamento por área">
-          <BarrasH itens={s.receitaPorCategoria.map((i) => ({ nome: i.nome, valor: i.valor, detalhe: `${i.qtd} vendas` }))} formato={realCurto} />
+          <BarrasH itens={s.receitaPorCategoria.map((i) => ({ nome: i.nome, valor: i.valor, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
         </Grafico>
       </div>
     </>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, real, dataBR, hora, hojeIso, linkWhats, primeiro, DIAS_LONGOS } from './ui.jsx';
+import { useDados, Carregando, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, real, dataBR, hora, hojeIso, linkWhats, primeiro, plural, DIAS_LONGOS } from './ui.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { CatalogoServicos, Profissionais } from './Servicos.jsx';
 
@@ -235,7 +235,7 @@ function Planos() {
               <li key={p.id}>
                 <div>
                   <strong>{p.nome}</strong>
-                  <span className="b-suave">{p.tipo} · {p.aulasSemana ? `${p.aulasSemana}x por semana` : `${p.aulasTotal} aula`} · {p.validadeDias} dias · até {p.semJurosAte}x sem juros</span>
+                  <span className="b-suave">{p.tipo} · {p.aulasSemana ? `${p.aulasSemana}x por semana` : plural(p.aulasTotal, 'aula', 'aulas')} · {plural(p.validadeDias, 'dia', 'dias')} · até {p.semJurosAte}x sem juros</span>
                 </div>
                 <span className="b-reserva__tags">
                   <strong>{real(p.preco)}</strong>

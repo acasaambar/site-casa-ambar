@@ -689,7 +689,8 @@ export function ListaPagamentos({ lista, acoes }) {
                 {p.observacao && <span className={`b-bloco ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
               </td>
               <td data-rotulo="Valor" className="num">{real(p.valor)}</td>
-              <td data-rotulo="Forma"><span className="b-nowrap">{p.metodo || '—'}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}</span><span className="b-suave b-bloco">{p.origem}</span></td>
+              <td data-rotulo="Forma">{/* "Cartão de crédito" não quebra no meio; bandeira e parcelas podem ir para a linha de baixo */}
+                {(p.metodo || '—').replace(/ /g, '\u00A0')}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
               <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{p.status}</Tag></td>
               {acoes && <td>{acoes(p)}</td>}
             </tr>

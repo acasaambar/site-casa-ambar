@@ -153,7 +153,7 @@ export function MapaCalor({ celulas, dias = [1, 2, 3, 4, 5, 6], nomesDias }) {
                 if (!c) return <td key={d} className="g-calor__vazio" />;
                 const cor = corDe(c.ocupacao);
                 const escuro = c.ocupacao >= 58;
-                const conteudo = <><strong>{nomesDias[d]} · {h}</strong><span>{c.ocupacao}% ocupado · {c.reservas} reservas em {c.aulas} aulas</span></>;
+                const conteudo = <><strong>{nomesDias[d]} · {h}</strong><span>{c.ocupacao}% ocupado · {c.reservas} {c.reservas === 1 ? 'reserva' : 'reservas'} em {c.aulas} {c.aulas === 1 ? 'aula' : 'aulas'}</span></>;
                 return (
                   <td key={d} style={{ background: cor, color: escuro ? '#FBF8EF' : COR.tinta }}
                     onMouseMove={(e) => mostrar(e, conteudo)} onTouchStart={(e) => mostrar(e, conteudo)}>

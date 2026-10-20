@@ -752,6 +752,7 @@
 .b-subtitulo { margin: 6px 0 -6px; font-family: var(--display); font-weight: 400; font-size: 24px; color: var(--b-tinta); }
 .b-kpi--destaque { background: rgba(166, 132, 94, 0.12); }
 .b-kpi--destaque .b-kpi__valor { color: var(--b-tinta); }
+.b-kpi--destaque.b-kpi--alerta .b-kpi__valor { color: #8A2E12; }
 .inicio__folgas { margin: -8px 0 0; }
 
 /* seletor de mês */
@@ -1423,6 +1424,12 @@
 @media (min-width: 721px) {
   /* telefone e nome não quebram no meio na tabela (no celular a tabela vira cartão) */
   .b-nowrap, .b-tabela td[data-rotulo='Cliente'] strong { white-space: nowrap; }
+  /* códigos longos (nº da comanda) quebram onde precisar, para a tabela caber sem rolar */
+  .b-tabela td[data-rotulo='Item'] { overflow-wrap: anywhere; }
+}
+@media (min-width: 721px) and (max-width: 1180px) {
+  /* iPad e notebook pequeno: colunas mais justas para a tabela caber inteira */
+  .b-tabela th, .b-tabela td { padding-left: 10px; padding-right: 10px; }
 }
 
 /* links de ação: 14 px, sem letras espaçadas (também no login da equipe) */
@@ -1614,7 +1621,7 @@
   .bancada input:not([type='checkbox']):not([type='radio']), .bancada select, .bancada textarea,
   .b-modal input:not([type='checkbox']):not([type='radio']), .b-modal select, .b-modal textarea, .b-login input { font-size: 16px; }
 
-  .bancada .link-acao, .b-modal .link-acao, .bancada .link-sair, .b-modal .link-sair, .b-dados dd .link-acao {
+  .bancada .link-acao, .b-modal .link-acao, .bancada .link-sair, .b-modal .link-sair, .b-dados dd .link-acao, .b-login .link-acao {
     min-height: 40px; display: inline-flex; align-items: center;
   }
   .b-lateral__site, .b-lateral__sair, .atalhos a { min-height: 40px; display: inline-flex; align-items: center; }
