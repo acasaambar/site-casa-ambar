@@ -329,7 +329,7 @@ function cpfComAcesso(d, m) {
     if (!a) throw new Error('Atendimento não encontrado.');
     if (m.papel === 'professora' && !mesmaProfessora(a.profissional, m)) throw new Error('Este atendimento não é seu.');
     cpf = a.cpf ? normCpf(a.cpf) : '';
-    if (!cpf) throw new Error('Esta cliente não tem cadastro. Peça à recepção para cadastrar.');
+    if (!cpf) throw new Error('Esta pessoa ainda não tem cadastro. Peça à recepção para cadastrar.');
     return cpf;
   }
   if (m.papel === 'professora') throw new Error('Abra pela agenda, no atendimento da cliente.');
@@ -516,7 +516,7 @@ function bancada_salvarAnamneseProf(d, m) {
   var novas = (d.fotos || []).slice(0, MAX_FOTOS_ANAMNESE);
   var ex = d.id ? lerAba('AnamnesesProf').filter(function (y) { return String(y.id) === String(d.id); })[0] : null;
   if (d.id && !ex) throw new Error('Anamnese não encontrada.');
-  if (ex && normCpf(ex.cpf) !== cpf) throw new Error('Esta anamnese é de outra cliente.');
+  if (ex && normCpf(ex.cpf) !== cpf) throw new Error('Esta anamnese é de outra pessoa.');
   if (ex && m.papel !== 'admin' && String(ex.criado_por).toLowerCase() !== m.email) throw new Error('Só quem escreveu (ou a administração) pode editar.');
   var fotosAntes = ex ? String(ex.fotos || '').split(',').filter(String) : [];
   var remover = (d.remover || []).map(String).filter(function (f) { return fotosAntes.indexOf(f) >= 0; });

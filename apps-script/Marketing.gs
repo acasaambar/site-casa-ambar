@@ -290,7 +290,7 @@ function bancada_registrarCampanha(d, m) {
 
 function descreverFiltro(f) {
   var t = String(f.tipo || 'todos');
-  if (t === 'sumidos') return 'Sumidas há mais de ' + (Number(f.dias) || 45) + ' dias';
+  if (t === 'sumidos') return 'Sem vir há mais de ' + (Number(f.dias) || 45) + ' dias';
   if (t === 'aniversariantes') return 'Aniversariantes do mês ' + (f.mes || '');
   if (t === 'semRetorno') return 'Vieram uma vez e não voltaram';
   if (t === 'servico') { var s = listarServicos(true).filter(function (x) { return x.id === f.servicoId; })[0]; return 'Fizeram ' + (s ? s.nome : f.servicoId); }

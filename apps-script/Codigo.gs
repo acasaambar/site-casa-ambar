@@ -875,7 +875,7 @@ function gerarPdfAnamnese(v) {
     linhaInfo('Medicamentos de uso contínuo', v.medicamentos) +
     linhaInfo('Alergias', v.alergias) +
     linhaInfo('Pratica atividade física regularmente', v.atividade_regular) +
-    linhaInfo('Observações para a professora', v.observacoes) + '</table>' +
+    linhaInfo('Observações para quem dá a aula', v.observacoes) + '</table>' +
     '<h2>Declarações</h2><p>O aluno declarou que as informações acima são verdadeiras e autorizou a Casa Âmbar a armazená-las ' +
     'exclusivamente para a sua segurança durante as práticas, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018).</p>' +
     '<div class="assin"><div>Assinatura do aluno</div><div>Data</div></div>' +
@@ -1277,7 +1277,7 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     var parcelasPagas = Number(conf.installments || 1);
     var jurosPagos = (Number(conf.paid_amount || conf.amount) - Number(conf.amount)) / 100;
     if (planoRegra && parcelasPagas > 1 && parcelasPagas <= semJurosAte(planoRegra) && jurosPagos > 0.009) {
-      obs = 'DEVOLVER R$ ' + jurosPagos.toFixed(2).replace('.', ',') + ' de juros à aluna: pagou em ' + parcelasPagas + 'x, que é sem juros neste plano.';
+      obs = 'DEVOLVER R$ ' + jurosPagos.toFixed(2).replace('.', ',') + ' de juros: pagou em ' + parcelasPagas + 'x, que é sem juros neste plano.';
     }
     concluirPagamento(pg, {
       metodo: conf.capture_method === 'pix' ? 'Pix' : conf.capture_method === 'credit_card' ? 'Cartão' : String(conf.capture_method || ''),

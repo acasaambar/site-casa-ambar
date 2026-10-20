@@ -236,8 +236,8 @@ function encerrarSessaoToken(token) {
 
 function enviarConviteEquipe(m) {
   var link = criarLinkSenha('equipe', String(m.email).toLowerCase(), m.email, 72, 'convite');
-  var papel = { admin: 'administração', recepcao: 'recepção', professora: 'professora' }[m.papel] || m.papel;
-  enviarEmail(m.email, 'Seu acesso à bancada · Casa Âmbar', 'Bem-vinda à bancada',
+  var papel = { admin: 'administração', recepcao: 'recepção', professora: 'profissional' }[m.papel] || m.papel;
+  enviarEmail(m.email, 'Seu acesso à bancada · Casa Âmbar', 'Boas-vindas à bancada',
     ['Olá, ' + primeiroNome(m.nome) + '!', 'Você recebeu acesso à bancada interna da Casa Âmbar (' + papel + ').',
       'Crie sua senha pelo botão abaixo. O link vale por 3 dias. Depois, entre sempre por ' + AJUSTES.siteUrl + '#/bancada'],
     { texto: 'Criar minha senha', url: link });
@@ -590,7 +590,7 @@ function bancada_ficha(d, m) {
   var cpf = normCpf(d.cpf || '');
   if (m.papel === 'professora') {
     var r = acharReservaPorId(d.reservaId);
-    if (!mesmaProfessora(r.professor, m)) throw new Error('Esta aluna não está nas suas aulas.');
+    if (!mesmaProfessora(r.professor, m)) throw new Error('Esta pessoa não está nas suas aulas.');
     cpf = normCpf(r.cpf);
   } else if (d.reservaId && !d.cpf) {
     cpf = normCpf(acharReservaPorId(d.reservaId).cpf);
@@ -664,7 +664,7 @@ function bancada_novoAluno(d, m) {
 
 function enviarConviteAluno(a) {
   var link = criarLinkSenha('aluno', normCpf(a.cpf), a.email, 72, 'convite');
-  enviarEmail(a.email, 'Sua área do aluno · Casa Âmbar', 'Bem-vinda à Casa Âmbar',
+  enviarEmail(a.email, 'Sua área do aluno · Casa Âmbar', 'Boas-vindas à Casa Âmbar',
     ['Olá, ' + primeiroNome(a.nome) + '!', 'Seu cadastro na Casa Âmbar está pronto. Crie sua senha para reservar suas aulas, escolher o tapete e fazer o check-in pelo celular.',
       'O link vale por 3 dias. Depois, entre com seu CPF e a senha que criar.'], { texto: 'Criar minha senha', url: link });
 }

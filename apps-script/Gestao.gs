@@ -325,7 +325,7 @@ function sincronizarComissoesAulas(de, ate) {
         var k = 'aula:' + r.aula_id;
         alvo[k] = alvo[k] || { data: data, profissional: quem, origem: 'aula_fixa', pct: 100, base: p.yogaPorAula, alunas: 0 };
         alvo[k].alunas++;
-        alvo[k].item = 'Yoga ' + hora + ' · ' + alvo[k].alunas + (alvo[k].alunas === 1 ? ' aluna' : ' alunas');
+        alvo[k].item = 'Yoga ' + hora + ' · ' + alvo[k].alunas + (alvo[k].alunas === 1 ? ' participante' : ' participantes');
       }
     });
   }
@@ -405,7 +405,7 @@ function bancada_salvarPagamentoAulas(d, m) {
   adicionarLinhas('Professoras', novas);
   PropertiesService.getScriptProperties().setProperty('WELLHUB_VALOR_CHECKIN', String(wv || 0));
   esquecerComissoesAulas();
-  registrar(m, 'pagamento das professoras', (d.professoras || []).length + ' professoras · Wellhub R$ ' + (wv || 0));
+  registrar(m, 'pagamento de quem dá aula', (d.professoras || []).length + ' profissionais · Wellhub R$ ' + (wv || 0));
   return bancada_pagamentoAulas();
 }
 
@@ -909,7 +909,7 @@ function bancada_salvarComanda(d, m) {
     if (ex && ex.status !== 'aberta') throw new Error('Esta comanda já foi ' + (ex.status === 'fechada' ? 'fechada' : 'cancelada') + '.');
     var cli = ex && !x.cpf && !x.cliente ? { cpf: ex.cpf ? normCpf(ex.cpf) : '', nome: ex.nome, whatsapp: String(ex.whatsapp || '') } : clienteDaComanda(x);
     var precisaCadastro = itens.some(function (i) { var it = itemDoCatalogo(i.tipo, i.id); return it && (it.tipo === 'pacote' || (i.tipo !== 'produto' && it.modalidade !== 'Serviço')); });
-    if (precisaCadastro && !cli.cpf) throw new Error('Plano e pacote ficam na conta da cliente: escolha uma cliente cadastrada (ou informe nome e WhatsApp).');
+    if (precisaCadastro && !cli.cpf) throw new Error('Plano e pacote ficam na conta de quem compra: escolha alguém com cadastro (ou informe nome e WhatsApp).');
     var calc = calcularItensComanda(itens, cli.cpf, x.codigo);
     var subtotal = dinheiro(calc.reduce(function (s, i) { return s + (i.pago ? 0 : i.preco * i.qtd); }, 0));
     var total = dinheiro(calc.reduce(function (s, i) { return s + i.total; }, 0));

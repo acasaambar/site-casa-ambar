@@ -166,7 +166,7 @@ console.log('— observação do pagamento: a aluna só vê o que é para ela');
 {
   ok(ctx.observacaoParaAluna('ATENÇÃO: o vale AMBAR-XXXX não tinha mais saldo suficiente') === '', 'nota interna do vale não aparece');
   ok(ctx.observacaoParaAluna('Estornado por bia@acasaambar.com.br: cliente desistiu') === '', 'nota de estorno não aparece');
-  ok(/vai devolver/.test(ctx.observacaoParaAluna('DEVOLVER R$ 12,50 de juros à aluna: pagou em 2x')), 'aviso de juros a devolver aparece');
+  ok(/vai devolver/.test(ctx.observacaoParaAluna('DEVOLVER R$ 12,50 de juros: pagou em 2x')), 'aviso de juros a devolver aparece');
 }
 
 console.log('— profissional: só o que é dela, sem CPF');
