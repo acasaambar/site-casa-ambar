@@ -15,7 +15,7 @@ const hoje = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60e3).
 
 // Minha conta: a aluna vê e corrige os próprios dados. E-mail e senha pedem a senha atual.
 export default function MinhaConta() {
-  const { token, expirou, atualizarAluno, guardarSessao, sair } = useAuth();
+  const { token, expirou, atualizarAluno, guardarSessao } = useAuth();
   const nav = useNavigate();
   const [conta, setConta] = useState(null);
   const [erroGeral, setErroGeral] = useState('');
@@ -59,18 +59,6 @@ export default function MinhaConta() {
                 Para corrigir o CPF ou pedir a exclusão dos seus dados, fale com a recepção pelo{' '}
                 <a href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer">WhatsApp {CONFIG.telefone}</a>.
               </p>
-              <button
-                type="button"
-                className="botao botao--linha"
-                onClick={() => {
-                  if (window.confirm('Deseja sair da sua conta?')) {
-                    sair();
-                    nav('/');
-                  }
-                }}
-              >
-                Sair da conta
-              </button>
             </section>
           </>
         )}
