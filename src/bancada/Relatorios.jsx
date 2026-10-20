@@ -241,7 +241,7 @@ function Alunos({ a }) {
           mensagem={(i) => `Feliz aniversário, ${primeiro(i.nome)}! 🎂 A Casa Âmbar deseja um novo ciclo leve e cheio de presença.`} />
       </div>
       <div className="b-duas">
-        <ListaContatos titulo="Sumidos" sub="Fizeram aula nos últimos 4 meses, mas não vêm há 3 semanas e estão sem plano" itens={a.sumidos} nomeCsv="alunos-sumidos"
+        <ListaContatos titulo="Quem sumiu" sub="Fizeram aula nos últimos 4 meses, mas não vêm há 3 semanas e estão sem plano" itens={a.sumidos} nomeCsv="alunos-sumidos"
           extra={(i) => `última aula ${dataCurta(i.ultimaAula)}`}
           mensagem={(i) => `Olá, ${primeiro(i.nome)}! Sentimos sua falta na Casa Âmbar. Que tal voltar à sua prática esta semana?`} />
         <ListaContatos titulo="Só fizeram aula avulsa" sub="Oportunidade de oferecer um plano" itens={a.soAvulsa} nomeCsv="so-avulsa"

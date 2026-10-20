@@ -7,6 +7,7 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 
 - O dono do projeto é o Fábio. Ele está começando em programação e chegou ao projeto como "vibe coder".
 - Responda sempre em **português do Brasil**, de forma **objetiva e direta**.
+- Textos do sistema (telas e e-mails) valem para homens e mulheres: nada só no feminino ("Boas-vindas", "quem dá a aula", "Clientes", "Profissional"). Se não der para neutralizar, use a forma genérica ("Área do aluno").
 - Quando houver código para ele usar, entregue **completo e pronto**, nunca trechos soltos para encaixar.
 - Faça as mudanças você mesmo, teste, publique (commit + push) e explique **o que mudou** em poucas linhas, sem jargão.
 - Quando ele precisar fazer algo fora do código (Google, GitHub, InfinitePay), dê o passo a passo numerado.
@@ -27,7 +28,7 @@ Arquivos do backend:
 - `Bancada.gs`: login da equipe, `PERMISSOES` (lista do que cada papel pode), agenda, clientes, vendas, vales, cupons, ajustes.
 - `Servicos.gs`: catálogo de serviços e pacotes, profissionais (com os serviços que cada uma faz, comissão e tempo próprios), horários livres, agendamento de serviços.
 - `Gestao.gs`: produtos e estoque, comandas, comissões, despesas, financeiro, caixa do dia, bloqueio de horário (folgas).
-- `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico, endereço (`exigirEndereco`, `salvarEndereco` do site), **Minhas clientes** e **anamnese da profissional** (aba `AnamnesesProf`; texto > 44 mil caracteres vai para arquivo no Drive) e comandas da cliente.
+- `Clientes.gs`: cliente sem CPF (código interno de 15 dígitos começando com 9), importação de CSV, ficha de estética, evolução com fotos (Drive), histórico, endereço (`exigirEndereco`, `salvarEndereco` do site), **Clientes** da profissional e **anamnese da profissional** (aba `AnamnesesProf`; texto > 44 mil caracteres vai para arquivo no Drive) e comandas da cliente.
 - `Marketing.gs`: promoções automáticas, campanhas (e-mail e WhatsApp) com descadastro, lembretes da véspera.
 - `Vales.gs`: cupons, vales-presente (cortesia, **não são vendidos**) e `calcularPreco` (promoção × cupom: vale o maior; o vale entra depois).
 - `Relatorios.gs`: relatórios da administração.
@@ -39,10 +40,10 @@ Regras de negócio importantes:
 - Horário das profissionais: por dia da semana com até 3 turnos (`horarios`, JSON) e datas especiais (`especiais`, JSON; `[]` = não atende). Sem `horarios`, vale o cadastro antigo (dias + início/fim dentro de `HORARIO_CASA`). `turnosDoProfissional` decide; a agenda do dia recebe os turnos em `equipe`.
 - Agenda (bancada): "Agenda do dia" no estilo Avec (todas lado a lado: estética, fisio, Pilates, Yoga; horas nas linhas; listrado = fora do horário) e "Aulas e presença".
 - Cliente: endereço (CEP com ViaCEP, rua, número, complemento, bairro, cidade, UF) e "Como nos conheceu?" (`como_conheceu`; opções em `src/lib/clientes.js`). Relatórios → Alunos mostra canais, vendas por canal e bairros. No site o endereço é obrigatório no cadastro; `publico()` devolve `endereco: false` para quem ainda não tem (aviso em Aulas).
-- Minha conta (área do aluno, `/minha-conta`; servidor em Clientes.gs: `minhaConta`, `salvarConta`, `trocarEmail`, `trocarSenha`): a aluna edita nome, WhatsApp, nascimento, endereço e "receber novidades" (`marketing`). CPF não muda. Trocar e-mail ou senha pede a senha atual (mesmo limite de tentativas do login), avisa por e-mail e a troca de senha desconecta os outros aparelhos (devolve sessão nova). `salvarEmail` só vale para quem ainda não tem e-mail. O botão Sair fica em Minha conta e no menu do topo.
-- Profissional (papel `professora`): "Minhas clientes" (`/bancada/clientes/:ref`, `ref` = id de um atendimento dela) com Anamnese (texto livre + fotos; só a autora ou admin edita), Ficha e evolução, Comandas. Ela nunca abre cliente pelo CPF (`cpfComAcesso`).
+- Minha conta (área do aluno, `/minha-conta`; servidor em Clientes.gs: `minhaConta`, `salvarConta`, `trocarEmail`, `trocarSenha`): a aluna edita nome, WhatsApp, nascimento, endereço e "receber novidades" (`marketing`). CPF não muda. Trocar e-mail ou senha pede a senha atual (mesmo limite de tentativas do login), avisa por e-mail e a troca de senha desconecta os outros aparelhos (devolve sessão nova). `salvarEmail` só vale para quem ainda não tem e-mail. Na barra da área do aluno, "Minha conta" e "Sair" ficam juntos à direita (o Sair também está no menu do topo, no celular).
+- Profissional (papel `professora`, mostrado como "Profissional"): "Clientes" (`/bancada/clientes/:ref`, `ref` = id de um atendimento dela) com Anamnese (texto livre + fotos; só a autora ou admin edita), Ficha e evolução, Comandas. Ela nunca abre cliente pelo CPF (`cpfComAcesso`). Na Agenda do dia ela vê só a própria coluna (`ehDela` em `ui.jsx`, igual a `mesmaProfessora`); quem só dá aula abre em "Aulas e presença".
 - Pagamento com cartão (comanda e balcão): a bandeira é obrigatória na tela (`BANDEIRAS`), gravada em `Pagamentos.bandeira`; na comanda o servidor também exige.
-- Professoras de aula (Catálogo → Professoras de aula, aba `Professoras`): Pilates = % sobre o valor da aula da aluna (plano ÷ aulas do plano; mensal 2x = 8; Wellhub = `WELLHUB_VALOR_CHECKIN` nas Propriedades); Yoga = R$ fixo por aula dada (hora/aula). Só aulas terminadas, a partir de `desde`; falta/cancelada não contam. `sincronizarComissoesAulas` (Gestao.gs) grava na aba Comissoes (origem `aula`/`aula_fixa`) ao abrir Comissões, Financeiro ou Meus ganhos (no máximo a cada 5 min; presença e cancelamento refazem na hora).
+- Profissionais de aula (Catálogo → Profissionais de aula, aba `Professoras`): Pilates = % sobre o valor da aula da aluna (plano ÷ aulas do plano; mensal 2x = 8; Wellhub = `WELLHUB_VALOR_CHECKIN` nas Propriedades); Yoga = R$ fixo por aula dada (hora/aula). Só aulas terminadas, a partir de `desde`; falta/cancelada não contam. `sincronizarComissoesAulas` (Gestao.gs) grava na aba Comissoes (origem `aula`/`aula_fixa`) ao abrir Comissões, Financeiro ou Meus ganhos (no máximo a cada 5 min; presença e cancelamento refazem na hora).
 - Abas novas: declarar em `ABAS` (Codigo.gs) e, se tiver CPF/IDs, em `FORMATO_TEXTO`. Colunas novas vão **no fim** da lista (a planilha já existe com dados).
 - Fora de escopo por decisão do dono: clube de assinaturas, nota fiscal e WhatsApp pago (API oficial). Não propor de novo sem ele pedir.
 
@@ -96,7 +97,12 @@ Ao criar algo novo no backend, acrescente casos em `testes/*.teste.cjs`.
 Cores: tinta `#2F3821`, papel `#F4EFDF`, linho `#FBF8EF`, oliva `#6F784D`, terracota `#7E3717`, caramelo `#A6845E`.
 Leitura em primeiro lugar (pedido da equipe): texto em IBM Plex Sans 15 px; números, horas e nomes em Plex Sans seminegrito; **Italiana só nos títulos grandes** (página, janela) e no selo de cera. Nada abaixo de 13 px, cinzas escuros (`--b-suave: #535647`). Rótulos e botões em caixa normal (sem LETRAS MAIÚSCULAS espaçadas); formulários abrem como folha lateral (no celular, de baixo para cima). Senhas sempre com `CampoSenha` (botão de olho).
 Peças com identidade: a **linha do dia** com o sol (Hoje), a **comanda como papel de nota picotado**, a **promoção como selo de cera**.
-Sempre conferir no celular (390 px), no iPad (820 px) e no computador, sem rolagem lateral. Estilos em `src/bancada/bancada.css` (camadas "DESENHO 2", "DESENHO 3" e "DESENHO 4 · leitura" no fim).
+Sempre conferir no celular (390 px), no iPad (820 px) e no computador, sem rolagem lateral. Estilos em `src/bancada/bancada.css` (camadas "DESENHO 2", "DESENHO 3", "DESENHO 4 · leitura" e "DESENHO 5 · revisão" no fim).
+No celular: campos com 16 px (o iPhone não dá zoom) e alvos de toque com 40 px ou mais. Plurais com `plural()` (`ui.jsx`), nunca "(s)". Formulários longos com o botão de salvar preso ao pé (`.b-salvar-fixo`).
+
+## Visual do site
+
+Nada abaixo de 12 px (textos de ajuda com 13 px); rótulos em maiúsculas espaçadas fazem parte da identidade do site. Números dentro de títulos em Italiana passam por `comNumeros()` (`src/components/Num.jsx`): a Italiana tem algarismos antigos ("1X" parece "IX"). Caramelo em texto pequeno: `--caramelo-claro` (fundo escuro) ou `--caramelo-escuro` (fundo claro). Erros de formulário apontam o campo com `apontarCampo()` (`src/lib/util.js`). O WhatsApp flutuante some na área do aluno no celular/iPad (cobria tapetes e botões).
 
 ## Pendências e próximos passos
 

@@ -695,7 +695,7 @@ export function Profissionais() {
         <p className="b-suave">Quem atende os serviços de estética e fisioterapia, as áreas de cada pessoa e o horário. Para ver a própria agenda, a pessoa precisa de um acesso em Equipe com o mesmo nome.</p>
         <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true })}>Cadastrar profissional</button>
       </div>
-      {dados.profissionais.length === 0 && <Vazio titulo="Ninguém cadastrado ainda" forma="presenca">Cadastre a equipe de estética e fisioterapia para começar a agendar serviços.</Vazio>}
+      {dados.profissionais.length === 0 && <Vazio titulo="Equipe ainda vazia" forma="presenca">Cadastre a equipe de estética e fisioterapia para começar a agendar serviços.</Vazio>}
       <ul className="b-equipe">
         {dados.profissionais.map((p) => (
           <li key={p.nome} className={p.ativo ? '' : 'inativo'}>

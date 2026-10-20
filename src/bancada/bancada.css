@@ -560,7 +560,8 @@
 .b-tira strong { font-size: 28px; }
 
 /* aulas na agenda */
-.b-aula { background: var(--b-linho); border-color: var(--b-linha); border-left-width: 4px; }
+.b-aula { background: var(--b-linho); border-color: var(--b-linha); border-left-width: 4px; border-left-color: var(--oliva); }
+.b-aula--pilates { border-left-color: var(--terracota); } /* Pilates com a borda terracota (a regra acima apagava) */
 
 /* ---------- folha lateral (modais) ---------- */
 .b-modal { place-items: stretch end; padding: 0; background: rgba(31, 37, 22, 0.42); }
