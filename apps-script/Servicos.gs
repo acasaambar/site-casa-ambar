@@ -241,7 +241,7 @@ function atendimentoPublico(a, m) {
   return { id: String(a.id), data: dataTexto(a.data), hora: horaTexto(a.hora), duracao: numero(a.duracao_min) || 60, servicoId: String(a.servico_id), servico: String(a.servico),
     categoria: String(a.categoria), profissional: String(a.profissional), cpf: esconder ? '' : (a.cpf ? normCpf(a.cpf) : ''), nome: String(a.nome),
     whatsapp: esconder ? '' : String(a.whatsapp || ''), status: String(a.status), pagamento: String(a.pagamento), valor: numero(a.valor), obs: String(a.obs || ''),
-    creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || '') };
+    creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || ''), titular: String(a.titular || '') };
 }
 
 function bancada_atendimentos(d, m) {
