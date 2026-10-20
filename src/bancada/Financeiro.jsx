@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
   METODOS, mesTexto, plural } from './ui.jsx';
@@ -283,20 +283,22 @@ function Comissoes({ mes }) {
 
 // ---------- caixas anteriores ----------
 function Caixas() {
+  const nav = useNavigate();
   const { dados, erro, carregando } = useDados('caixa', {});
+  const abrir = (dia) => nav('/bancada/comandas', { state: { vista: 'caixa', dia } });
   if (carregando && !dados) return <Carregando />;
   if (!dados) return <Erro>{erro}</Erro>;
   const lista = dados.anteriores || [];
   return (
     <>
-      <p className="b-suave">O caixa de hoje fica em Comandas → Caixa do dia. Aqui estão os últimos fechamentos.</p>
+      <p className="b-suave">O caixa de hoje fica em Comandas → Caixa do dia. Aqui estão os últimos fechamentos: toque num dia para abrir, corrigir ou lançar algo que faltou.</p>
       {lista.length === 0 ? <Vazio titulo="Nenhum caixa fechado ainda" /> : (
         <div className="b-tabela-caixa">
-          <table className="b-tabela">
+          <table className="b-tabela b-tabela--clicavel">
             <thead><tr><th>Dia</th><th className="num">Esperado</th><th className="num">Contado</th><th className="num">Diferença</th><th>Fechado por</th></tr></thead>
             <tbody>
               {lista.map((c) => (
-                <tr key={c.data}>
+                <tr key={c.data} onClick={() => abrir(c.data)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && abrir(c.data)}>
                   <td data-rotulo="Dia">{dataBR(c.data)}</td>
                   <td data-rotulo="Esperado" className="num">{real(c.esperado)}</td>
                   <td data-rotulo="Contado" className="num">{c.contado == null ? '—' : real(c.contado)}</td>

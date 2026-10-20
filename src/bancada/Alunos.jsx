@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
+import { lembrar, guardarNaMemoria } from './memoria.js';
 import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso, plural } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
@@ -73,6 +74,7 @@ export function Alunos() {
           </button>
         ))}
       </div>
+      {local.state?.aviso && <p className="aviso" role="status">{local.state.aviso}</p>}
       <Erro>{erro}</Erro>
       {carregando && !dados && <Carregando />}
       {dados && lista.length === 0 && <Vazio titulo="Ninguém por aqui">Ajuste a busca ou os filtros.</Vazio>}
@@ -290,8 +292,9 @@ export function AlunoDetalhe() {
   const { cpf } = useParams();
   const nav = useNavigate();
   const local = useLocation();
-  const { chamar } = useBancada();
+  const { chamar, membro, token } = useBancada();
   const { dados: a, erro, carregando, recarregar, setDados } = useDados('aluno', { cpf });
+  const [excluir, setExcluir] = useState(false);
   const [aba, setAba] = useState('resumo');
   const [editar, setEditar] = useState(false);
   const [vender, setVender] = useState(false);
@@ -432,11 +435,64 @@ export function AlunoDetalhe() {
         <section className="b-cartao">{a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">A ficha é preenchida pela área do aluno, em Ficha de saúde.</Vazio>}</section>
       )}
 
+      {aba === 'resumo' && pode(membro, 'admin') && (
+        <section className="b-zona-exclusao" aria-label="Excluir cliente">
+          <div>
+            <strong>Excluir cliente</strong>
+            <span>Apaga os dados pessoais, a ficha de saúde e as fotos (pedido de exclusão, LGPD). Não dá para desfazer.</span>
+          </div>
+          <button type="button" className="botao botao--linha botao--p botao--perigo" onClick={() => setExcluir(true)}>Excluir cliente…</button>
+        </section>
+      )}
+
+      {excluir && (
+        <ExcluirCliente a={a} aoFechar={() => setExcluir(false)} aoExcluir={(r) => {
+          // a lista de clientes (na memória da tela) já volta sem a pessoa
+          const chave = `${token}|alunos|{}`;
+          const lista = lembrar(chave);
+          if (Array.isArray(lista)) guardarNaMemoria(chave, lista.filter((x) => x.cpf !== a.cpf));
+          nav('/bancada/alunos', { replace: true, state: { aviso: r.apagado ? `Cadastro de ${a.nome} apagado.` : `Dados pessoais de ${a.nome} apagados. As vendas continuam no financeiro como “Cliente excluído”.` } });
+        }} />
+      )}
       {editar && <EditarAluno a={a} aoFechar={() => setEditar(false)} aoSalvar={async (d) => { await salvar(d); setEditar(false); }} />}
       {vender && <VenderModal aluno={a} aoFechar={() => setVender(false)} aoVender={() => { setVender(false); recarregar(); setAba('planos'); }} />}
       {vale && <AplicarVale aluno={a} aoFechar={() => setVale(false)} aoAplicar={() => { setVale(false); recarregar(); }} />}
       {comanda && <ComandaModal id={comanda.id} inicial={comanda.inicial} aoFechar={() => { setComanda(null); recarregar(); }} />}
     </>
+  );
+}
+
+// ---------- excluir cliente (só administração; LGPD) ----------
+function ExcluirCliente({ a, aoFechar, aoExcluir }) {
+  const { chamar } = useBancada();
+  const [conf, setConf] = useState('');
+  const [erro, setErro] = useState('');
+  const nome = primeiro(a.nome);
+  const confere = conf.trim().toLowerCase() === nome.toLowerCase();
+  return (
+    <Modal titulo="Excluir cliente" rotulo={a.nome} aoFechar={aoFechar}>
+      <div className="b-form ex-cliente">
+        <p className="ex-cliente__alerta"><strong>Isto não pode ser desfeito.</strong> Use quando a pessoa pedir a exclusão dos dados (LGPD) ou para apagar um cadastro feito por engano.</p>
+        <ul className="ex-cliente__lista">
+          <li><strong>Sem histórico</strong> (nenhuma aula, serviço ou compra): o cadastro é apagado por inteiro.</li>
+          <li><strong>Com histórico</strong>: nome, CPF, WhatsApp, e-mail e endereço são apagados em todo o sistema. As vendas continuam no financeiro como “Cliente excluído”, sem dados pessoais, para o caixa e os relatórios não mudarem.</li>
+          <li><strong>Sempre</strong>: ficha de saúde, ficha de estética, evolução, anamneses e fotos são apagadas, e o acesso à área do aluno deixa de funcionar.</li>
+        </ul>
+        {a.comandaAberta && <p className="b-alerta-txt">Há uma comanda aberta. Feche ou cancele a comanda antes de excluir.</p>}
+        <label className="b-campo">
+          <span className="rotulo">Para confirmar, digite o primeiro nome: <strong>{nome}</strong></span>
+          <input value={conf} onChange={(e) => setConf(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={!!conf && !confere} />
+        </label>
+        <Erro>{erro}</Erro>
+        <div className="b-botoes">
+          <BotaoAcao className="botao botao--perigo-cheio" disabled={!confere || !!a.comandaAberta} acao={async () => {
+            setErro('');
+            try { aoExcluir(await chamar('excluirCliente', { cpf: a.cpf, confirmacao: conf.trim() })); } catch (e) { setErro(e.message); }
+          }}>Excluir definitivamente</BotaoAcao>
+          <button type="button" className="botao botao--linha" onClick={aoFechar}>Voltar</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
