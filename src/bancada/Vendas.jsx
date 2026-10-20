@@ -1,10 +1,26 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural } from './ui.jsx';
+import { useDados, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural } from './ui.jsx';
 import { VenderModal, ListaPagamentos } from './Alunos.jsx';
+import { ListaVales } from './Vales.jsx';
 
+// Vendas e vales-presente (o vale é sempre vendido, pela comanda)
 export default function Vendas() {
+  const local = useLocation();
+  const [aba, setAba] = useState(local.state?.aba === 'vales' ? 'vales' : 'vendas');
+  const abas = <Abas atual={aba} aoMudar={setAba} itens={[['vendas', 'Vendas'], ['vales', 'Vales-presente']]} />;
+  if (aba === 'vendas') return <ListaVendas abas={abas} />;
+  return (
+    <>
+      <Cabecalho titulo="Vendas">Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga.</Cabecalho>
+      {abas}
+      <ListaVales abrirNovo={!!local.state?.novo} />
+    </>
+  );
+}
+
+function ListaVendas({ abas }) {
   const local = useLocation();
   const { chamar } = useBancada();
   const [de, setDe] = useState(somarDias(hojeIso(), -30));
@@ -39,6 +55,7 @@ export default function Vendas() {
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>Registrar venda</button>
         </>
       } />
+      {abas}
       <div className="b-periodo">
         <label className="b-campo"><span className="rotulo">De</span><input type="date" value={de} onChange={(e) => e.target.value && setDe(e.target.value)} /></label>
         <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>

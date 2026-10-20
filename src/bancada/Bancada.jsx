@@ -158,7 +158,7 @@ function Painel() {
                 <Route path="comandas" element={<Comandas />} />
                 <Route path="estoque" element={<Estoque />} />
                 <Route path="marketing" element={<Marketing />} />
-                <Route path="vales" element={<Navigate to="/bancada/marketing" replace state={{ aba: 'vales' }} />} />
+                <Route path="vales" element={<Navigate to="/bancada/vendas" replace state={{ aba: 'vales' }} />} />
                 <Route path="grade" element={<Grade />} />
               </>
             )}

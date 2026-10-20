@@ -186,7 +186,7 @@ Abas novas: Produtos, MovEstoque, Comandas, Comissoes, Despesas, Caixa, Folgas, 
 ### Cupons e vales-presente
 
 - **Cupom**: desconto (% ou R$) que o aluno digita no pagamento; criado pela administração.
-- **Vale-presente**: sempre vendido, como item da comanda ("Vender vale-presente" em Marketing → Vales abre a comanda pronta).
+- **Vale-presente**: sempre vendido, como item da comanda ("Vender vale-presente" em Vendas → Vales-presente abre a comanda pronta).
   Dá uma aula/plano/serviço ou um valor em R$. O código nasce quando a comanda é paga; a equipe entrega por e-mail, WhatsApp
   ou no balcão, e o aluno usa em Meu plano → "Tenho um vale-presente" (serviços: na comanda, pagando com o vale).
 

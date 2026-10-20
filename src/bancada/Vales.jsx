@@ -1,27 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, real, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
+import { useBancada } from './sessao.jsx';
+import { useDados, Carregando, Erro, Tag, Modal, BotaoAcao, Vazio, real, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
 import { Sol, Forma, IconeWhatsapp, Logo } from '../components/Marca.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { ComandaModal } from './Comandas.jsx';
 
 const TOM_VALE = { ativo: 'ok', resgatado: 'apagado', usado: 'apagado', cancelado: 'alerta', vencido: 'aviso' };
-
-export default function Vales() {
-  const local = useLocation();
-  const { membro } = useBancada();
-  const [aba, setAba] = useState('vales');
-  return (
-    <>
-      <Cabecalho titulo="Vales e cupons">
-        Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga. Cupom é desconto no pagamento.
-      </Cabecalho>
-      <Abas atual={aba} aoMudar={setAba} itens={[['vales', 'Vales-presente'], ['cupons', 'Cupons de desconto']]} />
-      {aba === 'vales' ? <ListaVales abrirNovo={!!local.state?.novo} /> : <Cupons podeEditar={pode(membro, 'admin')} />}
-    </>
-  );
-}
 
 export function ListaVales({ abrirNovo }) {
   const [novo, setNovo] = useState(abrirNovo);

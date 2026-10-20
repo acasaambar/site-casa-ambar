@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, BANDEIRAS, ehCartao, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
+import { useDados, BANDEIRAS, ehCartao, pedeBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
   telFmt, numBR, plural, METODOS } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -749,7 +749,7 @@ function ValesCriados({ lista }) {
             <button type="button" className="botao botao--linha botao--p" onClick={() => copiar(v)}>{copiado === v.codigo ? 'Mensagem copiada' : 'Copiar mensagem'}</button>
           </div>
           {v.emailEnviado && <span className="cm-vale__ok">E-mail enviado para {v.email}.</span>}
-          {!v.emailEnviado && v.email && <span className="b-suave">O e-mail não foi enviado. Mande pelo WhatsApp ou em Marketing → Vales.</span>}
+          {!v.emailEnviado && v.email && <span className="b-suave">O e-mail não foi enviado. Mande pelo WhatsApp ou em Vendas → Vales-presente.</span>}
         </article>
       ))}
     </section>
@@ -770,7 +770,7 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
     <section className="cm-pagar" aria-label="Pagamento">
       <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
       {linhas.map((l, i) => (
-        <div key={i} className={`cm-pagar__linha${linhas.length > 1 ? ' cm-pagar__linha--tirar' : ''}${/Cartão de crédito|Link/.test(l.metodo) ? ' cm-pagar__linha--parcelas' : ''}${ehCartao(l.metodo) || l.metodo === 'Vale-presente' ? ' cm-pagar__linha--extra' : ''}`}>
+        <div key={i} className={`cm-pagar__linha${linhas.length > 1 ? ' cm-pagar__linha--tirar' : ''}${/Cartão de crédito|Link/.test(l.metodo) ? ' cm-pagar__linha--parcelas' : ''}${pedeBandeira(l.metodo) || l.metodo === 'Vale-presente' ? ' cm-pagar__linha--extra' : ''}`}>
           <select className="cm-pagar__metodo" value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label="Forma">
             {formas.map((m) => <option key={m}>{m}</option>)}
           </select>
@@ -780,9 +780,9 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
               {Array.from({ length: 12 }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}x</option>)}
             </select>
           )}
-          {ehCartao(l.metodo) && (
-            <select className="cm-pagar__extra cm-pagar__bandeira" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={!l.bandeira}>
-              <option value="">Bandeira…</option>
+          {pedeBandeira(l.metodo) && (
+            <select className="cm-pagar__extra cm-pagar__bandeira" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={faltaBandeira(l.metodo, l.bandeira)}>
+              <option value="">{ehCartao(l.metodo) ? 'Bandeira…' : 'Bandeira'}</option>
               {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
             </select>
           )}

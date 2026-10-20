@@ -14,11 +14,12 @@ var METODOS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de d
 // bandeira do cartão (para conferir com o extrato da maquininha)
 var BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
 function ehCartao(metodo) { return metodo === 'Cartão de crédito' || metodo === 'Cartão de débito'; }
+// no Link InfinitePay a bandeira é opcional (o link também aceita Pix)
 function bandeiraDe(metodo, bandeira, obrigatoria) {
-  if (!ehCartao(metodo)) return '';
+  if (!ehCartao(metodo) && metodo !== 'Link InfinitePay') return '';
   var b = String(bandeira || '').trim();
   if (BANDEIRAS.indexOf(b) >= 0) return b;
-  if (obrigatoria || b) throw new Error('Escolha a bandeira do cartão (' + metodo.toLowerCase() + ').');
+  if ((obrigatoria && ehCartao(metodo)) || b) throw new Error('Escolha a bandeira do cartão (' + metodo.toLowerCase() + ').');
   return '';
 }
 

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, real, dataBR, dataCurta, hora, linkWhats, primeiro, telFmt, somarDias, hojeIso,
   numBR, MESES_LONGOS, DIAS_LONGOS, diaSemana, plural } from './ui.jsx';
-import { ListaVales, Cupons } from './Vales.jsx';
+import { Cupons } from './Vales.jsx';
 import { useCatalogoComanda } from './Comandas.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 
@@ -16,12 +16,11 @@ export default function Marketing() {
   const [aba, setAba] = useState(local.state?.aba || 'promocoes');
   return (
     <>
-      <Cabecalho titulo="Marketing">Promoções automáticas, campanhas para trazer de volta quem sumiu, lembretes, vales-presente e cupons.</Cabecalho>
-      <Abas atual={aba} aoMudar={setAba} itens={[['promocoes', 'Promoções'], ['campanhas', 'Campanhas'], ['lembretes', 'Lembretes'], ['vales', 'Vales-presente'], ['cupons', 'Cupons']]} />
+      <Cabecalho titulo="Marketing">Promoções automáticas, campanhas para trazer de volta quem sumiu, lembretes e cupons.</Cabecalho>
+      <Abas atual={aba} aoMudar={setAba} itens={[['promocoes', 'Promoções'], ['campanhas', 'Campanhas'], ['lembretes', 'Lembretes'], ['cupons', 'Cupons']]} />
       {aba === 'promocoes' && <Promocoes admin={pode(membro, 'admin')} />}
       {aba === 'campanhas' && <Campanhas admin={pode(membro, 'admin')} />}
       {aba === 'lembretes' && <Lembretes />}
-      {aba === 'vales' && <ListaVales abrirNovo={!!local.state?.novo} />}
       {aba === 'cupons' && <Cupons podeEditar={pode(membro, 'admin')} />}
     </>
   );

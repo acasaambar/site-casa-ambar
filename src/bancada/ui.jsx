@@ -8,14 +8,17 @@ import { lembrar, temNaMemoria, guardarNaMemoria, buscar, acompanhar } from './m
 export const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
 export const ehCartao = (m) => m === 'Cartão de crédito' || m === 'Cartão de débito';
 export const faltaBandeira = (metodo, bandeira) => ehCartao(metodo) && !bandeira;
+// no link da InfinitePay a bandeira é opcional (o link também aceita Pix)
+export const pedeBandeira = (m) => ehCartao(m) || m === 'Link InfinitePay';
 
 export function CampoBandeira({ metodo, valor, aoMudar, className = 'b-campo' }) {
-  if (!ehCartao(metodo)) return null;
+  if (!pedeBandeira(metodo)) return null;
+  const obrigatoria = ehCartao(metodo);
   return (
     <label className={className}>
-      <span className="rotulo">Bandeira do cartão</span>
-      <select value={valor} onChange={(e) => aoMudar(e.target.value)} aria-invalid={!valor} required>
-        <option value="">Escolha…</option>
+      <span className="rotulo">{obrigatoria ? 'Bandeira do cartão' : 'Bandeira do cartão (se pagou no cartão)'}</span>
+      <select value={valor} onChange={(e) => aoMudar(e.target.value)} aria-invalid={obrigatoria && !valor} required={obrigatoria}>
+        <option value="">{obrigatoria ? 'Escolha…' : 'Pix ou não sei'}</option>
         {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
       </select>
     </label>

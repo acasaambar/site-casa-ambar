@@ -143,5 +143,21 @@ console.log('— caixa de dia que já passou (só administração)');
   ok(chamar('b_abrirCaixa', { token: rec, valor: 50 }).ok, 'a recepção continua abrindo o de hoje');
 }
 
+console.log('— Link InfinitePay: bandeira opcional');
+{
+  const nova = (valor) => chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Compra no balcão', whatsapp: '85987654321' }, itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor } }] } }).dados;
+  const c1 = nova(80);
+  r = chamar('b_fecharComanda', { token: rec, id: c1.id, pagamentos: [{ metodo: 'Link InfinitePay', valor: 80, parcelas: 2, bandeira: 'Elo' }] });
+  ok(r.ok && ctx.lerAba('Pagamentos').find((p) => p.comanda === c1.id).bandeira === 'Elo', 'link pago no cartão guarda a bandeira', r);
+  const c2 = nova(90);
+  r = chamar('b_fecharComanda', { token: rec, id: c2.id, pagamentos: [{ metodo: 'Link InfinitePay', valor: 90 }] });
+  ok(r.ok && !ctx.lerAba('Pagamentos').find((p) => p.comanda === c2.id).bandeira, 'link sem bandeira (pago no Pix) também fecha', r);
+  const c3 = nova(70);
+  r = chamar('b_fecharComanda', { token: rec, id: c3.id, pagamentos: [{ metodo: 'Link InfinitePay', valor: 70, bandeira: 'Inventada' }] });
+  ok(!r.ok, 'bandeira fora da lista é recusada');
+  r = chamar('b_fecharComanda', { token: rec, id: c3.id, pagamentos: [{ metodo: 'Cartão de débito', valor: 70 }] });
+  ok(!r.ok && /bandeira/.test(r.erro), 'no cartão da maquininha continua obrigatória', r);
+}
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);

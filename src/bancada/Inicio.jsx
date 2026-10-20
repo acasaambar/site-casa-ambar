@@ -202,7 +202,7 @@ export default function Inicio() {
                 <nav className="atalhos" aria-label="Atalhos">
                   <Link to="/bancada/comandas" state={{ nova: true }}>Abrir comanda</Link>
                   <Link to="/bancada/agenda" state={{ vista: 'servicos' }}>Agendar serviço</Link>
-                  <Link to="/bancada/marketing" state={{ aba: 'vales', novo: true }}>Vender vale-presente</Link>
+                  <Link to="/bancada/vendas" state={{ aba: 'vales', novo: true }}>Vender vale-presente</Link>
                   <Link to="/bancada/alunos" state={{ novo: true }}>Cadastrar cliente</Link>
                 </nav>
               </section>
