@@ -234,16 +234,25 @@ export function Tag({ tom = 'neutro', children, title }) {
   return <span className={`b-tag b-tag--${tom}`} title={title}>{children}</span>;
 }
 
+// folhas abertas uma sobre a outra (ex.: editar um item dentro da comanda): o Esc fecha só a de cima
+const folhasAbertas = [];
+
 export function Modal({ titulo, rotulo, aoFechar, children, largo }) {
   const ref = useRef(null);
   const fechar = useRef(aoFechar);
   fechar.current = aoFechar;
   useEffect(() => {
-    const esc = (e) => e.key === 'Escape' && fechar.current?.();
+    const eu = {};
+    folhasAbertas.push(eu);
+    const esc = (e) => e.key === 'Escape' && folhasAbertas[folhasAbertas.length - 1] === eu && fechar.current?.();
     document.addEventListener('keydown', esc);
     document.body.classList.add('b-sem-rolagem');
-    ref.current?.querySelector('.b-modal__corpo input:not([type=checkbox]), .b-modal__corpo select, .b-modal__corpo textarea')?.focus();
-    return () => { document.removeEventListener('keydown', esc); document.body.classList.remove('b-sem-rolagem'); };
+    ref.current?.querySelector('.b-modal__corpo input:not([type=checkbox]):not([type=radio]), .b-modal__corpo select, .b-modal__corpo textarea')?.focus();
+    return () => {
+      document.removeEventListener('keydown', esc);
+      folhasAbertas.splice(folhasAbertas.indexOf(eu), 1);
+      if (!folhasAbertas.length) document.body.classList.remove('b-sem-rolagem');
+    };
   }, []);
   return (
     <div className="b-modal" role="dialog" aria-modal="true" aria-label={titulo} onMouseDown={(e) => e.target === e.currentTarget && aoFechar?.()}>
