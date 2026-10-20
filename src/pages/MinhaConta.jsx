@@ -6,8 +6,8 @@ import { useAuth } from '../lib/auth.jsx';
 import { Carregando } from './Aulas.jsx';
 import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
 import { EnderecoSite } from '../components/EnderecoSite.jsx';
-import { faltaNoEndereco } from '../lib/clientes.js';
-import { mascaraCPF, mascaraTelefone, soDigitos } from '../lib/util.js';
+import { campoFaltandoNoEndereco, faltaNoEndereco } from '../lib/clientes.js';
+import { apontarCampo, mascaraCPF, mascaraTelefone, soDigitos } from '../lib/util.js';
 import { problemaSenha } from './Entrar.jsx';
 import { CONFIG } from '../config.js';
 
@@ -67,6 +67,15 @@ export default function MinhaConta() {
   );
 }
 
+// validação no navegador: limpa as marcas antigas e devolve falhar(mensagem, campo), que mostra o erro e leva até o campo
+function falhaNoCampo(form, setErro) {
+  apontarCampo(form, '');
+  return (msg, nome) => {
+    setErro(msg);
+    apontarCampo(form, nome);
+  };
+}
+
 function Aviso({ ok, erro }) {
   if (erro) return <p className="erro" role="alert">{erro}</p>;
   if (ok) return <p className="conta__ok" role="status">{ok}</p>;
@@ -90,11 +99,12 @@ function DadosPessoais({ conta, token, aoSalvar, tratarErro }) {
     e.preventDefault();
     setErro('');
     setOk('');
-    if (f.nome.trim().split(/\s+/).length < 2) return setErro('Informe nome e sobrenome.');
-    if (soDigitos(f.whatsapp).length < 10) return setErro('Informe um WhatsApp com DDD.');
-    if (f.nascimento && f.nascimento > hoje()) return setErro('Confira a data de nascimento.');
+    const falhar = falhaNoCampo(e.currentTarget, setErro);
+    if (f.nome.trim().split(/\s+/).length < 2) return falhar('Informe nome e sobrenome.', 'nome');
+    if (soDigitos(f.whatsapp).length < 10) return falhar('Informe um WhatsApp com DDD.', 'whatsapp');
+    if (f.nascimento && f.nascimento > hoje()) return falhar('Confira a data de nascimento.', 'nascimento');
     const faltaEnd = faltaNoEndereco(endereco);
-    if (faltaEnd) return setErro(faltaEnd);
+    if (faltaEnd) return falhar(faltaEnd, campoFaltandoNoEndereco(endereco));
     setSalvando(true);
     try {
       const c = await api.salvarConta(token, { nome: f.nome.trim(), whatsapp: soDigitos(f.whatsapp), nascimento: f.nascimento || '', novidades: f.novidades, endereco });
@@ -114,7 +124,7 @@ function DadosPessoais({ conta, token, aoSalvar, tratarErro }) {
         <legend className="display-p">Seus dados</legend>
         <label>
           Nome completo
-          <input type="text" autoComplete="name" required value={f.nome} onChange={mudar('nome')} />
+          <input type="text" name="nome" autoComplete="name" required value={f.nome} onChange={mudar('nome')} />
         </label>
         <div className="duas-colunas">
           <label>
@@ -124,13 +134,13 @@ function DadosPessoais({ conta, token, aoSalvar, tratarErro }) {
           </label>
           <label>
             Data de nascimento
-            <input type="date" max={hoje()} value={f.nascimento} onChange={mudar('nascimento')} />
+            <input type="date" name="nascimento" max={hoje()} value={f.nascimento} onChange={mudar('nascimento')} />
             <span className="dica-campo">Opcional. Para a gente lembrar do seu aniversário.</span>
           </label>
         </div>
         <label>
           WhatsApp
-          <input type="tel" inputMode="numeric" autoComplete="tel" placeholder="(85) 90000-0000" required value={f.whatsapp} onChange={mudar('whatsapp', mascaraTelefone)} />
+          <input type="tel" name="whatsapp" inputMode="numeric" autoComplete="tel" placeholder="(85) 90000-0000" required value={f.whatsapp} onChange={mudar('whatsapp', mascaraTelefone)} />
           <span className="dica-campo">Usado para lembretes das aulas e contato da recepção.</span>
         </label>
         <label className="termo">
@@ -158,9 +168,10 @@ function TrocarEmail({ conta, token, aoSalvar, tratarErro }) {
     e.preventDefault();
     setErro('');
     setOk('');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return setErro('Informe um e-mail válido.');
-    if (email.trim().toLowerCase() === conta.email.toLowerCase()) return setErro('Este já é o seu e-mail.');
-    if (!senha) return setErro('Digite sua senha atual para confirmar.');
+    const falhar = falhaNoCampo(e.currentTarget, setErro);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return falhar('Informe um e-mail válido.', 'email');
+    if (email.trim().toLowerCase() === conta.email.toLowerCase()) return falhar('Este já é o seu e-mail.', 'email');
+    if (!senha) return falhar('Digite sua senha atual para confirmar.', 'senha');
     setSalvando(true);
     try {
       const c = await api.trocarEmail(token, email.trim(), senha);
@@ -185,11 +196,11 @@ function TrocarEmail({ conta, token, aoSalvar, tratarErro }) {
         </p>
         <label>
           Novo e-mail
-          <input type="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); setOk(''); }} />
+          <input type="email" name="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); setOk(''); }} />
         </label>
         <label>
           Sua senha atual
-          <CampoSenha autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
+          <CampoSenha name="senha" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} />
         </label>
         <Aviso ok={ok} erro={erro} />
         <button type="submit" className="botao botao--cheio" disabled={salvando}>{salvando ? 'Salvando…' : 'Trocar e-mail'}</button>
@@ -209,11 +220,12 @@ function TrocarSenha({ token, aoTrocar, tratarErro }) {
     e.preventDefault();
     setErro('');
     setOk('');
-    if (!f.atual) return setErro('Digite sua senha atual.');
+    const falhar = falhaNoCampo(e.currentTarget, setErro);
+    if (!f.atual) return falhar('Digite sua senha atual.', 'atual');
     const problema = problemaSenha(f.nova);
-    if (problema) return setErro(problema);
-    if (f.nova !== f.nova2) return setErro('As senhas novas não conferem.');
-    if (f.nova === f.atual) return setErro('A nova senha precisa ser diferente da atual.');
+    if (problema) return falhar(problema, 'nova');
+    if (f.nova !== f.nova2) return falhar('As senhas novas não conferem.', 'nova2');
+    if (f.nova === f.atual) return falhar('A nova senha precisa ser diferente da atual.', 'nova');
     setSalvando(true);
     try {
       const s = await api.trocarSenha(token, f.atual, f.nova);
@@ -233,15 +245,15 @@ function TrocarSenha({ token, aoTrocar, tratarErro }) {
         <legend className="display-p">Senha</legend>
         <label>
           Senha atual
-          <CampoSenha autoComplete="current-password" value={f.atual} onChange={mudar('atual')} />
+          <CampoSenha name="atual" autoComplete="current-password" value={f.atual} onChange={mudar('atual')} />
         </label>
         <label>
           Nova senha
-          <CampoSenha autoComplete="new-password" value={f.nova} onChange={mudar('nova')} />
+          <CampoSenha name="nova" autoComplete="new-password" value={f.nova} onChange={mudar('nova')} />
         </label>
         <label>
           Confirmar nova senha
-          <CampoSenha autoComplete="new-password" value={f.nova2} onChange={mudar('nova2')} />
+          <CampoSenha name="nova2" autoComplete="new-password" value={f.nova2} onChange={mudar('nova2')} />
           <ConfereSenha senha={f.nova} confirmacao={f.nova2} />
         </label>
         <Aviso ok={ok} erro={erro} />

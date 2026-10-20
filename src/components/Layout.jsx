@@ -36,12 +36,26 @@ export function Header() {
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'movimento')}>Yoga & Pilates</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'cuidados')}>Cuidados</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'contato')}>Contato</a>
+          {/* atalhos da área: só no menu do celular (no computador já estão na barra da área do aluno) */}
           {aluno ? (
             <>
-              <NavLink to="/aulas">Aulas</NavLink>
-              <NavLink to="/minhas-reservas">Minhas reservas</NavLink>
-              <NavLink to="/meu-plano">Meu plano</NavLink>
-              <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { e.preventDefault(); sair(); navegar('/'); }}>Sair</a>
+              <NavLink className="topo__nav-area" to="/aulas">Aulas</NavLink>
+              <NavLink className="topo__nav-area" to="/minhas-reservas">Minhas reservas</NavLink>
+              <NavLink className="topo__nav-area" to="/meu-plano">Meu plano</NavLink>
+              <NavLink className="topo__nav-area" to="/minha-conta">Minha conta</NavLink>
+              <a
+                className="topo__nav-area"
+                href={`${import.meta.env.BASE_URL}#/`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (window.confirm('Deseja sair da sua conta?')) {
+                    sair();
+                    navegar('/');
+                  }
+                }}
+              >
+                Sair
+              </a>
             </>
           ) : null}
         </nav>
@@ -91,6 +105,7 @@ const IconeSeta = () => (
 );
 
 export function Footer() {
+  const { aluno } = useAuth();
   return (
     <footer id="contato" className="rodape">
       <div className="rodape__in">
@@ -126,9 +141,20 @@ export function Footer() {
 
         <div className="rodape__col">
           <h2 className="rotulo">Área do aluno</h2>
-          <Link className="rodape__item" to="/entrar"><IconeSeta /> <span>Entrar</span></Link>
-          <Link className="rodape__item" to="/aulas"><IconeSeta /> <span>Reservar aula</span></Link>
-          <Link className="rodape__item" to="/minhas-reservas"><IconeSeta /> <span>Minhas reservas</span></Link>
+          {aluno ? (
+            <>
+              <Link className="rodape__item" to="/aulas"><IconeSeta /> <span>Aulas</span></Link>
+              <Link className="rodape__item" to="/minhas-reservas"><IconeSeta /> <span>Minhas reservas</span></Link>
+              <Link className="rodape__item" to="/meu-plano"><IconeSeta /> <span>Meu plano</span></Link>
+              <Link className="rodape__item" to="/minha-conta"><IconeSeta /> <span>Minha conta</span></Link>
+            </>
+          ) : (
+            <>
+              <Link className="rodape__item" to="/entrar"><IconeSeta /> <span>Entrar</span></Link>
+              <Link className="rodape__item" to="/aulas"><IconeSeta /> <span>Reservar aula</span></Link>
+              <Link className="rodape__item" to="/minhas-reservas"><IconeSeta /> <span>Minhas reservas</span></Link>
+            </>
+          )}
         </div>
       </div>
       <div className="rodape__base">

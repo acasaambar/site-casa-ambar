@@ -4,8 +4,8 @@ import { api } from '../lib/api.js';
 import AreaNav from '../components/AreaNav.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
-import { DIAS_CURTOS, MESES, dataDeIso, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
-import { ENDERECO_VAZIO, faltaNoEndereco } from '../lib/clientes.js';
+import { DIAS_CURTOS, MESES, apontarCampo, dataDeIso, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
+import { ENDERECO_VAZIO, faltaNoEndereco, campoFaltandoNoEndereco } from '../lib/clientes.js';
 import { EnderecoSite } from '../components/EnderecoSite.jsx';
 
 export default function Aulas() {
@@ -34,6 +34,7 @@ export default function Aulas() {
 
   const dias = useMemo(() => [...new Set((aulas || []).map((a) => a.data))], [aulas]);
   const doDia = (aulas || []).filter((a) => a.data === dia && (filtro === 'Todas' || a.modalidade === filtro));
+  const reservadas = (aulas || []).filter((x) => x.minhaReserva).length;
 
   return (
     <main className="app">
@@ -41,9 +42,9 @@ export default function Aulas() {
         <div className="largura">
           <span className="rotulo-espacado cor-caramelo">Área do aluno</span>
           <h1 className="display-m">Olá, {aluno?.nome.split(' ')[0]}. Qual aula hoje?</h1>
-          {(aulas || []).some((x) => x.minhaReserva) && (
+          {reservadas > 0 && (
             <Link to="/minhas-reservas" className="atalho-reservas">
-              Você tem {(aulas || []).filter((x) => x.minhaReserva).length} aula(s) reservada(s) · ver minhas reservas →
+              Você tem {reservadas} {reservadas === 1 ? 'aula reservada' : 'aulas reservadas'} · ver minhas reservas →
             </Link>
           )}
         </div>
@@ -71,10 +72,19 @@ export default function Aulas() {
               })}
             </div>
 
-            <div className="filtros" role="group" aria-label="Modalidade">
-              {['Todas', 'Yoga', 'Pilates'].map((m) => (
-                <button key={m} type="button" aria-pressed={filtro === m} onClick={() => setFiltro(m)}>{m}</button>
-              ))}
+            <div className="aulas__ferramentas">
+              <div className="filtros" role="group" aria-label="Modalidade">
+                {['Todas', 'Yoga', 'Pilates'].map((m) => (
+                  <button key={m} type="button" aria-pressed={filtro === m} onClick={() => setFiltro(m)}>{m}</button>
+                ))}
+              </div>
+              {/* explica as bolinhas de vagas do Pilates */}
+              {doDia.some((a) => a.modalidade === 'Pilates') && (
+                <p className="legenda-vagas">
+                  <span><i className="legenda-vagas__livre" aria-hidden="true" />vaga livre</span>
+                  <span><i className="legenda-vagas__ocupada" aria-hidden="true" />ocupada</span>
+                </p>
+              )}
             </div>
 
             {doDia.length === 0 ? (
@@ -143,7 +153,7 @@ export function Carregando() {
   );
 }
 
-// Aluna antiga sem endereço completo (para a nota fiscal): completa aqui mesmo
+// Cadastro antigo sem endereço completo (para os recibos): completa aqui mesmo
 function AvisoEndereco() {
   const { token, aluno, atualizarAluno } = useAuth();
   const [aberto, setAberto] = useState(false);
@@ -154,6 +164,7 @@ function AvisoEndereco() {
   async function salvar(e) {
     e.preventDefault();
     const falta = faltaNoEndereco(endereco);
+    apontarCampo(e.currentTarget, falta ? campoFaltandoNoEndereco(endereco) : '');
     if (falta) return setErro(falta);
     setErro('');
     setSalvando(true);
@@ -171,7 +182,7 @@ function AvisoEndereco() {
       <form className="aviso-email aviso-email--endereco form" onSubmit={salvar} noValidate>
         <div>
           <strong>Complete seu endereço</strong>
-          <p>Precisamos dele para emitir os recibos e notas da Casa Âmbar.</p>
+          <p>Precisamos dele para os recibos e para manter seu cadastro em dia.</p>
         </div>
         {!aberto ? (
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setAberto(true)}>Preencher agora</button>
@@ -212,7 +223,7 @@ function AvisoEmail() {
       <form className="aviso-email" onSubmit={salvar}>
         <div>
           <strong>Cadastre seu e-mail</strong>
-          <p>Assim você recupera a senha sozinha, sem precisar chamar a recepção.</p>
+          <p>Assim você recupera a senha pelo e-mail, sem precisar chamar a recepção.</p>
         </div>
         <div className="codigo__linha">
           <input type="email" autoComplete="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="E-mail" />

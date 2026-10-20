@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { Logo, Forma, img } from '../components/Marca.jsx';
-import { mascaraCPF, mascaraTelefone, cpfValido, soDigitos } from '../lib/util.js';
+import { mascaraCPF, mascaraTelefone, cpfValido, soDigitos, apontarCampo } from '../lib/util.js';
 import { MODO_DEMO } from '../lib/api.js';
 import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
-import { COMO_CONHECEU, ENDERECO_VAZIO, faltaNoEndereco } from '../lib/clientes.js';
+import { COMO_CONHECEU, ENDERECO_VAZIO, faltaNoEndereco, campoFaltandoNoEndereco } from '../lib/clientes.js';
 import { EnderecoSite } from '../components/EnderecoSite.jsx';
 
 export function problemaSenha(s) {
@@ -24,8 +24,10 @@ export default function Entrar() {
   const [endereco, setEndereco] = useState(ENDERECO_VAZIO);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const formRef = useRef(null);
 
   const campo = (k, mascara) => ({
+    name: k,
     value: f[k],
     onChange: (e) => setF((v) => ({ ...v, [k]: mascara ? mascara(e.target.value) : e.target.value })),
   });
@@ -33,16 +35,22 @@ export default function Entrar() {
   async function enviar(e) {
     e.preventDefault();
     setErro('');
-    if (!cpfValido(f.cpf)) return setErro('Confira o CPF digitado.');
+    apontarCampo(formRef.current, '');
+    // erro de preenchimento: mostra a mensagem e leva até o campo
+    const falhar = (msg, nome) => {
+      setErro(msg);
+      apontarCampo(formRef.current, nome);
+    };
+    if (!cpfValido(f.cpf)) return falhar('Confira o CPF digitado.', 'cpf');
     if (modo === 'cadastro') {
-      if (f.nome.trim().split(' ').length < 2) return setErro('Informe nome e sobrenome.');
-      if (soDigitos(f.whatsapp).length < 10) return setErro('Informe um WhatsApp com DDD.');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) return setErro('Informe um e-mail válido. É por ele que você recupera a senha.');
+      if (f.nome.trim().split(' ').length < 2) return falhar('Informe nome e sobrenome.', 'nome');
+      if (soDigitos(f.whatsapp).length < 10) return falhar('Informe um WhatsApp com DDD.', 'whatsapp');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) return falhar('Informe um e-mail válido. É por ele que você recupera a senha.', 'email');
       const faltaEnd = faltaNoEndereco(endereco);
-      if (faltaEnd) return setErro(faltaEnd);
+      if (faltaEnd) return falhar(faltaEnd, campoFaltandoNoEndereco(endereco));
       const problema = problemaSenha(f.senha);
-      if (problema) return setErro(problema);
-      if (f.senha !== f.senha2) return setErro('As senhas não conferem.');
+      if (problema) return falhar(problema, 'senha');
+      if (f.senha !== f.senha2) return falhar('As senhas não conferem.', 'senha2');
     }
     setEnviando(true);
     try {
@@ -88,7 +96,7 @@ export default function Entrar() {
             {modo === 'entrar' ? 'Entre com seu CPF e senha para reservar sua aula.' : 'Crie sua conta em 2 passos: seus dados e uma ficha de saúde rápida.'}
           </p>
 
-          <form onSubmit={enviar} noValidate className="form">
+          <form ref={formRef} onSubmit={enviar} noValidate className="form">
             {modo === 'cadastro' && (
               <label>
                 Nome completo

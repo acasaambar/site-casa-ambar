@@ -20,36 +20,36 @@ export function EnderecoSite({ valor, aoMudar }) {
   }
   return (
     <fieldset className="end-site">
-      <legend>Endereço</legend>
+      <legend className="display-p">Endereço</legend>
       <div className="end-site__grade">
         <label className="end-site__cep">
           CEP
-          <input inputMode="numeric" autoComplete="postal-code" placeholder="60000-000" required value={valor.cep} onChange={cep} />
+          <input name="cep" inputMode="numeric" autoComplete="postal-code" placeholder="60000-000" required value={valor.cep} onChange={cep} />
           {buscando && <span className="dica-campo">Buscando o endereço…</span>}
         </label>
         <label className="end-site__rua">
           Rua / avenida
-          <input autoComplete="address-line1" required value={valor.endereco} onChange={mudar('endereco')} />
+          <input name="endereco" autoComplete="address-line1" required value={valor.endereco} onChange={mudar('endereco')} />
         </label>
         <label className="end-site__num">
           Número
-          <input autoComplete="off" required value={valor.numero} onChange={mudar('numero')} />
+          <input name="numero" autoComplete="off" required value={valor.numero} onChange={mudar('numero')} />
         </label>
         <label className="end-site__comp">
           Complemento
-          <input autoComplete="address-line2" placeholder="Opcional" value={valor.complemento} onChange={mudar('complemento')} />
+          <input name="complemento" autoComplete="address-line2" placeholder="Opcional" value={valor.complemento} onChange={mudar('complemento')} />
         </label>
         <label className="end-site__bairro">
           Bairro
-          <input autoComplete="address-level3" required value={valor.bairro} onChange={mudar('bairro')} />
+          <input name="bairro" autoComplete="address-level3" required value={valor.bairro} onChange={mudar('bairro')} />
         </label>
         <label className="end-site__cidade">
           Cidade
-          <input autoComplete="address-level2" required value={valor.cidade} onChange={mudar('cidade')} />
+          <input name="cidade" autoComplete="address-level2" required value={valor.cidade} onChange={mudar('cidade')} />
         </label>
         <label className="end-site__uf">
           UF
-          <select required value={valor.uf} onChange={mudar('uf')}>
+          <select name="uf" required value={valor.uf} onChange={mudar('uf')}>
             <option value="">—</option>
             {UFS.map((u) => <option key={u}>{u}</option>)}
           </select>

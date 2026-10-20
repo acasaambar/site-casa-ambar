@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth.jsx';
 import { Forma, Sol } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
 import { CONFIG } from '../config.js';
+import { comNumeros } from '../components/Num.jsx';
 import { dataExtensa, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
 
 export default function MinhasReservas() {
@@ -87,7 +88,7 @@ export default function MinhasReservas() {
               <li key={r.id} className={`bilhete ${fez ? 'bilhete--feito' : ''}`}>
                 <div className="bilhete__corpo">
                   <span className="rotulo-espacado">{r.modalidade}</span>
-                  <h2 className="display-p">{dataExtensa(r.data)}</h2>
+                  <h2 className="display-p">{comNumeros(dataExtensa(r.data))}</h2>
                   <p>{formatarHora(r.hora)} às {formatarHora(horaFim(r.hora))}</p>
                   <p className="bilhete__prof">com {r.professor}</p>
                   {r.wellhub && <span className="selo-wellhub">Wellhub · check-in no app ao chegar</span>}
@@ -140,7 +141,7 @@ export default function MinhasReservas() {
 
         {aluno && (
           <p className="logado-como">
-            Conectado como {aluno.nome} · <Link to="/ficha-saude" state={{ de: '/minhas-reservas' }}>{aluno.anamnese ? 'Atualizar ficha de saúde' : 'Preencher ficha de saúde'}</Link>
+            Você entrou como {aluno.nome} · <Link to="/ficha-saude" state={{ de: '/minhas-reservas' }}>{aluno.anamnese ? 'Atualizar ficha de saúde' : 'Preencher ficha de saúde'}</Link>
           </p>
         )}
       </div>

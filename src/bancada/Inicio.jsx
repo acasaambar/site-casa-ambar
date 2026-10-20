@@ -18,14 +18,17 @@ function useAgora() {
   return agora;
 }
 
-// distribui itens que se sobrepõem em linhas diferentes da mesma faixa
+// distribui itens que se sobrepõem em linhas diferentes da mesma faixa.
+// Conta pelo menos 60 min de largura: a pedra tem largura mínima para a hora escrita ("16h30")
+// e um atendimento curto não pode cobrir o seguinte (ver .pedra no CSS)
+const LARGURA_MIN = 60;
 function emLinhas(itens) {
   const fins = [];
   return [...itens].sort((a, b) => min(a.hora) - min(b.hora)).map((x) => {
     const ini = min(x.hora);
     let l = fins.findIndex((f) => f <= ini);
     if (l < 0) { l = fins.length; fins.push(0); }
-    fins[l] = ini + x.duracao;
+    fins[l] = ini + Math.max(x.duracao, LARGURA_MIN);
     return { ...x, linha: l };
   });
 }
@@ -47,8 +50,9 @@ function Faixa({ nome, itens, m, dentro, render }) {
   );
 }
 
-// A linha do dia: das 6h às 20h, com o sol marcando a hora e cada aula/atendimento no lugar dele
-function LinhaDoDia({ aulas, servicos, agora }) {
+// A linha do dia: das 6h às 20h, com o sol marcando a hora e cada aula/atendimento no lugar dele.
+// "faixas" diz quais linhas aparecem (a profissional só vê as que são dela)
+function LinhaDoDia({ aulas, servicos, agora, faixas = ['Yoga', 'Pilates', 'Serviços'] }) {
   const caixa = useRef(null);
   const m = agora.getHours() * 60 + agora.getMinutes();
   const dentro = m >= INI && m <= FIM;
@@ -72,15 +76,16 @@ function LinhaDoDia({ aulas, servicos, agora }) {
     <section className="linha" aria-label="Linha do dia">
       <div className="linha__rolagem" ref={caixa}>
         <div className="linha__trilho">
-          <Faixa nome="Yoga" itens={aulas.filter((a) => a.modalidade === 'Yoga')} m={m} dentro={dentro} render={aula} />
-          <Faixa nome="Pilates" itens={aulas.filter((a) => a.modalidade === 'Pilates')} m={m} dentro={dentro} render={aula} />
-          <Faixa nome="Serviços" itens={servicos} m={m} dentro={dentro} render={(a, estilo, passou) => (
+          {faixas.length === 0 && <p className="linha__vazia">Nenhuma aula ou atendimento seu hoje.</p>}
+          {faixas.includes('Yoga') && <Faixa nome="Yoga" itens={aulas.filter((a) => a.modalidade === 'Yoga')} m={m} dentro={dentro} render={aula} />}
+          {faixas.includes('Pilates') && <Faixa nome="Pilates" itens={aulas.filter((a) => a.modalidade === 'Pilates')} m={m} dentro={dentro} render={aula} />}
+          {faixas.includes('Serviços') && <Faixa nome="Serviços" itens={servicos} m={m} dentro={dentro} render={(a, estilo, passou) => (
             <Link key={a.id} to="/bancada/agenda" state={{ vista: 'servicos' }} title={`${hora(a.hora)} · ${a.servico} · ${a.nome} com ${a.profissional}`}
               className={`pedra pedra--s pedra--${COR_CATEGORIA[a.categoria] || 'facial'}${passou ? ' pedra--passou' : ''}`} style={estilo}>
               <strong>{hora(a.hora)}</strong>
               <span>{primeiro(a.nome)}</span>
             </Link>
-          )} />
+          )} />}
           {dentro && (
             <div className="linha__agora" style={{ left: pos(m) }} aria-label={`Agora, ${agora.getHours()}h${String(agora.getMinutes()).padStart(2, '0')}`}>
               <Sol tamanho={26} className="linha__sol" />

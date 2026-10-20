@@ -81,6 +81,11 @@ export function linkWhats(numero, texto = '') {
   return `https://wa.me/${d.length <= 11 ? '55' + d : d}${texto ? '?text=' + encodeURIComponent(texto) : ''}`;
 }
 export const primeiro = (n) => String(n || '').trim().split(' ')[0];
+// "1 aula", "3 aulas" (sem o "aula(s)")
+export const plural = (n, um, varios) => `${n} ${Number(n) === 1 ? um : varios}`;
+// mesmo nome da profissional (como o servidor compara: sem acento, sem diferença de maiúsculas)
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+export const ehDela = (nome, membro) => !!membro && !!semAcento(nome) && semAcento(nome) === semAcento(membro.professorNome || membro.nome);
 
 // CSV que o Excel abre direto (separador ; e acentos certos)
 export function baixarCSV(nome, colunas, linhas) {
@@ -132,6 +137,35 @@ export function useDados(acao, params, ativo = true) {
       return { ...e, dados: novo, id };
     }),
   };
+}
+
+// A profissional atende serviços (está em Catálogo → Profissionais)? true / false / null (ainda carregando).
+// Para a equipe do balcão é sempre true. Usa a mesma busca da agenda de hoje (já vem pré-carregada).
+export function useFazServicos() {
+  const { membro } = useBancada();
+  const prof = membro?.papel === 'professora';
+  const { dados } = useDados('atendimentos', { de: hojeIso(), dias: 1 }, prof);
+  if (!prof) return true;
+  if (!dados) return null;
+  return (dados.equipe || []).some((e) => ehDela(e.nome, membro)) || (dados.atendimentos || []).length > 0;
+}
+
+// faixa que rola para o lado: avisa quando ainda há itens escondidos à direita (para o esmaecido da borda)
+export function useMaisADireita() {
+  const ref = useRef(null);
+  const [mais, setMais] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const medir = () => setMais(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+    medir();
+    el.addEventListener('scroll', medir, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
+    ro?.observe(el);
+    Array.from(el.children).forEach((c) => ro?.observe(c));
+    return () => { el.removeEventListener('scroll', medir); ro?.disconnect(); };
+  });
+  return [ref, mais];
 }
 
 // busca por trás, antes de a tela ser aberta (mesma chave do useDados)
@@ -257,8 +291,9 @@ export function Segmento({ itens, atual, aoMudar, rotulo }) {
 }
 
 export function Abas({ itens, atual, aoMudar }) {
+  const [ref, mais] = useMaisADireita();
   return (
-    <div className="b-abas" role="tablist">
+    <div className={`b-abas${mais ? ' b-rola--mais' : ''}`} role="tablist" ref={ref}>
       {itens.map(([id, texto]) => (
         <button key={id} type="button" role="tab" aria-selected={atual === id} onClick={() => aoMudar(id)}>{texto}</button>
       ))}

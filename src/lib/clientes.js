@@ -28,6 +28,12 @@ export async function buscarCep(cep) {
   }
 }
 
+// nome do primeiro campo do endereço com problema (para levar a pessoa até ele)
+export function campoFaltandoNoEndereco(e) {
+  const k = ['cep', 'endereco', 'numero', 'bairro', 'cidade', 'uf'].find((c) => !String(e[c] || '').trim());
+  return k || (String(e.cep).replace(/\D/g, '').length !== 8 ? 'cep' : '');
+}
+
 // o que falta para o endereço ficar completo (mesma regra do servidor)
 export function faltaNoEndereco(e) {
   const nomes = [['cep', 'CEP'], ['endereco', 'rua'], ['numero', 'número'], ['bairro', 'bairro'], ['cidade', 'cidade'], ['uf', 'UF']];

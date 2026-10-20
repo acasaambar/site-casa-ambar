@@ -10,6 +10,7 @@ import { Sol, Forma } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
 import { SALA_YOGA, CONFIG, APARELHOS_PILATES } from '../config.js';
 import { dataExtensa, formatarHora, horaFim } from '../lib/util.js';
+import { comNumeros } from '../components/Num.jsx';
 
 // distribui as vagas ocupadas entre os aparelhos (sempre igual para a mesma aula)
 function ocupadosPilates(aula) {
@@ -138,7 +139,7 @@ export default function Reservar() {
           </Link>
           <div>
             <span className="rotulo-espacado cor-caramelo">{aula.modalidade}</span>
-            <h1 className="display-m">{dataExtensa(aula.data)}</h1>
+            <h1 className="display-m">{comNumeros(dataExtensa(aula.data))}</h1>
             <p className="reserva-cabeca__info">
               {formatarHora(aula.hora)} às {formatarHora(horaFim(aula.hora, aula.duracao || 60))} · com {aula.professor} · {livres} {yoga ? 'tapetes livres' : 'vagas'}
             </p>

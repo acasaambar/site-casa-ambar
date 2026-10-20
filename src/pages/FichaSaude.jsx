@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import AreaNav from '../components/AreaNav.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Forma, Sol } from '../components/Marca.jsx';
 import { PARQ, COMORBIDADES, PARENTESCO, FICHA_VAZIA } from '../anamnese.js';
-import { mascaraTelefone, soDigitos } from '../lib/util.js';
+import { apontarCampo, mascaraTelefone, soDigitos } from '../lib/util.js';
+import { Carregando } from './Aulas.jsx';
 import { CONFIG } from '../config.js';
 
 const ETAPAS = [
@@ -24,6 +25,8 @@ export default function FichaSaude() {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(null);
+  const formRef = useRef(null);
+  const erroRef = useRef(null);
 
   // ficha já preenchida: abre com as respostas para revisar e atualizar
   const [anterior, setAnterior] = useState(null);
@@ -49,29 +52,37 @@ export default function FichaSaude() {
     onChange: (e) => set(k, mascara ? mascara(e.target.value) : e.target.value),
   });
 
+  // devolve [mensagem, nome do campo]; vazio quando está tudo certo
   function validar(n) {
     if (n === 0) {
-      if (!f.data_nascimento) return 'Informe sua data de nascimento.';
-      if (f.emergencia_nome.trim().length < 3) return 'Informe o nome do contato de emergência.';
-      if (!f.emergencia_parentesco) return 'Informe o parentesco do contato de emergência.';
-      if (soDigitos(f.emergencia_telefone).length < 10) return 'Informe o telefone do contato de emergência, com DDD.';
+      if (!f.data_nascimento) return ['Informe sua data de nascimento.', 'data_nascimento'];
+      if (f.emergencia_nome.trim().length < 3) return ['Informe o nome do contato de emergência.', 'emergencia_nome'];
+      if (!f.emergencia_parentesco) return ['Informe o parentesco do contato de emergência.', 'emergencia_parentesco'];
+      if (soDigitos(f.emergencia_telefone).length < 10) return ['Informe o telefone do contato de emergência, com DDD.', 'emergencia_telefone'];
     }
     if (n === 1) {
       const faltando = PARQ.findIndex((q) => !f[q.id]);
-      if (faltando >= 0) return `Responda a pergunta ${faltando + 1}.`;
+      if (faltando >= 0) return [`Responda a pergunta ${faltando + 1}.`, PARQ[faltando].id];
     }
     if (n === 2) {
-      if (!f.gestante) return 'Responda se está gestante.';
-      if (!f.atividade_regular) return 'Responda se pratica atividade física regularmente.';
-      if (!f.declaracao || !f.consentimento) return 'Marque a declaração e o consentimento para concluir.';
+      if (!f.gestante) return ['Responda se está gestante.', 'gestante'];
+      if (!f.atividade_regular) return ['Responda se pratica atividade física regularmente.', 'atividade'];
+      if (!f.declaracao) return ['Marque a declaração e o consentimento para concluir.', 'declaracao'];
+      if (!f.consentimento) return ['Marque a declaração e o consentimento para concluir.', 'consentimento'];
     }
-    return '';
+    return [];
   }
+
+  // erro do servidor (sem campo marcado): leva até a mensagem, uma vez por erro
+  useEffect(() => {
+    if (erro && !formRef.current?.querySelector('[aria-invalid="true"]')) erroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [erro]);
 
   async function avancar(e) {
     e.preventDefault();
-    const msg = validar(etapa);
+    const [msg = '', nome = ''] = validar(etapa);
     setErro(msg);
+    apontarCampo(formRef.current, nome);
     if (msg) return;
     if (etapa < ETAPAS.length - 1) {
       setEtapa(etapa + 1);
@@ -122,17 +133,22 @@ export default function FichaSaude() {
       <div className="app__topo">
         <div className="largura">
           <span className="rotulo-espacado cor-caramelo">{local.state?.novo ? 'Último passo do cadastro' : 'Ficha de saúde'}</span>
-          <h1 className="display-m">{anterior ? 'Sua ficha de saúde' : 'Antes de começar, queremos te conhecer'}</h1>
-          <p className="ficha__intro">
-            {anterior
-              ? 'Estas são as respostas que você enviou. Mudou alguma coisa? Atualize e salve de novo.'
-              : 'Leva uns 2 minutos. Assim a professora sabe como cuidar de você durante a prática.'}
-          </p>
+          <h1 className="display-m">{anterior || carregandoFicha ? 'Sua ficha de saúde' : 'Antes de começar, queremos te conhecer'}</h1>
+          {!carregandoFicha && (
+            <p className="ficha__intro">
+              {anterior
+                ? 'Estas são as respostas que você enviou. Mudou alguma coisa? Atualize e salve de novo.'
+                : 'Leva uns 2 minutos. Assim a professora sabe como cuidar de você durante a prática.'}
+            </p>
+          )}
         </div>
       </div>
 
       {!local.state?.novo && <AreaNav />}
       <div className="largura app__corpo ficha">
+        {/* ficha já enviada: espera as respostas chegarem antes de mostrar o formulário */}
+        {carregandoFicha ? <Carregando /> : (
+        <>
         <ol className="passos" aria-label="Etapas">
           {ETAPAS.map((e, i) => (
             <li key={e.titulo} className={i === etapa ? 'atual' : i < etapa ? 'feito' : ''} aria-current={i === etapa ? 'step' : undefined}>
@@ -149,32 +165,31 @@ export default function FichaSaude() {
             Para salvar as mudanças, marque de novo a declaração no final.</span>
           </p>
         )}
-        {carregandoFicha && <p className="passos__legenda">Carregando suas respostas…</p>}
 
-        <form className="form ficha__form" onSubmit={avancar} noValidate>
+        <form ref={formRef} className="form ficha__form" onSubmit={avancar} noValidate>
           {etapa === 0 && (
             <fieldset className="bloco">
               <legend className="display-p">Contato de emergência</legend>
               <p className="bloco__ajuda">Quem devemos chamar se você passar mal durante a aula?</p>
               <label>
                 Sua data de nascimento
-                <input type="date" max={new Date().toISOString().slice(0, 10)} {...campo('data_nascimento')} />
+                <input type="date" name="data_nascimento" max={new Date().toISOString().slice(0, 10)} {...campo('data_nascimento')} />
               </label>
               <label>
                 Nome do contato
-                <input type="text" autoComplete="off" {...campo('emergencia_nome')} />
+                <input type="text" name="emergencia_nome" autoComplete="off" {...campo('emergencia_nome')} />
               </label>
               <div className="duas-colunas">
                 <label>
                   Parentesco
-                  <select {...campo('emergencia_parentesco')}>
+                  <select name="emergencia_parentesco" {...campo('emergencia_parentesco')}>
                     <option value="">Escolha</option>
                     {PARENTESCO.map((p) => <option key={p}>{p}</option>)}
                   </select>
                 </label>
                 <label>
                   Telefone
-                  <input type="tel" inputMode="numeric" placeholder="(85) 90000-0000" {...campo('emergencia_telefone', mascaraTelefone)} />
+                  <input type="tel" name="emergencia_telefone" inputMode="numeric" placeholder="(85) 90000-0000" {...campo('emergencia_telefone', mascaraTelefone)} />
                 </label>
               </div>
               <label>
@@ -290,11 +305,11 @@ export default function FichaSaude() {
 
               <fieldset className="bloco bloco--termos">
                 <label className="termo">
-                  <input type="checkbox" checked={f.declaracao} onChange={(e) => set('declaracao', e.target.checked)} />
+                  <input type="checkbox" name="declaracao" checked={f.declaracao} onChange={(e) => set('declaracao', e.target.checked)} />
                   <span>Declaro que as informações acima são verdadeiras e que avisarei a Casa Âmbar se meu estado de saúde mudar.</span>
                 </label>
                 <label className="termo">
-                  <input type="checkbox" checked={f.consentimento} onChange={(e) => set('consentimento', e.target.checked)} />
+                  <input type="checkbox" name="consentimento" checked={f.consentimento} onChange={(e) => set('consentimento', e.target.checked)} />
                   <span>
                     Autorizo a Casa Âmbar a guardar estes dados de saúde apenas para a minha segurança durante as práticas, conforme a
                     Lei Geral de Proteção de Dados (LGPD). Posso pedir a exclusão a qualquer momento pelo WhatsApp {CONFIG.telefone}.
@@ -304,7 +319,7 @@ export default function FichaSaude() {
             </>
           )}
 
-          {erro && <p className="erro erro--destaque" role="alert" ref={(el) => el && el.scrollIntoView({ behavior: 'smooth', block: 'center' })}>{erro}</p>}
+          {erro && <p className="erro erro--destaque" role="alert" ref={erroRef}>{erro}</p>}
 
           <div className="ficha__botoes">
             {etapa > 0 ? (
@@ -317,6 +332,8 @@ export default function FichaSaude() {
             </button>
           </div>
         </form>
+        </>
+        )}
       </div>
     </main>
   );

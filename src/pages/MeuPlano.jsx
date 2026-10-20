@@ -9,6 +9,7 @@ import { Carregando } from './Aulas.jsx';
 import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 import CampoCodigo from '../components/CampoCodigo.jsx';
+import { comNumeros } from '../components/Num.jsx';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const realCurto = (v) => {
@@ -156,7 +157,7 @@ export default function MeuPlano() {
                             <span className="rotulo">{c.modalidade}</span>
                             <span className="credito__validade">até {dataCurta(c.fim)}</span>
                           </div>
-                          <strong className="credito__nome">{c.descricao.replace(/^(Yoga|Pilates) · /, '')}</strong>
+                          <strong className="credito__nome">{comNumeros(c.descricao.replace(/^(Yoga|Pilates) · /, ''))}</strong>
                           <div className="credito__uso" role="img" aria-label={`${c.usadas} de ${c.limite} aulas usadas`}>
                             {[...Array(c.limite)].map((_, i) => <i key={i} className={i < c.usadas ? 'usada' : ''} />)}
                           </div>
@@ -328,7 +329,7 @@ export default function MeuPlano() {
               <p>
                 <strong>Cancelamentos e estornos</strong> são feitos com a nossa recepção.{' '}
                 <a href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent('Olá! Preciso de ajuda com meu plano na Casa Âmbar.')}`} target="_blank" rel="noreferrer">
-                  Fale no WhatsApp {CONFIG.telefone}
+                  Fale no WhatsApp <span className="sem-quebra">{CONFIG.telefone}</span>
                 </a>
                 .
               </p>
@@ -343,7 +344,7 @@ export default function MeuPlano() {
           <div className="confirmado__caixa compra">
             <Sol tamanho={44} className="cor-caramelo" />
             <span className="rotulo-espacado cor-terracota">{escolhido.modalidade}</span>
-            <h2 id="compra-titulo" className="display-m">{escolhido.nome.replace(/^(Yoga|Pilates) · /, '').replace(' · trimestral', '')}</h2>
+            <h2 id="compra-titulo" className="display-m">{comNumeros(escolhido.nome.replace(/^(Yoga|Pilates) · /, '').replace(' · trimestral', ''))}</h2>
             <ul className="compra__resumo">
               <li>
                 <span>Tipo</span>

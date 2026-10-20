@@ -16,12 +16,16 @@ export default function WhatsFlutuante() {
 
   // na tela de reserva existe a barra de confirmar embaixo: o botão sobe
   const elevado = pathname.startsWith('/aula/');
-  const naArea = ['/aulas', '/minhas-reservas', '/ficha-saude', '/meu-plano', '/pagamento', '/minha-conta'].includes(pathname);
+  // área do aluno: no tablet e no celular o botão some (cobria tapetes, botões e campos);
+  // o WhatsApp continua no rodapé, em Meu plano e em Minha conta
+  const naArea = elevado || ['/aulas', '/minhas-reservas', '/ficha-saude', '/meu-plano', '/minha-conta'].includes(pathname);
+  // telas de entrar e de senha: no celular ele cobria a mensagem de erro
+  const noFormulario = ['/entrar', '/esqueci-senha', '/nova-senha'].includes(pathname);
   const texto = encodeURIComponent('Olá, Casa Âmbar! Vim pelo site e gostaria de mais informações.');
 
   return (
     <a
-      className={`whats ${visivel ? 'whats--visivel' : ''} ${elevado ? 'whats--elevado' : ''} ${naArea ? 'whats--area' : ''}`}
+      className={`whats ${visivel ? 'whats--visivel' : ''} ${elevado ? 'whats--elevado' : ''} ${naArea ? 'whats--area' : ''} ${noFormulario ? 'whats--form' : ''}`}
       href={`https://wa.me/${CONFIG.whatsapp}?text=${texto}`}
       target="_blank"
       rel="noreferrer"

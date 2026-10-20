@@ -67,6 +67,24 @@ export function dataExtensa(iso) {
   return `${DIAS_LONGOS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]}`;
 }
 
+// ---------- Formulários ----------
+// Validação no navegador: marca o campo com problema (aria-invalid), rola até ele e põe o cursor nele.
+// nome = atributo name do campo. Num grupo de opções (sim/não), marca o grupo inteiro.
+export function apontarCampo(form, nome) {
+  if (!form) return;
+  form.querySelectorAll('[aria-invalid="true"]').forEach((el) => el.removeAttribute('aria-invalid'));
+  const el = nome && form.querySelector(`[name="${nome}"]`);
+  if (!el) return;
+  const grupo = el.type === 'radio' ? el.closest('.sim-nao') : null;
+  const alvo = grupo || el;
+  alvo.setAttribute('aria-invalid', 'true');
+  // ao mexer no campo, o destaque some
+  const limpar = () => alvo.removeAttribute('aria-invalid');
+  (grupo || el).addEventListener(el.type === 'checkbox' || grupo ? 'change' : 'input', limpar, { once: true });
+  el.focus({ preventScroll: true });
+  alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 export function idDaAula(data, hora, modalidade) {
   return `${data}_${hora}_${modalidade.toLowerCase()}`;
 }
