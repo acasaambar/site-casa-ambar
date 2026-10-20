@@ -8,6 +8,7 @@ import { IconeWhatsapp } from '../components/Marca.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioModal } from './Prontuario.jsx';
 import { HorarioSemanal, DiasEspeciais, horariosIniciais, resumoHorario } from './Horarios.jsx';
+import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 
 // Cor de cada área de cuidado (tons da marca)
 export const COR_CATEGORIA = {
@@ -54,6 +55,8 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
   const [folga, setFolga] = useState(null);
   const [comanda, setComanda] = useState(null);
   const [prontuario, setProntuario] = useState(null);
+  const [trocar, setTrocar] = useState(null);
+  const [pedir, setPedir] = useState(null);
   const [ocultos, setOcultos] = useState(() => lerLocal('ambar_agenda_ocultos', []));
   const [visiveis, setVisiveis] = useState(() => lerLocal('ambar_agenda_colunas', typeof window !== 'undefined' && window.innerWidth < 600 ? 2 : window.innerWidth < 1100 ? 3 : 5));
   const [agora, setAgora] = useState(() => new Date());
@@ -194,6 +197,7 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
                       <span className="ag-bloco__hora">{hora(a.hora)}–{hora(hhmm(min(a.hora) + dur))}</span>
                       <strong>{a.modalidade}</strong>
                       <span className="ag-bloco__info">{a.ocupadosQtd} de {a.capacidade} {a.capacidade === 1 ? 'lugar' : 'lugares'}</span>
+                      {a.titular && <span className="ag-bloco__info ag-bloco__troca">cobrindo {primeiro(a.titular)}</span>}
                     </button>
                   );
                 })}
@@ -204,6 +208,7 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
                     <span className="ag-bloco__hora">{hora(a.hora)}–{hora(fimDe(a))}{a.status === 'atendido' ? ' · ✓' : a.status === 'confirmado' ? ' · confirmado' : ''}</span>
                     <strong>{a.nome}</strong>
                     {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
+                    {a.titular && a.duracao >= 60 && <span className="ag-bloco__info ag-bloco__troca">cobrindo {primeiro(a.titular)}</span>}
                   </button>
                 ))}
                 {ehHoje && minutoAgora > INI && minutoAgora < FIM && <div className="ag-agora" style={{ top: y(minutoAgora) }} aria-hidden="true" />}
@@ -217,7 +222,11 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
       {aberto && <DetalheAtendimento a={aberto} aoFechar={() => setAberto(null)} aoMudar={() => { setAberto(null); recarregar(); }}
         aoReagendar={(a) => { setAberto(null); setNovo({ data: a.data, profissional: a.profissional, servicoId: a.servicoId, reagendar: a }); }}
         aoComanda={async (a) => { setAberto(null); setComanda({ carregando: true, a }); }}
-        aoProntuario={(a) => { setAberto(null); setProntuario(a); }} />}
+        aoProntuario={(a) => { setAberto(null); setProntuario(a); }}
+        aoTrocar={(a) => { setAberto(null); setTrocar(a); }}
+        aoPedir={(a) => { setAberto(null); setPedir(a); }} />}
+      {trocar && <TrocaProfissional tipo="servico" id={trocar.id} aoFechar={() => setTrocar(null)} aoTerminar={() => { setTrocar(null); recarregar(); }} />}
+      {pedir && <PedirSubstituicao item={{ tipo: 'servico', ref: pedir.id, titulo: pedir.servico, data: pedir.data, hora: pedir.hora }} aoFechar={() => setPedir(null)} aoEnviar={() => setPedir(null)} />}
       {bloquear && catalogo && <BloquearHorario inicial={bloquear} profissionais={catalogo.profissionais.filter((p) => p.ativo).map((p) => p.nome)} aoFechar={() => setBloquear(null)} aoSalvar={() => { setBloquear(null); recarregar(); }} />}
       {folga && <DetalheFolga f={folga} aoFechar={() => setFolga(null)} aoMudar={() => { setFolga(null); recarregar(); }} />}
       {comanda && <ComandaDoAtendimento a={comanda.a} aoFechar={() => { setComanda(null); recarregar(); }} />}
@@ -471,7 +480,7 @@ function DetalheFolga({ f, aoFechar, aoMudar }) {
   );
 }
 
-function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoProntuario }) {
+function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoProntuario, aoTrocar, aoPedir }) {
   const { membro, chamar } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [metodo, setMetodo] = useState('Pix');
@@ -491,7 +500,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
       <div className={`s-detalhe s-detalhe--${COR_CATEGORIA[a.categoria] || 'facial'}`}>
         <div className="s-detalhe__quando">
           <strong>{hora(a.hora)}<span>–{hora(fimDe(a))}</span></strong>
-          <span>{dataTexto} · com {a.profissional}</span>
+          <span>{dataTexto} · com {a.profissional}{a.titular ? ` · no lugar de ${a.titular}` : ''}</span>
         </div>
         <dl className="b-dados">
           <dt>Cliente</dt><dd>{a.nome}{!a.cpf && balcao ? ' · sem cadastro' : ''}</dd>
@@ -511,6 +520,9 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
       <button type="button" className="link-acao s-prontuario" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
       {!balcao && (
         <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="link-acao s-prontuario">Anamnese e comanda</Link>
+      )}
+      {!balcao && !fechado && !a.titular && a.data >= hojeIso() && (
+        <button type="button" className="link-acao s-prontuario" onClick={() => aoPedir(a)}>Pedir substituição deste horário</button>
       )}
       {!fechado && (
         <div className="s-acoes">
@@ -536,6 +548,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
             <a className="link-acao com-icone" href={linkWhats(a.whatsapp, lembrete)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={14} /> Enviar lembrete</a>
           )}
           {!fechado && <button type="button" className="link-acao" onClick={() => aoReagendar(a)}>Reagendar</button>}
+          {a.status !== 'cancelado' && <button type="button" className="link-acao" onClick={() => aoTrocar(a)}>Trocar profissional</button>}
           {!fechado && <BotaoAcao className="link-sair" confirmar="Cancelar este atendimento?" acao={() => mudar('cancelado')}>Cancelar</BotaoAcao>}
           {(a.status === 'falta' || a.status === 'atendido') && <BotaoAcao className="link-acao" acao={() => mudar('agendado')}>Desfazer</BotaoAcao>}
         </div>

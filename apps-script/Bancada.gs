@@ -499,90 +499,178 @@ function bancada_cancelarReserva(d, m) {
 // ============================================================
 //  ALUNOS
 // ============================================================
-function resumoAluno(a, ctx) {
-  var cpf = normCpf(a.cpf);
-  var visita = ctx.visitas ? ctx.visitas[cpf] || '' : '';
+// ---------------- lista de clientes ----------------
+// Uma passada por aba sobre os valores crus (sem montar objeto de cada linha): com milhares de
+// reservas isso é muitas vezes mais rápido. A lista pronta fica 5 min no cache do Google e é
+// apagada quando se grava em Alunos, Creditos, Anamneses ou Atendimentos (adicionarLinha/atualizarLinha).
+var ABAS_DA_LISTA_CLIENTES = { Alunos: 1, Creditos: 1, Anamneses: 1, Atendimentos: 1 };
+var CHAVE_LISTA_CLIENTES = 'lista_clientes';
+
+function indiceColunas(cab) {
+  var k = {};
+  cab.forEach(function (c, i) { k[c] = i; });
+  return k;
+}
+
+// data da aula de uma reserva: o aula_id ("2026-10-19_06:00_pilates") é a fonte segura
+function dataDaReservaCrua(l, k) {
+  var p = String(l[k.aula_id] || '').split('_')[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(p) ? p : dataTexto(l[k.data]);
+}
+
+function montarListaClientes() {
   var hoje = hojeTexto();
-  var creds = ctx.creditosPorCpf[cpf] || [];
-  var vigentes = creds.filter(function (c) { return String(c.ativo).toUpperCase() !== 'NÃO' && c.inicio <= hoje && c.fim >= hoje; });
-  var rs = ctx.reservasPorCpf[cpf] || [];
-  var presencas = rs.filter(function (r) { return r.status === 'check-in'; });
-  var ultima = rs.filter(function (r) { return r.data <= hoje && r.status !== 'cancelado' && r.status !== 'pendente'; }).map(function (r) { return r.data; }).sort().pop() || '';
-  return {
-    cpf: cpf, nome: a.nome, whatsapp: String(a.whatsapp || ''), email: String(a.email || ''), ativo: String(a.ativo).toUpperCase() !== 'NÃO',
-    criadoEm: String(a.criado_em || '').slice(0, 10), ficha: !!ctx.fichas[cpf], alerta: ctx.fichas[cpf] ? String(ctx.fichas[cpf].parq_algum_sim) === 'SIM' : false,
-    wellhub: statusWellhub(a), plano: vigentes.map(function (c) { return c.descricao; }).join(' + '),
-    planoFim: vigentes.map(function (c) { return c.fim; }).sort().pop() || '', presencas: presencas.length, ultimaAula: ultima,
-    temSenha: !!a.senha_hash, semCpf: !temCpfReal(cpf), ultimaVisita: visita, servicos: ctx.servicosPorCpf ? ctx.servicosPorCpf[cpf] || 0 : 0,
-    origem: String(a.origem_cadastro || ''),
-  };
+  var maior = function (o, cpf, v) { if (v && (!o[cpf] || v > o[cpf])) o[cpf] = v; };
+  // planos vigentes
+  var cr = valoresCreditos(), kc = indiceColunas(cr[0]), planos = {};
+  for (var i = 1; i < cr.length; i++) {
+    var c = cr[i];
+    if (!c[kc.id] || String(c[kc.ativo]).toUpperCase() === 'NÃO') continue;
+    var fim = dataTexto(c[kc.fim]);
+    if (dataTexto(c[kc.inicio]) > hoje || fim < hoje) continue;
+    var cc = normCpf(c[kc.cpf]);
+    (planos[cc] = planos[cc] || []).push([String(c[kc.descricao]), fim]);
+  }
+  // fichas de saúde
+  var an = valoresAba('Anamneses'), ka = indiceColunas(an[0]), fichas = {};
+  for (i = 1; i < an.length; i++) fichas[normCpf(an[i][ka.cpf])] = String(an[i][ka.parq_algum_sim]) === 'SIM' ? 2 : 1;
+  // aulas: presenças, última aula e última visita
+  var rs = valoresAba('Reservas'), kr = indiceColunas(rs[0]), pres = {}, ultAula = {}, visita = {};
+  for (i = 1; i < rs.length; i++) {
+    var r = rs[i], st = String(r[kr.status]);
+    if (st === 'cancelado' || st === 'pendente') continue;
+    var rc = normCpf(r[kr.cpf]), data = dataDaReservaCrua(r, kr);
+    if (st === 'check-in') pres[rc] = (pres[rc] || 0) + 1;
+    if (data > hoje) continue;
+    maior(ultAula, rc, data);
+    if (st === 'check-in' || st === 'reservado') maior(visita, rc, data);
+  }
+  // serviços atendidos
+  var at = valoresAba('Atendimentos'), kt = indiceColunas(at[0]), serv = {};
+  for (i = 1; i < at.length; i++) {
+    if (!at[i][kt.cpf] || at[i][kt.status] !== 'atendido') continue;
+    var tc = normCpf(at[i][kt.cpf]);
+    serv[tc] = (serv[tc] || 0) + 1;
+    maior(visita, tc, dataTexto(at[i][kt.data]));
+  }
+  var al = valoresAba('Alunos'), k = indiceColunas(al[0]), lista = [];
+  for (i = 1; i < al.length; i++) {
+    var a = al[i];
+    if (!a[k.cpf] || /^unificado/.test(String(a[k.origem_cadastro]))) continue;
+    var cpf = normCpf(a[k.cpf]), pl = planos[cpf] || [];
+    lista.push({
+      cpf: cpf, nome: String(a[k.nome]), whatsapp: String(a[k.whatsapp] || ''), email: String(a[k.email] || ''), ativo: String(a[k.ativo]).toUpperCase() !== 'NÃO',
+      criadoEm: (ehData(a[k.criado_em]) ? dataTexto(a[k.criado_em]) : String(a[k.criado_em] || '')).slice(0, 10), ficha: !!fichas[cpf], alerta: fichas[cpf] === 2,
+      wellhub: statusWellhub({ wellhub: a[k.wellhub] }), plano: pl.map(function (x) { return x[0]; }).join(' + '),
+      planoFim: pl.map(function (x) { return x[1]; }).sort().pop() || '', presencas: pres[cpf] || 0, ultimaAula: ultAula[cpf] || '',
+      temSenha: !!a[k.senha_hash], semCpf: !temCpfReal(cpf), ultimaVisita: visita[cpf] || '', servicos: serv[cpf] || 0,
+    });
+  }
+  return lista.sort(function (x, y) { return x.nome.localeCompare(y.nome); });
 }
 
-function contextoAlunos() {
-  var ctx = { creditosPorCpf: {}, reservasPorCpf: {}, fichas: mapaAnamneses() };
-  var mc = mapaCreditos();
-  Object.keys(mc).forEach(function (k) {
-    var c = mc[k]; var cpf = normCpf(c.cpf);
-    (ctx.creditosPorCpf[cpf] = ctx.creditosPorCpf[cpf] || []).push(c);
-  });
-  todasReservas().forEach(function (r) {
-    var cpf = normCpf(r.cpf);
-    (ctx.reservasPorCpf[cpf] = ctx.reservasPorCpf[cpf] || []).push(r);
-  });
-  ctx.mapaCreditos = mc;
-  ctx.visitas = ultimasVisitas();
-  ctx.servicosPorCpf = {};
-  lerAba('Atendimentos').forEach(function (x) { if (x.cpf && x.status === 'atendido') ctx.servicosPorCpf[normCpf(x.cpf)] = (ctx.servicosPorCpf[normCpf(x.cpf)] || 0) + 1; });
-  return ctx;
+function listaClientes() {
+  var cache = CacheService.getScriptCache();
+  try {
+    var n = Number(cache.get(CHAVE_LISTA_CLIENTES + '_n') || 0);
+    if (n > 0) {
+      var chaves = [];
+      for (var i = 0; i < n; i++) chaves.push(CHAVE_LISTA_CLIENTES + '_' + i);
+      var partes = cache.getAll(chaves);
+      var texto = chaves.map(function (c) { return partes[c]; });
+      if (texto.every(function (t) { return t != null; })) {
+        return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(texto.join('')), 'application/x-gzip')).getDataAsString());
+      }
+    }
+  } catch (e) { Logger.log('cache de clientes: ' + e.message); }
+  var lista = montarListaClientes();
+  try {
+    var z = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(lista), 'application/json')).getBytes());
+    var mapa = {}, qtd = Math.ceil(z.length / 90000);
+    if (qtd <= 20) {
+      for (var j = 0; j < qtd; j++) mapa[CHAVE_LISTA_CLIENTES + '_' + j] = z.slice(j * 90000, (j + 1) * 90000);
+      cache.putAll(mapa, 300);
+      cache.put(CHAVE_LISTA_CLIENTES + '_n', String(qtd), 300);
+    }
+  } catch (e) { Logger.log('cache de clientes: ' + e.message); }
+  return lista;
 }
 
+function esquecerListaClientes() {
+  try { CacheService.getScriptCache().remove(CHAVE_LISTA_CLIENTES + '_n'); } catch (e) { /* ignora */ }
+}
+
+// busca (Agenda, Comandas, Vales…): só os primeiros resultados
 function bancada_alunos(d) {
-  var ctx = contextoAlunos();
+  var lista = listaClientes();
   var busca = String(d.busca || '').trim().toLowerCase();
+  if (!busca) return lista;
   var dig = soDigitos(busca);
-  return lerAba('Alunos').filter(function (a) {
-    if (!a.cpf || /^unificado/.test(String(a.origem_cadastro))) return false;
-    if (!busca) return true;
-    return String(a.nome).toLowerCase().indexOf(busca) >= 0 || (dig.length >= 3 && (normCpf(a.cpf).indexOf(dig) >= 0 || soDigitos(a.whatsapp).indexOf(dig) >= 0)) ||
-      String(a.email).toLowerCase().indexOf(busca) >= 0;
-  }).map(function (a) { return resumoAluno(a, ctx); }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
+  return lista.filter(function (a) {
+    return a.nome.toLowerCase().indexOf(busca) >= 0 || (dig.length >= 3 && (a.cpf.indexOf(dig) >= 0 || soDigitos(a.whatsapp).indexOf(dig) >= 0)) ||
+      a.email.toLowerCase().indexOf(busca) >= 0;
+  }).slice(0, 30);
 }
 
+// linhas de uma aba só de um CPF (filtra antes de montar os objetos)
+function linhasDoCpf(nomeAba, cpf) {
+  var v = nomeAba === 'Creditos' ? valoresCreditos() : valoresAba(nomeAba), cab = v[0], kc = cab.indexOf('cpf'), lista = [];
+  for (var i = 1; i < v.length; i++) {
+    if (!v[i][kc] || normCpf(v[i][kc]) !== cpf) continue;
+    var o = objeto(cab, v[i]);
+    o._linha = i + 1;
+    lista.push(o);
+  }
+  return lista;
+}
+
+// ficha completa de uma cliente: cada aba lida uma vez, só as linhas dela
 function bancada_aluno(d) {
   var a = buscarAluno(d.cpf);
   if (!a) throw new Error('Aluno não encontrado.');
-  var ctx = contextoAlunos();
   var cpf = normCpf(a.cpf);
-  var r = resumoAluno(a, ctx);
-  var reservas = todasReservas();
   var hoje = hojeTexto();
+  var resumo = listaClientes().filter(function (x) { return x.cpf === cpf; })[0];
+  var r = resumo ? Object.assign({}, resumo) : { cpf: cpf, nome: a.nome, whatsapp: String(a.whatsapp || ''), email: String(a.email || ''),
+    ativo: String(a.ativo).toUpperCase() !== 'NÃO', wellhub: statusWellhub(a), temSenha: !!a.senha_hash, semCpf: !temCpfReal(cpf) };
+  var creditos = linhasDoCpf('Creditos', cpf).filter(function (c) { return c.id; }).map(function (c) {
+    c.inicio = dataTexto(c.inicio); c.fim = dataTexto(c.fim); c.aulas_semana = numero(c.aulas_semana); c.aulas_total = numero(c.aulas_total);
+    return c;
+  });
+  var porId = {};
+  creditos.forEach(function (c) { porId[String(c.id)] = c; });
+  var reservas = linhasDoCpf('Reservas', cpf).map(partesAula);
+  var ativas = reservas.filter(function (x) { return x.status !== 'cancelado' && !(x.status === 'pendente' && Number(x.expira_ms) && Number(x.expira_ms) < Date.now()); });
+  var pagamentos = linhasDoCpf('Pagamentos', cpf);
+  var atend = linhasDoCpf('Atendimentos', cpf).filter(function (x) { return x.id; });
+  var vales = linhasDoCpf('Vales', cpf);
+  var ficha = linhasDoCpf('Anamneses', cpf).pop();
   r.obs = String(a.obs_internas || '');
   r.wellhubId = String(a.wellhub_id || '');
-  r.ficha = fichaPublica(ctx.fichas[cpf]);
-  r.creditos = (ctx.creditosPorCpf[cpf] || []).map(function (c) {
+  r.ficha = fichaPublica(ficha);
+  r.creditos = creditos.map(function (c) {
     var limite = c.aulas_semana > 0 ? c.aulas_semana : c.aulas_total;
-    var usadas = usoDoCredito(c, reservasAtivas(), hoje);
     return { id: c.id, descricao: c.descricao, modalidade: c.modalidade, tipo: c.tipo, inicio: c.inicio, fim: c.fim, ativo: String(c.ativo).toUpperCase() !== 'NÃO',
-      limite: limite, usadas: usadas, porSemana: c.aulas_semana > 0, origem: String(c.origem || ''), vigente: c.inicio <= hoje && c.fim >= hoje && String(c.ativo).toUpperCase() !== 'NÃO' };
+      limite: limite, usadas: usoDoCredito(c, ativas, hoje), porSemana: c.aulas_semana > 0, origem: String(c.origem || ''),
+      vigente: c.inicio <= hoje && c.fim >= hoje && String(c.ativo).toUpperCase() !== 'NÃO' };
   }).sort(function (x, y) { return String(y.fim).localeCompare(String(x.fim)); });
-  r.reservas = (ctx.reservasPorCpf[cpf] || []).map(function (x) {
+  r.reservas = reservas.map(function (x) {
     return { id: x.id, aulaId: x.aula_id, data: x.data, hora: x.hora, modalidade: x.modalidade, professor: x.professor, tapete: x.tapete ? Number(x.tapete) : null,
-      status: x.status, forma: formaDaReserva(x, ctx.mapaCreditos) };
+      status: x.status, forma: formaDaReserva(x, porId) };
   }).sort(function (x, y) { return (y.data + y.hora).localeCompare(x.data + x.hora); }).slice(0, 80);
-  r.pagamentos = lerAba('Pagamentos').filter(function (p) { return normCpf(p.cpf) === cpf; }).map(pagamentoPublico).reverse();
-  r.vales = lerAba('Vales').filter(function (v) { return v.cpf && normCpf(v.cpf) === cpf; }).map(valePublico);
-  r.atendimentos = lerAba('Atendimentos').filter(function (x) { return x.id && x.cpf && normCpf(x.cpf) === cpf; }).map(function (x) { return atendimentoPublico(x); })
-    .sort(function (x, y) { return (y.data + y.hora).localeCompare(x.data + x.hora); });
-  r.historico = historicoCliente(cpf);
+  r.pagamentos = pagamentos.map(pagamentoPublico).reverse();
+  var pagos = vales.length ? pagamentosQueContam() : [];
+  r.vales = vales.map(function (v) { return valePublico(v, pagos); });
+  r.atendimentos = atend.map(function (x) { return atendimentoPublico(x); }).sort(function (x, y) { return (y.data + y.hora).localeCompare(x.data + x.hora); });
+  r.historico = historicoCliente(cpf, { atendimentos: atend, reservas: reservas, pagamentos: pagamentos, vales: vales });
   r.nascimento = String(a.nascimento || '').slice(0, 10);
   r.endereco = enderecoPublico(a);
   r.comoConheceu = String(a.como_conheceu || '');
   r.marketing = String(a.marketing).toUpperCase() !== 'NÃO';
   r.fichaEstetica = !!linhaFichaEstetica(cpf);
   r.evolucoes = evolucoesDe(cpf).length;
-  r.totalGasto = dinheiro(lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && p.cpf && normCpf(p.cpf) === cpf; }).reduce(function (s, p) { return s + numero(p.valor); }, 0));
-  r.comandaAberta = (lerAba('Comandas').filter(function (c) { return c.status === 'aberta' && c.cpf && normCpf(c.cpf) === cpf; })[0] || {}).id || '';
-  void reservas;
+  r.totalGasto = dinheiro(pagamentos.filter(function (p) { return p.status === 'pago'; }).reduce(function (s, p) { return s + numero(p.valor); }, 0));
+  r.comandaAberta = (linhasDoCpf('Comandas', cpf).filter(function (c) { return c.status === 'aberta'; })[0] || {}).id || '';
   return r;
 }
 
@@ -810,16 +898,18 @@ function bancada_ajustarCredito(d, m) {
 // ============================================================
 //  VALES-PRESENTE (cortesia) E CUPONS
 // ============================================================
-function valePublico(v) {
+// pagos: pagamentosQueContam() calculado uma vez por quem lista vários vales
+function valePublico(v, pagos) {
   return { codigo: String(v.codigo), status: valeVencido(v) && v.status === 'ativo' ? 'vencido' : v.status, tipo: v.tipo, planoId: v.plano_id, descricao: descreverVale(v),
-    valor: numero(v.valor), saldo: v.tipo === 'plano' ? null : saldoVale(v), cpf: v.cpf ? normCpf(v.cpf) : '', nome: v.nome, email: v.email,
+    valor: numero(v.valor), saldo: v.tipo === 'plano' ? null : saldoVale(v, pagos), cpf: v.cpf ? normCpf(v.cpf) : '', nome: v.nome, email: v.email,
     whatsapp: String(v.whatsapp || ''), motivo: v.motivo, campanha: v.campanha, mensagem: v.mensagem, criadoEm: String(v.criado_em || ''),
     criadoPor: v.criado_por, validade: dataTexto(v.validade || ''), resgatadoEm: String(v.resgatado_em || ''), enviado: String(v.enviado || ''),
     textoWhats: textoWhatsVale(v) };
 }
 
 function bancada_vales() {
-  return lerAba('Vales').filter(function (v) { return v.codigo; }).map(valePublico).reverse();
+  var pagos = pagamentosQueContam();
+  return lerAba('Vales').filter(function (v) { return v.codigo; }).map(function (v) { return valePublico(v, pagos); }).reverse();
 }
 
 // gera 1 ou vários vales (campanha). Cada pessoa: { nome, cpf, email, whatsapp }

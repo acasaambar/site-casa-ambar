@@ -592,23 +592,25 @@ function bancada_comandasCliente(d, m) {
 // ============================================================
 //  HISTÓRICO COMPLETO (linha do tempo da cliente)
 // ============================================================
-function historicoCliente(cpf) {
+// pre: listas já filtradas da cliente (ficha completa), para não reler as abas
+function historicoCliente(cpf, pre) {
+  pre = pre || {};
   var ev = [];
-  lerAba('Atendimentos').forEach(function (a) {
+  (pre.atendimentos || lerAba('Atendimentos')).forEach(function (a) {
     if (!a.id || !a.cpf || normCpf(a.cpf) !== cpf) return;
     ev.push({ data: dataTexto(a.data), hora: horaTexto(a.hora), tipo: 'servico', titulo: a.servico, detalhe: 'com ' + a.profissional, status: String(a.status),
       valor: numero(a.valor), categoria: String(a.categoria) });
   });
-  todasReservas().forEach(function (r) {
+  (pre.reservas || todasReservas()).forEach(function (r) {
     if (normCpf(r.cpf) !== cpf || r.status === 'pendente') return;
     ev.push({ data: r.data, hora: r.hora, tipo: 'aula', titulo: r.modalidade, detalhe: 'com ' + r.professor + (r.tapete ? ' · tapete ' + r.tapete : ''), status: String(r.status) });
   });
-  lerAba('Pagamentos').forEach(function (p) {
+  (pre.pagamentos || lerAba('Pagamentos')).forEach(function (p) {
     if (!p.cpf || normCpf(p.cpf) !== cpf || p.status !== 'pago') return;
     ev.push({ data: String(p.pago_em || p.criado_em).slice(0, 10), hora: String(p.pago_em || '').slice(11, 16), tipo: String(p.tipo_item) === 'produto' ? 'produto' : 'compra',
       titulo: String(p.descricao), detalhe: (p.metodo || '') + (p.comanda ? ' · comanda' : ''), valor: numero(p.valor), status: 'pago' });
   });
-  lerAba('Vales').forEach(function (v) {
+  (pre.vales || lerAba('Vales')).forEach(function (v) {
     if (!v.cpf || normCpf(v.cpf) !== cpf) return;
     ev.push({ data: String(v.criado_em).slice(0, 10), hora: '', tipo: 'vale', titulo: 'Vale-presente ' + v.codigo, detalhe: String(v.motivo || v.campanha || ''), status: String(v.status) });
   });

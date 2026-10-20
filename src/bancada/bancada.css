@@ -1644,3 +1644,128 @@
 }
 @media (max-width: 560px) { .cm-item { grid-template-columns: minmax(0, 1fr) auto 40px; } }
 @media (min-width: 721px) { .b-botoes--coluna { gap: 6px; } }
+
+/* ============================================================
+   SUBSTITUIÇÕES (Trocas.jsx): trocar quem atende / dá a aula,
+   "Alguém não vem", pedidos da equipe e avisos aos clientes
+   ============================================================ */
+.tr-naovem { margin-left: auto; }
+@media (max-width: 560px) { .tr-naovem { margin-left: 0; flex: 1 1 100%; } }
+.tr-nolugar { display: block; font-size: 13px; font-weight: 500; color: #7E3717; }
+.ag-bloco__troca { color: #7E3717; font-weight: 500; }
+.b-aula__rodape { justify-content: flex-start; }
+.tr-nota { margin: 0; font-size: 14px; }
+
+/* quem está no horário agora */
+.tr-agora { display: grid; gap: 2px; padding: 14px 16px; border-radius: 16px; background: #EEEAD9; }
+.tr-agora__rotulo { font-size: 13px; font-weight: 500; color: #4A4D3F; }
+.tr-agora strong { font-size: 18px; font-weight: 600; }
+.tr-agora__titular { font-size: 14px; color: #7E3717; font-weight: 500; }
+.tr-pedido { margin: 0; padding: 12px 16px; border-radius: 14px; background: #F3E6C9; color: #5A3A10; font-size: 15px; line-height: 1.5; border-left: 4px solid #A6845E; }
+.tr-pedido strong { font-weight: 600; }
+
+/* lista de quem pode cobrir */
+.tr-cand label { align-items: center; }
+.tr-cand label input { margin-top: 0; width: 20px; height: 20px; flex: none; }
+.tr-cand__info { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.b-opcoes .tr-cand__info strong { font-size: 15.5px; font-weight: 600; }
+.b-opcoes .tr-cand__info small { font-size: 13.5px; color: #4A4D3F; overflow-wrap: anywhere; }
+.b-opcoes .tr-cand__info .tr-cand__comissao { color: #535647; font-variant-numeric: tabular-nums; }
+.tr-cand .b-tag { flex: none; white-space: nowrap; }
+.tr-regra strong { font-size: 15px; font-weight: 600; }
+.b-opcoes.tr-regra small { font-size: 13.5px; }
+.tr-confirmar { display: grid; gap: 10px; font-size: 15px; }
+.tr-confirmar p { margin: 0; }
+
+/* resultado */
+.tr-feito { margin: 0; display: grid; gap: 2px; padding: 14px 16px; border-radius: 16px; background: #E1E6CF; color: #2F3821; border-left: 4px solid #6F784D; }
+.tr-feito strong { font-size: 17px; font-weight: 600; }
+.tr-feito span { font-size: 14.5px; }
+.tr-feito--volta { background: #EEEAD9; border-left-color: #A6845E; }
+.tr-desfazer { justify-self: start; align-self: flex-start; }
+.tr-concluir { margin-top: 14px; width: 100%; }
+
+/* avisar os clientes */
+.tr-avisar { display: grid; gap: 10px; }
+.tr-avisar__titulo { margin: 0; display: grid; gap: 2px; }
+.tr-avisar__titulo strong { font-size: 15.5px; font-weight: 600; }
+.tr-avisar__titulo span { font-size: 14px; color: var(--b-suave); }
+.tr-avisar__lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tr-avisar__lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; background: #FFFDF6; border: 1px solid var(--b-linha); }
+.tr-avisar__lista li.feito { background: #F1F0E6; }
+.tr-avisar__lista li.feito .tr-avisar__quem strong::after { content: ' ✓'; color: var(--b-oliva); }
+.tr-avisar__quem { display: grid; min-width: 0; }
+.tr-avisar__quem strong { font-size: 15px; font-weight: 600; }
+.tr-avisar__quem small { font-size: 13.5px; color: var(--b-suave); }
+.tr-avisar__acoes { display: inline-flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; }
+
+/* Alguém não vem */
+.tr-ausencia__form { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 560px) { .tr-ausencia__form { grid-template-columns: 1fr 1fr; } .tr-ausencia__quem { grid-column: 1 / -1; } }
+.tr-ausencia__topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--b-linha); }
+.tr-ausencia__topo strong { font-size: 16px; font-weight: 600; }
+.tr-itens { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tr-item { display: grid; gap: 10px; padding: 14px 16px; border-radius: 16px; background: #FFFDF6; border: 1px solid var(--b-linha); min-width: 0; }
+.tr-item--feito { background: #F6F5EC; }
+.tr-item__topo { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.tr-item__hora { flex: none; min-width: 52px; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.tr-item__oque { flex: 1; display: grid; min-width: 0; }
+.tr-item__oque strong { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.tr-item__oque small { font-size: 13.5px; color: var(--b-suave); }
+.tr-item__topo .b-tag { flex: none; }
+.tr-item__troca { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px 14px; align-items: end; }
+.tr-item__troca .botao { min-height: 42px; }
+.tr-item__troca .link-acao { min-height: 42px; display: inline-flex; align-items: center; }
+@media (max-width: 560px) {
+  .tr-item { padding: 12px 14px; }
+  .tr-item__topo { flex-wrap: wrap; }
+  .tr-item__troca { grid-template-columns: auto auto; justify-content: space-between; }
+  .tr-item__troca .b-campo { grid-column: 1 / -1; }
+}
+.tr-bloquear { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-radius: 16px; border: 1px dashed rgba(47, 56, 33, 0.3); }
+.tr-bloquear > p:not(.tr-feito) { margin: 0; display: grid; gap: 2px; flex: 1 1 240px; }
+.tr-bloquear > p strong { font-size: 15px; font-weight: 600; }
+.tr-bloquear > p span { font-size: 14px; color: var(--b-suave); }
+.tr-bloquear .tr-feito { flex: 1; }
+
+/* aba Trocas */
+.tr-painel { display: grid; gap: 18px; margin-top: 16px; }
+.tr-painel__barra { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tr-painel__barra p { margin: 0; flex: 1 1 260px; }
+.tr-pedidos, .tr-hist, .tr-resumo { list-style: none; margin: 0; padding: 0; display: grid; }
+.tr-ped { display: grid; grid-template-columns: 60px minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--b-linha); }
+.tr-ped:first-child { padding-top: 0; }
+.tr-ped:last-child { border-bottom: 0; padding-bottom: 0; }
+.tr-ped__info { display: grid; gap: 1px; min-width: 0; }
+.tr-ped__info strong { font-size: 15.5px; font-weight: 600; overflow-wrap: anywhere; }
+.tr-ped__info small { font-size: 13.5px; color: var(--b-suave); }
+.tr-ped__motivo { font-size: 14.5px; color: #5A3A10; }
+.tr-ped__acoes { display: inline-flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; justify-content: flex-end; }
+.tr-recusar { grid-column: 2 / -1; display: grid; gap: 10px; padding: 12px 14px; border-radius: 14px; background: #F6F3E7; }
+@media (max-width: 560px) {
+  .tr-ped { grid-template-columns: 52px minmax(0, 1fr); }
+  .tr-ped__acoes { grid-column: 2; justify-content: flex-start; }
+  .tr-recusar { grid-column: 1 / -1; }
+}
+.tr-hist__item { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--b-linha); }
+.tr-hist__item:first-child { padding-top: 0; }
+.tr-hist__item:last-child { border-bottom: 0; padding-bottom: 0; }
+.tr-hist__quando { display: grid; }
+.tr-hist__quando strong { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tr-hist__quando small, .tr-hist__info small { font-size: 13.5px; color: var(--b-suave); }
+.tr-hist__info { display: grid; gap: 1px; min-width: 0; }
+.tr-hist__info strong { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.tr-hist__info .tr-hist__resposta { color: #7A2C10; }
+@media (max-width: 560px) {
+  .tr-hist__item { grid-template-columns: 78px minmax(0, 1fr); }
+  .tr-hist__item > .b-tag { grid-column: 2; justify-self: start; }
+}
+.tr-resumo { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.tr-resumo li { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: #FFFDF6; border: 1px solid var(--b-linha); }
+.tr-resumo strong { font-size: 15.5px; font-weight: 600; }
+.tr-resumo span { font-size: 14px; color: var(--b-suave); }
+.tr-ausencia__resumo { display: flex; justify-content: space-between; align-items: center; gap: 8px 14px; flex-wrap: wrap; padding: 12px 16px; border-radius: 16px; background: #EEEAD9; font-size: 15px; }
+.tr-ausencia__resumo strong { font-weight: 600; }
+
+/* Clientes: "Mostrar mais" no fim da lista */
+.b-mais { display: flex; justify-content: center; margin: 14px 0 4px; }

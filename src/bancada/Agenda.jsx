@@ -6,6 +6,7 @@ import { useDados, useFazServicos, CampoBandeira, faltaBandeira, Carregando, Err
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { AgendaServicos } from './Servicos.jsx';
+import { TrocaProfissional, AlguemNaoVem, PedirSubstituicao, PainelTrocas } from './Trocas.jsx';
 
 export default function Agenda() {
   const { membro, chamar } = useBancada();
@@ -16,7 +17,11 @@ export default function Agenda() {
   const [agendar, setAgendar] = useState(null);
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
-  const [vistaEscolhida, setVista] = useState(local.state?.abrir ? 'aulas' : null);
+  const [vistaEscolhida, setVista] = useState(local.state?.abrir ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas' : null);
+  const [trocar, setTrocar] = useState(null); // aula aberta na folha de troca
+  const [naoVem, setNaoVem] = useState(false);
+  const [pedir, setPedir] = useState(null); // {} = período; { item } = um horário
+  const [versao, setVersao] = useState(0); // muda depois de uma troca: a agenda do dia busca de novo
   const { dados, erro, carregando, recarregar, setDados } = useDados('agenda', { de: dia, dias: 1 });
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
   // quem só dá aula (não atende serviços) abre a agenda direto em "Aulas e presença"
@@ -62,6 +67,9 @@ export default function Agenda() {
 
   return (
     <>
+      {vista === 'trocas' ? (
+        <Cabecalho titulo="Trocas de profissional">{equipeBalcao ? 'Pedidos da equipe, trocas feitas e quem cobriu quem.' : 'Seus pedidos de substituição e os horários que você cobre.'}</Cabecalho>
+      ) : (<>
       <Cabecalho titulo={`${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`}
         acoes={
           <div className="b-agenda__nav">
@@ -80,11 +88,13 @@ export default function Agenda() {
           </button>
         ))}
       </div>
+      </>)}
 
       <div className="b-agenda__vista">
         <div className="b-segmento" role="tablist" aria-label="O que mostrar">
           <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}>Agenda do dia</button>
           <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas e presença</button>
+          <button type="button" role="tab" aria-selected={vista === 'trocas'} onClick={() => setVista('trocas')}>Trocas</button>
         </div>
         {vista === 'aulas' && (equipeBalcao || modalidades.size > 1) && (
           <div className="b-filtros">
@@ -93,10 +103,14 @@ export default function Agenda() {
             ))}
           </div>
         )}
+        {equipeBalcao && <button type="button" className="botao botao--linha botao--p tr-naovem" onClick={() => setNaoVem(true)}>Alguém não vem</button>}
+        {!equipeBalcao && vista !== 'trocas' && <button type="button" className="botao botao--linha botao--p tr-naovem" onClick={() => setPedir({})}>Pedir substituição</button>}
       </div>
 
+      {vista === 'trocas' && <PainelTrocas dia={dia} aoMudar={() => { recarregar(); setVersao((v) => v + 1); }} />}
+
       {vista === 'dia' && (
-        <AgendaServicos dia={dia} aulas={dados || []} aoAbrirAula={(a) => {
+        <AgendaServicos key={versao} dia={dia} aulas={dados || []} aoAbrirAula={(a) => {
           setFiltro('Todas');
           setAbertas({ [a.id]: true });
           setVista('aulas');
@@ -120,7 +134,7 @@ export default function Agenda() {
               <button type="button" className="b-aula__topo" aria-expanded={aberta} onClick={() => setAbertas((x) => ({ ...x, [a.id]: !aberta }))}>
                 <strong className="b-aula__hora">{hora(a.hora)}</strong>
                 <span className="b-aula__info">
-                  <span className="b-aula__mod">{a.modalidade} <em>com {a.professor}</em></span>
+                  <span className="b-aula__mod">{a.modalidade} <em>com {a.professor}</em>{a.titular && <small className="tr-nolugar">no lugar de {a.titular}</small>}</span>
                   <Ocupacao valor={a.ocupadosQtd} total={a.capacidade} />
                 </span>
                 <span className="b-aula__num">
@@ -182,7 +196,15 @@ export default function Agenda() {
                     })}
                   </ul>
                   {equipeBalcao && (
-                    <button type="button" className="botao botao--cheio botao--p b-aula__agendar" onClick={() => setAgendar(a)}>Agendar aluno</button>
+                    <div className="b-botoes b-aula__rodape">
+                      <button type="button" className="botao botao--cheio botao--p b-aula__agendar" onClick={() => setAgendar(a)}>Agendar aluno</button>
+                      <button type="button" className="botao botao--linha botao--p" onClick={() => setTrocar(a)}>Trocar quem dá a aula</button>
+                    </div>
+                  )}
+                  {!equipeBalcao && !a.passada && !a.titular && (
+                    <div className="b-botoes b-aula__rodape">
+                      <button type="button" className="link-acao" onClick={() => setPedir({ item: { tipo: 'aula', ref: a.id, titulo: a.modalidade, data: a.data, hora: a.hora } })}>Pedir substituição desta aula</button>
+                    </div>
                   )}
                 </div>
               )}
@@ -195,6 +217,9 @@ export default function Agenda() {
 
       {agendar && <Agendar aula={agendar} aoFechar={() => setAgendar(null)} aoAgendar={() => { setAgendar(null); recarregar(); setAbertas((x) => ({ ...x, [agendar.id]: true })); }} />}
       {ficha && <FichaModal {...ficha} aoFechar={() => setFicha(null)} />}
+      {trocar && <TrocaProfissional tipo="aula" id={trocar.id} aoFechar={() => setTrocar(null)} aoTerminar={() => { setTrocar(null); recarregar(); }} />}
+      {naoVem && <AlguemNaoVem dia={dia} aoFechar={() => setNaoVem(false)} aoTerminar={() => { setNaoVem(false); recarregar(); setVersao((v) => v + 1); }} />}
+      {pedir && <PedirSubstituicao dia={dia} item={pedir.item} aoFechar={() => setPedir(null)} aoEnviar={() => { setPedir(null); setVersao((v) => v + 1); }} />}
     </>
   );
 }

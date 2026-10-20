@@ -109,6 +109,15 @@ Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
 - **Horário de cada profissional** (Catálogo → Profissionais): cada dia da semana com até 3 turnos (ex.: 8h–12h e 14h–18h) e **dias especiais**
   (um sábado com horário diferente, um dia de folga). Os horários livres e a agenda seguem isso.
 
+### Substituição de profissional
+
+Agenda → **Trocas**. A profissional pede pela bancada ("Pedir substituição"); a recepção resolve ou usa **"Alguém não vem"**
+para ver tudo da pessoa no dia. Para cada horário aparecem quem pode cobrir (faz o serviço ou dá a aula) e se está livre.
+A troca de aula vale só para aquele dia; a de atendimento muda a agenda, a comanda aberta, o pagamento e a comissão.
+A regra da comissão é escolhida na hora (de quem substitui ou da titular). Os clientes não recebem aviso automático:
+a recepção recebe a lista com o WhatsApp e a mensagem prontos. Quem cobre recebe e-mail. Escolher a titular desfaz a troca.
+Aba nova: Substituicoes.
+
 ### Clientes: endereço e "Como nos conheceu?"
 
 Cadastro com endereço (o CEP preenche rua, bairro e cidade) para nota fiscal e a pergunta "Como nos conheceu?".

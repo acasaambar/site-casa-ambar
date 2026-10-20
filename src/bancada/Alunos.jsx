@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
@@ -15,10 +15,16 @@ import { ENDERECO_VAZIO } from '../lib/clientes.js';
 
 const WELLHUB = { confirmado: ['Wellhub', 'ok'], pendente: ['Wellhub a confirmar', 'aviso'], bloqueado: ['Wellhub recusado', 'alerta'] };
 
+// a lista mostra os primeiros nomes e o resto sob demanda (milhares de linhas travam o celular)
+const POR_PAGINA = 150;
+
 export function Alunos() {
   const local = useLocation();
   const nav = useNavigate();
   const [busca, setBusca] = useState('');
+  // a lista redesenha depois da digitação (não trava o teclado com milhares de clientes)
+  const buscaAdiada = useDeferredValue(busca);
+  const [mostrar, setMostrar] = useState(POR_PAGINA);
   const [filtro, setFiltro] = useState(local.state?.filtro || 'todos');
   const [novo, setNovo] = useState(!!local.state?.novo);
   const [importar, setImportar] = useState(false);
@@ -26,7 +32,7 @@ export function Alunos() {
   const { dados, erro, carregando, recarregar } = useDados('alunos', {});
 
   const lista = useMemo(() => {
-    const q = busca.trim().toLowerCase();
+    const q = buscaAdiada.trim().toLowerCase();
     const d = soDigitos(q);
     return (dados || []).filter((a) => {
       if (filtro === 'ativos' && !a.plano) return false;
@@ -39,7 +45,8 @@ export function Alunos() {
       if (!q) return true;
       return a.nome.toLowerCase().includes(q) || a.email.toLowerCase().includes(q) || (d.length >= 3 && (a.cpf.includes(d) || a.whatsapp.includes(d)));
     });
-  }, [dados, busca, filtro]);
+  }, [dados, buscaAdiada, filtro]);
+  const abrir = (a) => nav('/bancada/alunos/' + a.cpf, { state: { resumo: a } });
 
   const contagem = (f) => (dados || []).filter((a) => (f === 'ativos' ? a.plano : f === 'sem-plano' ? !a.plano : f === 'sem-ficha' ? !a.ficha
     : f === 'wellhub' ? a.wellhub === 'pendente' || a.wellhub === 'confirmado' : f === 'inativos' ? !a.ativo : f === 'servicos' ? a.servicos : f === 'sem-cpf' ? a.semCpf : true)).length;
@@ -57,11 +64,11 @@ export function Alunos() {
         </>
       } />
       <div className="b-barra-busca">
-        <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar cliente" />
+        <input type="search" value={busca} onChange={(e) => { setBusca(e.target.value); setMostrar(POR_PAGINA); }} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar cliente" />
       </div>
       <div className="b-filtros">
         {[['todos', 'Todos'], ['ativos', 'Com plano'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'], ['wellhub', 'Wellhub'], ['inativos', 'Desativados']].map(([id, t]) => (
-          <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>
+          <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => { setFiltro(id); setMostrar(POR_PAGINA); }}>
             {t} {dados && <span>{contagem(id)}</span>}
           </button>
         ))}
@@ -76,8 +83,8 @@ export function Alunos() {
               <tr><th>Cliente</th><th>Plano</th><th>Última visita</th><th className="num">Visitas</th><th>Situação</th></tr>
             </thead>
             <tbody>
-              {lista.map((a) => (
-                <tr key={a.cpf} onClick={() => nav('/bancada/alunos/' + a.cpf)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && nav('/bancada/alunos/' + a.cpf)}>
+              {lista.slice(0, mostrar).map((a) => (
+                <tr key={a.cpf} onClick={() => abrir(a)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && abrir(a)}>
                   <td data-rotulo="Cliente"><strong>{a.nome}</strong><span className="b-suave b-bloco b-nowrap">{telFmt(a.whatsapp)}</span></td>
                   <td data-rotulo="Plano">{a.plano || <span className="b-suave">sem plano ativo</span>}{a.planoFim && <span className="b-suave b-bloco">até {dataCurta(a.planoFim)}</span>}</td>
                   <td data-rotulo="Última visita">{a.ultimaVisita || a.ultimaAula ? dataCurta(a.ultimaVisita || a.ultimaAula) : <span className="b-suave">—</span>}</td>
@@ -97,6 +104,13 @@ export function Alunos() {
             </tbody>
           </table>
         </div>
+      )}
+      {lista.length > mostrar && (
+        <p className="b-mais">
+          <button type="button" className="botao botao--linha botao--p" onClick={() => setMostrar((n) => n + POR_PAGINA)}>
+            Mostrar mais ({lista.length - mostrar} de {lista.length})
+          </button>
+        </p>
       )}
       {novo && <NovoAluno aoFechar={() => setNovo(false)} aoCriar={(cpf) => nav('/bancada/alunos/' + cpf)} />}
       {importar && <Importar aoFechar={() => setImportar(false)} aoImportar={() => { setImportar(false); recarregar(); }} />}
@@ -275,6 +289,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
 export function AlunoDetalhe() {
   const { cpf } = useParams();
   const nav = useNavigate();
+  const local = useLocation();
   const { chamar } = useBancada();
   const { dados: a, erro, carregando, recarregar, setDados } = useDados('aluno', { cpf });
   const [aba, setAba] = useState('resumo');
@@ -284,6 +299,16 @@ export function AlunoDetalhe() {
   const [comanda, setComanda] = useState(null);
   const [aviso, setAviso] = useState('');
 
+  // enquanto a ficha completa chega, mostra o que já veio da lista (nome, contato, plano)
+  const previa = local.state?.resumo?.cpf === cpf ? local.state.resumo : null;
+  if (carregando && !a && previa) return (
+    <>
+      <Link to="/bancada/alunos" className="link-acao b-voltar">Clientes</Link>
+      <Cabecalho titulo={previa.nome}>{previa.semCpf ? 'Sem CPF' : `CPF ${cpfFmt(previa.cpf)}`} · {telFmt(previa.whatsapp)}{previa.email ? ' · ' + previa.email : ''}</Cabecalho>
+      <div className="b-reserva__tags b-tags-topo">{previa.plano ? <Tag tom="ok">{previa.plano}</Tag> : <Tag>sem plano ativo</Tag>}</div>
+      <Carregando />
+    </>
+  );
   if (carregando && !a) return <Carregando />;
   if (!a) return <><Erro>{erro}</Erro><Link to="/bancada/alunos" className="link-acao">Voltar para clientes</Link></>;
 

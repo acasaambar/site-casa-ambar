@@ -104,7 +104,7 @@ function candidatosDaTroca(it, m) {
     var profs = {};
     listarProfessoras().forEach(function (p) { profs[semAcento(p.nome)] = p; });
     nomesDeAula().forEach(function (n) {
-      if (semAcento(n) === semAcento(it.atual)) return;
+      if (semAcento(n) === semAcento(it.atual) || semAcento(n) === semAcento(it.titular)) return;
       var p = profs[semAcento(n)];
       var semValor = valorDeAulaTexto(p, it.titulo) === 'sem valor cadastrado';
       lista.push({ nome: n, ocupada: ocupacao(n, it), aviso: semValor ? 'sem valor de aula cadastrado (Catálogo → Profissionais de aula)' : '',
@@ -112,7 +112,7 @@ function candidatosDaTroca(it, m) {
     });
   } else {
     listarProfissionais().forEach(function (p) {
-      if (semAcento(p.nome) === semAcento(it.atual) || !fazServico(p, it.servico)) return;
+      if (semAcento(p.nome) === semAcento(it.atual) || semAcento(p.nome) === semAcento(it.titular) || !fazServico(p, it.servico)) return;
       var a0 = minutos(it.hora), a1 = a0 + it.duracao;
       var noTurno = turnosDoProfissional(p, it.data).some(function (t) { return t[0] <= a0 && a1 <= t[1]; });
       lista.push({ nome: p.nome, ocupada: ocupacao(p.nome, it), aviso: noTurno ? '' : 'fora do horário dela',

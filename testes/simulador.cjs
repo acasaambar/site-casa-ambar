@@ -2,6 +2,8 @@
 // Simulação do Apps Script + Sheets (v2): propriedades, e-mail, HMAC, sessão
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('zlib');
+const paraBuffer = (d) => (Array.isArray(d) ? Buffer.from(d.map((x) => x & 255)) : Buffer.from(String(d)));
 const vm = require('vm');
 function colIdx(l) { return l.charCodeAt(0) - 65; }
 class Range {
@@ -47,7 +49,8 @@ function criar(arquivos) {
   } };
   const ctx = {
     SpreadsheetApp: { openById: () => ss, flush() {} },
-    CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] || null, put: (k, v) => { cacheStore[k] = v; }, remove: k => { delete cacheStore[k]; } }) },
+    CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] || null, put: (k, v) => { cacheStore[k] = v; }, remove: k => { delete cacheStore[k]; },
+      getAll: ks => Object.fromEntries(ks.filter(k => k in cacheStore).map(k => [k, cacheStore[k]])), putAll: (o) => { Object.assign(cacheStore, o); } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : (k === 'PASTA_ANAMNESES_ID' ? 'pasta' : null)), setProperty: (k, v) => { props[k] = v; } }) },
     DriveApp: (() => { const arquivos = {}; let n = 0; const pasta = { getId: () => 'pastaX', searchFiles: () => ({ hasNext: () => false }),
@@ -64,7 +67,9 @@ function criar(arquivos) {
       base64Encode: b => Buffer.from(b.map(x => x & 255)).toString('base64'),
       formatDate: (d, _tz, f) => { const z = n => String(n).padStart(2, '0'); const loc = new Date(d.getTime() - (_tz === 'GMT' ? 0 : 3 * 3600e3));
         return f.replace('yyyy', loc.getUTCFullYear()).replace('yy', String(loc.getUTCFullYear()).slice(2)).replace('MM', z(loc.getUTCMonth() + 1)).replace('dd', z(loc.getUTCDate())).replace('HH', z(loc.getUTCHours())).replace('mm', z(loc.getUTCMinutes())).replace('ss', z(loc.getUTCSeconds())).replace('u', loc.getUTCDay() || 7); },
-      newBlob: (dados, tipo) => ({ getAs: () => ({ setName() { return this; } }), getBytes: () => dados, getContentType: () => tipo, getDataAsString: () => String(dados) }),
+      newBlob: (dados, tipo) => ({ getAs: () => ({ setName() { return this; } }), getBytes: () => dados, getContentType: () => tipo, getDataAsString: () => (Array.isArray(dados) ? paraBuffer(dados).toString() : String(dados)) }),
+      gzip: (b) => { const z = [...zlib.gzipSync(paraBuffer(b.getBytes()))].map(x => (x > 127 ? x - 256 : x)); return { getBytes: () => z }; },
+      ungzip: (b) => { const t = zlib.gunzipSync(paraBuffer(b.getBytes())).toString(); return { getDataAsString: () => t }; },
       base64Decode: (t) => [...Buffer.from(t, 'base64')],
       DigestAlgorithm: { SHA_256: 1 }, Charset: { UTF_8: 1 },
     },

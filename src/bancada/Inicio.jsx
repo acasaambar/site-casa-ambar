@@ -188,6 +188,7 @@ export default function Inicio() {
               <section className="b-cartao">
                 <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Pede atenção</h2></header>
                 <ul className="b-atencao">
+                  <Atencao n={r.pedidosTroca} texto={r.pedidosTroca === 1 ? 'pedido de troca de profissional' : 'pedidos de troca de profissional'} para="/bancada/agenda" estado={{ vista: 'trocas' }} />
                   <Atencao n={r.wellhubPendentes} texto="Wellhub para confirmar" para="/bancada/alunos" estado={{ filtro: 'wellhub' }} />
                   <Atencao n={r.devolverJuros} texto="juros para devolver" para="/bancada/vendas" estado={{ filtro: 'devolver' }} />
                   <Atencao n={r.vencendo} texto="planos vencem em 7 dias" para={pode(membro, 'admin') ? '/bancada/relatorios' : '/bancada/alunos'} estado={{ aba: 'alunos' }} />
@@ -197,7 +198,7 @@ export default function Inicio() {
                   <Atencao n={r.lembretesWhats} texto="lembretes de amanhã para mandar no WhatsApp" para="/bancada/marketing" estado={{ aba: 'lembretes' }} />
                   <Atencao n={r.contasVencendo} texto="contas vencendo" para="/bancada/financeiro" estado={{ aba: 'despesas' }} />
                 </ul>
-                {!r.wellhubPendentes && !r.devolverJuros && !r.vencendo && !r.comandasAbertas && !r.estoqueBaixo && !r.lembretesWhats && !r.contasVencendo && r.caixa !== 'nao_aberto' && <p className="b-suave">Nada pendente.</p>}
+                {!r.pedidosTroca && !r.wellhubPendentes && !r.devolverJuros && !r.vencendo && !r.comandasAbertas && !r.estoqueBaixo && !r.lembretesWhats && !r.contasVencendo && r.caixa !== 'nao_aberto' && <p className="b-suave">Nada pendente.</p>}
                 <nav className="atalhos" aria-label="Atalhos">
                   <Link to="/bancada/comandas" state={{ nova: true }}>Abrir comanda</Link>
                   <Link to="/bancada/agenda" state={{ vista: 'servicos' }}>Agendar serviço</Link>

@@ -783,6 +783,7 @@ function salvarAnamnese(d) {
   esperarTrava(trava, 15000);
   try {
     var s = aba('Anamneses');
+    esquecerListaClientes();
     var existente = linhaAnamnese(cpf);
     linha = linhaSegura(linha);
     if (existente) s.getRange(existente, 1, 1, linha.length).setValues([linha]);
@@ -1537,6 +1538,7 @@ function linhaSegura(arr) {
 
 // Acrescenta uma linha a partir de um objeto { coluna: valor }
 function adicionarLinha(nomeAba, obj) {
+  if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
   var s = aba(nomeAba);
   s.appendRow(linhaSegura(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; })));
   return s.getLastRow();
@@ -1559,6 +1561,7 @@ function novoNsu(prefixo) {
 // Várias linhas de uma vez (importação, recorrentes): muito mais rápido que uma por uma
 function adicionarLinhas(nomeAba, objs) {
   if (!objs || !objs.length) return;
+  if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
   var s = aba(nomeAba);
   var cols = ABAS[nomeAba];
   var vals = objs.map(function (o) { return linhaSegura(cols.map(function (c) { return o[c] == null ? '' : o[c]; })); });
@@ -1568,6 +1571,7 @@ function adicionarLinhas(nomeAba, objs) {
 // Atualiza só as colunas informadas de uma linha.
 // Colunas vizinhas vão juntas numa gravação só (bem mais rápido que uma por uma).
 function atualizarLinha(nomeAba, linha, obj) {
+  if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
   var s = aba(nomeAba);
   var cols = [];
   Object.keys(obj).forEach(function (c) {
@@ -1615,15 +1619,28 @@ function ehData(v) {
 var _fusoCache = null;
 function objeto(cab, linha) {
   var o = {};
-  cab.forEach(function (c, i) {
+  for (var i = 0; i < cab.length; i++) {
     var v = linha[i];
     if (ehData(v)) {
-      _fusoCache = _fusoCache || fusoPlanilha();
-      v = v.getFullYear() < 1901 ? Utilities.formatDate(v, _fusoCache, 'HH:mm') : Utilities.formatDate(v, _fusoCache, 'yyyy-MM-dd HH:mm:ss').replace(/ 00:00:00$/, '');
+      var t = dataHoraTexto(v);
+      v = v.getFullYear() < 1901 ? t.slice(11, 16) : t.replace(/ 00:00:00$/, '');
     }
-    o[c] = v;
-  });
+    o[cab[i]] = v;
+  }
   return o;
+}
+
+// "aaaa-mm-dd hh:mm:ss" no fuso da planilha. Formatar pelo Google é caro (milhares de células por tela):
+// em fuso fixo (Fortaleza não tem horário de verão desde mar/2002) a conta é feita aqui; o resto é guardado.
+var FUSOS_FIXOS = { 'America/Fortaleza': [-3, 1014951600000], GMT: [0, 0], UTC: [0, 0], 'Etc/GMT': [0, 0], 'Etc/UTC': [0, 0] };
+var _datasMemo = {};
+function dataHoraTexto(v) {
+  var fuso = _fusoCache || (_fusoCache = fusoPlanilha());
+  var t = v.getTime();
+  var fixo = FUSOS_FIXOS[fuso];
+  if (fixo && t >= fixo[1]) return new Date(t + fixo[0] * 3600000).toISOString().slice(0, 19).replace('T', ' ');
+  var k = fuso + t;
+  return _datasMemo[k] || (_datasMemo[k] = Utilities.formatDate(v, fuso, 'yyyy-MM-dd HH:mm:ss'));
 }
 
 function soDigitos(v) {
@@ -1657,12 +1674,12 @@ function fusoPlanilha() {
 }
 
 function dataTexto(v) {
-  if (ehData(v)) return Utilities.formatDate(v, fusoPlanilha(), 'yyyy-MM-dd');
+  if (ehData(v)) return dataHoraTexto(v).slice(0, 10);
   return String(v).slice(0, 10);
 }
 
 function horaTexto(v) {
-  if (ehData(v)) return Utilities.formatDate(v, fusoPlanilha(), 'HH:mm');
+  if (ehData(v)) return dataHoraTexto(v).slice(11, 16);
   var s = String(v).trim();
   if (!s) return '';
   var p = s.split(':');
