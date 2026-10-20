@@ -79,7 +79,7 @@ Endereço: **www.acasambar.com.br/#/bancada**. Cada pessoa entra com o próprio 
 |---|---|
 | Administração | tudo, inclusive relatórios, equipe, planos/preços, cupons e ajustes |
 | Recepção | agenda, agendar/cancelar, presença, alunos, vendas no balcão, vales-presente e bloqueios |
-| Professora / profissional | só as próprias aulas e atendimentos: presença, ficha de saúde, **Minhas clientes** (anamnese com fotos e comandas da cliente), Meus ganhos |
+| Profissional | só as próprias aulas e atendimentos: presença, ficha de saúde, **Clientes** (anamnese com fotos e comandas de quem atende), Meus ganhos |
 
 Primeiro acesso: no editor do Apps Script, execute **uma vez** a função `autorizarEmails` (arquivo Seguranca.gs).
 Ela autoriza o envio de e-mails e manda para o dono da conta Google o link para criar a senha de administrador.
@@ -104,7 +104,7 @@ Abas novas: Servicos, Pacotes, Profissionais, Atendimentos.
 
 ### Agenda e profissionais
 
-- **Agenda do dia** (estilo Avec): esteticistas, fisioterapeuta e professoras de Pilates e Yoga lado a lado, horários nas linhas (a cada 30 min).
+- **Agenda do dia** (estilo Avec): estética, fisioterapia, Pilates e Yoga lado a lado (a profissional vê só a própria coluna), horários nas linhas (a cada 30 min).
   Listrado = fora do horário de quem atende. Toque num horário vago para agendar; toque numa aula para marcar a presença. Filtre por grupo e escolha quantas colunas cabem na tela.
 - **Horário de cada profissional** (Catálogo → Profissionais): cada dia da semana com até 3 turnos (ex.: 8h–12h e 14h–18h) e **dias especiais**
   (um sábado com horário diferente, um dia de folga). Os horários livres e a agenda seguem isso.
@@ -123,7 +123,7 @@ Relatórios → Alunos e marketing mostra de onde vêm as clientes, quanto cada 
 - **Estoque**: produtos de revenda e insumos. A venda na comanda e o uso em cada serviço (Catálogo → serviço → produtos usados) baixam o saldo sozinhos.
 - **Comissões**: em Catálogo → Profissionais, marque os serviços que cada uma faz, com a comissão (%) e o tempo (min) dela em cada um (como no Avec).
   Em branco vale o padrão: a comissão do serviço, senão a comissão padrão da profissional; o tempo do serviço. Financeiro → Comissões para pagar; a profissional vê em "Meus ganhos".
-  **Professoras de aula** (Catálogo → Professoras de aula): Pilates ganha % sobre o valor de cada aluna na aula (o plano dividido pelas aulas dele, a avulsa ou o check-in Wellhub);
+  **Profissionais de aula** (Catálogo → Profissionais de aula): Pilates ganha % sobre o valor de cada aluno na aula (o plano dividido pelas aulas dele, a avulsa ou o check-in Wellhub);
   Yoga ganha um valor fixo por aula dada. Contam só aulas que já terminaram, a partir da data escolhida; falta e reserva cancelada não contam.
 - **Financeiro**: visão do mês (entradas × saídas), despesas (com contas fixas que se repetem todo mês) e fechamentos de caixa.
 - **Bloquear horário**: Agenda → Serviços → Bloquear horário (folga, almoço, curso), com repetição semanal.
@@ -134,7 +134,7 @@ Relatórios → Alunos e marketing mostra de onde vêm as clientes, quanto cada 
   Histórico completo, ficha de estética e evolução com fotos de antes e depois (pasta privada "Casa Âmbar · Fotos de clientes" no Drive).
   **Importar planilha** (Avec ou outro sistema, em CSV) em Clientes.
 
-- **Minhas clientes** (profissional): as clientes que ela atende, com três abas: **Anamnese** (anotações de texto livre, sem limite de tamanho, com até 30 fotos cada),
+- **Clientes** (profissional): as pessoas que ela atende, com três abas: **Anamnese** (anotações de texto livre, sem limite de tamanho, com até 30 fotos cada),
   **Ficha e evolução** e **Comandas** (abertas e as últimas fechadas, sem CPF nem WhatsApp). Abre também pelo atendimento na agenda.
   Cada anotação mostra quem escreveu; só a autora (ou a administração) edita. Recepção e administração leem tudo na ficha da cliente (aba Anamnese).
   Texto curto fica na aba AnamnesesProf; texto muito longo vai para um arquivo na pasta privada de fotos do Drive.
