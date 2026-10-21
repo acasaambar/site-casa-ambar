@@ -1906,3 +1906,37 @@
 .b-pagar > .b-pagar__codigo { grid-column: 1 / -1; }
 /* erro que um botão de ação não tratou (BotaoAcao) */
 .bancada .b-erro-botao { display: block; flex-basis: 100%; margin: 6px 0 0; padding: 8px 12px; font-size: 14px; }
+
+/* ============================================================
+   DESENHO 6 · revisão geral (leitura, celular e agenda)
+   ============================================================ */
+/* números dentro de títulos em Italiana (algarismos antigos: "21" parecia "2I") */
+.bancada .b-titulo .num, .bancada .pr__selo .num, .b-modal .b-titulo .num { font-family: var(--texto); font-weight: 500; font-size: 0.82em; letter-spacing: 0; }
+/* botões grandes não ficam com letra menor que os pequenos */
+.bancada .botao:not(.botao--p), .b-modal .botao:not(.botao--p) { font-size: 15px; }
+/* abas, segmentos e subtítulos mais legíveis */
+.bancada .b-abas button { font-size: 15px; font-weight: 500; color: var(--b-suave); }
+.bancada .b-abas button[aria-selected='true'] { color: var(--b-tinta); font-weight: 600; }
+.bancada .b-segmento button { font-size: 15px; font-weight: 500; }
+.bancada .b-segmento button[aria-selected='true'] { font-weight: 600; }
+.bancada .b-cabecalho__sub { font-size: 15px; line-height: 1.5; }
+/* "Pede atenção" na tela Hoje */
+.bancada .b-atencao span { font-size: 15px; color: var(--b-tinta); }
+/* cartões lado a lado não esticam até a altura do vizinho */
+.bancada .b-duas, .bancada .b-duas--larga { align-items: start; }
+/* legendas dos grupos de campos alinhadas com os campos */
+.bancada legend, .b-modal legend { padding: 0; }
+/* agenda do dia: cabe na tela do computador sem rolar a página e o quadro ao mesmo tempo */
+@media (min-width: 900px) {
+  .bancada .ag { max-height: max(460px, calc(100dvh - 430px)); }
+}
+@media (max-width: 560px) {
+  /* a tira de dias e o padrão de 2 colunas bastam: a agenda sobe na tela */
+  .bancada .b-agenda__nav .b-data, .bancada .ag-colunas { display: none; }
+  .bancada .b-cabecalho__acoes { flex: 1 1 100%; }
+  /* indicador sozinho na última linha ocupa a largura toda */
+  .bancada .b-kpis > .b-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* links pequenos da ficha (PDF, telefone) com alvo de toque de 40 px */
+  .bancada .b-dados dd a { display: inline-block; padding-block: 10px; }
+}
+.bancada .b-reserva__nome { color: inherit; text-decoration: underline; text-decoration-color: rgba(47, 56, 33, 0.3); text-underline-offset: 3px; }

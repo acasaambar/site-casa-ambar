@@ -6,6 +6,7 @@ import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Ab
 import { Cupons } from './Vales.jsx';
 import { useCatalogoComanda } from './Comandas.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { comNumeros } from '../components/Num.jsx';
 
 const DIAS_LETRA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const GRUPOS = ['Yoga', 'Pilates', 'Estética facial', 'Estética corporal', 'Estética capilar', 'Fisioterapia', 'Produtos'];
@@ -55,7 +56,7 @@ function Promocoes({ admin }) {
           const alvo = !p.itens.length && !p.grupos.length ? 'Todos os serviços, aulas e produtos' : [...p.grupos, ...p.itens.map(nomeItem)].join(' · ');
           return (
             <li key={p.id} className={`pr pr--${p.situacao.replace(' ', '-')}`}>
-              <div className="pr__selo" aria-hidden="true"><strong>{grande}</strong><span>{pequeno}</span></div>
+              <div className="pr__selo" aria-hidden="true"><strong>{comNumeros(grande)}</strong><span>{pequeno}</span></div>
               <div className="pr__corpo">
                 <div className="pr__topo">
                   <h3>{p.nome}</h3>

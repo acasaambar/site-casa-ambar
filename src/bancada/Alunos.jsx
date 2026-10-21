@@ -8,7 +8,7 @@ import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
 import { AnamneseConteudo } from './Anamnese.jsx';
 import { FichaConteudo } from './Agenda.jsx';
-import { useItensVenda, OpcoesItens } from './Servicos.jsx';
+import { useItensVenda, OpcoesItens, NovoAtendimento } from './Servicos.jsx';
 import { mascaraCPF, mascaraTelefone, soDigitos, cpfValido } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { CamposEndereco, CampoComoConheceu } from './CamposCliente.jsx';
@@ -267,6 +267,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
   const { chamar } = useBancada();
   const [f, setF] = useState({ nome: '', cpf: '', whatsapp: '', email: '', nascimento: '', enviarConvite: true, comoConheceu: '', endereco: ENDERECO_VAZIO });
   const [erro, setErro] = useState('');
+  const [duplicado, setDuplicado] = useState(''); // CPF do cadastro que já existe
   const [enviando, setEnviando] = useState(false);
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
   async function salvar(e) {
@@ -279,6 +280,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
       aoCriar(r.cpf);
     } catch (err) {
       setErro(err.message);
+      setDuplicado(err.codigo === 'DUPLICADO' && err.dados?.cpf ? err.dados.cpf : '');
     } finally {
       setEnviando(false);
     }
@@ -304,6 +306,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
           </label>
         )}
         <Erro>{erro}</Erro>
+        {duplicado && <button type="button" className="botao botao--linha" onClick={() => aoCriar(duplicado)}>Abrir o cadastro que já existe</button>}
         <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Salvando…' : 'Cadastrar'}</button>
       </form>
     </Modal>
@@ -322,6 +325,8 @@ export function AlunoDetalhe() {
   const [vender, setVender] = useState(false);
   const [vale, setVale] = useState(false);
   const [comanda, setComanda] = useState(null);
+  const [agendarServ, setAgendarServ] = useState(false);
+  const { dados: catalogoServ } = useDados('catalogoServicos', {});
   const [aviso, setAviso] = useState('');
 
   // enquanto a ficha completa chega, mostra o que já veio da lista (nome, contato, plano)
@@ -361,6 +366,7 @@ export function AlunoDetalhe() {
           {a.whatsapp && <a className="botao botao--linha botao--p com-icone" href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> WhatsApp</a>}
           <button type="button" className="botao botao--linha botao--p" onClick={() => setVale(true)}>Aplicar vale</button>
           <button type="button" className="botao botao--linha botao--p" onClick={() => setVender(true)}>Vender plano</button>
+          <button type="button" className="botao botao--linha botao--p" disabled={!catalogoServ} onClick={() => setAgendarServ(true)}>Agendar serviço</button>
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setComanda(a.comandaAberta ? { id: a.comandaAberta } : { inicial: { cpf: a.cpf, nome: a.nome } })}>
             {a.comandaAberta ? 'Comanda aberta' : 'Abrir comanda'}
           </button>
@@ -480,6 +486,10 @@ export function AlunoDetalhe() {
       {vender && <VenderModal aluno={a} aoFechar={() => setVender(false)} aoVender={() => { setVender(false); recarregar(); setAba('planos'); }} />}
       {vale && <AplicarVale aluno={a} aoFechar={() => setVale(false)} aoAplicar={() => { setVale(false); recarregar(); }} />}
       {comanda && <ComandaModal id={comanda.id} inicial={comanda.inicial} aoFechar={() => { setComanda(null); recarregar(); }} />}
+      {agendarServ && catalogoServ && (
+        <NovoAtendimento inicial={{ data: hojeIso(), cliente: { cpf: a.cpf, nome: a.nome, whatsapp: a.whatsapp } }} catalogo={catalogoServ}
+          aoFechar={() => setAgendarServ(false)} aoSalvar={() => { setAgendarServ(false); recarregar(); setAviso('Serviço agendado. Ele aparece na Agenda do dia.'); }} />
+      )}
     </>
   );
 }

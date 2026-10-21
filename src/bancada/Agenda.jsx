@@ -1,28 +1,44 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import { useDados, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { comNumeros } from '../components/Num.jsx';
 import { AgendaServicos } from './Servicos.jsx';
 import { TrocaProfissional, AlguemNaoVem, PedirSubstituicao, PainelTrocas } from './Trocas.jsx';
 
 export default function Agenda() {
   const { membro, chamar } = useBancada();
   const local = useLocation();
-  const [dia, setDia] = useState(hojeIso());
+  // lembra o dia escolhido por 2 horas (sair para Clientes ou Comanda e voltar não leva de volta para hoje)
+  const [dia, setDiaBruto] = useState(() => {
+    try {
+      const x = JSON.parse(sessionStorage.getItem('ambar_agenda_dia'));
+      if (x && /^\d{4}-\d{2}-\d{2}$/.test(x.dia) && Date.now() - x.quando < 2 * 3600e3) return x.dia;
+    } catch { /* sem armazenamento */ }
+    return hojeIso();
+  });
+  const setDia = (d) => {
+    setDiaBruto(d);
+    try { sessionStorage.setItem('ambar_agenda_dia', JSON.stringify({ dia: d, quando: Date.now() })); } catch { /* sem armazenamento */ }
+  };
   const [filtro, setFiltro] = useState('Todas');
   const [abertas, setAbertas] = useState(() => (local.state?.abrir ? { [local.state.abrir]: true } : {}));
   const [agendar, setAgendar] = useState(null);
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
-  const [vistaEscolhida, setVista] = useState(local.state?.abrir ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas' : null);
+  const [vistaEscolhida, setVista] = useState(local.state?.abrir ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas' : local.state?.novoServico ? 'dia' : null);
+  // "Agendar serviço" da tela Hoje abre o formulário direto (uma vez só)
+  const [abrirNovoServico] = useState(!!local.state?.novoServico);
+  useEsquecerPedidoDaRota('novoServico');
   const [trocar, setTrocar] = useState(null); // aula aberta na folha de troca
   const [naoVem, setNaoVem] = useState(false);
   const [pedir, setPedir] = useState(null); // {} = período; { item } = um horário
   const [versao, setVersao] = useState(0); // muda depois de uma troca: a agenda do dia busca de novo
   const { dados, erro, carregando, recarregar, setDados } = useDados('agenda', { de: dia, dias: 1 });
+  useAtualizarSozinho(recarregar);
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
   // quem só dá aula (não atende serviços) abre a agenda direto em "Aulas e presença"
   const fazServicos = useFazServicos();
@@ -70,7 +86,7 @@ export default function Agenda() {
       {vista === 'trocas' ? (
         <Cabecalho titulo="Trocas de profissional">{equipeBalcao ? 'Pedidos da equipe, trocas feitas e quem cobriu quem.' : 'Seus pedidos de substituição e os horários que você cobre.'}</Cabecalho>
       ) : (<>
-      <Cabecalho titulo={`${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`}
+      <Cabecalho titulo={comNumeros(`${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`)}
         acoes={
           <div className="b-agenda__nav">
             <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, -1))} aria-label="Dia anterior">‹</button>
@@ -110,7 +126,7 @@ export default function Agenda() {
       {vista === 'trocas' && <PainelTrocas dia={dia} aoMudar={() => { recarregar(); setVersao((v) => v + 1); }} />}
 
       {vista === 'dia' && (
-        <AgendaServicos key={versao} dia={dia} aulas={dados || []} aoAbrirAula={(a) => {
+        <AgendaServicos key={versao} dia={dia} abrirNovo={abrirNovoServico} aulas={dados || []} aoAbrirAula={(a) => {
           setFiltro('Todas');
           setAbertas({ [a.id]: true });
           setVista('aulas');
@@ -159,7 +175,8 @@ export default function Agenda() {
                             <span className="b-reserva__tapete b-reserva__tapete--sem" aria-hidden="true">{r.status === 'check-in' ? '✓' : r.status === 'falta' ? '×' : ''}</span>
                           )}
                           <div className="b-reserva__quem">
-                            <strong>{r.nome}</strong>
+                            {/* recepção abre o cadastro pelo nome (profissional não recebe o CPF) */}
+                            <strong>{equipeBalcao && r.cpf ? <Link to={`/bancada/alunos/${r.cpf}`} className="b-reserva__nome">{r.nome}</Link> : r.nome}</strong>
                             <span className="b-reserva__tags">
                               {r.primeiraAula && <Tag tom="ambar">1ª aula</Tag>}
                               {r.alerta && <Tag tom="alerta" title="A ficha de saúde tem pontos de atenção">saúde: atenção</Tag>}

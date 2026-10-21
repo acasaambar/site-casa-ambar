@@ -152,7 +152,7 @@ function publicoCampanha(f) {
       var c = mc[k];
       if (String(c.modalidade) !== 'Serviço' || !ativoSim(c.ativo) || c.fim < hoje || c.aulas_total < 2) return;
       var resta = c.aulas_total - (usos[c.id] || 0);
-      if (resta <= 1 || c.fim <= somarDias(hoje, 15)) acabando[normCpf(c.cpf)] = c.descricao + ' · ' + resta + ' sessão(ões), até ' + c.fim.split('-').reverse().join('/');
+      if (resta <= 1 || c.fim <= somarDias(hoje, 15)) acabando[normCpf(c.cpf)] = c.descricao + ' · ' + plural(resta, 'sessão', 'sessões') + ', até ' + c.fim.split('-').reverse().join('/');
     });
   }
   var dias = Math.min(Math.max(Number(f.dias) || 45, 7), 365);

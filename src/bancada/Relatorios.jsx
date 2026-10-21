@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useDados, Carregando, Erro, Cabecalho, Kpi, Abas, Vazio, real, realCurto, dataBR, dataCurta, hojeIso, somarDias, MESES, linkWhats, primeiro,
   telFmt, baixarCSV, plural } from './ui.jsx';
 import { BarrasH, Colunas, MapaCalor } from './Graficos.jsx';
@@ -190,7 +190,7 @@ function ListaContatos({ titulo, sub, itens, extra, mensagem, nomeCsv }) {
         <ul className="b-contatos">
           {itens.slice(0, 30).map((i) => (
             <li key={i.cpf}>
-              <div><strong>{i.nome}</strong><span className="b-suave">{extra(i)}</span></div>
+              <div><strong>{i.cpf ? <Link to={`/bancada/alunos/${i.cpf}`}>{i.nome}</Link> : i.nome}</strong><span className="b-suave">{extra(i)}</span></div>
               {i.whatsapp && (
                 <a className="link-acao" href={linkWhats(i.whatsapp, mensagem(i))} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${i.nome}`}><IconeWhatsapp tamanho={16} /></a>
               )}
@@ -224,7 +224,7 @@ function Alunos({ a }) {
             : <p className="b-suave">Sem vendas no período.</p>}
         </Grafico>
       </div>
-      <Grafico titulo="Bairros dos clientes" sub={`${a.comEndereco} de ${a.total} clientes com endereço completo (para nota fiscal)`}>
+      <Grafico titulo="Bairros dos clientes" sub={`${a.comEndereco} de ${a.total} clientes com endereço completo`}>
         {a.bairros.length
           ? <BarrasH itens={a.bairros.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} limite={15} />
           : <p className="b-suave">Ainda ninguém com bairro cadastrado. Preencha o endereço em Clientes → editar.</p>}

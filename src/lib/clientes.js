@@ -1,4 +1,4 @@
-// Cadastro de clientes: "Como nos conheceu?" e endereço (para nota fiscal e relatórios)
+// Cadastro de clientes: "Como nos conheceu?" e endereço (para contato e relatórios)
 import { soDigitos } from './util.js';
 
 export const COMO_CONHECEU = ['Instagram', 'Google', 'Indicação de alguém', 'Wellhub', 'Passou em frente', 'WhatsApp', 'Facebook', 'Evento ou parceria'];

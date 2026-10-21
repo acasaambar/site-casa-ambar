@@ -7,7 +7,8 @@ import { CatalogoServicos, Profissionais } from './Servicos.jsx';
 export default function Grade() {
   const { membro } = useBancada();
   const admin = pode(membro, 'admin');
-  const [aba, setAba] = useState('bloqueios');
+  // a administração começa no que mais usa; a recepção só vê feriados e bloqueios
+  const [aba, setAba] = useState(admin ? 'servicos' : 'bloqueios');
   const itens = [['bloqueios', 'Feriados e bloqueios']];
   if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais'], ['professoras', 'Profissionais de aula']);
   return (

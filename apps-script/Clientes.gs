@@ -422,7 +422,7 @@ function bancada_salvarEvolucao(d, m) {
   adicionarLinha('Evolucoes', { id: id, cpf: cpf, nome: a ? a.nome : '', data: dataValida(d.data, atend ? dataTexto(atend.data) : hojeTexto()),
     profissional: atend ? atend.profissional : (m.professor_nome || m.nome), atendimento_id: atend ? atend.id : '', servico: atend ? atend.servico : String(d.servico || '').slice(0, 100),
     anotacao: anot, fotos: ids.join(','), criado_por: m.email, criado_em: agoraTexto() });
-  registrar(m, 'registrou evolução', (a ? a.nome : cpf) + (ids.length ? ' · ' + ids.length + ' foto(s)' : ''));
+  registrar(m, 'registrou evolução', (a ? a.nome : cpf) + (ids.length ? ' · ' + plural(ids.length, 'foto', 'fotos') : ''));
   return bancada_prontuario(d, m);
 }
 
@@ -544,7 +544,7 @@ function bancada_salvarAnamneseProf(d, m) {
     linha.criado_por = m.email; linha.criado_em = agoraTexto();
     adicionarLinha('AnamnesesProf', linha);
   }
-  registrar(m, ex ? 'editou anamnese' : 'escreveu anamnese', (a ? a.nome : cpf) + ' · ' + texto.length + ' caracteres' + (fotos.length ? ' · ' + fotos.length + ' foto(s)' : ''));
+  registrar(m, ex ? 'editou anamnese' : 'escreveu anamnese', (a ? a.nome : cpf) + ' · ' + texto.length + ' caracteres' + (fotos.length ? ' · ' + plural(fotos.length, 'foto', 'fotos') : ''));
   return bancada_anamnesesProf(d, m);
 }
 
@@ -629,7 +629,7 @@ function historicoCliente(cpf, pre) {
       detalhe: c.texto.slice(0, 140) + (String(x.fotos || '') ? ' · com fotos' : ''), status: '' });
   });
   evolucoesDe(cpf).forEach(function (e) {
-    ev.push({ data: e.data, hora: '', tipo: 'evolucao', titulo: 'Evolução' + (e.servico ? ' · ' + e.servico : ''), detalhe: e.anotacao.slice(0, 140) + (e.fotos.length ? ' · ' + e.fotos.length + ' foto(s)' : ''), status: '' });
+    ev.push({ data: e.data, hora: '', tipo: 'evolucao', titulo: 'Evolução' + (e.servico ? ' · ' + e.servico : ''), detalhe: e.anotacao.slice(0, 140) + (e.fotos.length ? ' · ' + plural(e.fotos.length, 'foto', 'fotos') : ''), status: '' });
   });
   return ev.sort(function (a, b) { return (b.data + b.hora).localeCompare(a.data + a.hora); }).slice(0, 300);
 }

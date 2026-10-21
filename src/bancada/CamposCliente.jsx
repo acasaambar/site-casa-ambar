@@ -20,7 +20,7 @@ export function CamposEndereco({ valor, aoMudar }) {
   }
   return (
     <fieldset className="cc-endereco">
-      <legend className="rotulo">Endereço <small>(para nota fiscal)</small></legend>
+      <legend className="rotulo">Endereço</legend>
       <div className="cc-grade">
         <label className="b-campo cc-cep"><span className="rotulo">CEP</span>
           <input inputMode="numeric" autoComplete="postal-code" value={valor.cep} onChange={(e) => cep(e.target.value)} placeholder="60150-160" />

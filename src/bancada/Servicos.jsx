@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+import { useDados, useAtualizarSozinho, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana, plural, ehDela } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -43,13 +43,16 @@ const lerLocal = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k
 const gravarLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
 const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
-export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
+export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo }) {
   const { membro } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [gruposRef, maisGrupos] = useMaisADireita();
   const { dados, erro, carregando, recarregar } = useDados('atendimentos', { de: dia, dias: 1 });
+  useAtualizarSozinho(recarregar);
   const { dados: catalogo } = useDados('catalogoServicos', {});
-  const [novo, setNovo] = useState(null);
+  const quadro = useRef(null);
+  const rolouEm = useRef('');
+  const [novo, setNovo] = useState(abrirNovo ? { data: dia } : null);
   const [aberto, setAberto] = useState(null);
   const [bloquear, setBloquear] = useState(null);
   const [folga, setFolga] = useState(null);
@@ -98,6 +101,14 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
   const y = (m) => (m - INI) * PX;
   const minutoAgora = agora.getHours() * 60 + agora.getMinutes();
   const ehHoje = dia === hojeIso();
+
+  // hoje: a agenda abre já rolada até perto de agora (uma vez por dia escolhido)
+  useEffect(() => {
+    const el = quadro.current;
+    if (!el || !dados || rolouEm.current === dia) return;
+    rolouEm.current = dia;
+    if (ehHoje && minutoAgora > INI + 60) el.scrollTop = Math.max(0, (minutoAgora - INI) * PX - 80);
+  }, [dados, dia]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const alternarGrupo = (g) => {
     const n = ocultos.includes(g) ? ocultos.filter((x) => x !== g) : [...ocultos, g];
@@ -150,7 +161,7 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
       ))}
 
       {mostradas.length > 0 && (
-        <div className="ag" style={{ '--visiveis': balcao ? Math.min(visiveis, mostradas.length) : mostradas.length }}>
+        <div className="ag" ref={quadro} style={{ '--visiveis': balcao ? Math.min(visiveis, mostradas.length) : mostradas.length }}>
           <div className="ag-grade" style={{ '--n': mostradas.length, '--alt': `${ALT}px` }}>
             <div className="ag-canto" aria-hidden="true" />
             {mostradas.map((c) => (
@@ -238,7 +249,8 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula }) {
 // ============================================================
 //  NOVO ATENDIMENTO (ou reagendar)
 // ============================================================
-function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
+// inicial: { data, profissional, hora, servicoId, reagendar, cliente } (cliente: aberto pela ficha)
+export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
   const re = inicial.reagendar;
   const [servicoId, setServicoId] = useState(inicial.servicoId || '');
@@ -246,7 +258,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const [data, setData] = useState(inicial.data || hojeIso());
   const [horaSel, setHoraSel] = useState(inicial.hora || '');
   const [horarios, setHorarios] = useState(null);
-  const [cliente, setCliente] = useState(re ? { nome: re.nome, cpf: re.cpf, whatsapp: re.whatsapp } : null);
+  const [cliente, setCliente] = useState(re ? { nome: re.nome, cpf: re.cpf, whatsapp: re.whatsapp } : inicial.cliente || null);
   const [semCadastro, setSemCadastro] = useState({ nome: '', whatsapp: '' });
   const [modoCliente, setModoCliente] = useState('busca');
   const [pagamento, setPagamento] = useState(re ? re.pagamento : 'no_dia');
@@ -475,7 +487,7 @@ function DetalheFolga({ f, aoFechar, aoMudar }) {
       <div className="b-form">
         <p>{f.diaTodo ? 'Dia todo bloqueado.' : `Bloqueado das ${hora(f.inicio)} às ${hora(f.fim)}.`}</p>
         <Erro>{erro}</Erro>
-        <BotaoAcao className="botao botao--linha botao--perigo" acao={async () => { try { await chamar('excluirFolga', { id: f.id }); aoMudar(); } catch (e) { setErro(e.message); } }}>Liberar este horário</BotaoAcao>
+        <BotaoAcao className="botao botao--linha botao--perigo" confirmar="Liberar este horário? Ele volta a ficar livre para agendar." acao={async () => { try { await chamar('excluirFolga', { id: f.id }); aoMudar(); } catch (e) { setErro(e.message); } }}>Liberar este horário</BotaoAcao>
       </div>
     </Modal>
   );
@@ -504,7 +516,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
         </div>
         <dl className="b-dados">
           <dt>Cliente</dt><dd>{a.nome}{!a.cpf && balcao ? ' · sem cadastro' : ''}</dd>
-          {a.whatsapp && <><dt>WhatsApp</dt><dd>{telFmt(a.whatsapp)}</dd></>}
+          {a.whatsapp && <><dt>WhatsApp</dt><dd><a href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer">{telFmt(a.whatsapp)}</a></dd></>}
           <dt>Situação</dt><dd><Tag tom={st[1]}>{st[0]}</Tag></dd>
           {balcao && <><dt>Pagamento</dt><dd>{PAGAMENTO[a.pagamento] || a.pagamento}{a.valor ? ` · ${real(a.valor)}` : ''}</dd></>}
           {a.obs && <><dt>Observação</dt><dd>{a.obs}</dd></>}
@@ -518,6 +530,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
         </button>
       )}
       <button type="button" className="link-acao s-prontuario" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
+      {balcao && a.cpf && <Link to={`/bancada/alunos/${a.cpf}`} className="link-acao s-prontuario">Cadastro completo do cliente</Link>}
       {!balcao && (
         <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="link-acao s-prontuario">Anamnese e comanda</Link>
       )}

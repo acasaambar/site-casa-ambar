@@ -283,7 +283,7 @@ function bancada_pedirSubstituicao(d, m) {
     return { id: novoId('T') + k, tipo: it.tipo, ref: it.ref, data: it.data, hora: it.hora, titulo: it.titulo, titular: it.atual, status: 'pedido',
       motivo: motivo, pedido_por: m.email, pedido_em: agoraTexto() };
   }));
-  registrar(m, 'pediu substituição', itens.length + ' horário(s) · ' + motivo);
+  registrar(m, 'pediu substituição', plural(itens.length, 'horário', 'horários') + ' · ' + motivo);
   return { pedidos: itens.length };
 }
 

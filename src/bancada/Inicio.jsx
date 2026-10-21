@@ -201,7 +201,7 @@ export default function Inicio() {
                 {!r.pedidosTroca && !r.wellhubPendentes && !r.devolverJuros && !r.vencendo && !r.comandasAbertas && !r.estoqueBaixo && !r.lembretesWhats && !r.contasVencendo && r.caixa !== 'nao_aberto' && <p className="b-suave">Nada pendente.</p>}
                 <nav className="atalhos" aria-label="Atalhos">
                   <Link to="/bancada/comandas" state={{ nova: true }}>Abrir comanda</Link>
-                  <Link to="/bancada/agenda" state={{ vista: 'servicos' }}>Agendar serviço</Link>
+                  <Link to="/bancada/agenda" state={{ vista: 'servicos', novoServico: true }}>Agendar serviço</Link>
                   <Link to="/bancada/vendas" state={{ aba: 'vales', novo: true }}>Vender vale-presente</Link>
                   <Link to="/bancada/alunos" state={{ novo: true }}>Cadastrar cliente</Link>
                 </nav>

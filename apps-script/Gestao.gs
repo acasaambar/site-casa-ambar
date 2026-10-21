@@ -38,7 +38,13 @@ function diasNoMes(mes) {
 }
 function mesValido(m) { return /^\d{4}-\d{2}$/.test(String(m || '')) ? String(m) : hojeTexto().slice(0, 7); }
 function dataValida(d, padrao) { return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) ? String(d) : padrao; }
-function brl(v) { return 'R$ ' + dinheiro(v).toFixed(2).replace('.', ','); }
+// R$ 1.240,00 (com separador de milhar)
+function brl(v) {
+  var p = Math.abs(dinheiro(v)).toFixed(2).split('.');
+  return (v < 0 ? '−' : '') + 'R$ ' + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1];
+}
+// "1 foto", "2 fotos" (nunca "foto(s)")
+function plural(n, um, varios) { return n + ' ' + (n === 1 ? um : varios); }
 
 // ============================================================
 //  PRODUTOS E ESTOQUE

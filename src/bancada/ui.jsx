@@ -101,10 +101,27 @@ export function hora(h) {
   const [hh, mm] = String(h).split(':');
   return mm === '00' ? `${Number(hh)}h` : `${Number(hh)}h${mm}`;
 }
+// "hoje" no fuso da casa (Fortaleza), igual ao servidor, mesmo com o aparelho em outro fuso
 export function hojeIso() {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Fortaleza', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  } catch {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+}
+
+// busca de novo ao voltar para a aba e a cada poucos minutos (reservas do site e outro aparelho aparecem sem F5)
+export function useAtualizarSozinho(recarregar, minutos = 3) {
+  const ref = useRef(recarregar);
+  useEffect(() => { ref.current = recarregar; });
+  useEffect(() => {
+    const visivel = () => { if (document.visibilityState === 'visible') ref.current?.(); };
+    document.addEventListener('visibilitychange', visivel);
+    const t = setInterval(() => { if (document.visibilityState === 'visible') ref.current?.(); }, minutos * 60000);
+    return () => { document.removeEventListener('visibilitychange', visivel); clearInterval(t); };
+  }, [minutos]);
 }
 export function somarDias(iso, n) {
   const [a, m, d] = iso.split('-').map(Number);

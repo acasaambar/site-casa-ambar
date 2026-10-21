@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, BANDEIRAS, ehCartao, pedeBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
   telFmt, numBR, plural, METODOS, useEsquecerPedidoDaRota } from './ui.jsx';
@@ -282,7 +282,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
             <span className="cm-papel__casa">Casa Âmbar</span>
             <span className="b-suave">{c ? `nº ${c.id.slice(-5)}` : 'nova'}</span>
           </div>
-          {nomeCliente && <p className="cm-papel__cliente">{nomeCliente}</p>}
+          {nomeCliente && <p className="cm-papel__cliente">{balcao && (c?.cpf || cliente?.cpf) ? <Link to={`/bancada/alunos/${c?.cpf || cliente.cpf}`} title="Abrir o cadastro">{nomeCliente}</Link> : nomeCliente}</p>}
           {itens.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda.</p>}
           <ul className="cm-itens">
             {itens.map((it, idx) => (
