@@ -46,7 +46,7 @@ var AJUSTES = {
   checkinAbreMinAntes: 30, // check-in libera X minutos antes
   cancelarAteHorasAntes: 2, // cancelamento até X horas antes
   duracaoAulaMin: 60,
-  validadeSessaoDias: 30, // o aluno fica conectado por X dias
+  validadeSessaoDias: 7, // o login da área do aluno vale no máximo 7 dias (depois, entra de novo)
   fuso: 'America/Fortaleza',
   // Pagamentos (InfinitePay · Checkout Integrado)
   infinitepayHandle: 'acasaambar', // InfiniteTag sem o $
@@ -486,6 +486,23 @@ function limparSessoesVencidas(nomeAba) {
   }
 }
 
+// data/hora gravada pelo sistema → Date ("2026-10-21 08:00:00" de Fortaleza, ISO ou data que a planilha converteu)
+function momentoDe(v) {
+  // a planilha converte o texto "2026-10-21 08:00:00" em data no fuso DELA: lê de volta o que foi gravado
+  var t = ehData(v) ? dataHoraTexto(v) : String(v || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(t)) return new Date(t);
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t)) return new Date(t.slice(0, 19).replace(' ', 'T') + (t.length > 16 ? '' : ':00') + '-03:00');
+  return new Date(NaN);
+}
+
+// sessão ainda vale: dentro do prazo gravado e do limite de hoje (sessões antigas, mais longas, também caem)
+function sessaoValida(linha, maxMs) {
+  var exp = ehData(linha[3]) ? linha[3] : momentoDe(linha[3]); // expira_em é gravado em ISO (instante exato)
+  if (isNaN(exp.getTime()) || exp <= new Date()) return false;
+  var criada = momentoDe(linha[2]);
+  return !isNaN(criada.getTime()) && Date.now() - criada.getTime() < maxMs;
+}
+
 function alunoDaSessao(token) {
   if (!token || String(token).length < 20) throw new Error('Sua sessão expirou. Entre novamente.');
   var cache = CacheService.getScriptCache();
@@ -495,7 +512,7 @@ function alunoDaSessao(token) {
     var linhas = valoresAba('Sessoes');
     for (var i = 1; i < linhas.length; i++) {
       // aceita também sessões antigas (token puro), criadas antes desta versão
-      if ((linhas[i][0] === h || linhas[i][0] === token) && new Date(linhas[i][3]) > new Date()) {
+      if ((linhas[i][0] === h || linhas[i][0] === token) && sessaoValida(linhas[i], AJUSTES.validadeSessaoDias * 86400000)) {
         cpf = normCpf(linhas[i][1]);
         break;
       }

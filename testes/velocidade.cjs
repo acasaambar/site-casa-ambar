@@ -26,7 +26,8 @@ embrulhar(ProtoAba, 'appendRow', 'gravacoes');
 const cacheOrig = m.ctx.CacheService.getScriptCache;
 m.ctx.CacheService.getScriptCache = () => {
   const c = cacheOrig();
-  return { get: (k) => { cont.outras++; return c.get(k); }, put: (k, v, t) => { cont.outras++; return c.put(k, v, t); }, remove: (k) => { cont.outras++; return c.remove(k); } };
+  return { get: (k) => { cont.outras++; return c.get(k); }, put: (k, v, t) => { cont.outras++; return c.put(k, v, t); }, remove: (k) => { cont.outras++; return c.remove(k); },
+    getAll: (ks) => { cont.outras++; return c.getAll(ks); }, putAll: (o, t) => { cont.outras++; return c.putAll(o, t); } };
 };
 const ssGet = ss.getSheetByName;
 ss.getSheetByName = function (n) { cont.outras++; return ssGet.call(this, n); };

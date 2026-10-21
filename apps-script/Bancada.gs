@@ -174,9 +174,13 @@ function bancadaEntrar(d) {
   if (v.atualizar) gravarSenha('Equipe', m._linha, d.senha);
   atualizarLinha('Equipe', m._linha, { ultimo_acesso: agoraTexto() });
   var token = 'E' + Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
-  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: new Date(Date.now() + 12 * 3600000).toISOString() });
+  // o login da bancada vale até a meia-noite de hoje (Fortaleza), no máximo 14 h, e cai depois de 3 h sem uso
+  var meiaNoite = new Date(somarDias(hojeTexto(), 1) + 'T00:00:00-03:00').getTime();
+  var expira = new Date(Math.min(Date.now() + SESSAO_EQUIPE_MAX_MS, meiaNoite));
+  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: expira.toISOString() });
+  try { CacheService.getScriptCache().put('u_' + hashToken(token), '1', SESSAO_EQUIPE_PARADA_S); } catch (e) { /* sem cache: vale o prazo da planilha */ }
   limparSessoesVencidas('SessoesEquipe');
-  return { token: token, membro: membroPublico(m) };
+  return { token: token, membro: membroPublico(m), expira: expira.toISOString(), paradaMin: SESSAO_EQUIPE_PARADA_S / 60 };
 }
 
 function bancadaEsqueci(d) {
@@ -198,21 +202,33 @@ function bancadaEsqueci(d) {
   return { ok: true };
 }
 
+var SESSAO_EQUIPE_MAX_MS = 14 * 3600000; // no máximo 14 h (e nunca passa da meia-noite)
+var SESSAO_EQUIPE_PARADA_S = 3 * 3600;   // 3 h sem usar a bancada: entra de novo
+
 function membroDaSessao(token) {
   if (!token || String(token).charAt(0) !== 'E' || String(token).length < 30) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
   var cache = CacheService.getScriptCache();
   var h = hashToken(token);
+  var c = cache.getAll(['m_' + h, 'u_' + h]);
+  // parada há mais de 3 h (a marca de uso venceu no cache): entra de novo
+  if (!c['u_' + h]) {
+    try { cache.remove('m_' + h); cache.remove('e_' + h); } catch (e) { /* ignora */ }
+    throw erroCod('Sua sessão da bancada expirou por falta de uso. Entre novamente.', 'SESSAO_EQUIPE');
+  }
+  cache.put('u_' + h, '1', SESSAO_EQUIPE_PARADA_S);
   // sessão conferida há pouco: a pessoa vem do cache (sem ler a planilha). Sai do cache se ela for
   // desativada, mudar de papel, trocar a senha ou sair.
-  var guardado = cache.get('m_' + h);
+  var guardado = c['m_' + h];
   if (guardado) {
     try { return JSON.parse(guardado); } catch (e) { /* refaz abaixo */ }
   }
   var email = cache.get('e_' + h);
   if (!email) {
     var linhas = valoresAba('SessoesEquipe');
+    var hoje = hojeTexto();
     for (var i = 1; i < linhas.length; i++) {
-      if ((linhas[i][0] === h || linhas[i][0] === token) && new Date(linhas[i][3]) > new Date()) { email = String(linhas[i][1]).toLowerCase(); break; }
+      if ((linhas[i][0] === h || linhas[i][0] === token) && sessaoValida(linhas[i], SESSAO_EQUIPE_MAX_MS)
+        && Utilities.formatDate(momentoDe(linhas[i][2]), AJUSTES.fuso, 'yyyy-MM-dd') === hoje) { email = String(linhas[i][1]).toLowerCase(); break; }
     }
     if (!email) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
     cache.put('e_' + h, email, 600);
@@ -245,7 +261,7 @@ function encerrarSessaoToken(token) {
   var h = hashToken(token);
   var linhas = s.getDataRange().getValues();
   for (var i = linhas.length - 1; i >= 1; i--) if (linhas[i][0] === h || linhas[i][0] === token) s.deleteRow(i + 1);
-  try { CacheService.getScriptCache().remove('e_' + h); CacheService.getScriptCache().remove('m_' + h); } catch (e) { /* ignora */ }
+  try { var cc = CacheService.getScriptCache(); cc.remove('e_' + h); cc.remove('m_' + h); cc.remove('u_' + h); } catch (e) { /* ignora */ }
 }
 
 function enviarConviteEquipe(m) {

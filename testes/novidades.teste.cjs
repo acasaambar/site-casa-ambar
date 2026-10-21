@@ -4,7 +4,7 @@ const { criar } = require('./simulador.cjs');
 const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
 const R = require('path').join(__dirname, '..', 'apps-script');
 const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs', R + '/Espera.gs']);
-const { ctx, chamar, emails } = m;
+const { ctx, chamar, emails, cacheStore } = m;
 let falhas = 0;
 const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 600) : ''); } else console.log('  ✓', msg); };
 const linkDe = (e) => (e.body.match(/t=([a-f0-9]+)/) || [])[1];
@@ -255,6 +255,39 @@ console.log('— sessão do pacote direto na comanda');
   // sem pacote: pedir para usar é recusado
   r = chamar('b_salvarComanda', { token: rec, comanda: { cpf: MARIA, itens: [{ tipo: 'servico', id: 'peeling-coreano', profissional: 'Lia Esteticista', usarPacote: true }] } });
   ok(!r.ok && /pacote/.test(r.erro), 'sem pacote: recusado', r);
+}
+
+console.log('— o login expira');
+{
+  const linhaDe = (nomeAba, tok) => ctx.valoresAba(nomeAba).findIndex((l) => l[0] === ctx.hashToken(tok)) + 1;
+  const limparCacheSessao = (tok) => { const h = ctx.hashToken(tok); ['s_', 'e_', 'm_'].forEach((p) => delete cacheStore[p + h]); };
+  // área do aluno: no máximo 7 dias (inclusive sessões antigas, criadas com prazo de 30 dias)
+  let tok = chamar('entrar', { cpf: MARIA, senha: 'abc12345' }).dados.token;
+  ok(chamar('minhasReservas', { token: tok }).ok, 'aluna logada usa o site');
+  const s = ctx.aba('Sessoes');
+  let l = linhaDe('Sessoes', tok);
+  s.getRange(l, 3).setValue(ctx.somarDias(hoje, -8) + ' 10:00:00');
+  s.getRange(l, 4).setValue(new Date(Date.now() + 20 * 86400e3).toISOString());
+  limparCacheSessao(tok);
+  r = chamar('minhasReservas', { token: tok });
+  ok(!r.ok && /expirou/.test(r.erro), 'login de 8 dias atrás (mesmo com prazo antigo de 30 dias) expira', r);
+  // bancada: vale só no dia e cai com 3 h sem uso
+  const e = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados;
+  ok(e.expira && new Date(e.expira) <= new Date(ctx.somarDias(hoje, 1) + 'T00:00:00-03:00') && new Date(e.expira) - Date.now() <= 14 * 3600e3 + 1000, 'login da bancada vale até a meia-noite (no máximo 14 h)', e.expira);
+  ok(chamar('b_eu', { token: e.token }).ok, 'recepção logada usa a bancada');
+  delete cacheStore['u_' + ctx.hashToken(e.token)];
+  r = chamar('b_eu', { token: e.token });
+  ok(!r.ok && r.codigo === 'SESSAO_EQUIPE' && /falta de uso/.test(r.erro), '3 h sem uso: precisa entrar de novo', r);
+  const e2 = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
+  const se = ctx.aba('SessoesEquipe');
+  l = linhaDe('SessoesEquipe', e2);
+  se.getRange(l, 3).setValue(ctx.somarDias(hoje, -1) + ' 20:00:00');
+  limparCacheSessao(e2);
+  r = chamar('b_eu', { token: e2 });
+  ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', 'login de ontem não vale hoje', r);
+  const e3 = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
+  chamar('b_sair', { token: e3 });
+  ok(!chamar('b_eu', { token: e3 }).ok, 'sair encerra na hora');
 }
 
 // --- próximas seções acrescentadas abaixo ---
