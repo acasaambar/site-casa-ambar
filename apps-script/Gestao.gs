@@ -1085,6 +1085,31 @@ function bancada_comanda(d) {
   return comandaPublica(c);
 }
 
+// agendamento da agenda que corresponde a um serviço lançado na comanda sem ligação com ele: mesma cliente e
+// serviço, ainda não feito, de hoje em diante (o mais próximo; prefere a mesma profissional). Assim a comanda usa o
+// horário marcado em vez de criar outro atendimento no dia e na hora em que a comanda foi fechada.
+function agendamentoDoItem(cpf, servicoId, profissional, cmId, usados, soHoje) {
+  if (!cpf) return null;
+  var hoje = hojeTexto();
+  var emOutra = {};
+  lerAba('Comandas').forEach(function (c) {
+    if (c.status === 'aberta' && String(c.id) !== String(cmId)) parseJson(c.itens, []).forEach(function (i) { if (i.atendimentoId) emOutra[i.atendimentoId] = 1; });
+  });
+  var lista = lerAba('Atendimentos').filter(function (a) {
+    var dt = dataTexto(a.data);
+    return a.id && a.cpf && normCpf(a.cpf) === normCpf(cpf) && String(a.servico_id) === String(servicoId) && (a.status === 'agendado' || a.status === 'confirmado') &&
+      (soHoje ? dt === hoje : dt >= hoje) && !emOutra[a.id] && !usados[a.id] && (!a.comanda || String(a.comanda) === String(cmId));
+  });
+  lista.sort(function (x, y) {
+    return (dataTexto(x.data) + horaTexto(x.hora)).localeCompare(dataTexto(y.data) + horaTexto(y.hora)) ||
+      Number(semAcento(y.profissional) === semAcento(profissional)) - Number(semAcento(x.profissional) === semAcento(profissional));
+  });
+  return lista[0] || null;
+}
+
+// atendimento criado só para contar uma sessão de pacote usada na comanda, sem horário marcado: não aparece na grade da agenda
+function soDaComanda(a) { return /^Feito na comanda/.test(String(a.obs || '')); }
+
 function bancada_salvarComanda(d, m) {
   var x = d.comanda || {};
   var itens = (x.itens || []).slice(0, 40).map(function (i) {
@@ -1099,6 +1124,19 @@ function bancada_salvarComanda(d, m) {
     if (x.id && !ex) throw new Error('Comanda não encontrada.');
     if (ex && ex.status !== 'aberta') throw new Error('Esta comanda já foi ' + (ex.status === 'fechada' ? 'fechada' : 'cancelada') + '.');
     var cli = ex && !x.cpf && !x.cliente ? { cpf: ex.cpf ? normCpf(ex.cpf) : '', nome: ex.nome, whatsapp: String(ex.whatsapp || '') } : clienteDaComanda(x);
+    // serviço lançado à mão para quem tem horário hoje na agenda: liga ao horário marcado (não cria outro)
+    if (cli.cpf) {
+      var ligados = {};
+      itens.forEach(function (i) { if (i.atendimentoId) ligados[i.atendimentoId] = 1; });
+      itens.forEach(function (i) {
+        if (i.tipo !== 'servico' || i.atendimentoId) return;
+        var ag = agendamentoDoItem(cli.cpf, i.id, i.profissional, x.id || '', ligados, true);
+        if (!ag) return;
+        i.atendimentoId = String(ag.id);
+        if (!i.profissional) i.profissional = String(ag.profissional);
+        ligados[ag.id] = 1;
+      });
+    }
     var precisaCadastro = itens.some(function (i) { if (i.tipo === 'vale') return false; var it = itemDoCatalogo(i.tipo, i.id); return it && (it.tipo === 'pacote' || (i.tipo !== 'produto' && it.modalidade !== 'Serviço')); });
     if (precisaCadastro && !cli.cpf) throw new Error('Plano e pacote ficam na conta de quem compra: escolha alguém com cadastro (ou informe nome e WhatsApp).');
     var calc = calcularItensComanda(itens, cli.cpf, x.codigo);
@@ -1313,6 +1351,8 @@ function bancada_fecharComanda(d, m) {
     var obsPag = 'Comanda ' + cm.id + (pags.length > 1 ? ' · ' + pags.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '');
     var hoje = hojeTexto();
     var valesCriados = [];
+    var usadosNaComanda = {};
+    calc.forEach(function (i) { if (i.atendimentoId) usadosNaComanda[i.atendimentoId] = 1; });
     calc.forEach(function (it, idx) {
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
       if (it.pago) {
@@ -1327,7 +1367,12 @@ function bancada_fecharComanda(d, m) {
         return;
       }
       if (it.pacote) {
-        // sessão do pacote: o atendimento (da agenda ou criado agora, para contar a sessão) leva o crédito; comissão pela regra do pacote
+        // sessão do pacote: o atendimento da agenda leva o crédito (se não estava ligado, procura o horário marcado da cliente);
+        // só sem nenhum horário marcado cria um registro para contar a sessão (fica fora da grade da agenda)
+        if (!a) {
+          a = agendamentoDoItem(cm.cpf, it.id, it.profissional, cm.id, usadosNaComanda, false);
+          if (a) it.atendimentoId = String(a.id);
+        }
         if (!a) {
           var agora = Utilities.formatDate(new Date(), AJUSTES.fuso, 'HH:mm');
           var sv = listarServicos(true).filter(function (s) { return s.id === it.id; })[0] || {};
@@ -1337,7 +1382,13 @@ function bancada_fecharComanda(d, m) {
           adicionarLinha('Atendimentos', nova);
           it.atendimentoId = nova.id;
         } else {
-          atualizarLinha('Atendimentos', a._linha, { status: 'atendido', pagamento: 'pacote', credito_id: it.pacote, valor: 0, order_nsu: '', comanda: cm.id, atualizado_em: agoraTexto() });
+          // horário de outro dia: fica pago pelo pacote e continua marcado; vira "atendido" (com comissão) no dia, pela agenda
+          var jaFoi = dataTexto(a.data) <= hoje;
+          var mudP = { pagamento: 'pacote', credito_id: it.pacote, valor: 0, order_nsu: '', comanda: cm.id, atualizado_em: agoraTexto() };
+          if (jaFoi) mudP.status = 'atendido';
+          atualizarLinha('Atendimentos', a._linha, mudP);
+          usadosNaComanda[a.id] = 1;
+          if (!jaFoi) return;
         }
         var ap = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
         comissaoDoAtendimento(ap, true);

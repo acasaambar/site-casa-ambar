@@ -334,6 +334,32 @@ console.log('— revisão de segurança');
   ok(!r.ok && /recepção/.test(r.erro), 'a profissional não transforma falta antiga em atendido (comissão)', r);
 }
 
+console.log('— comanda usa o horário marcado (não cria atendimento em outro dia e hora)');
+{
+  const cpf = novoCliente(14);
+  chamar('b_vender', { token: rec, cpf, planoId: 'drenagem-5', metodo: 'Pix' });
+  const marcado = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '19:00', cpf, pagamento: 'no_dia' }).dados;
+  ok(!!marcado, 'horário marcado para outro dia');
+  const antes = ctx.lerAba('Atendimentos').filter((a) => ctx.normCpf(a.cpf) === cpf).length;
+  // comanda aberta à mão (não pela agenda), com a sessão do pacote
+  let cm = chamar('b_salvarComanda', { token: rec, comanda: { cpf, itens: [{ tipo: 'servico', id: 'drenagem', profissional: 'Lia Esteticista', usarPacote: true }] } }).dados;
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [] });
+  const depois = ctx.lerAba('Atendimentos').filter((a) => ctx.normCpf(a.cpf) === cpf);
+  const lin = depois.find((a) => a.id === marcado.id);
+  ok(r.ok && depois.length === antes, 'fechar a comanda não cria outro atendimento', depois.map((a) => [a.data, a.hora, a.obs]));
+  ok(ctx.dataTexto(lin.data) === dia && ctx.horaTexto(lin.hora) === '19:00' && lin.pagamento === 'pacote' && lin.status === 'agendado',
+    'o horário marcado continua no dia e na hora certos, pago pelo pacote', [lin.data, lin.hora, lin.pagamento, lin.status]);
+  ok(!chamar('b_atendimentos', { token: rec, de: hoje, dias: 1 }).dados.atendimentos.some((a) => ctx.normCpf(a.cpf) === cpf && a.data === hoje && a.id !== marcado.id),
+    'nada aparece na agenda de hoje no horário em que a comanda foi fechada');
+  // sem horário marcado: a sessão conta, mas não aparece na grade da agenda
+  const cpf2 = novoCliente(15);
+  chamar('b_vender', { token: rec, cpf: cpf2, planoId: 'drenagem-5', metodo: 'Pix' });
+  cm = chamar('b_salvarComanda', { token: rec, comanda: { cpf: cpf2, itens: [{ tipo: 'servico', id: 'drenagem', profissional: 'Lia Esteticista', usarPacote: true }] } }).dados;
+  chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [] });
+  ok(ctx.lerAba('Atendimentos').some((a) => ctx.normCpf(a.cpf) === cpf2 && a.pagamento === 'pacote'), 'sem horário marcado: a sessão do pacote é contada');
+  ok(!chamar('b_atendimentos', { token: rec, de: hoje, dias: 1 }).dados.atendimentos.some((a) => ctx.normCpf(a.cpf) === cpf2), 'e não aparece na grade da agenda');
+}
+
 // --- próximas seções acrescentadas abaixo ---
 
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');

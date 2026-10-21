@@ -185,8 +185,8 @@ function hhmm(m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m
 
 function atendimentosDoDia(data, ignorarId) {
   return lerAba('Atendimentos').filter(function (a) {
-    // falta libera o horário para encaixe (o bloco tracejado continua na agenda)
-    return dataTexto(a.data) === data && a.status !== 'cancelado' && a.status !== 'falta' && a.id !== ignorarId;
+    // falta libera o horário para encaixe (o bloco tracejado continua na agenda); sessão lançada só na comanda não ocupa horário
+    return dataTexto(a.data) === data && a.status !== 'cancelado' && a.status !== 'falta' && a.id !== ignorarId && !soDaComanda(a);
   });
 }
 
@@ -272,6 +272,7 @@ function bancada_atendimentos(d, m) {
     var dt = dataTexto(a.data);
     if (!a.id || dt < de || dt > ate) return false;
     if (!d.incluirCancelados && a.status === 'cancelado') return false;
+    if (soDaComanda(a)) return false; // sessão de pacote lançada só na comanda: não tem horário na agenda
     if (m.papel === 'professora' && !mesmaProfessora(a.profissional, m)) return false;
     return true;
   }).map(function (a) { return atendimentoPublico(a, m); })
