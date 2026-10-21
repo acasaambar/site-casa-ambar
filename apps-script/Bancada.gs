@@ -347,8 +347,12 @@ function bancada_resumo(d, m) {
     r.devolverJuros = lerAba('Pagamentos').filter(function (p) { return /^DEVOLVER/.test(String(p.observacao)); }).length;
     var mapaC = mapaCreditos();
     var em7 = somarDias(hoje, 7);
-    r.vencendo = Object.keys(mapaC).map(function (k) { return mapaC[k]; }).filter(function (c) {
-      return String(c.ativo).toUpperCase() !== 'NÃO' && c.tipo !== 'avulsa' && c.fim >= hoje && c.fim <= em7;
+    var listaC = Object.keys(mapaC).map(function (k) { return mapaC[k]; }).filter(function (c) { return String(c.ativo).toUpperCase() !== 'NÃO'; });
+    // quem já renovou (outro plano da mesma modalidade terminando depois) não conta
+    r.vencendo = listaC.filter(function (c) {
+      return c.tipo !== 'avulsa' && c.fim >= hoje && c.fim <= em7 && !listaC.some(function (o) {
+        return o.id !== c.id && normCpf(o.cpf) === normCpf(c.cpf) && String(o.modalidade) === String(c.modalidade) && o.fim > c.fim;
+      });
     }).length;
     r.comandasAbertas = lerAba('Comandas').filter(function (c) { return c.status === 'aberta'; }).length;
     r.pedidosTroca = lerAba('Substituicoes').filter(function (s) { return s.status === 'pedido' && dataTexto(s.data) >= hoje; }).length;
@@ -649,10 +653,14 @@ function bancada_aluno(d) {
   r.obs = String(a.obs_internas || '');
   r.wellhubId = String(a.wellhub_id || '');
   r.ficha = fichaPublica(ficha);
+  // sessões de pacote de serviço ficam em Atendimentos (não em Reservas), como em creditoDeServico
+  var usosServico = {};
+  atend.forEach(function (x) { if (x.credito_id && x.status !== 'cancelado') usosServico[x.credito_id] = (usosServico[x.credito_id] || 0) + 1; });
   r.creditos = creditos.map(function (c) {
     var limite = c.aulas_semana > 0 ? c.aulas_semana : c.aulas_total;
+    var usadas = String(c.modalidade) === 'Serviço' ? (usosServico[c.id] || 0) : usoDoCredito(c, ativas, hoje);
     return { id: c.id, descricao: c.descricao, modalidade: c.modalidade, tipo: c.tipo, inicio: c.inicio, fim: c.fim, ativo: String(c.ativo).toUpperCase() !== 'NÃO',
-      limite: limite, usadas: usoDoCredito(c, ativas, hoje), porSemana: c.aulas_semana > 0, origem: String(c.origem || ''),
+      limite: limite, usadas: usadas, porSemana: c.aulas_semana > 0, origem: String(c.origem || ''),
       vigente: c.inicio <= hoje && c.fim >= hoje && String(c.ativo).toUpperCase() !== 'NÃO' };
   }).sort(function (x, y) { return String(y.fim).localeCompare(String(x.fim)); });
   r.reservas = reservas.map(function (x) {
@@ -704,8 +712,15 @@ function bancada_salvarAluno(d, m) {
   if (!a) throw new Error('Aluno não encontrado.');
   var x = d.dados || {};
   var mud = {};
-  if (x.nome != null) { if (String(x.nome).trim().split(' ').length < 2) throw new Error('Informe nome e sobrenome.'); mud.nome = String(x.nome).trim(); }
-  if (x.whatsapp != null) { if (soDigitos(x.whatsapp).length < 10) throw new Error('WhatsApp com DDD.'); mud.whatsapp = soDigitos(x.whatsapp); }
+  // cliente importado pode ter só um nome ou estar sem WhatsApp: só valida o que mudou
+  if (x.nome != null && String(x.nome).trim() !== String(a.nome || '').trim()) {
+    if (String(x.nome).trim().split(/\s+/).length < 2) throw new Error('Informe nome e sobrenome.');
+    mud.nome = String(x.nome).trim();
+  }
+  if (x.whatsapp != null && soDigitos(x.whatsapp) !== soDigitos(a.whatsapp)) {
+    if (soDigitos(x.whatsapp).length < 10) throw new Error('WhatsApp com DDD.');
+    mud.whatsapp = soDigitos(x.whatsapp);
+  }
   if (x.email != null) { if (x.email && !emailValido(x.email)) throw new Error('E-mail inválido.'); mud.email = String(x.email).trim().toLowerCase(); }
   if (x.ativo != null) mud.ativo = x.ativo ? 'SIM' : 'NÃO';
   if (x.wellhub != null) mud.wellhub = { confirmado: 'SIM', bloqueado: 'NÃO', pendente: 'pendente', nao_informado: '' }[x.wellhub];

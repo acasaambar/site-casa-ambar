@@ -19,7 +19,8 @@ function bancada_relatorio(d) {
   listarProdutos(true).forEach(function (p) { planos[p.id] = { id: p.id, modalidade: 'Produtos', categoria: 'Produtos', tipo: 'produto' }; });
   var pagamentos = lerAba('Pagamentos');
   var reservas = todasReservas();
-  var alunos = lerAba('Alunos').filter(function (a) { return a.cpf; });
+  // sem cadastros unificados nem excluídos (mesma regra da lista de Clientes)
+  var alunos = lerAba('Alunos').filter(function (a) { return a.cpf && !/^(unificado|exclu)/.test(String(a.origem_cadastro || '')); });
   var creditos = mapaCreditos();
   var fichas = mapaAnamneses();
   return {
@@ -217,13 +218,11 @@ function relAlunos(alunos, reservas, creditos, pagamentos, fichas, de, ate) {
   listaC.forEach(function (c) { var k = normCpf(c.cpf); soAvulsa[k] = soAvulsa[k] == null ? c.tipo === 'avulsa' : soAvulsa[k] && c.tipo === 'avulsa'; });
 
   var mesAtual = hoje.slice(5, 7);
-  var aniversariantes = Object.keys(fichas).map(function (c) {
-    var dn = String(ehData(fichas[c].data_nascimento) ? dataTexto(fichas[c].data_nascimento) : fichas[c].data_nascimento || '');
-    var m = dn.match(/^(\d{4})-(\d{2})-(\d{2})/) || dn.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-    if (!m) return null;
-    var mes = m[1].length === 4 ? m[2] : m[2], dia = m[1].length === 4 ? m[3] : m[1];
-    if (mes !== mesAtual) return null;
-    var o = contato(c); o.dia = Number(dia); return o;
+  // nascimento do cadastro (Minha conta, bancada, importação) ou da ficha de saúde
+  var aniversariantes = alunos.map(function (a) {
+    var dn = nascimentoDe(a, fichas);
+    if (!dn || dn.slice(5, 7) !== mesAtual) return null;
+    var o = contato(normCpf(a.cpf)); o.dia = Number(dn.slice(8, 10)); return o;
   }).filter(Boolean).sort(function (a, b) { return a.dia - b.dia; });
 
   return {
@@ -231,7 +230,7 @@ function relAlunos(alunos, reservas, creditos, pagamentos, fichas, de, ate) {
     novosNoPeriodo: alunos.filter(function (a) { var k = String(a.criado_em).slice(0, 10); return k >= de && k <= ate; }).length,
     ativos: Object.keys(vigentes).length,
     comPlano: Object.keys(vigentes).filter(function (c) { return vigentes[c].some(function (x) { return x.tipo !== 'avulsa'; }); }).length,
-    semFicha: alunos.filter(function (a) { return !fichas[normCpf(a.cpf)]; }).length,
+    semFicha: alunos.filter(function (a) { return temCpfReal(a.cpf) && !fichas[normCpf(a.cpf)]; }).length,
     wellhub: alunos.filter(function (a) { var s = statusWellhub(a); return s === 'confirmado' || s === 'pendente'; }).length,
     novosPorMes: Object.keys(meses).map(function (k) { return { chave: k, qtd: meses[k] }; }),
     frequentes: frequentes,

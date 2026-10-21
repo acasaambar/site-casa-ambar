@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { useBancada } from './sessao.jsx';
 import { mascaraCPF } from '../lib/util.js';
@@ -397,18 +398,36 @@ export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por no
 }
 
 // botão que executa uma ação assíncrona e mostra "…" enquanto espera
+// erro que a própria ação não tratou aparece logo depois do botão (antes sumia em silêncio)
 export function BotaoAcao({ acao, children, className = 'botao botao--linha botao--p', confirmar, ...resto }) {
   const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState('');
   return (
-    <button type="button" className={className} disabled={ocupado || resto.disabled} {...resto}
-      onClick={async () => {
-        if (confirmar && !window.confirm(confirmar)) return;
-        setOcupado(true);
-        try { await acao(); } finally { setOcupado(false); }
-      }}>
-      {ocupado ? '…' : children}
-    </button>
+    <>
+      <button type="button" className={className} disabled={ocupado || resto.disabled} {...resto}
+        onClick={async () => {
+          if (confirmar && !window.confirm(confirmar)) return;
+          setOcupado(true);
+          setErro('');
+          try { await acao(); } catch (e) { setErro(e?.message || 'Não deu certo. Tente de novo.'); } finally { setOcupado(false); }
+        }}>
+        {ocupado ? '…' : children}
+      </button>
+      {erro && <span className="erro b-erro-botao" role="alert">{erro}</span>}
+    </>
   );
+}
+
+// pedido de outra tela para abrir um formulário (state.novo/nova) vale uma vez só: voltar no navegador não reabre
+export function useEsquecerPedidoDaRota(...chaves) {
+  const local = useLocation();
+  const nav = useNavigate();
+  useEffect(() => {
+    if (!local.state || !chaves.some((k) => local.state[k])) return;
+    const st = { ...local.state };
+    chaves.forEach((k) => { delete st[k]; });
+    nav(local.pathname + local.search, { replace: true, state: st });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export const STATUS_RESERVA = {

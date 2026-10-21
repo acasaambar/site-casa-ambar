@@ -1904,3 +1904,5 @@
 .s-receber { grid-template-columns: minmax(0, 1fr); }
 .s-receber > .botao { justify-self: start; }
 .b-pagar > .b-pagar__codigo { grid-column: 1 / -1; }
+/* erro que um botão de ação não tratou (BotaoAcao) */
+.bancada .b-erro-botao { display: block; flex-basis: 100%; margin: 6px 0 0; padding: 8px 12px; font-size: 14px; }

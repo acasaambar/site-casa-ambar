@@ -14,7 +14,7 @@ var CONDICOES_ESTETICA = ['Hipertensão', 'Diabetes', 'Marcapasso ou implante me
   'Distúrbio de coagulação', 'Gestante ou amamentando', 'Uso de isotretinoína (Roacutan) nos últimos 6 meses'];
 var PASTA_FOTOS = 'Casa Âmbar · Fotos de clientes';
 // abas que guardam o CPF do cliente (para transferir quando o CPF é informado depois)
-var ABAS_COM_CPF = ['Atendimentos', 'Pagamentos', 'Creditos', 'Reservas', 'Vales', 'Comandas', 'Evolucoes', 'FichasEstetica', 'Anamneses'];
+var ABAS_COM_CPF = ['Atendimentos', 'Pagamentos', 'Creditos', 'Reservas', 'Vales', 'Comandas', 'Evolucoes', 'FichasEstetica', 'Anamneses', 'AnamnesesProf'];
 
 function temCpfReal(id) { var d = soDigitos(id); return d.length === 11 && cpfValido(d); }
 

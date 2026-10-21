@@ -210,7 +210,8 @@ function Campanhas({ admin }) {
     try { setPublico(await chamar('publicoCampanha', { filtro })); setEnviadosW({}); } catch (e) { setErro(e.message); } finally { setBuscando(false); }
   }
   const personal = (t, p) => t.replace(/\{nome\}/gi, primeiro(p.nome));
-  const comWhats = (publico?.pessoas || []).filter((p) => p.whatsapp.replace(/\D/g, '').length >= 10);
+  // quem desmarcou "receber novidades" (aceitaEmail = marketing) não entra na lista do WhatsApp
+  const comWhats = (publico?.pessoas || []).filter((p) => p.aceitaEmail && p.whatsapp.replace(/\D/g, '').length >= 10);
 
   return (
     <>

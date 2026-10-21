@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
 import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
-  linkWhats, primeiro, baixarCSV, hojeIso, plural } from './ui.jsx';
+  linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, useEsquecerPedidoDaRota } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
 import { AnamneseConteudo } from './Anamnese.jsx';
@@ -28,10 +28,13 @@ export function Alunos() {
   const [mostrar, setMostrar] = useState(POR_PAGINA);
   const [filtro, setFiltro] = useState(local.state?.filtro || 'todos');
   const [novo, setNovo] = useState(!!local.state?.novo);
+  useEsquecerPedidoDaRota('novo');
   const [importar, setImportar] = useState(false);
   const { membro } = useBancada();
   const { dados, erro, carregando, recarregar } = useDados('alunos', {});
 
+  const hoje = hojeIso();
+  const em7 = somarDias(hoje, 7);
   const lista = useMemo(() => {
     const q = buscaAdiada.trim().toLowerCase();
     const d = soDigitos(q);
@@ -40,17 +43,34 @@ export function Alunos() {
       if (filtro === 'sem-plano' && a.plano) return false;
       if (filtro === 'sem-ficha' && a.ficha) return false;
       if (filtro === 'wellhub' && a.wellhub !== 'pendente' && a.wellhub !== 'confirmado') return false;
+      if (filtro === 'wellhub-pendente' && a.wellhub !== 'pendente') return false;
+      if (filtro === 'vencendo' && !(a.planoFim && a.planoFim >= hoje && a.planoFim <= em7)) return false;
       if (filtro === 'inativos' && a.ativo) return false;
       if (filtro === 'servicos' && !a.servicos) return false;
       if (filtro === 'sem-cpf' && !a.semCpf) return false;
       if (!q) return true;
       return a.nome.toLowerCase().includes(q) || a.email.toLowerCase().includes(q) || (d.length >= 3 && (a.cpf.includes(d) || a.whatsapp.includes(d)));
     });
-  }, [dados, buscaAdiada, filtro]);
+  }, [dados, buscaAdiada, filtro, hoje, em7]);
   const abrir = (a) => nav('/bancada/alunos/' + a.cpf, { state: { resumo: a } });
 
-  const contagem = (f) => (dados || []).filter((a) => (f === 'ativos' ? a.plano : f === 'sem-plano' ? !a.plano : f === 'sem-ficha' ? !a.ficha
-    : f === 'wellhub' ? a.wellhub === 'pendente' || a.wellhub === 'confirmado' : f === 'inativos' ? !a.ativo : f === 'servicos' ? a.servicos : f === 'sem-cpf' ? a.semCpf : true)).length;
+  // contagem de cada filtro numa passada só (antes eram 8 passadas na lista inteira a cada tecla)
+  const contagens = useMemo(() => {
+    const c = { todos: 0, ativos: 0, 'sem-plano': 0, 'sem-ficha': 0, wellhub: 0, 'wellhub-pendente': 0, inativos: 0, servicos: 0, 'sem-cpf': 0, vencendo: 0 };
+    (dados || []).forEach((a) => {
+      c.todos++;
+      if (a.plano) c.ativos++; else c['sem-plano']++;
+      if (!a.ficha) c['sem-ficha']++;
+      if (a.wellhub === 'pendente' || a.wellhub === 'confirmado') c.wellhub++;
+      if (a.wellhub === 'pendente') c['wellhub-pendente']++;
+      if (!a.ativo) c.inativos++;
+      if (a.servicos) c.servicos++;
+      if (a.semCpf) c['sem-cpf']++;
+      if (a.planoFim && a.planoFim >= hoje && a.planoFim <= em7) c.vencendo++;
+    });
+    return c;
+  }, [dados, hoje, em7]);
+  const contagem = (f) => contagens[f] || 0;
 
   return (
     <>
@@ -68,7 +88,9 @@ export function Alunos() {
         <input type="search" value={busca} onChange={(e) => { setBusca(e.target.value); setMostrar(POR_PAGINA); }} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar cliente" />
       </div>
       <div className="b-filtros">
-        {[['todos', 'Todos'], ['ativos', 'Com plano'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'], ['wellhub', 'Wellhub'], ['inativos', 'Desativados']].map(([id, t]) => (
+        {[['todos', 'Todos'], ['ativos', 'Com plano'], ['vencendo', 'Plano vence em 7 dias'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'],
+          ['wellhub', 'Wellhub'], ['wellhub-pendente', 'Wellhub a confirmar'], ['inativos', 'Desativados']]
+          .filter(([id]) => !['vencendo', 'wellhub-pendente'].includes(id) || filtro === id || contagem(id) > 0).map(([id, t]) => (
           <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => { setFiltro(id); setMostrar(POR_PAGINA); }}>
             {t} {dados && <span>{contagem(id)}</span>}
           </button>

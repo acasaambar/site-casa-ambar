@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural } from './ui.jsx';
+import { useDados, useEsquecerPedidoDaRota, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural } from './ui.jsx';
 import { VenderModal, ListaPagamentos } from './Alunos.jsx';
 import { ListaVales } from './Vales.jsx';
 
@@ -9,13 +9,15 @@ import { ListaVales } from './Vales.jsx';
 export default function Vendas() {
   const local = useLocation();
   const [aba, setAba] = useState(local.state?.aba === 'vales' ? 'vales' : 'vendas');
+  const [abrirVale] = useState(!!local.state?.novo);
+  useEsquecerPedidoDaRota('novo', 'nova');
   const abas = <Abas atual={aba} aoMudar={setAba} itens={[['vendas', 'Vendas'], ['vales', 'Vales-presente']]} />;
   if (aba === 'vendas') return <ListaVendas abas={abas} />;
   return (
     <>
       <Cabecalho titulo="Vendas">Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga.</Cabecalho>
       {abas}
-      <ListaVales abrirNovo={!!local.state?.novo} />
+      <ListaVales abrirNovo={abrirVale} />
     </>
   );
 }

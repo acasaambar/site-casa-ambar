@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { bancada } from '../lib/api.js';
 import { esquecerTudo } from './memoria.js';
 
@@ -48,6 +48,21 @@ export function SessaoBancada({ children }) {
       throw e;
     }
   }, [s, guardar]);
+
+  // ao abrir a bancada, confere papel e "nome na agenda" no servidor (a administração pode ter mudado)
+  useEffect(() => {
+    if (!s?.token) return undefined;
+    let vivo = true;
+    bancada('eu', { token: s.token }).then((m) => {
+      if (!vivo || !m || JSON.stringify(m) === JSON.stringify(s.membro)) return;
+      setS((atual) => {
+        const novo = atual ? { ...atual, membro: m } : atual;
+        try { if (novo) localStorage.setItem(CHAVE, JSON.stringify(novo)); } catch { /* sem armazenamento */ }
+        return novo;
+      });
+    }).catch((e) => { if (vivo && e.codigo === 'SESSAO_EQUIPE') guardar(null); });
+    return () => { vivo = false; };
+  }, [s?.token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const valor = useMemo(() => ({ token: s?.token, membro: s?.membro, entrar, sair, chamar }), [s, entrar, sair, chamar]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;

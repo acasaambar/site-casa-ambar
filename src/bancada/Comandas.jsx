@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, BANDEIRAS, ehCartao, pedeBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
-  telFmt, numBR, plural, METODOS } from './ui.jsx';
+  telFmt, numBR, plural, METODOS, useEsquecerPedidoDaRota } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 
@@ -20,6 +20,7 @@ export default function Comandas() {
   const local = useLocation();
   const [vista, setVista] = useState(local.state?.vista || 'abertas');
   const [aberta, setAberta] = useState(local.state?.nova ? { nova: true } : null);
+  useEsquecerPedidoDaRota('nova');
   const [versao, setVersao] = useState(0);
   return (
     <>

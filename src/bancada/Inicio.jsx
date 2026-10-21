@@ -189,9 +189,9 @@ export default function Inicio() {
                 <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Pede atenção</h2></header>
                 <ul className="b-atencao">
                   <Atencao n={r.pedidosTroca} texto={r.pedidosTroca === 1 ? 'pedido de troca de profissional' : 'pedidos de troca de profissional'} para="/bancada/agenda" estado={{ vista: 'trocas' }} />
-                  <Atencao n={r.wellhubPendentes} texto="Wellhub para confirmar" para="/bancada/alunos" estado={{ filtro: 'wellhub' }} />
+                  <Atencao n={r.wellhubPendentes} texto="Wellhub para confirmar" para="/bancada/alunos" estado={{ filtro: 'wellhub-pendente' }} />
                   <Atencao n={r.devolverJuros} texto="juros para devolver" para="/bancada/vendas" estado={{ filtro: 'devolver' }} />
-                  <Atencao n={r.vencendo} texto="planos vencem em 7 dias" para={pode(membro, 'admin') ? '/bancada/relatorios' : '/bancada/alunos'} estado={{ aba: 'alunos' }} />
+                  <Atencao n={r.vencendo} texto="planos vencem em 7 dias" para="/bancada/alunos" estado={{ filtro: 'vencendo' }} />
                   <Atencao n={r.caixa === 'nao_aberto' ? 1 : 0} simbolo="R$" texto="abrir o caixa de hoje" para="/bancada/comandas" estado={{ vista: 'caixa' }} />
                   <Atencao n={r.comandasAbertas} texto={r.comandasAbertas === 1 ? 'comanda aberta' : 'comandas abertas'} para="/bancada/comandas" />
                   <Atencao n={r.estoqueBaixo} texto="produtos acabando" para="/bancada/estoque" estado={{ filtro: 'falta' }} />

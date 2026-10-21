@@ -197,7 +197,8 @@ function publicoCampanha(f) {
 function bancada_publicoCampanha(d) {
   var lista = publicoCampanha(d.filtro || {});
   return { pessoas: lista, total: lista.length, comEmail: lista.filter(function (p) { return p.email && p.aceitaEmail; }).length,
-    comWhats: lista.filter(function (p) { return soDigitos(p.whatsapp).length >= 10; }).length, cotaEmail: MailApp.getRemainingDailyQuota() };
+    // quem desmarcou "receber novidades" fica fora também do WhatsApp
+    comWhats: lista.filter(function (p) { return p.aceitaEmail && soDigitos(p.whatsapp).length >= 10; }).length, cotaEmail: MailApp.getRemainingDailyQuota() };
 }
 
 // ============================================================
@@ -335,22 +336,31 @@ function lembretesDe(data) {
   return lista.sort(function (a, b) { return a.hora.localeCompare(b.hora) || a.nome.localeCompare(b.nome); });
 }
 
-function textoLembrete(x, data) {
+// "amanhã (terça, 21/10)" se for amanhã; senão "na terça, 23/10"
+function quandoLembrete(data) {
   var dia = DIAS_SEMANA[new Date(data + 'T12:00:00Z').getUTCDay()];
+  var dm = data.slice(8, 10) + '/' + data.slice(5, 7);
+  if (data === somarDias(hojeTexto(), 1)) return { texto: 'amanhã (' + dia + ', ' + dm + ')', titulo: 'Amanhã, ' + dia + ' · ' + dm, assunto: 'amanhã', ate: 'Até amanhã' };
+  if (data === hojeTexto()) return { texto: 'hoje (' + dia + ', ' + dm + ')', titulo: 'Hoje, ' + dia + ' · ' + dm, assunto: 'hoje', ate: 'Até já' };
+  var art = /^(sábado|domingo)/.test(dia) ? 'no ' : 'na ';
+  return { texto: art + dia + ', ' + dm, titulo: dia.charAt(0).toUpperCase() + dia.slice(1) + ' · ' + dm, assunto: art + dia + ', ' + dm, ate: 'Até ' + dia };
+}
+
+function textoLembrete(x, data) {
+  var q = quandoLembrete(data);
   var h = x.hora.replace(':00', 'h').replace(':', 'h');
-  return 'Olá, ' + primeiroNome(x.nome) + '! Passando para lembrar do seu horário na Casa Âmbar amanhã (' + dia + ', ' + data.slice(8, 10) + '/' + data.slice(5, 7) +
-    ') às ' + h + ': ' + x.titulo + (x.com ? ' com ' + x.com : '') + (x.extra ? ', ' + x.extra : '') + '. Podemos confirmar?';
+  return 'Olá, ' + primeiroNome(x.nome) + '! Passando para lembrar do seu horário na Casa Âmbar ' + q.texto + ' às ' + h + ': ' + x.titulo + (x.com ? ' com ' + x.com : '') + (x.extra ? ', ' + x.extra : '') + '. Podemos confirmar?';
 }
 
 function enviarEmailLembrete(x, data) {
-  var dia = DIAS_SEMANA[new Date(data + 'T12:00:00Z').getUTCDay()];
+  var q = quandoLembrete(data);
   var h = x.hora.replace(':00', 'h').replace(':', 'h');
   var cartao = '<div style="margin:18px 0;padding:18px 20px;border-radius:14px;background:#F4EFDF;border:1px solid #E9DDC5">' +
-    '<div style="font-family:Arial,sans-serif;font-size:12px;color:#7E3717;letter-spacing:1px">Amanhã, ' + dia + ' · ' + data.slice(8, 10) + '/' + data.slice(5, 7) + '</div>' +
+    '<div style="font-family:Arial,sans-serif;font-size:12px;color:#7E3717;letter-spacing:1px">' + escHtml(q.titulo) + '</div>' +
     '<div style="font-size:26px;color:#2F3821;margin:6px 0 2px">' + escHtml(h) + '</div>' +
     '<div style="font-size:16px;color:#2F3821">' + escHtml(x.titulo) + '</div>' +
     '<div style="font-family:Arial,sans-serif;font-size:13px;color:#6F784D;margin-top:4px">' + escHtml((x.com ? 'com ' + x.com : '') + (x.extra ? ' · ' + x.extra : '')) + '</div></div>';
-  enviarEmail(x.email, 'Seu horário amanhã · Casa Âmbar', 'Até amanhã', ['Olá, ' + primeiroNome(x.nome) + '!',
+  enviarEmail(x.email, 'Seu horário ' + q.assunto + ' · Casa Âmbar', q.ate, ['Olá, ' + primeiroNome(x.nome) + '!',
     'Este é um lembrete do seu horário na Casa Âmbar. Chegue com 10 minutos de antecedência.',
     'Se precisar remarcar, fale com a gente pelo WhatsApp.'], { texto: 'Falar no WhatsApp', url: 'https://wa.me/5585991856528' }, cartao);
 }
