@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { bancada } from '../lib/api.js';
-import { esquecerTudo } from './memoria.js';
+import { esquecerTudo, usarDono } from './memoria.js';
 import { hojeIso } from './ui.jsx';
 
 // Sessão da equipe (separada da sessão do aluno)
@@ -33,10 +33,16 @@ function marcarUso(s) {
 }
 
 export function SessaoBancada({ children }) {
-  const [s, setS] = useState(ler);
+  const [s, setS] = useState(() => {
+    const lido = ler();
+    if (!lido) esquecerTudo(); // login vencido: apaga o que estava guardado da sessão anterior
+    usarDono(lido?.token, lido?.membro?.email); // traz de volta o que estava guardado (abre já preenchida depois do F5)
+    return lido;
+  });
 
   const guardar = useCallback((v) => {
     esquecerTudo();
+    usarDono(v?.token, v?.membro?.email);
     setS(v);
     try {
       if (v) localStorage.setItem(CHAVE, JSON.stringify(v));

@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "teste": "node testes/bancada.teste.cjs && node testes/gestao.teste.cjs && node testes/seguranca.teste.cjs && node testes/substituicao.teste.cjs && node testes/comanda.teste.cjs && node testes/novidades.teste.cjs && node testes/datas.teste.cjs && node testes/cache.teste.cjs",
+    "teste": "node testes/bancada.teste.cjs && node testes/gestao.teste.cjs && node testes/seguranca.teste.cjs && node testes/substituicao.teste.cjs && node testes/comanda.teste.cjs && node testes/novidades.teste.cjs && node testes/datas.teste.cjs && node testes/cache.teste.cjs && node testes/horarios.teste.mjs",
     "simulador": "node testes/servidor.cjs",
     "velocidade": "node testes/velocidade.cjs"
   },

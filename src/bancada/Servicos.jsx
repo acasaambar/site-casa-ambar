@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Alertas, MenuMais, segundaDe, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+import { useDados, preCarregar, Alertas, MenuMais, segundaDe, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana, plural, ehDela, somarDias } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -10,6 +10,8 @@ import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioModal } from './Prontuario.jsx';
 import { HorarioSemanal, DiasEspeciais, horariosIniciais, resumoHorario } from './Horarios.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
+import { lembrar } from './memoria.js';
+import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
 
 // Cor de cada área de cuidado (tons da marca)
 export const COR_CATEGORIA = {
@@ -595,7 +597,7 @@ function ImpressaoDia({ dia, colunas, lista, aulas, folgas }) {
 // ============================================================
 // inicial: { data, profissional, hora, servicoId, reagendar, cliente } (cliente: aberto pela ficha)
 export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
-  const { chamar } = useBancada();
+  const { chamar, token } = useBancada();
   const re = inicial.reagendar;
   const [servicoId, setServicoId] = useState(inicial.servicoId || '');
   const [profissional, setProfissional] = useState(inicial.profissional || '');
@@ -618,13 +620,19 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const serv = servicos.find((s) => s.id === servicoId);
   const profs = catalogo.profissionais.filter((p) => p.ativo && (!serv || fazServico(p, serv)));
 
+  // horários livres: na hora, com a agenda da semana que já está na tela; o servidor confere por trás
+  // (a resposta dele substitui) e de novo ao salvar
   useEffect(() => {
     if (!serv || !profissional || !data) return undefined;
     let vivo = true;
-    setHorarios(null);
+    const params = { de: segundaDe(data) };
+    const semana = lembrar(`${token}|agendaSemana|${JSON.stringify(params)}`);
+    const local = horariosLivres({ semana, catalogo, servicoId, profissional, data, ignorarId: re?.id, hoje: hojeIso(), segundosAgora: segundosAgoraFortaleza() });
+    setHorarios(local);
+    if (!semana) preCarregar(chamar, token, 'agendaSemana', params); // outra semana: a próxima troca já sai na hora
     chamar('horarios', { servicoId, profissional, data, ignorarId: re?.id })
       .then((r) => { if (vivo) { setHorarios(r); setHoraSel((h) => (h && r.horarios.includes(h) ? h : '')); } })
-      .catch((e) => vivo && setErro(e.message));
+      .catch((e) => vivo && !local && setErro(e.message));
     return () => { vivo = false; };
   }, [servicoId, profissional, data]); // eslint-disable-line react-hooks/exhaustive-deps
 

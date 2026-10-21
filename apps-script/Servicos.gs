@@ -316,6 +316,14 @@ function bancada_agendaSemana(d, m) {
   s.aulas = bancada_agenda({ de: de, dias: dias }, m);
   s.de = de;
   s.dias = dias;
+  // para a tela calcular os horários livres sem perguntar ao servidor (a mesma conta de bancada_horarios)
+  var ate = somarDias(de, dias - 1);
+  s.fechados = {};
+  valoresAba('Bloqueios').slice(1).forEach(function (b) {
+    var dt = dataTexto(b[0]);
+    if (dt >= de && dt <= ate && !horaTexto(b[1]) && !String(b[2] || '').trim()) s.fechados[dt] = String(b[3] || '');
+  });
+  s.duracaoAula = AJUSTES.duracaoAulaMin;
   return s;
 }
 

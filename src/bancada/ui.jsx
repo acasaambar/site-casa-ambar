@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { useBancada } from './sessao.jsx';
 import { mascaraCPF } from '../lib/util.js';
-import { lembrar, temNaMemoria, guardarNaMemoria, buscar, acompanhar } from './memoria.js';
+import { lembrar, temNaMemoria, estaFresco, guardarNaMemoria, buscar, acompanhar } from './memoria.js';
 
 // ---------- bandeira do cartão (para conferir com o extrato da maquininha) ----------
 export const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
@@ -253,7 +253,8 @@ export function lembrarResultado(token, acao, params, valor) {
 
 export function preCarregar(chamar, token, acao, params = {}) {
   const id = `${token}|${acao}|${JSON.stringify(params)}`;
-  if (!temNaMemoria(id)) buscar(id, () => chamar(acao, params), false, true).catch(() => {});
+  // o que voltou do navegador depois do F5 aparece na hora, mas é buscado de novo por trás
+  if (!estaFresco(id)) buscar(id, () => chamar(acao, params), false, true).catch(() => {});
 }
 
 // Menu "Mais" (ações que não cabem na barra). itens: [{ texto, acao, className? }]; fecha ao escolher, ao tocar fora ou com Esc
