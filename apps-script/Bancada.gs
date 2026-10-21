@@ -177,7 +177,7 @@ function bancadaEntrar(d) {
   // o login da bancada vale até a meia-noite de hoje (Fortaleza), no máximo 14 h, e cai depois de 3 h sem uso
   var meiaNoite = new Date(somarDias(hojeTexto(), 1) + 'T00:00:00-03:00').getTime();
   var expira = new Date(Math.min(Date.now() + SESSAO_EQUIPE_MAX_MS, meiaNoite));
-  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: expira.toISOString(), uso_em: new Date().toISOString() });
+  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: expira.toISOString(), uso_em: Date.now() });
   try { CacheService.getScriptCache().put('u_' + hashToken(token), String(Date.now()), SESSAO_EQUIPE_PARADA_S); } catch (e) { /* sem cache: vale a planilha */ }
   limparSessoesVencidas('SessoesEquipe');
   return { token: token, membro: membroPublico(m), expira: expira.toISOString(), paradaMin: SESSAO_EQUIPE_PARADA_S / 60 };
@@ -208,15 +208,20 @@ var SESSAO_EQUIPE_PARADA_S = 3 * 3600;   // 3 h sem usar a bancada: entra de nov
 // linha da sessão na planilha, se ainda vale: no prazo (até a meia-noite, no máximo 14 h) e criada hoje
 function linhaDaSessaoEquipe(h) {
   var linhas = valoresAba('SessoesEquipe');
-  var hoje = hojeTexto();
   for (var i = 1; i < linhas.length; i++) {
     if (linhas[i][0] !== h) continue;
-    var criada = momentoDe(linhas[i][2]);
-    var doDia = isNaN(criada.getTime()) || Utilities.formatDate(criada, AJUSTES.fuso, 'yyyy-MM-dd') === hoje;
-    if (!sessaoValida(linhas[i], SESSAO_EQUIPE_MAX_MS) || !doDia) return null;
+    // vale até o prazo gravado no login (meia-noite, no máximo 14 h): a mesma conta de sempre, sem ler a hora de criação
+    var exp = ehData(linhas[i][3]) ? linhas[i][3] : new Date(String(linhas[i][3]));
+    if (isNaN(exp.getTime()) || exp <= new Date()) { recusaSessao('prazo vencido', linhas[i]); return null; }
     return { n: i + 1, v: linhas[i], email: String(linhas[i][1]).toLowerCase() };
   }
   return null;
+}
+
+// anota por que um login da bancada foi recusado (ajuda a achar problema; não guarda o token)
+function recusaSessao(motivo, linha) {
+  Logger.log('sessão da bancada recusada: ' + motivo + ' · ' + (linha ? linha[1] : ''));
+  try { registrar(null, 'sessão da bancada recusada', motivo + (linha ? ' · ' + linha[1] + ' · criada ' + String(linha[2]) + ' · prazo ' + String(linha[3]) + ' · uso ' + String(linha[4] || '') : '')); } catch (e) { /* ignora */ }
 }
 
 function membroDaSessao(token) {
@@ -228,16 +233,17 @@ function membroDaSessao(token) {
   var usoGravado = Number(c['u_' + h] || 0); // quando o uso foi gravado na planilha pela última vez
   var email = '';
   // sem a marca recente no cache (o cache do Google pode falhar entre execuções): confere na planilha
-  // e grava o uso lá (no máximo a cada 30 min por pessoa)
+  // e grava o uso lá (número: milissegundos, sem conta de fuso; no máximo a cada 30 min por pessoa)
   if (!usoGravado || agora - usoGravado > 30 * 60000) {
     var linha = linhaDaSessaoEquipe(h);
     if (!linha) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
-    var ultimo = Math.max(momentoDe(linha.v[2]).getTime() || 0, new Date(linha.v[4] || 0).getTime() || 0);
-    if (agora - ultimo > SESSAO_EQUIPE_PARADA_S * 1000) {
+    var ultimo = Number(linha.v[4]);
+    if (ultimo > 0 && ultimo <= agora + 60000 && agora - ultimo > SESSAO_EQUIPE_PARADA_S * 1000) {
+      recusaSessao('3 h sem uso', linha.v);
       try { cache.remove('m_' + h); cache.remove('e_' + h); cache.remove('u_' + h); } catch (e) { /* ignora */ }
       throw erroCod('Sua sessão da bancada expirou por falta de uso. Entre novamente.', 'SESSAO_EQUIPE');
     }
-    atualizarLinha('SessoesEquipe', linha.n, { uso_em: new Date(agora).toISOString() });
+    atualizarLinha('SessoesEquipe', linha.n, { uso_em: agora });
     cache.put('u_' + h, String(agora), SESSAO_EQUIPE_PARADA_S);
     email = linha.email;
   }

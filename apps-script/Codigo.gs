@@ -111,7 +111,7 @@ var ABAS = {
   // ---- bancada interna ----
   Equipe: ['email', 'nome', 'papel', 'professor_nome', 'senha_hash', 'sal', 'ativo', 'criado_em', 'ultimo_acesso'],
   SessoesEquipe: ['token', 'email', 'criada_em', 'expira_em',
-    // último uso guardado (ISO), no máximo a cada 30 min: conta as 3 h sem uso mesmo se o cache do Google falhar
+    // último uso (milissegundos), gravado no máximo a cada 30 min: conta as 3 h sem uso mesmo se o cache do Google falhar
     'uso_em'],
   Redefinicoes: ['token_hash', 'tipo', 'id', 'email', 'criado_em', 'expira_ms', 'usado_em', 'motivo'],
   Registro: ['quando', 'quem', 'acao', 'detalhe'],

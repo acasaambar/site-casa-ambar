@@ -46,6 +46,12 @@ export function SessaoBancada({ children }) {
     }
   }, []);
 
+  // o servidor recusou a sessão: volta ao login mostrando o motivo (antes voltava sem dizer nada)
+  const sairComAviso = useCallback((msg) => {
+    try { sessionStorage.setItem('ambar_bancada_aviso', msg || 'Sua sessão da bancada terminou. Entre novamente.'); } catch { /* sem armazenamento */ }
+    guardar(null);
+  }, [guardar]);
+
   const entrar = useCallback(async (email, senha) => {
     const r = await bancada('entrar', { email, senha });
     guardar({ ...r, dia: hojeIso(), usoEm: Date.now() });
@@ -62,10 +68,10 @@ export function SessaoBancada({ children }) {
     try {
       return await bancada(acao, { ...dados, token: s?.token });
     } catch (e) {
-      if (e.codigo === 'SESSAO_EQUIPE') guardar(null);
+      if (e.codigo === 'SESSAO_EQUIPE') sairComAviso(e.message);
       throw e;
     }
-  }, [s, guardar]);
+  }, [s, sairComAviso]);
 
   // ao abrir a bancada, confere papel e "nome na agenda" no servidor (a administração pode ter mudado)
   useEffect(() => {
@@ -78,14 +84,18 @@ export function SessaoBancada({ children }) {
         try { if (novo) localStorage.setItem(CHAVE, JSON.stringify(novo)); } catch { /* sem armazenamento */ }
         return novo;
       });
-    }).catch((e) => { if (vivo && e.codigo === 'SESSAO_EQUIPE') guardar(null); });
+    }).catch((e) => { if (vivo && e.codigo === 'SESSAO_EQUIPE') sairComAviso(e.message); });
     return () => { vivo = false; };
   }, [s?.token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // passou da meia-noite ou ficou parada demais: volta ao login (confere a cada minuto e ao voltar à aba)
   useEffect(() => {
     if (!s?.token) return undefined;
-    const conferir = () => { if (venceu(s)) { bancada('sair', { token: s.token }).catch(() => {}); guardar(null); } };
+    const conferir = () => {
+      if (!venceu(s)) return;
+      bancada('sair', { token: s.token }).catch(() => {});
+      sairComAviso(s.dia !== hojeIso() ? 'O login da bancada vale até a meia-noite. Entre novamente.' : 'A bancada ficou 3 horas sem uso e saiu sozinha. Entre novamente.');
+    };
     // uso = alguém tocou ou digitou (a agenda que se atualiza sozinha não conta)
     const usou = () => (venceu(s) ? conferir() : marcarUso(s));
     const t = setInterval(conferir, 60e3);
@@ -98,7 +108,7 @@ export function SessaoBancada({ children }) {
       document.removeEventListener('pointerdown', usou, true);
       document.removeEventListener('keydown', usou, true);
     };
-  }, [s, guardar]);
+  }, [s, sairComAviso]);
 
   const valor = useMemo(() => ({ token: s?.token, membro: s?.membro, entrar, sair, chamar }), [s, entrar, sair, chamar]);
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;

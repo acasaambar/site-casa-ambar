@@ -284,14 +284,16 @@ console.log('— o login expira');
   // 4 h sem uso (gravado na planilha) e o cache vencido
   const lu = linhaDe('SessoesEquipe', e.token);
   ctx.aba('SessoesEquipe').getRange(lu, 3).setValue(ctx.Utilities.formatDate(new Date(Date.now() - 5 * 3600e3), 'America/Fortaleza', 'yyyy-MM-dd HH:mm:ss'));
-  ctx.aba('SessoesEquipe').getRange(lu, 5).setValue(new Date(Date.now() - 4 * 3600e3).toISOString());
+  ctx.aba('SessoesEquipe').getRange(lu, 5).setValue(Date.now() - 4 * 3600e3);
   Object.keys(cacheStore).filter((k) => k.endsWith(ctx.hashToken(e.token))).forEach((k) => delete cacheStore[k]);
   r = chamar('b_eu', { token: e.token });
   ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', '3 h sem uso: precisa entrar de novo', r);
   const e2 = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
   const se = ctx.aba('SessoesEquipe');
   l = linhaDe('SessoesEquipe', e2);
+  // login de ontem: o prazo gravado (meia-noite de ontem) já passou
   se.getRange(l, 3).setValue(ctx.somarDias(hoje, -1) + ' 20:00:00');
+  se.getRange(l, 4).setValue(new Date(hoje + 'T00:00:00-03:00').toISOString());
   limparCacheSessao(e2);
   r = chamar('b_eu', { token: e2 });
   ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', 'login de ontem não vale hoje', r);

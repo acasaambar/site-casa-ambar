@@ -195,7 +195,10 @@ function Login() {
   const { entrar } = useBancada();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  const [erro, setErro] = useState('');
+  // por que voltou para o login (sessão vencida, 3 h sem uso…): aparece uma vez
+  const [erro, setErro] = useState(() => {
+    try { const m = sessionStorage.getItem('ambar_bancada_aviso') || ''; sessionStorage.removeItem('ambar_bancada_aviso'); return m; } catch { return ''; }
+  });
   const [enviando, setEnviando] = useState(false);
   const [esqueci, setEsqueci] = useState(false);
   const [enviado, setEnviado] = useState(false);
