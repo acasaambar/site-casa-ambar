@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -10,7 +10,7 @@ import { AgendaServicos, AgendaSemana } from './Servicos.jsx';
 import { TrocaProfissional, AlguemNaoVem, PedirSubstituicao, PainelTrocas } from './Trocas.jsx';
 
 export default function Agenda() {
-  const { membro, chamar } = useBancada();
+  const { membro, chamar, token } = useBancada();
   const local = useLocation();
   // lembra o dia escolhido por 2 horas (sair para Clientes ou Comanda e voltar não leva de volta para hoje)
   const [dia, setDiaBruto] = useState(() => {
@@ -41,36 +41,89 @@ export default function Agenda() {
   const [trocar, setTrocar] = useState(null); // aula aberta na folha de troca
   const [naoVem, setNaoVem] = useState(false);
   const [pedir, setPedir] = useState(null); // {} = período; { item } = um horário
-  const [versao, setVersao] = useState(0); // muda depois de uma troca: a agenda do dia busca de novo
-  const { dados, erro, carregando, recarregar, setDados } = useDados('agenda', { de: dia, dias: 1 });
+  const [slot, setSlot] = useState(null); // lugar na barra onde a agenda do dia/semana põe os botões dela
+
+  // A semana inteira vem numa ida só ao servidor (aulas, atendimentos, folgas e turnos):
+  // trocar de dia dentro da semana é na hora, e a semana anterior e a seguinte já ficam prontas.
+  const inicioSemana = segundaDe(dia);
+  const { dados: semana, erro, atual, recarregar, setDados } = useDados('agendaSemana', { de: inicioSemana });
   useAtualizarSozinho(recarregar);
+  const pronto = !!semana && atual; // nunca mostra outra semana enquanto esta carrega
+  useEffect(() => {
+    if (!pronto) return undefined;
+    const t = setTimeout(() => [7, -7].forEach((n) => preCarregar(chamar, token, 'agendaSemana', { de: somarDias(inicioSemana, n) })), 700);
+    return () => clearTimeout(t);
+  }, [pronto, inicioSemana]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
   // quem só dá aula (não atende serviços) abre a agenda direto em "Aulas e presença"
   const fazServicos = useFazServicos();
   const vista = vistaEscolhida || (fazServicos === false ? 'aulas' : 'dia');
-  const modalidades = new Set((dados || []).map((a) => a.modalidade));
 
+  const dados = useMemo(() => (pronto ? semana.aulas.filter((a) => a.data === dia) : null), [pronto, semana, dia]);
+  const doDia = useMemo(() => (pronto ? {
+    atendimentos: semana.atendimentos.filter((a) => a.data === dia),
+    folgas: semana.folgas.filter((f) => f.data === dia),
+    equipe: semana.equipe.map((e) => ({ ...e, turnos: e.dias?.[dia] || e.turnos || [] })),
+  } : null), [pronto, semana, dia]);
+  const modalidades = new Set((dados || []).map((a) => a.modalidade));
   const aulas = useMemo(() => (dados || []).filter((a) => filtro === 'Todas' || a.modalidade === filtro), [dados, filtro]);
-  const tira = Array.from({ length: 7 }, (_, i) => somarDias(dia, i - 3));
+
+  // tira da semana (segunda a domingo) com quantos atendimentos há em cada dia
+  const tira = Array.from({ length: 7 }, (_, i) => somarDias(inicioSemana, i));
+  const porDia = useMemo(() => {
+    const c = {};
+    if (pronto) semana.atendimentos.forEach((a) => { if (a.status !== 'cancelado') c[a.data] = (c[a.data] || 0) + 1; });
+    return c;
+  }, [pronto, semana]);
+  const resumo = () => {
+    if (!pronto) return 'Carregando…';
+    if (vista === 'semana') {
+      const n = Object.values(porDia).reduce((a, b) => a + b, 0);
+      return `${plural(n, 'atendimento', 'atendimentos')} e ${plural(semana.aulas.length, 'aula', 'aulas')} na semana`;
+    }
+    const n = porDia[dia] || 0;
+    const alunos = dados.reduce((t, a) => t + a.ocupadosQtd, 0);
+    // quem só dá aula não vê "0 atendimentos"
+    if (fazServicos === false) return `${plural(dados.length, 'aula', 'aulas')}${dados.length ? ` com ${plural(dados.reduce((t, a) => t + a.ocupadosQtd, 0), 'aluno', 'alunos')}` : ''}`;
+    return (<>
+      {plural(n, 'atendimento', 'atendimentos')} · {plural(dados.length, 'aula', 'aulas')}
+      {dados.length > 0 && <span className="ag-resumo__alunos"> com {plural(alunos, 'aluno', 'alunos')}</span>}
+    </>);
+  };
+
+  // atendimento novo, remarcado ou mudado: aparece na hora e a semana se atualiza por trás
+  const aplicar = (a) => {
+    if (a?.id) {
+      setDados((s) => {
+        if (!s) return s;
+        const fimSemana = somarDias(s.de, (s.dias || 7) - 1);
+        const fica = a.status !== 'cancelado' && a.data >= s.de && a.data <= fimSemana;
+        const lista = s.atendimentos.filter((x) => x.id !== a.id).concat(fica ? [a] : []);
+        return { ...s, atendimentos: lista.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora)) };
+      });
+    }
+    recarregar();
+  };
 
   useEffect(() => {
     // abre sozinha a aula que está acontecendo agora
     if (!dados || Object.keys(abertas).length) return;
     const agora = Date.now();
-    const atual = dados.find((a) => {
+    const atualAgora = dados.find((a) => {
       const [h, m] = a.hora.split(':').map(Number);
       const [y, mo, d] = a.data.split('-').map(Number);
       const ini = new Date(y, mo - 1, d, h, m).getTime();
       return agora >= ini - 40 * 60e3 && agora <= ini + 60 * 60e3;
     });
-    if (atual) setAbertas({ [atual.id]: true });
+    if (atualAgora) setAbertas({ [atualAgora.id]: true });
   }, [dados]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function presenca(r, status) {
     setAviso('');
     try {
       await chamar('presenca', { reservaId: r.id, status });
-      setDados((lista) => lista.map((a) => ({ ...a, reservas: a.reservas.map((x) => (x.id === r.id ? { ...x, status } : x)) })));
+      setDados((s) => ({ ...s, aulas: s.aulas.map((a) => ({ ...a, reservas: a.reservas.map((x) => (x.id === r.id ? { ...x, status } : x)) })) }));
     } catch (e) {
       setAviso(e.message);
     }
@@ -86,6 +139,21 @@ export default function Agenda() {
     }
   }
 
+  const anda = vista === 'semana' ? 7 : 1;
+  // ← e → trocam de dia (de semana, na Semana) no computador, fora de campos e janelas
+  useEffect(() => {
+    const tecla = (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || vista === 'trocas') return;
+      const alvo = e.target;
+      if (alvo !== document.body && !alvo?.closest?.('.ag-tira')) return;
+      if (document.querySelector('.b-modal, .bg, .b-menumais__lista')) return;
+      e.preventDefault();
+      setDia(somarDias(dia, e.key === 'ArrowLeft' ? -anda : anda));
+    };
+    document.addEventListener('keydown', tecla);
+    return () => document.removeEventListener('keydown', tecla);
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       {vista === 'trocas' ? (
@@ -94,28 +162,30 @@ export default function Agenda() {
       <Cabecalho titulo={comNumeros(vista === 'semana' ? tituloSemana(dia) : `${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`)}
         acoes={
           <div className="b-agenda__nav">
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, vista === 'semana' ? -7 : -1))} aria-label={vista === 'semana' ? 'Semana anterior' : 'Dia anterior'}>‹</button>
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, -anda))} aria-label={vista === 'semana' ? 'Semana anterior' : 'Dia anterior'}>‹</button>
             <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(hojeIso())} disabled={dia === hojeIso()}>Hoje</button>
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, vista === 'semana' ? 7 : 1))} aria-label={vista === 'semana' ? 'Próxima semana' : 'Próximo dia'}>›</button>
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, anda))} aria-label={vista === 'semana' ? 'Próxima semana' : 'Próximo dia'}>›</button>
             <input type="date" value={dia} onChange={(e) => e.target.value && setDia(e.target.value)} aria-label="Escolher data" className="b-data" />
           </div>
-        } />
+        }><span className={`ag-resumo${pronto ? '' : ' ag-resumo--carregando'}`}>{resumo()}</span></Cabecalho>
 
-      {vista !== 'semana' && <div className="b-tira" role="tablist" aria-label="Dias">
+      {vista !== 'semana' && <div className="b-tira ag-tira" role="tablist" aria-label="Dias da semana">
         {tira.map((d) => (
-          <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}>
+          <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}
+            aria-label={`${DIAS_LONGOS[diaSemana(d)]}, ${Number(d.slice(8))}${porDia[d] ? ` · ${plural(porDia[d], 'atendimento', 'atendimentos')}` : ''}`}>
             <span>{DIAS[diaSemana(d)]}</span>
             <strong>{Number(d.slice(8))}</strong>
+            <i className="ag-tira__n" aria-hidden="true">{porDia[d] || ''}</i>
           </button>
         ))}
       </div>}
       </>)}
 
-      <div className="b-agenda__vista">
+      <div className="b-agenda__vista ag-barra-topo">
         <div className="b-segmento" role="tablist" aria-label="O que mostrar">
-          <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}>Agenda do dia</button>
+          <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}><span className="ag-longo">Agenda do dia</span><span className="ag-curto">Dia</span></button>
           <button type="button" role="tab" aria-selected={vista === 'semana'} onClick={() => setVista('semana')}>Semana</button>
-          <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas e presença</button>
+          <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}><span className="ag-longo">Aulas e presença</span><span className="ag-curto">Aulas</span></button>
           <button type="button" role="tab" aria-selected={vista === 'trocas'} onClick={() => setVista('trocas')}>Trocas</button>
         </div>
         {vista === 'aulas' && (equipeBalcao || modalidades.size > 1) && (
@@ -125,25 +195,29 @@ export default function Agenda() {
             ))}
           </div>
         )}
-        {equipeBalcao && <button type="button" className="botao botao--linha botao--p tr-naovem" onClick={() => setNaoVem(true)}>Alguém não vem</button>}
-        {!equipeBalcao && vista !== 'trocas' && <button type="button" className="botao botao--linha botao--p tr-naovem" onClick={() => setPedir({})}>Pedir substituição</button>}
+        <div className="ag-acoes" ref={setSlot}>
+          {equipeBalcao && vista !== 'dia' && <button type="button" className="botao botao--linha botao--p" onClick={() => setNaoVem(true)}>Alguém não vem</button>}
+          {!equipeBalcao && vista !== 'trocas' && <button type="button" className="botao botao--linha botao--p" onClick={() => setPedir({})}>Pedir substituição</button>}
+        </div>
       </div>
 
-      {vista === 'semana' && <AgendaSemana dia={dia} aoAbrirDia={(d) => { setDia(d); setVista('dia'); }} />}
-      {vista === 'trocas' && <PainelTrocas dia={dia} aoMudar={() => { recarregar(); setVersao((v) => v + 1); }} />}
+      {vista === 'semana' && <AgendaSemana dia={dia} semana={pronto ? semana : null} erro={erro} aplicar={aplicar} slot={slot}
+        aoAbrirDia={(d) => { setDia(d); setVista('dia'); }} />}
+      {vista === 'trocas' && <PainelTrocas dia={dia} aoMudar={recarregar} />}
 
       {vista === 'dia' && (
-        <AgendaServicos key={versao} dia={dia} abrirNovo={abrirNovoServico} abrirEspera={abrirEspera} aulas={dados || []} aoAbrirAula={(a) => {
-          setFiltro('Todas');
-          setAbertas({ [a.id]: true });
-          setVista('aulas');
-          setTimeout(() => document.getElementById('aula-' + a.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-        }} />
+        <AgendaServicos dia={dia} dados={doDia} erro={erro} recarregar={recarregar} aplicar={aplicar} slot={slot} aoNaoVem={equipeBalcao ? () => setNaoVem(true) : null}
+          abrirNovo={abrirNovoServico} abrirEspera={abrirEspera} aulas={dados || []} aoAbrirAula={(a) => {
+            setFiltro('Todas');
+            setAbertas({ [a.id]: true });
+            setVista('aulas');
+            setTimeout(() => document.getElementById('aula-' + a.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+          }} />
       )}
       {vista === 'aulas' && (<>
 
       <Erro>{erro || aviso}</Erro>
-      {carregando && !dados && <Carregando />}
+      {!dados && !erro && <Carregando texto="Carregando as aulas" />}
       {dados && aulas.length === 0 && (
         <Vazio titulo="Sem aulas neste dia">{equipeBalcao ? 'Domingo, feriado ou dia bloqueado. Confira em Catálogo → Grade de aulas.' : 'Você não tem aula neste dia.'}</Vazio>
       )}
@@ -248,8 +322,8 @@ export default function Agenda() {
       {agendar && <Agendar aula={agendar} aoFechar={() => setAgendar(null)} aoAgendar={() => { setAgendar(null); recarregar(); setAbertas((x) => ({ ...x, [agendar.id]: true })); }} />}
       {ficha && <FichaModal {...ficha} aoFechar={() => setFicha(null)} />}
       {trocar && <TrocaProfissional tipo="aula" id={trocar.id} aoFechar={() => setTrocar(null)} aoTerminar={() => { setTrocar(null); recarregar(); }} />}
-      {naoVem && <AlguemNaoVem dia={dia} aoFechar={() => setNaoVem(false)} aoTerminar={() => { setNaoVem(false); recarregar(); setVersao((v) => v + 1); }} />}
-      {pedir && <PedirSubstituicao dia={dia} item={pedir.item} aoFechar={() => setPedir(null)} aoEnviar={() => { setPedir(null); setVersao((v) => v + 1); }} />}
+      {naoVem && <AlguemNaoVem dia={dia} aoFechar={() => setNaoVem(false)} aoTerminar={() => { setNaoVem(false); recarregar(); }} />}
+      {pedir && <PedirSubstituicao dia={dia} item={pedir.item} aoFechar={() => setPedir(null)} aoEnviar={() => { setPedir(null); recarregar(); }} />}
     </>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Alertas, useAtualizarSozinho, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+import { useDados, Alertas, MenuMais, segundaDe, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana, plural, ehDela, somarDias } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -46,12 +46,13 @@ const lerLocal = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k
 const gravarLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
 const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
-export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo, abrirEspera }) {
+// dados: { atendimentos, folgas, equipe } do dia (vêm da semana carregada pela Agenda; null enquanto carrega).
+// slot: lugar na barra da Agenda onde ficam os botões (agendar, bloquear, lista de espera…).
+// aplicar(atendimento): mostra na hora o que foi salvo e atualiza a semana por trás.
+export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, aoNaoVem, aulas = [], aoAbrirAula, abrirNovo, abrirEspera }) {
   const { membro } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [gruposRef, maisGrupos] = useMaisADireita();
-  const { dados, erro, carregando, recarregar } = useDados('atendimentos', { de: dia, dias: 1 });
-  useAtualizarSozinho(recarregar);
   const { dados: catalogo } = useDados('catalogoServicos', {});
   const quadro = useRef(null);
   const rolouEm = useRef('');
@@ -225,12 +226,20 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo, abrirE
     return () => { clearTimeout(t); window.removeEventListener('afterprint', fim); };
   }, [imprimindo]);
 
-  // hoje: a agenda abre já rolada até perto de agora (uma vez por dia escolhido)
+  // ao abrir um dia, a agenda já rola até onde interessa (uma vez por dia escolhido):
+  // hoje, perto de agora; outro dia, o primeiro atendimento ou o começo do expediente de quem atende serviços
   useEffect(() => {
     const el = quadro.current;
     if (!el || !dados || rolouEm.current === dia) return;
     rolouEm.current = dia;
-    if (ehHoje && minutoAgora > INI + 60) el.scrollTop = Math.max(0, (minutoAgora - INI) * PX - 80);
+    let alvo = INI;
+    if (ehHoje) alvo = minutoAgora - 60;
+    else {
+      const inicios = lista.filter((a) => a.status !== 'cancelado').map((a) => min(a.hora))
+        .concat(colunas.filter((c) => c.tipo === 'servico').flatMap((c) => (c.turnos || []).map(([a]) => a)));
+      if (inicios.length) alvo = Math.min(...inicios) - 30;
+    }
+    el.scrollTop = alvo > INI + 30 ? Math.max(0, (alvo - INI) * PX) : 0;
   }, [dados, dia]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const alternarGrupo = (g) => {
@@ -251,9 +260,31 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo, abrirE
     return r;
   };
 
-  if (carregando && !dados) return <Carregando />;
+  // botões da agenda do dia, na barra da Agenda (ao lado das abas)
+  const nEspera = listaEspera?.length || 0;
+  const badge = nEspera ? <span className="ag-espera__n" title={`${esperaDoDia} para este dia ou qualquer dia`}>{nEspera}</span> : null;
+  const acoes = balcao && slot && createPortal(
+    <>
+      <button type="button" className="botao botao--linha botao--p ag-so-largo" onClick={() => setEspera(true)}>Lista de espera{badge}</button>
+      <button type="button" className="botao botao--linha botao--p ag-so-largo" onClick={() => setBloquear({ data: dia })}>Bloquear horário</button>
+      <MenuMais itens={[
+        { texto: 'Lista de espera', extra: nEspera || null, acao: () => setEspera(true), className: 'ag-so-estreito' },
+        { texto: 'Bloquear horário', acao: () => setBloquear({ data: dia }), className: 'ag-so-estreito' },
+        colunas.length > 0 && { texto: 'Imprimir a agenda do dia', acao: () => setImprimindo(true) },
+        aoNaoVem && { texto: 'Alguém não vem', acao: aoNaoVem },
+      ]} />
+      <button type="button" className="botao botao--cheio botao--p ag-novo" onClick={() => setNovo({ data: dia })}><span aria-hidden="true">+</span> Agendar serviço</button>
+    </>, slot);
+
+  if (!dados) {
+    return (<>
+      {acoes}
+      {erro ? <Erro>{erro}</Erro> : <Carregando texto={`Carregando ${DIAS_LONGOS[diaSemana(dia)].toLowerCase()}, ${Number(dia.slice(8))}`} />}
+    </>);
+  }
   return (
     <>
+      {acoes}
       <Erro>{erro}</Erro>
       {balcao && (
         <div className="ag-barra">
@@ -268,14 +299,6 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo, abrirE
             <span>Colunas</span>
             {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
           </div>
-          <span className="b-botoes ag-acoes">
-            <button type="button" className="botao botao--linha botao--p ag-imprimir" onClick={() => setImprimindo(true)} disabled={!colunas.length}>Imprimir</button>
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setEspera(true)}>
-              Lista de espera{listaEspera?.length ? <span className="ag-espera__n" title={`${esperaDoDia} para este dia ou qualquer dia`}>{listaEspera.length}</span> : null}
-            </button>
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setBloquear({ data: dia })}>Bloquear horário</button>
-            <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo({ data: dia })}>Agendar serviço</button>
-          </span>
         </div>
       )}
 
@@ -363,8 +386,8 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo, abrirE
       )}
       {balcao && lista.some(podeMover) && <p className="ag-dica">Para remarcar, arraste o atendimento até o novo horário (no celular e no iPad, toque, segure e arraste).</p>}
 
-      {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={() => { setNovo(null); recarregar(); }} />}
-      {aberto && <DetalheAtendimento a={aberto} aoFechar={() => setAberto(null)} aoMudar={() => { setAberto(null); recarregar(); }}
+      {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={(r) => { setNovo(null); aplicar(r); }} />}
+      {aberto && <DetalheAtendimento a={aberto} aoFechar={() => setAberto(null)} aoMudar={(r) => { setAberto(null); aplicar(r); }}
         aoReagendar={(a) => { setAberto(null); setNovo({ data: a.data, profissional: a.profissional, servicoId: a.servicoId, reagendar: a }); }}
         aoComanda={async (a) => { setAberto(null); setComanda({ carregando: true, a }); }}
         aoProntuario={(a) => { setAberto(null); setProntuario(a); }}
@@ -378,7 +401,7 @@ export function AgendaServicos({ dia, aulas = [], aoAbrirAula, abrirNovo, abrirE
       {prontuario && <ProntuarioModal alvo={{ atendimentoId: prontuario.id }} nome={prontuario.nome} aoFechar={() => setProntuario(null)} />}
       {espera && catalogo && <EsperaServicos dia={dia} lista={listaEspera || []} catalogo={catalogo} aoFechar={() => setEspera(false)}
         aoMudar={() => { recarregarEspera(); recarregar(); }} />}
-      {mover && <MoverAtendimento m={mover} aoFechar={() => setMover(null)} aoMover={() => { setMover(null); recarregar(); }} />}
+      {mover && <MoverAtendimento m={mover} aoFechar={() => setMover(null)} aoMover={(r) => { setMover(null); aplicar(r); }} />}
       {imprimindo && <ImpressaoDia dia={dia} colunas={colunas} lista={lista} aulas={aulas} folgas={folgas} />}
     </>
   );
@@ -515,8 +538,7 @@ function MoverAtendimento({ m, aoFechar, aoMover }) {
           <BotaoAcao className="botao botao--cheio" acao={async () => {
             setErro('');
             try {
-              await chamar('agendarServico', { servicoId: a.servicoId, profissional: m.profissional, data: a.data, hora: m.hora, reagendarId: a.id });
-              aoMover();
+              aoMover(await chamar('agendarServico', { servicoId: a.servicoId, profissional: m.profissional, data: a.data, hora: m.hora, reagendarId: a.id }));
             } catch (e) { setErro(e.message); }
           }}>Remarcar para {hora(m.hora)}</BotaoAcao>
           <button type="button" className="botao botao--linha" onClick={aoFechar}>Deixar como estava</button>
@@ -626,7 +648,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
         repetir: !re && repetir.cadaDias ? repetir : undefined,
       });
       if (r?.serie) setSerie(r.serie);
-      else aoSalvar();
+      else aoSalvar(r);
     } catch (e) {
       // mãe e filha com o mesmo WhatsApp: confirma que é outra pessoa
       if (e.codigo === 'WHATSAPP_DE_OUTRA' && window.confirm(`${e.message}\n\nOK = cadastrar ${cliente?.nome || semCadastro.nome} como outra pessoa com o mesmo número.\nCancelar = voltar e buscar o cadastro existente pelo nome.`)) {
@@ -861,7 +883,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
   const st = STATUS[a.status] || [a.status, 'neutro'];
   const mudar = async (status, extra = {}) => {
     setErro('');
-    try { await chamar('atualizarAtendimento', { id: a.id, status, ...extra }); aoMudar(); } catch (e) { setErro(e.message); }
+    try { aoMudar(await chamar('atualizarAtendimento', { id: a.id, status, ...extra })); } catch (e) { setErro(e.message); }
   };
   const dataTexto = `${DIAS_LONGOS[diaSemana(a.data)]}, ${Number(a.data.slice(8))} de ${MESES[Number(a.data.slice(5, 7)) - 1]}`;
   const lembrete = `Olá, ${primeiro(a.nome)}! Passando para confirmar seu horário na Casa Âmbar: ${a.servico}, ${dataTexto.toLowerCase()} às ${hora(a.hora)}, com ${a.profissional}.`
@@ -1229,17 +1251,16 @@ export function OpcoesItens({ itens }) {
 // ============================================================
 //  SEMANA DE UMA PESSOA (segunda a domingo): atendimentos, aulas e bloqueios, dia a dia
 // ============================================================
-const segundaDe = (iso) => somarDias(iso, -((diaSemana(iso) + 6) % 7));
 
-export function AgendaSemana({ dia, aoAbrirDia }) {
+// semana: a mesma busca da Agenda (atendimentos, folgas, equipe com os turnos de cada dia e aulas); null enquanto carrega
+export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
   const { membro } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const inicio = segundaDe(dia);
   const dias = Array.from({ length: 7 }, (_, i) => somarDias(inicio, i));
-  const { dados, erro, carregando, recarregar } = useDados('atendimentos', { de: inicio, dias: 7, porDia: true });
-  const { dados: aulasSem } = useDados('agenda', { de: inicio, dias: 7 });
+  const dados = semana;
+  const aulasSem = semana?.aulas;
   const { dados: catalogo } = useDados('catalogoServicos', {});
-  useAtualizarSozinho(recarregar);
   const [novo, setNovo] = useState(null);
 
   // quem dá para escolher: quem atende serviços e quem dá aula
@@ -1283,10 +1304,28 @@ export function AgendaSemana({ dia, aoAbrirDia }) {
     return r;
   };
   const totalSemana = atend.filter((a) => a.status !== 'cancelado').length;
+  // abre já rolada até o primeiro horário da pessoa na semana (uma vez por pessoa e semana)
+  const quadroSem = useRef(null);
+  const rolouSem = useRef('');
+  useEffect(() => {
+    const el = quadroSem.current;
+    if (!el || !dados || !pessoa || rolouSem.current === pessoa + inicio) return;
+    rolouSem.current = pessoa + inicio;
+    const inicios = atend.filter((a) => a.status !== 'cancelado').map((a) => min(a.hora))
+      .concat(aulas.map((a) => min(a.hora)), dias.flatMap((d) => (turnosDia(d) || []).map(([a]) => a)));
+    const alvo = inicios.length ? Math.min(...inicios) - 30 : INI;
+    el.scrollTop = alvo > INI + 30 ? (alvo - INI) * PX : 0;
+  }, [dados, pessoa, inicio]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (carregando && !dados) return <Carregando />;
+  const acoes = balcao && slot && createPortal(
+    <button type="button" className="botao botao--cheio botao--p ag-novo" onClick={() => setNovo({ data: dia >= hoje ? dia : hoje, profissional: eq ? pessoa : '' })}>
+      <span aria-hidden="true">+</span> Agendar serviço
+    </button>, slot);
+
+  if (!dados) return <>{acoes}{erro ? <Erro>{erro}</Erro> : <Carregando texto="Carregando a semana" />}</>;
   return (
     <>
+      {acoes}
       <Erro>{erro}</Erro>
       <div className="sem-barra">
         {balcao ? (
@@ -1297,7 +1336,7 @@ export function AgendaSemana({ dia, aoAbrirDia }) {
         <p className="b-suave">{plural(totalSemana, 'atendimento', 'atendimentos')} · {plural(aulas.length, 'aula', 'aulas')} na semana</p>
       </div>
       {!pessoa ? <Vazio titulo="Ninguém para mostrar" forma="presenca">Cadastre a equipe em Catálogo → Profissionais.</Vazio> : (
-        <div className="ag ag--semana" style={{ '--visiveis': typeof window !== 'undefined' && window.innerWidth < 600 ? 3 : 7 }}>
+        <div className="ag ag--semana" ref={quadroSem} style={{ '--visiveis': typeof window !== 'undefined' && window.innerWidth < 600 ? 3 : 7 }}>
           <div className="ag-grade" style={{ '--n': 7, '--alt': `${ALT}px` }}>
             <div className="ag-canto" aria-hidden="true" />
             {dias.map((d) => (
@@ -1354,7 +1393,7 @@ export function AgendaSemana({ dia, aoAbrirDia }) {
           </div>
         </div>
       )}
-      {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={() => { setNovo(null); recarregar(); }} />}
+      {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={(r) => { setNovo(null); aplicar(r); }} />}
     </>
   );
 }

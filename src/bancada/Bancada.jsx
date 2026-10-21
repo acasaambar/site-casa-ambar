@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessaoBancada, useBancada, pode } from './sessao.jsx';
 import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
-import { Atualizando, preCarregar, hojeIso } from './ui.jsx';
+import { Atualizando, preCarregar, hojeIso, segundaDe } from './ui.jsx';
 import { CampoSenha } from '../components/CampoSenha.jsx';
 import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
@@ -98,13 +98,13 @@ function Painel() {
     return () => { document.title = 'Casa Âmbar · harmonia em estado natural'; };
   }, []);
   // as telas mais usadas já vêm carregadas por trás (abrem na hora): catálogo, planos,
-  // agenda e atendimentos de hoje, comandas abertas e a lista de clientes; para a profissional, as clientes dela
+  // a agenda desta semana, comandas abertas e a lista de clientes; para a profissional, as clientes dela
   useEffect(() => {
-    const hoje = hojeIso();
+    const semana = ['agendaSemana', { de: segundaDe(hojeIso()) }];
     const pedidos = pode(membro, 'admin', 'recepcao')
-      ? [['catalogoServicos'], ['planos'], ['agenda', { de: hoje, dias: 1 }], ['atendimentos', { de: hoje, dias: 1 }], ['comandas', { status: 'aberta' }], ['alunos', {}]]
-      : [['agenda', { de: hoje, dias: 1 }], ['atendimentos', { de: hoje, dias: 1 }], ['minhasClientes']];
-    const timers = pedidos.map(([acao, params], i) => setTimeout(() => preCarregar(chamar, token, acao, params), 1500 + i * 400));
+      ? [semana, ['catalogoServicos'], ['planos'], ['comandas', { status: 'aberta' }], ['alunos', {}]]
+      : [semana, ['minhasClientes']];
+    const timers = pedidos.map(([acao, params], i) => setTimeout(() => preCarregar(chamar, token, acao, params), 600 + i * 400));
     return () => timers.forEach(clearTimeout);
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
   const grupos = MENU.map(([g, l]) => [g, l.filter((m) => pode(membro, ...m[3]))]).filter(([, l]) => l.length);

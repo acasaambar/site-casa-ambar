@@ -1482,6 +1482,7 @@ function novaExecucao() {
   _cabecalhoOk = null;
   _alertas = null;
   _abasComData = {};
+  _chaveConfirmacao = null;
 }
 
 // Pega a trava (uma ação por vez) e esquece o que foi lido antes:

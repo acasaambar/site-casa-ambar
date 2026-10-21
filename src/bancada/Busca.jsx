@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, hora, hojeIso, cpfFmt, telFmt, dataBR, real } from './ui.jsx';
+import { useDados, hora, hojeIso, segundaDe, cpfFmt, telFmt, dataBR, real } from './ui.jsx';
 
 // ============================================================
 //  BUSCA RÁPIDA (Ctrl+K ou "/"): clientes, comandas abertas, agenda de hoje e atalhos
@@ -69,7 +69,8 @@ export function Busca({ aoFechar }) {
   const hoje = hojeIso();
   // o que já está na memória da bancada (pré-carregado ao entrar)
   const { dados: comandas } = useDados('comandas', { status: 'aberta' }, balcao);
-  const { dados: agenda } = useDados('atendimentos', { de: hoje, dias: 1 });
+  // a mesma semana que a Agenda usa (já vem pré-carregada)
+  const { dados: semana } = useDados('agendaSemana', { de: segundaDe(hoje) });
   const { dados: minhas } = useDados('minhasClientes', {}, !balcao);
 
   useEffect(() => { campo.current?.focus(); document.body.classList.add('b-sem-rolagem'); return () => document.body.classList.remove('b-sem-rolagem'); }, []);
@@ -93,7 +94,7 @@ export function Busca({ aoFechar }) {
         ir: () => nav(`/bancada/alunos/${c.cpf}`, { state: { resumo: c } }) }))]);
       else g.push(['Minhas clientes', (minhas || []).filter((c) => tem(c.nome)).slice(0, 6).map((c) => ({ k: 'm' + c.ref, titulo: c.nome, sub: c.servicos.join(', '),
         ir: () => nav(`/bancada/clientes/${c.ref}`, { state: { nome: c.nome } }) }))]);
-      g.push(['Agenda de hoje', (agenda?.atendimentos || []).filter((a) => a.status !== 'cancelado' && tem(a.nome, a.servico, a.profissional)).slice(0, 5).map((a) => ({
+      g.push(['Agenda de hoje', (semana?.atendimentos || []).filter((a) => a.data === hoje && a.status !== 'cancelado' && tem(a.nome, a.servico, a.profissional)).slice(0, 5).map((a) => ({
         k: 'a' + a.id, titulo: `${hora(a.hora)} · ${a.nome}`, sub: `${a.servico} com ${a.profissional}`, ir: () => nav('/bancada/agenda', { state: { vista: 'dia', dia: hoje } }) }))]);
       if (balcao) g.push(['Comandas abertas', (comandas || []).filter((c) => tem(c.nome, ...c.itens.map((i) => i.nome))).slice(0, 5).map((c) => ({
         k: 'q' + c.id, titulo: c.nome, sub: `${c.itens.map((i) => i.nome).join(' · ') || 'sem itens'} · ${real(c.total)}`, ir: () => nav('/bancada/comandas', { state: { abrir: c.id } }) }))]);
@@ -101,7 +102,7 @@ export function Busca({ aoFechar }) {
     g.push([t ? 'Atalhos' : 'Ir para', ATALHOS.filter(([titulo, , , papeis]) => papeis.includes(membro.papel) && tem(titulo)).slice(0, t ? 5 : 8).map(([titulo, para, estado]) => ({
       k: 'p' + titulo, titulo, sub: '', ir: () => nav(para, { state: estado || undefined }) }))]);
     return g.filter(([, l]) => l.length);
-  }, [q, clientes, agenda, comandas, minhas, balcao, membro, nav, hoje]);
+  }, [q, clientes, semana, comandas, minhas, balcao, membro, nav, hoje]);
   const itens = grupos.flatMap(([, l]) => l);
   useEffect(() => { setSel(0); }, [q]);
 

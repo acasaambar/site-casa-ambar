@@ -50,6 +50,7 @@ var PERMISSOES = {
   // serviços
   b_catalogoServicos: ['admin', 'recepcao', 'professora'],
   b_atendimentos: ['admin', 'recepcao', 'professora'],
+  b_agendaSemana: ['admin', 'recepcao', 'professora'],
   b_atualizarAtendimento: ['admin', 'recepcao', 'professora'],
   b_horarios: ['admin', 'recepcao'],
   b_agendarServico: ['admin', 'recepcao'],
@@ -464,9 +465,11 @@ function bancada_agenda(d, m) {
       if (x.tipo === 'aula' && esperaVigente(x, hojeE)) (espera[x.aula_id] = espera[x.aula_id] || []).push(esperaPublica(x));
     });
   }
+  // reservas de cada aula (um índice só; filtrar a aba inteira para cada aula da semana custava caro)
+  var porAula = {};
+  reservas.forEach(function (r) { if (r.status !== 'cancelado') (porAula[r.aula_id] = porAula[r.aula_id] || []).push(r); });
   return aulas.map(function (a) {
-    var lista = reservas.filter(function (r) {
-      if (r.aula_id !== a.id || r.status === 'cancelado') return false;
+    var lista = (porAula[a.id] || []).filter(function (r) {
       return !(r.status === 'pendente' && Number(r.expira_ms) && Number(r.expira_ms) < Date.now());
     }).map(function (r) {
       var cpf = normCpf(r.cpf);

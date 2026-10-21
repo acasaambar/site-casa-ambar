@@ -265,12 +265,27 @@ function atendimentoPublico(a, m) {
     linkConfirmar: m && m.papel !== 'professora' ? linkConfirmacao(a.id, dataTexto(a.data), horaTexto(a.hora)) : '' };
 }
 
+// atendimentos de um período: filtra pela data nos valores crus e só monta os objetos do período
+// (a aba cresce todo dia; montar todas as linhas para usar as da semana fica cada vez mais lento)
+function atendimentosDoPeriodo(de, ate) {
+  var v = valoresAba('Atendimentos');
+  if (v.length < 2) return [];
+  var cab = v[0], col = cab.indexOf('data'), r = [];
+  for (var i = 1; i < v.length; i++) {
+    var dt = dataTexto(v[i][col]);
+    if (dt < de || dt > ate) continue;
+    var o = objeto(cab, v[i]);
+    o._linha = i + 1;
+    r.push(o);
+  }
+  return r;
+}
+
 function bancada_atendimentos(d, m) {
   var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? d.de : hojeTexto();
   var ate = somarDias(de, Math.min(Math.max(Number(d.dias) || 1, 1), 31) - 1);
-  var lista = lerAba('Atendimentos').filter(function (a) {
-    var dt = dataTexto(a.data);
-    if (!a.id || dt < de || dt > ate) return false;
+  var lista = atendimentosDoPeriodo(de, ate).filter(function (a) {
+    if (!a.id) return false;
     if (!d.incluirCancelados && a.status === 'cancelado') return false;
     if (soDaComanda(a)) return false; // sessão de pacote lançada só na comanda: não tem horário na agenda
     if (m.papel === 'professora' && !mesmaProfessora(a.profissional, m)) return false;
@@ -290,6 +305,18 @@ function bancada_atendimentos(d, m) {
       }
       return e;
     }).filter(function (e) { return m.papel !== 'professora' || mesmaProfessora(e.nome, m) || !d.porDia; }) };
+}
+
+// Agenda da semana numa ida só (tela Agenda): aulas com reservas, atendimentos, folgas e os turnos de cada dia.
+// A tela troca de dia sem buscar de novo e pré-carrega a semana anterior e a seguinte.
+function bancada_agendaSemana(d, m) {
+  var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? d.de : hojeTexto();
+  var dias = Math.min(Math.max(Number(d.dias) || 7, 1), 14);
+  var s = bancada_atendimentos({ de: de, dias: dias, porDia: true }, m);
+  s.aulas = bancada_agenda({ de: de, dias: dias }, m);
+  s.de = de;
+  s.dias = dias;
+  return s;
 }
 
 function bancada_catalogoServicos(d, m) {

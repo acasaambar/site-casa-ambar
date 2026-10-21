@@ -66,5 +66,19 @@ console.log('— formatos que a planilha pode mostrar');
   ok(ctx.textoDeData('09:00:00', d) === '09:00', 'hora com segundos');
 }
 
+console.log('— agenda da semana numa ida só');
+{
+  const seg = ctx.segundaDe ? ctx.segundaDe(dia) : ctx.somarDias(dia, -((new Date(dia + 'T12:00:00Z').getUTCDay() + 6) % 7));
+  r = chamar('b_agendaSemana', { token: adm, de: seg });
+  const s = r.dados || {};
+  ok(r.ok && s.de === seg && s.dias === 7 && Array.isArray(s.aulas) && Array.isArray(s.atendimentos) && Array.isArray(s.folgas), 'devolve aulas, atendimentos e folgas da semana', r.erro || Object.keys(s));
+  ok(s.atendimentos && s.atendimentos.some((a) => a.data === dia && a.hora === '15:00') && s.atendimentos.every((a) => a.data >= seg && a.data <= ctx.somarDias(seg, 6)), 'atendimentos só da semana, no dia e na hora certos');
+  const cin = (s.equipe || []).find((e) => e.nome === 'Cintia');
+  ok(cin && cin.dias && Object.keys(cin.dias).length === 7 && cin.dias[dia].length > 0, 'turnos de cada dia da semana', cin);
+  const um = chamar('b_atendimentos', { token: adm, de: dia, dias: 1 }).dados;
+  ok(JSON.stringify(um.atendimentos) === JSON.stringify(s.atendimentos.filter((a) => a.data === dia)), 'o dia tirado da semana é igual ao pedido de um dia só');
+  ok(!chamar('b_agendaSemana', { de: seg }).ok, 'sem login: recusado');
+}
+
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
 process.exit(falhas ? 1 : 0);

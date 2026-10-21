@@ -2169,3 +2169,91 @@
   .bg__dica { display: none; }
   .bancada .bg__campo input, .bg__campo input { font-size: 16px; }
 }
+
+/* ============================================================
+   DESENHO 8 · agenda mais enxuta (out/2026)
+   Abas e botões numa barra só, tira da semana com a quantidade de atendimentos,
+   "Mais" para o que se usa pouco e, no celular, "Agendar serviço" flutuante
+   ============================================================ */
+.ag-curto { display: none; }
+/* a barra decide pelo espaço que ela tem (menu lateral aberto ou não, iPad em pé ou deitado) */
+.bancada .ag-barra-topo { container-type: inline-size; container-name: agbarra; }
+.bancada .ag-resumo { font-weight: 600; color: var(--b-tinta); font-variant-numeric: tabular-nums; }
+.bancada .ag-resumo--carregando { font-weight: 400; color: var(--b-suave); }
+.bancada .b-cabecalho:has(.b-agenda__nav) { align-items: center; }
+.bancada .b-cabecalho:has(.b-agenda__nav) .b-cabecalho__sub { margin-top: 4px; }
+
+/* tira da semana: mais baixa, com a contagem do dia */
+.bancada .ag-tira { margin-top: -4px; }
+.bancada .ag-tira button { padding: 6px 0 4px; gap: 1px; justify-items: center; }
+.bancada .ag-tira strong { font-size: 22px; line-height: 1.15; }
+.ag-tira__n { min-width: 22px; height: 18px; padding: 0 6px; border-radius: 999px; font-style: normal; font-size: 13px; font-weight: 600; line-height: 18px;
+  font-variant-numeric: tabular-nums; color: var(--b-tinta); background: rgba(166, 132, 94, 0.22); }
+.ag-tira__n:empty { background: none; }
+.bancada .ag-tira button[aria-selected='true'] .ag-tira__n:not(:empty) { background: rgba(233, 221, 197, 0.22); color: #FBF8EF; }
+
+/* barra: abas à esquerda, botões à direita */
+.bancada .ag-barra-topo { gap: 10px 14px; }
+.bancada .ag-barra-topo .ag-acoes { margin-left: auto; width: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.bancada .ag-barra-topo .ag-acoes .botao { flex: 0 0 auto; }
+.ag-novo span { font-size: 19px; line-height: 0; margin-right: 2px; }
+.ag-so-estreito { display: none; }
+.bancada .ag-barra { margin-bottom: 10px; }
+.bancada .ag-barra .ag-grupos { gap: 6px; }
+
+/* menu "Mais" */
+.b-menumais { position: relative; display: inline-flex; }
+.b-menumais__pontos { display: none; letter-spacing: 1px; font-size: 12px; }
+.b-menumais__seta { margin-left: 6px; font-size: 12px; }
+.b-menumais__lista { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; min-width: 236px; display: grid; padding: 6px; border-radius: 16px;
+  background: #FBF8EF; border: 1px solid rgba(47, 56, 33, 0.14); box-shadow: 0 18px 40px -18px rgba(47, 56, 33, 0.45); }
+.b-menumais__item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 14px; border: 0; border-radius: 11px;
+  background: none; font: inherit; font-size: 15px; color: var(--b-tinta); text-align: left; cursor: pointer; }
+.b-menumais__item:hover, .b-menumais__item:focus-visible { background: rgba(47, 56, 33, 0.07); }
+.b-menumais__item.ag-so-estreito { display: none; }
+.b-menumais__extra { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: #7E3717; color: #FBF8EF; font-size: 13px; font-weight: 600; }
+
+/* a grade ganha a altura que os botões deixaram livre */
+@media (min-width: 900px) {
+  .bancada .ag { max-height: max(480px, calc(100dvh - 350px)); }
+}
+
+@container agbarra (max-width: 1040px) {
+  .ag-longo { display: none; }
+  .ag-curto { display: inline; }
+}
+@container agbarra (max-width: 900px) {
+  .ag-so-largo { display: none; }
+  .b-menumais__item.ag-so-estreito { display: flex; }
+}
+@media (max-width: 560px) { .ag-resumo__alunos { display: none; } }
+
+@media (max-width: 560px) {
+  /* título e setas na mesma linha */
+  .bancada .b-cabecalho:has(.b-agenda__nav) { flex-wrap: nowrap; align-items: flex-start; gap: 10px; }
+  .bancada .b-cabecalho:has(.b-agenda__nav) .b-titulo { font-size: 27px; line-height: 1.1; }
+  .bancada .b-cabecalho:has(.b-agenda__nav) .b-cabecalho__sub { font-size: 14px; }
+  .bancada .b-cabecalho:has(.b-agenda__nav) .b-cabecalho__acoes { flex: 0 0 auto; }
+  .bancada .b-agenda__nav { flex-wrap: nowrap; gap: 4px; }
+  .bancada .b-agenda__nav .botao--p { min-width: 40px; padding: 0 10px; }
+  .bancada .b-agenda__nav .botao--p:nth-child(2):disabled { display: none; }
+  .bancada .ag-tira { gap: 2px; }
+  .bancada .ag-tira strong { font-size: 20px; }
+  .bancada .ag-tira span { font-size: 12px; }
+  /* abas e "Mais" na mesma linha; o resto vai para dentro do "Mais" */
+  .bancada .ag-barra-topo { flex-wrap: wrap; gap: 8px; }
+  .bancada .ag-barra-topo .b-segmento { flex: 1 1 250px; width: auto; min-width: 0; }
+  .bancada .ag-barra-topo .ag-acoes { flex: 0 0 auto; }
+  /* sem "container" no celular: o botão flutuante fica preso à tela (e não à barra) */
+  .bancada .ag-barra-topo { container-type: normal; }
+  .ag-longo, .ag-so-largo { display: none; }
+  .ag-curto { display: inline; }
+  .b-menumais__item.ag-so-estreito { display: flex; }
+  .ag-barra-topo .b-menumais__texto, .ag-barra-topo .b-menumais__seta { display: none; }
+  .ag-barra-topo .b-menumais__pontos { display: inline; }
+  .ag-barra-topo .b-menumais__botao { min-width: 48px; padding: 0 10px; }
+  /* agendar: botão flutuante no canto, sempre à mão */
+  .bancada .ag-novo { position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; min-height: 54px; padding: 0 20px 0 16px;
+    border-radius: 999px; font-size: 16px; box-shadow: 0 14px 30px -12px rgba(47, 56, 33, 0.65); }
+  .bancada .ag-dica { margin-bottom: 72px; }
+}

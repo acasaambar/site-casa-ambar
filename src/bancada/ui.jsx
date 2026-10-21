@@ -130,6 +130,8 @@ export function somarDias(iso, n) {
   return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
 }
 export const diaSemana = (iso) => { const [a, m, d] = iso.split('-').map(Number); return new Date(a, m - 1, d).getDay(); };
+// segunda-feira da semana do dia (a agenda busca a semana inteira de uma vez)
+export const segundaDe = (iso) => somarDias(iso, -((diaSemana(iso) + 6) % 7));
 // cliente sem CPF tem um código interno de 15 dígitos (começa com 9)
 export const semCpf = (c) => String(c || '').replace(/\D/g, '').length > 11;
 export const cpfFmt = (c) => (semCpf(c) ? 'sem CPF' : mascaraCPF(c || ''));
@@ -219,7 +221,7 @@ export function useDados(acao, params, ativo = true) {
 export function useFazServicos() {
   const { membro } = useBancada();
   const prof = membro?.papel === 'professora';
-  const { dados } = useDados('atendimentos', { de: hojeIso(), dias: 1 }, prof);
+  const { dados } = useDados('agendaSemana', { de: segundaDe(hojeIso()) }, prof);
   if (!prof) return true;
   if (!dados) return null;
   return (dados.equipe || []).some((e) => ehDela(e.nome, membro)) || (dados.atendimentos || []).length > 0;
@@ -247,6 +249,38 @@ export function useMaisADireita() {
 export function preCarregar(chamar, token, acao, params = {}) {
   const id = `${token}|${acao}|${JSON.stringify(params)}`;
   if (!temNaMemoria(id)) buscar(id, () => chamar(acao, params), false, true).catch(() => {});
+}
+
+// Menu "Mais" (ações que não cabem na barra). itens: [{ texto, acao, className? }]; fecha ao escolher, ao tocar fora ou com Esc
+export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef(null);
+  useEffect(() => {
+    if (!aberto) return undefined;
+    const fora = (e) => { if (!caixa.current?.contains(e.target)) setAberto(false); };
+    const tecla = (e) => { if (e.key === 'Escape') setAberto(false); };
+    document.addEventListener('pointerdown', fora);
+    document.addEventListener('keydown', tecla);
+    return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', tecla); };
+  }, [aberto]);
+  const visiveis = itens.filter(Boolean);
+  if (!visiveis.length) return null;
+  return (
+    <div className={`b-menumais ${className}`} ref={caixa}>
+      <button type="button" className="botao botao--linha botao--p b-menumais__botao" aria-haspopup="menu" aria-expanded={aberto} aria-label={`${rotulo} opções`} onClick={() => setAberto((x) => !x)}>
+        <span className="b-menumais__texto">{rotulo}</span><span aria-hidden="true" className="b-menumais__pontos">•••</span><span aria-hidden="true" className="b-menumais__seta">▾</span>
+      </button>
+      {aberto && (
+        <div className="b-menumais__lista" role="menu">
+          {visiveis.map((it) => (
+            <button key={it.texto} type="button" role="menuitem" className={`b-menumais__item ${it.className || ''}`} onClick={() => { setAberto(false); it.acao(); }}>
+              {it.texto}{it.extra ? <span className="b-menumais__extra">{it.extra}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // aviso discreto enquanto alguma tela busca dados novos

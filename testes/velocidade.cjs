@@ -50,6 +50,7 @@ console.log('— telas');
 t('Hoje (resumo)', 'b_resumo', {});
 t('Agenda de aulas', 'b_agenda', { de: hojeS, dias: 1 });
 t('Agenda de serviços', 'b_atendimentos', { de: hojeS, dias: 1 });
+t('Agenda (semana inteira)', 'b_agendaSemana', { de: m.ctx.somarDias(hojeS, -((new Date(hojeS + 'T12:00:00Z').getUTCDay() + 6) % 7)) });
 const cat = t('Catálogo de serviços', 'b_catalogoServicos', {}).dados;
 t('Clientes', 'b_alunos', {});
 t('Comandas', 'b_comandas', {});

@@ -431,11 +431,14 @@ function bancada_lembretesAuto(d, m) {
 // ============================================================
 // O link leva o id do atendimento e uma assinatura (HMAC com uma chave guardada nas Propriedades):
 // não dá para adivinhar o link de outra pessoa, e nada precisa ser gravado para criar o link.
+// lida uma vez por pedido (a agenda da semana assina dezenas de links; cada leitura das Propriedades custa caro)
+var _chaveConfirmacao = null;
 function chaveConfirmacao() {
+  if (_chaveConfirmacao) return _chaveConfirmacao;
   var props = PropertiesService.getScriptProperties();
   var k = props.getProperty('CHAVE_CONFIRMACAO');
   if (!k) { k = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('CHAVE_CONFIRMACAO', k); }
-  return k;
+  return (_chaveConfirmacao = k);
 }
 
 // assina o id com o dia e a hora: se o horário mudar (remarcou), o link antigo deixa de valer
