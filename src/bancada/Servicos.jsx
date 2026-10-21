@@ -760,7 +760,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             {pacote && (
               <label className={pagamento === 'pacote' ? 'ativo' : ''}>
                 <input type="radio" checked={pagamento === 'pacote'} onChange={() => setPagamento('pacote')} />
-                <span><strong>Usar o pacote</strong><small>{pacote.restantes} sessões restantes · até {dataBR(pacote.fim)}</small></span>
+                <span><strong>Usar o pacote</strong><small>{pacote.descricao} · {plural(pacote.restantes, 'sessão restante', 'sessões restantes')} (esta desconta 1) · até {dataBR(pacote.fim)}</small></span>
               </label>
             )}
             <label className={pagamento === 'no_dia' ? 'ativo' : ''}>
@@ -999,7 +999,7 @@ export function CatalogoServicos() {
                         <span className="s-cat__pacotes">
                           {pacs.map((p) => (
                             <button key={p.id} type="button" className={`s-pacote${p.ativo ? '' : ' inativo'}`} onClick={() => setEditar({ tipo: 'pacote', v: p })}>
-                              {p.sessoes} sessões · {real(p.preco)}
+                              {p.nome ? `${p.nome} · ` : ''}{p.sessoes} sessões · {real(p.preco)}
                             </button>
                           ))}
                         </span>
@@ -1008,7 +1008,7 @@ export function CatalogoServicos() {
                     <strong className="s-cat__preco">{real(s.preco)}{s.comissao != null && <small className="b-suave b-bloco">comissão {s.comissao}%</small>}</strong>
                     <div className="b-botoes b-botoes--coluna">
                       <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'servico', v: s })}>editar</button>
-                      <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'pacote', v: { servicoId: s.id, sessoes: 5, semJurosAte: 3, validadeDias: 120, ativo: true } })}>+ pacote</button>
+                      <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'pacote', v: { servicoId: s.id, sessoes: 5, semJurosAte: 3, validadeDias: 120, ativo: true } })}>+ pacote ou combo</button>
                     </div>
                   </li>
                 );
@@ -1107,15 +1107,18 @@ function EditarServico({ s, categorias, produtos = [], profissionais = [], aoFec
 
 function EditarPacote({ p, servicos, aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
-  const [f, setF] = useState({ id: p.id || '', servicoId: p.servicoId, sessoes: p.sessoes || 5, preco: p.preco || '', validadeDias: p.validadeDias || 120, semJurosAte: p.semJurosAte || 3, ativo: p.ativo !== false });
+  const [f, setF] = useState({ id: p.id || '', nome: p.nome || '', servicoId: p.servicoId, sessoes: p.sessoes || 5, preco: p.preco || '', validadeDias: p.validadeDias || 120, semJurosAte: p.semJurosAte || 3, ativo: p.ativo !== false });
   const [erro, setErro] = useState('');
   const serv = servicos.find((s) => s.id === f.servicoId);
   const campo = (k) => ({ value: f[k], onChange: (e) => setF({ ...f, [k]: e.target.value }) });
   const avulso = serv ? serv.preco * Number(f.sessoes || 0) : 0;
   const preco = Number(String(f.preco).replace(',', '.'));
   return (
-    <Modal rotulo={serv?.nome} titulo={p.id ? `Pacote de ${p.sessoes} sessões` : 'Novo pacote'} aoFechar={aoFechar}>
+    <Modal rotulo={serv?.nome} titulo={p.id ? (p.nome || `Pacote de ${p.sessoes} sessões`) : 'Novo pacote ou combo'} aoFechar={aoFechar}>
       <div className="b-form">
+        <label className="b-campo"><span className="rotulo">Nome do combo (opcional)</span>
+          <input value={f.nome} maxLength={60} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Combo Alívio" /></label>
+        <p className="b-suave">Aparece na comanda, na busca e na ficha do cliente: “{f.nome.trim() ? f.nome.trim() + ' · ' : ''}{serv?.nome} · pacote {f.sessoes || '?'} sessões”. Cada agendamento deste serviço desconta uma sessão.</p>
         <div className="b-linha2">
           <label className="b-campo"><span className="rotulo">Sessões</span><input type="number" min={2} max={50} {...campo('sessoes')} disabled={!!p.id} /></label>
           <label className="b-campo"><span className="rotulo">Preço do pacote (R$)</span><input inputMode="decimal" {...campo('preco')} /></label>
@@ -1267,7 +1270,7 @@ export function useItensVenda() {
         const itens = [];
         cat.servicos.filter((s) => s.ativo && s.categoria === c).forEach((s) => {
           itens.push({ id: s.id, nome: s.nome, preco: s.preco });
-          cat.pacotes.filter((p) => p.ativo && p.servicoId === s.id).forEach((p) => itens.push({ id: p.id, nome: `${s.nome} · pacote ${p.sessoes} sessões`, preco: p.preco }));
+          cat.pacotes.filter((p) => p.ativo && p.servicoId === s.id).forEach((p) => itens.push({ id: p.id, nome: `${p.nome ? p.nome + ' · ' : ''}${s.nome} · pacote ${p.sessoes} sessões`, preco: p.preco }));
         });
         if (itens.length) grupos.push([c, itens]);
       });

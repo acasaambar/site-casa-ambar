@@ -77,8 +77,13 @@ function listarPacotes(todos) {
     var sv = serv[String(x.servico_id)] || {};
     return { id: String(x.id), ativo: String(x.ativo).toUpperCase() !== 'NÃO', servicoId: String(x.servico_id), servico: sv.nome || String(x.servico_id),
       categoria: sv.categoria || '', sessoes: numero(x.sessoes), preco: numero(x.preco), validadeDias: numero(x.validade_dias) || 120,
-      semJurosAte: numero(x.sem_juros_ate) || 1, avulso: sv.preco ? Math.round(sv.preco * numero(x.sessoes) * 100) / 100 : 0 };
+      semJurosAte: numero(x.sem_juros_ate) || 1, avulso: sv.preco ? Math.round(sv.preco * numero(x.sessoes) * 100) / 100 : 0, nome: String(x.nome || '').trim() };
   });
+}
+
+// "Combo Alívio · Drenagem Linfática · pacote 5 sessões" (sem nome de combo: "Drenagem Linfática · pacote 5 sessões")
+function nomeDoPacote(p) {
+  return (p.nome ? p.nome + ' · ' : '') + p.servico + ' · pacote ' + p.sessoes + ' sessões';
 }
 
 function listarProfissionais(todos) {
@@ -172,7 +177,7 @@ function buscarItemVenda(id) {
         validade_dias: 90, preco: s.preco, sem_juros_ate: s.semJurosAte, servico_id: s.id };
     });
     listarPacotes(true).forEach(function (p) {
-      _itensVenda[p.id] = { id: p.id, nome: p.servico + ' · pacote ' + p.sessoes + ' sessões', modalidade: 'Serviço', categoria: p.categoria, tipo: 'pacote',
+      _itensVenda[p.id] = { id: p.id, nome: nomeDoPacote(p), modalidade: 'Serviço', categoria: p.categoria, tipo: 'pacote',
         aulas_semana: 0, aulas_total: p.sessoes, validade_dias: p.validadeDias, preco: p.preco, sem_juros_ate: p.semJurosAte, servico_id: p.servicoId };
     });
   }
@@ -638,13 +643,17 @@ function bancada_salvarPacote(d, m) {
   var sessoes = Math.round(numero(x.sessoes));
   if (sessoes < 2 || sessoes > 50) throw new Error('Pacote de 2 a 50 sessões.');
   if (!(numero(x.preco) > 0)) throw new Error('Informe o preço do pacote.');
+  var existentes = lerAba('Pacotes');
   var id = String(x.id || serv.id + '-' + sessoes);
+  // pacote novo com o mesmo serviço e sessões de outro (ex.: combo promocional ao lado do pacote normal): id próprio, sem apagar o outro
+  if (!x.id) for (var n = 2; existentes.some(function (p) { return String(p.id) === id; }); n++) id = serv.id + '-' + sessoes + '-' + n;
   var linha = { id: id, ativo: x.ativo === false ? 'NÃO' : 'SIM', servico_id: serv.id, sessoes: sessoes, preco: numero(x.preco),
-    validade_dias: Math.min(Math.max(numero(x.validadeDias) || 120, 7), 730), sem_juros_ate: Math.min(Math.max(numero(x.semJurosAte) || 1, 1), 12) };
-  var ex = lerAba('Pacotes').filter(function (p) { return String(p.id) === id; })[0];
+    validade_dias: Math.min(Math.max(numero(x.validadeDias) || 120, 7), 730), sem_juros_ate: Math.min(Math.max(numero(x.semJurosAte) || 1, 1), 12),
+    nome: String(x.nome || '').trim().slice(0, 60) };
+  var ex = existentes.filter(function (p) { return String(p.id) === id; })[0];
   if (ex) atualizarLinha('Pacotes', ex._linha, linha); else adicionarLinha('Pacotes', linha);
   _itensVenda = null;
-  registrar(m, ex ? 'editou pacote' : 'criou pacote', serv.nome + ' · ' + sessoes + ' sessões · R$ ' + linha.preco);
+  registrar(m, ex ? 'editou pacote' : 'criou pacote', (linha.nome ? linha.nome + ' · ' : '') + serv.nome + ' · ' + sessoes + ' sessões · R$ ' + linha.preco);
   return bancada_catalogoServicos();
 }
 

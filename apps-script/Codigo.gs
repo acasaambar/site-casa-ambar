@@ -125,7 +125,8 @@ var ABAS = {
   Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo',
     // dias até o retorno sugerido (vazio = sem retorno)
     'retorno_dias'],
-  Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
+  // nome = nome do combo (ex.: "Combo Alívio"), opcional
+  Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate', 'nome'],
   Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos', 'horarios', 'especiais'],
   Professoras: ['nome', 'ativo', 'pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde', 'atualizado_em'],
   // anamnese escrita pelas profissionais (texto livre + fotos), por cliente

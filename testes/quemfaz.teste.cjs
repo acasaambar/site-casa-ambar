@@ -38,14 +38,19 @@ ok(r.ok && JSON.stringify(r.dados.profissionais.map((p) => [p.nome, p.servicos, 
 
 console.log('— combo vendido como pacote: cada agendamento gasta uma sessão');
 {
-  r = chamar('b_salvarPacote', { token: adm, pacote: { servicoId: combo.id, sessoes: 4, preco: 599, validadeDias: 120, semJurosAte: 3, ativo: true } });
+  r = chamar('b_salvarPacote', { token: adm, pacote: { nome: 'Combo Alívio', servicoId: combo.id, sessoes: 4, preco: 599, validadeDias: 120, semJurosAte: 3, ativo: true } });
   const pac = r.dados.pacotes.find((p) => p.servicoId === combo.id);
+  ok(pac.nome === 'Combo Alívio', 'o pacote guarda o nome do combo');
+  // outro pacote do mesmo serviço e sessões (ex.: promocional ao lado do normal) não apaga o primeiro
+  r = chamar('b_salvarPacote', { token: adm, pacote: { nome: 'Combo Alívio Promo', servicoId: combo.id, sessoes: 4, preco: 499, validadeDias: 60, semJurosAte: 3, ativo: true } });
+  ok(r.dados.pacotes.filter((p) => p.servicoId === combo.id && p.sessoes === 4).length === 2 && r.dados.pacotes.some((p) => p.id === pac.id && p.preco === 599), 'dois pacotes de 4 sessões convivem (o primeiro não foi apagado)');
   const cli = chamar('b_novoAluno', { token: adm, nome: 'Cliente Combo Teste', whatsapp: '85966667777' }).dados.cpf;
   const cm = chamar('b_salvarComanda', { token: adm, comanda: { cpf: cli, itens: [{ tipo: 'pacote', id: pac.id, nome: 'pacote', qtd: 1 }] } }).dados;
   r = chamar('b_fecharComanda', { token: adm, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: cm.total }] });
   ok(r.ok, 'vendeu o pacote do combo na comanda', r.erro);
   const saldo = () => (chamar('b_creditosServico', { token: adm, cpf: cli, servicoId: combo.id, data: dia }).dados || {}).restantes;
   ok(saldo() === 4, 'o cliente tem 4 sessões');
+  ok(/^Combo Alívio · /.test((chamar('b_creditosServico', { token: adm, cpf: cli, servicoId: combo.id, data: dia }).dados || {}).descricao || ''), 'o nome do combo aparece no pacote do cliente');
   const hs = chamar('b_horarios', { token: adm, servicoId: combo.id, profissional: B, data: dia }).dados.horarios;
   r = chamar('b_agendarServico', { token: adm, servicoId: combo.id, profissional: B, data: dia, hora: hs[0], cpf: cli, pagamento: 'pacote' });
   ok(r.ok && r.dados.pagamento === 'pacote' && saldo() === 3, 'agendou: sobram 3', r.erro || saldo());

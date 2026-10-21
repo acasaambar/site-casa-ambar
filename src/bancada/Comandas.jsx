@@ -120,7 +120,7 @@ export function useCatalogoComanda() {
     const itens = [];
     cat.servicos.filter((s) => s.ativo).forEach((s) => {
       itens.push({ tipo: 'servico', id: s.id, nome: s.nome, preco: s.preco, grupo: s.categoria });
-      cat.pacotes.filter((p) => p.ativo && p.servicoId === s.id).forEach((p) => itens.push({ tipo: 'pacote', id: p.id, nome: `${s.nome} · pacote ${p.sessoes} sessões`, preco: p.preco, grupo: s.categoria }));
+      cat.pacotes.filter((p) => p.ativo && p.servicoId === s.id).forEach((p) => itens.push({ tipo: 'pacote', id: p.id, nome: `${p.nome ? p.nome + ' · ' : ''}${s.nome} · pacote ${p.sessoes} sessões`, preco: p.preco, grupo: s.categoria }));
     });
     (cat.produtos || []).filter((p) => p.vende).forEach((p) => itens.push({ tipo: 'produto', id: p.id, nome: p.nome, preco: p.preco, grupo: 'Produtos', estoque: p.estoque }));
     planos.filter((p) => p.ativo).forEach((p) => itens.push({ tipo: 'plano', id: p.id, nome: p.nome, preco: p.preco, grupo: p.modalidade }));
