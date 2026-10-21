@@ -246,6 +246,11 @@ export function useMaisADireita() {
 }
 
 // busca por trás, antes de a tela ser aberta (mesma chave do useDados)
+// guarda na memória das telas um resultado que já veio do servidor (a tela abre na hora, sem buscar de novo)
+export function lembrarResultado(token, acao, params, valor) {
+  guardarNaMemoria(`${token}|${acao}|${JSON.stringify(params || {})}`, valor);
+}
+
 export function preCarregar(chamar, token, acao, params = {}) {
   const id = `${token}|${acao}|${JSON.stringify(params)}`;
   if (!temNaMemoria(id)) buscar(id, () => chamar(acao, params), false, true).catch(() => {});
@@ -432,28 +437,63 @@ export function Abas({ itens, atual, aoMudar }) {
 }
 
 // Busca de aluno (nome, CPF, WhatsApp ou e-mail)
-export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por nome, CPF ou WhatsApp', excluir = [], motivoExcluir = 'já está nesta aula' }) {
-  const { chamar } = useBancada();
-  const [q, setQ] = useState('');
-  const [lista, setLista] = useState([]);
+// ---------- busca de clientes na hora ----------
+// A lista inteira de clientes já vem pré-carregada ao entrar na bancada: a busca filtra ali mesmo (na hora)
+// e pergunta ao servidor por trás (acha também quem foi cadastrado agora há pouco em outro computador).
+const semAcentoBusca = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+export function filtrarClientes(lista, busca, max = 8) {
+  const t = semAcentoBusca(busca.trim());
+  if (t.length < 2) return [];
+  const dig = t.replace(/\D/g, '');
+  return (lista || []).filter((a) => semAcentoBusca(a.nome).includes(t) || (dig.length >= 3 && (String(a.cpf || '').includes(dig) || String(a.whatsapp || '').replace(/\D/g, '').includes(dig)))
+    || semAcentoBusca(a.email).includes(t)).slice(0, max);
+}
+const chaveListaClientes = (token) => `${token}|alunos|{}`;
+// cliente recém-cadastrado entra na lista guardada (a busca já acha, sem esperar a lista nova)
+export function incluirNaListaDeClientes(token, c) {
+  const l = lembrar(chaveListaClientes(token));
+  if (Array.isArray(l) && c?.cpf) guardarNaMemoria(chaveListaClientes(token), [...l.filter((x) => x.cpf !== c.cpf), c].sort((a, b) => a.nome.localeCompare(b.nome)));
+}
+export function useBuscaClientes(q, max = 8, ativo = true) {
+  const { chamar, token } = useBancada();
+  const [doServidor, setDoServidor] = useState(null); // { q, lista }
   const [buscando, setBuscando] = useState(false);
+  const termo = q.trim();
   useEffect(() => {
-    if (q.trim().length < 2) { setLista([]); return undefined; }
+    if (!ativo || termo.length < 2) { setDoServidor(null); return undefined; }
+    let vivo = true;
     const t = setTimeout(() => {
       setBuscando(true);
-      chamar('alunos', { busca: q.trim() }).then((r) => setLista(r.slice(0, 8))).catch(() => setLista([])).finally(() => setBuscando(false));
-    }, 300);
-    return () => clearTimeout(t);
-  }, [q, chamar]);
+      chamar('alunos', { busca: termo }).then((r) => vivo && setDoServidor({ q: termo, lista: r })).catch(() => {}).finally(() => vivo && setBuscando(false));
+    }, 350);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [termo, chamar, ativo]);
+  useEffect(() => { if (ativo) preCarregar(chamar, token, 'alunos', {}); }, [ativo]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (termo.length < 2) return { lista: [], buscando: false };
+  const locais = filtrarClientes(lembrar(chaveListaClientes(token)), termo, max);
+  // o que o servidor achou (mais novo) vem primeiro; os da lista local completam
+  const servidor = doServidor && doServidor.q === termo ? doServidor.lista : [];
+  const vistos = new Set();
+  const lista = [...servidor, ...locais].filter((a) => !vistos.has(a.cpf) && vistos.add(a.cpf)).slice(0, max);
+  // até o servidor responder a esta busca, "nada encontrado" não aparece (aparece "buscando…")
+  const esperando = buscando || !(doServidor && doServidor.q === termo);
+  return { lista, buscando: esperando && lista.length === 0 };
+}
+
+export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por nome, CPF ou WhatsApp', excluir = [], motivoExcluir = 'já está nesta aula' }) {
+  const [q, setQ] = useState('');
+  const { lista: achados, buscando } = useBuscaClientes(q);
+  const [escolheu, setEscolheu] = useState(false);
+  const lista = escolheu ? [] : achados;
   return (
     <div className="b-busca">
-      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} aria-label="Buscar cadastro" />
+      <input type="search" value={q} onChange={(e) => { setQ(e.target.value); setEscolheu(false); }} placeholder={placeholder} autoFocus={autoFocus} aria-label="Buscar cadastro" />
       {buscando && <span className="b-busca__status">buscando…</span>}
       {lista.length > 0 && (
         <ul className="b-busca__lista">
           {lista.map((a) => (
             <li key={a.cpf}>
-              <button type="button" disabled={excluir.includes(a.cpf)} onClick={() => { aoEscolher(a); setQ(''); setLista([]); }}>
+              <button type="button" disabled={excluir.includes(a.cpf)} onClick={() => { aoEscolher(a); setQ(''); setEscolheu(true); }}>
                 <strong>{a.nome}</strong>
                 <span>{excluir.includes(a.cpf) ? motivoExcluir : `${cpfFmt(a.cpf)} · ${a.plano || 'sem plano ativo'}`}</span>
               </button>
@@ -461,7 +501,7 @@ export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por no
           ))}
         </ul>
       )}
-      {q.trim().length >= 2 && !buscando && lista.length === 0 && <p className="b-busca__nada">Ninguém encontrado com essa busca.</p>}
+      {q.trim().length >= 2 && !buscando && !escolheu && lista.length === 0 && <p className="b-busca__nada">Ninguém encontrado com essa busca.</p>}
     </div>
   );
 }

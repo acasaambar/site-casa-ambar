@@ -217,12 +217,20 @@ export function ComandaModal({ id, inicial, aoFechar }) {
     chamar('comanda', { id }).then((r) => { setC(r); setCodigo(r.codigo); }).catch((e) => setErro(e.message));
   }, [id, chamar]);
 
+  // última versão que veio do servidor (a fila de "adicionar" usa sempre a mais nova, não a da hora do clique)
+  const servidor = useRef(null);
+  const fila = useRef(Promise.resolve());
+  const [pendentes, setPendentes] = useState([]); // itens que já aparecem na comanda e ainda estão sendo salvos
+  servidor.current = c; // (gravar também atualiza na hora em que a resposta chega, antes de a tela redesenhar)
+
   // grava e devolve a comanda nova; erro sobe para quem chamou
   async function gravar(mud) {
     setSalvando(true);
     try {
-      const base = c ? { id: c.id, itens: c.itens, codigo: c.codigo, obs: c.obs } : { itens: [], ...(cliente?.cpf ? { cpf: cliente.cpf } : semCadastro ? { cliente: semCadastro } : {}) };
-      const r = await chamar('salvarComanda', { comanda: { ...base, ...mud } });
+      const atual = servidor.current;
+      const base = atual ? { id: atual.id, itens: atual.itens, codigo: atual.codigo, obs: atual.obs } : { itens: [], ...(cliente?.cpf ? { cpf: cliente.cpf } : semCadastro ? { cliente: semCadastro } : {}) };
+      const r = await chamar('salvarComanda', { comanda: { ...base, ...(typeof mud === 'function' ? mud(atual) : mud) } });
+      servidor.current = r;
       setC(r);
       setAviso('');
       return r;
@@ -237,7 +245,15 @@ export function ComandaModal({ id, inicial, aoFechar }) {
 
   const fechada = c && c.status !== 'aberta';
   const itens = c?.itens || [];
-  const adicionar = (i) => salvar({ itens: [...itens, { tipo: i.tipo, id: i.id, nome: i.nome, qtd: 1, profissional: '' }] });
+  // o item aparece na hora; os salvamentos vão em fila (um de cada vez, sempre sobre a comanda mais nova)
+  const adicionar = (i) => {
+    const novo = { tipo: i.tipo, id: i.id, nome: i.nome, qtd: 1, profissional: '' };
+    const marca = 'p' + Date.now() + Math.random();
+    setPendentes((l) => [...l, { ...novo, marca, preco: i.preco }]);
+    fila.current = fila.current
+      .then(() => salvar((atual) => ({ itens: [...(atual?.itens || []), novo] })))
+      .finally(() => setPendentes((l) => l.filter((x) => x.marca !== marca)));
+  };
   const mudarItem = (idx, mud) => salvar({ itens: itens.map((x, k) => (k === idx ? { ...x, ...mud } : x)) });
   const gravarItem = (idx, mud) => gravar({ itens: itens.map((x, k) => (k === idx ? { ...x, ...mud } : x)) });
   const balcao = pode(membro, 'admin', 'recepcao');
@@ -284,7 +300,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
           </div>
           {nomeCliente && <p className="cm-papel__cliente">{balcao && (c?.cpf || cliente?.cpf) ? <Link to={`/bancada/alunos/${c?.cpf || cliente.cpf}`} title="Abrir o cadastro">{nomeCliente}</Link> : nomeCliente}</p>}
           <Alertas lista={c?.alertas} compacto />
-          {itens.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda.</p>}
+          {itens.length === 0 && pendentes.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda.</p>}
           <ul className="cm-itens">
             {itens.map((it, idx) => (
               <li key={it.uid || idx} className={`cm-item${it.pago ? ' cm-item--pago' : ''}${tirando === idx ? ' cm-item--saindo' : ''}`}>
@@ -341,6 +357,16 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                     </div>
                   </div>
                 )}
+              </li>
+            ))}
+            {pendentes.map((it) => (
+              <li key={it.marca} className="cm-item cm-item--salvando" aria-busy="true">
+                <div className="cm-item__nome">
+                  <strong>{it.nome}</strong>
+                  <span className="b-suave cm-item__meta">{ROTULO_TIPO[it.tipo]} · salvando…</span>
+                </div>
+                <div className="cm-item__qtd" />
+                <div className="cm-item__valor"><strong>{real(it.preco || 0)}</strong></div>
               </li>
             ))}
           </ul>

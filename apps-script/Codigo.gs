@@ -242,6 +242,7 @@ function configurarPlanilha() {
     });
     grade.getRange(2, 1, linhas.length, linhas[0].length).setValues(linhas);
   }
+  esquecerCacheDasAbas(); // mexeu na planilha por fora dos pedidos: as cópias do cache deixam de valer
   Logger.log('Planilha configurada! Abas: ' + ss.getSheets().map(function (a) { return a.getName(); }).join(', '));
 }
 
@@ -392,8 +393,11 @@ function doGet() {
 }
 
 function responder(ok, dados, erro, codigo) {
+  try { confirmarGravacoes(); } catch (e) { Logger.log('cache: ' + e.message); }
   try { datasParaTexto(); } catch (e) { Logger.log('datas: ' + e.message); }
-  return ContentService.createTextOutput(JSON.stringify({ ok: ok, dados: dados, erro: erro || null, codigo: codigo || null }))
+  // tempo no servidor e quantas abas vieram da planilha / do cache (para a tela Velocidade)
+  var medida = { ms: _medida.inicio ? Date.now() - _medida.inicio : 0, planilha: _medida.planilha, cache: _medida.cache };
+  return ContentService.createTextOutput(JSON.stringify({ ok: ok, dados: dados, erro: erro || null, codigo: codigo || null, medida: medida }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -421,7 +425,7 @@ function cadastrar(d) {
       senha_hash: hash, sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site', como_conheceu: textoComoConheceu(d.comoConheceu),
       cep: endereco.cep, endereco: endereco.endereco, numero: endereco.numero, complemento: endereco.complemento || '', bairro: endereco.bairro, cidade: endereco.cidade, uf: endereco.uf });
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   var aluno = buscarAluno(cpf);
   return { token: criarSessao(cpf), aluno: publico(aluno) };
@@ -723,7 +727,7 @@ function reservarAula(d) {
     SpreadsheetApp.flush();
     return { id: id, aulaId: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, tapete: tapete || null, status: 'reservado', credito: credito.descricao };
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -850,7 +854,7 @@ function salvarAnamnese(d) {
     if (existente) s.getRange(existente, 1, 1, linha.length).setValues([linha]);
     else s.appendRow(linha);
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   return { ok: true, alerta: algumSim };
 }
@@ -1067,7 +1071,11 @@ function completarCreditosManuais(abaC, linhas) {
 
 // créditos já completados (ver acima), lidos uma vez por pedido
 function valoresCreditos() {
-  if (!_memo.Creditos) {
+  var v = valoresAba('Creditos');
+  // linha lançada à mão na planilha (sem id): completa e grava (raro; o resto vem do cache)
+  var cab = v[0] || [], cId = cab.indexOf('id'), cCpf = cab.indexOf('cpf'), cPlano = cab.indexOf('plano_id');
+  var falta = v.some(function (l, i) { return i > 0 && !l[cId] && l[cCpf] && l[cPlano]; });
+  if (falta) {
     var abaC = aba('Creditos');
     _memo.Creditos = { valores: completarCreditosManuais(abaC, valoresComTexto(abaC.getDataRange(), 'Creditos')), objetos: null };
   }
@@ -1201,7 +1209,7 @@ function comprar(d) {
   try {
     return criarPagamento(aluno, plano, {}, d.codigo);
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -1360,7 +1368,7 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     });
     return linhaPagamento(orderNsu);
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -1483,66 +1491,157 @@ function novaExecucao() {
   _alertas = null;
   _abasComData = {};
   _chaveConfirmacao = null;
+  _versoes = null;
+  _sujas = {};
+  _medida = { planilha: 0, cache: 0, inicio: Date.now() };
 }
 
 // Pega a trava (uma ação por vez) e esquece o que foi lido antes:
-// dentro da trava tudo é lido de novo, para não decidir com dados velhos.
+// dentro da trava tudo é lido de novo, para não decidir com dados velhos (só o catálogo vem do cache).
 function esperarTrava(trava, ms) {
   trava.waitLock(ms);
   _memo = {};
   _semCacheGlobal = true;
+  _versoes = null;
 }
 
+// Solta a trava avisando antes o que foi gravado (quem pegar a trava depois não usa cópia velha do cache)
+function soltarTrava(trava) {
+  try { confirmarGravacoes(); } finally {
+    _semCacheGlobal = false;
+    trava.releaseLock();
+  }
+}
+
+// aba para GRAVAR: descarta a cópia do pedido e marca a aba como mudada (o cache dela é trocado no fim)
 function aba(nome) {
   delete _memo[nome];
-  if (ABAS_EM_CACHE[nome]) esquecerCacheAba(nome);
+  _sujas[nome] = true;
   return abaSemDescartar(nome);
 }
 
 // valores da aba (com o cabeçalho), lidos uma vez por pedido. Não altere o resultado.
 function valoresAba(nome) {
   if (!_memo[nome]) {
-    var v = ABAS_EM_CACHE[nome] && !_semCacheGlobal ? lerCacheAba(nome) : null;
-    if (!v) {
+    var v = null;
+    // fora da trava, qualquer aba pode vir do cache; dentro dela, só o catálogo. Aba gravada neste pedido vem da planilha.
+    var versao = ABAS[nome] && !_sujas[nome] && (!_semCacheGlobal || ABAS_EM_CACHE[nome]) ? versaoDaAba(nome) : null;
+    if (versao) v = lerCacheAba(nome, versao);
+    if (v) _medida.cache++;
+    else {
       v = valoresComTexto(abaSemDescartar(nome).getDataRange(), nome);
-      if (ABAS_EM_CACHE[nome]) guardarCacheAba(nome, v);
+      _medida.planilha++;
+      if (versao) guardarCacheAba(nome, versao, v);
     }
     _memo[nome] = { valores: v, objetos: null };
   }
   return _memo[nome].valores;
 }
 
-// ---------- cache entre pedidos (abas pequenas de catálogo) ----------
-// Ficam 2 min no cache do Google. Qualquer gravação pelo sistema limpa na hora;
-// mudança feita direto na planilha aparece em até 2 min. Dentro de trava, lê sempre da planilha.
+// ---------- cache das abas entre pedidos (com versão) ----------
+// Ler uma aba da planilha custa 0,1–0,5 s; do cache do Google, uns 20–50 ms. Cada aba lida fica guardada
+// (comprimida, em partes) com a "versão" da aba. Toda gravação feita pelo sistema troca a versão depois do
+// flush (ao soltar a trava e no fim do pedido): a cópia velha deixa de valer para todo mundo.
+// Dentro da trava, só o catálogo (ABAS_EM_CACHE) vem do cache; o resto é lido da planilha.
+// Mudança feita à mão na planilha aparece em até 5 min (ou na hora: Ajustes → "Ler a planilha de novo").
 var ABAS_EM_CACHE = { Grade: 1, Planos: 1, Servicos: 1, Pacotes: 1, Profissionais: 1, Professoras: 1, Promocoes: 1, Substituicoes: 1 };
-var SEGUNDOS_CACHE_ABA = 120;
+var SEGUNDOS_CACHE_ABA = 300;
+var SEGUNDOS_VERSAO = 21600;
+var TAM_PARTE_CACHE = 95000, PARTES_CACHE = 9; // até ~850 KB comprimidos por aba; maior que isso, lê da planilha
+var _versoes = null; // versões das abas lidas neste pedido (uma ida ao cache para todas)
+var _sujas = {}; // abas gravadas neste pedido, ainda não avisadas
+var _medida = { planilha: 0, cache: 0, inicio: 0 }; // vai na resposta (tela Velocidade)
 
-function lerCacheAba(nome) {
+function novaVersao() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
+
+function versoesAbas() {
+  if (_versoes) return _versoes;
+  _versoes = {};
   try {
-    var t = CacheService.getScriptCache().get('aba_' + nome);
-    if (!t) return null;
-    return JSON.parse(t, function (k, v) { return v && typeof v === 'object' && v.$d != null ? new Date(v.$d) : v; });
+    var nomes = Object.keys(ABAS);
+    var r = CacheService.getScriptCache().getAll(nomes.map(function (n) { return 'v_' + n; }));
+    nomes.forEach(function (n) { if (r['v_' + n]) _versoes[n] = r['v_' + n]; });
+  } catch (e) { /* sem cache: lê da planilha */ }
+  return _versoes;
+}
+
+// versão atual da aba; sem versão ainda, cria uma (a leitura da planilha vem DEPOIS, então nada velho fica com ela)
+function versaoDaAba(nome) {
+  var vs = versoesAbas();
+  if (!vs[nome]) {
+    var nova = novaVersao();
+    try { CacheService.getScriptCache().put('v_' + nome, nova, SEGUNDOS_VERSAO); } catch (e) { return null; }
+    vs[nome] = nova;
+  }
+  return vs[nome];
+}
+
+// a quantidade de colunas do código entra na chave: coluna nova publicada não usa cópia com o cabeçalho antigo
+function chavesCacheAba(nome, versao) {
+  versao = versao + (ABAS[nome] || []).length;
+  var c = ['a_' + nome + '_' + versao + '_n'];
+  for (var i = 0; i < PARTES_CACHE; i++) c.push('a_' + nome + '_' + versao + '_' + i);
+  return c;
+}
+
+function lerCacheAba(nome, versao) {
+  try {
+    var chaves = chavesCacheAba(nome, versao);
+    var r = CacheService.getScriptCache().getAll(chaves);
+    var n = Number(r[chaves[0]] || 0);
+    if (!n) return null;
+    var partes = [];
+    for (var i = 0; i < n; i++) {
+      if (r[chaves[i + 1]] == null) return null;
+      partes.push(r[chaves[i + 1]]);
+    }
+    return JSON.parse(Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(partes.join('')), 'application/x-gzip')).getDataAsString());
   } catch (e) { return null; }
 }
 
-function guardarCacheAba(nome, valores) {
+function guardarCacheAba(nome, versao, valores) {
   try {
-    var t = JSON.stringify(valores.map(function (l) { return l.map(function (c) { return ehData(c) ? { $d: c.getTime() } : c; }); }));
-    if (t.length < 90000) CacheService.getScriptCache().put('aba_' + nome, t, SEGUNDOS_CACHE_ABA);
+    var z = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify(valores), 'application/json')).getBytes());
+    var n = Math.ceil(z.length / TAM_PARTE_CACHE) || 1;
+    if (n > PARTES_CACHE) return;
+    var chaves = chavesCacheAba(nome, versao), mapa = {};
+    for (var i = 0; i < n; i++) mapa[chaves[i + 1]] = z.slice(i * TAM_PARTE_CACHE, (i + 1) * TAM_PARTE_CACHE);
+    mapa[chaves[0]] = String(n);
+    CacheService.getScriptCache().putAll(mapa, SEGUNDOS_CACHE_ABA);
   } catch (e) { /* sem cache: segue lendo da planilha */ }
+}
+
+// Depois de gravar: flush e versão nova para cada aba mudada (chamado ao soltar a trava e no fim do pedido)
+function confirmarGravacoes() {
+  var nomes = Object.keys(_sujas);
+  if (!nomes.length) return;
+  _sujas = {};
+  try { SpreadsheetApp.flush(); } catch (e) { /* segue */ }
+  var vs = versoesAbas(), mapa = {};
+  nomes.forEach(function (n) { if (!ABAS[n]) return; vs[n] = novaVersao(); mapa['v_' + n] = vs[n]; });
+  if (!Object.keys(mapa).length) return;
+  var cache = CacheService.getScriptCache();
+  try { cache.putAll(mapa, SEGUNDOS_VERSAO); } catch (e) {
+    // não deu para trocar a versão: apaga (quem ler depois cria outra e lê da planilha)
+    try { cache.removeAll(Object.keys(mapa)); } catch (e2) { Logger.log('cache: ' + e2.message); }
+  }
+}
+
+// Ajustes → "Ler a planilha de novo": esquece todas as cópias (depois de mexer na planilha à mão)
+function esquecerCacheDasAbas() {
+  Object.keys(ABAS).forEach(function (n) { _sujas[n] = true; });
+  confirmarGravacoes();
+  esquecerListaClientes();
+  try { esquecerAlertas(); } catch (e) { /* ignora */ }
 }
 
 // usa o cache se houver; senão roda as conferências da aba (preencher, migrar) e lê da planilha
 function doCacheOuPreparar(nome, preparar) {
   if (_memo[nome]) return;
-  var c = _semCacheGlobal ? null : lerCacheAba(nome);
-  if (c) _memo[nome] = { valores: c, objetos: null };
+  var versao = _sujas[nome] ? null : versaoDaAba(nome);
+  var c = versao ? lerCacheAba(nome, versao) : null;
+  if (c) { _memo[nome] = { valores: c, objetos: null }; _medida.cache++; }
   else preparar();
-}
-
-function esquecerCacheAba(nome) {
-  try { CacheService.getScriptCache().remove('aba_' + nome); } catch (e) { /* ignora */ }
 }
 
 function abaSemDescartar(nome) {
@@ -1646,6 +1745,18 @@ function atualizarLinha(nomeAba, linha, obj) {
     if (col > 0) cols.push([col, seguro(obj[c] == null ? '' : obj[c])]);
   });
   cols.sort(function (a, b) { return a[0] - b[0]; });
+  if (!cols.length) return;
+  // várias colunas espalhadas dentro da trava (ninguém grava ao mesmo tempo): lê a faixa uma vez e grava
+  // tudo de uma vez (fechar comanda gravava a mesma linha em 5 ou 6 idas ao Google)
+  var grupos = 1;
+  for (var g = 1; g < cols.length; g++) if (cols[g][0] !== cols[g - 1][0] + 1) grupos++;
+  if (grupos > 2 && _semCacheGlobal) {
+    var c0 = cols[0][0], faixa = s.getRange(linha, c0, 1, cols[cols.length - 1][0] - c0 + 1);
+    var vals = faixa.getValues()[0];
+    cols.forEach(function (x) { vals[x[0] - c0] = x[1]; });
+    faixa.setValues([vals]);
+    return;
+  }
   for (var i = 0; i < cols.length;) {
     var j = i;
     while (j + 1 < cols.length && cols[j + 1][0] === cols[j][0] + 1) j++;
@@ -1744,7 +1855,7 @@ function datasParaTexto() {
   _abasComData = {};
   if (!nomes.length) return;
   var trava = LockService.getScriptLock();
-  if (!trava.tryLock(500)) return;
+  if (!trava.tryLock(50)) return; // trava ocupada: fica para outro pedido (não atrasa a resposta)
   try {
     var gravadas = 0;
     nomes.forEach(function (nome) {
@@ -1764,8 +1875,8 @@ function datasParaTexto() {
           gravadas++;
         }
       }
+      // o conteúdo não muda (o texto é o mesmo que o cache já guarda): não precisa trocar a versão
       delete _memo[nome];
-      if (ABAS_EM_CACHE[nome]) esquecerCacheAba(nome);
     });
   } finally {
     trava.releaseLock();

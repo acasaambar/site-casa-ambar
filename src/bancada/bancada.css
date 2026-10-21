@@ -2261,3 +2261,16 @@
     border-radius: 999px; font-size: 16px; box-shadow: 0 14px 30px -12px rgba(47, 56, 33, 0.65); }
   .bancada .ag-dica { margin-bottom: 72px; }
 }
+
+/* tela Velocidade */
+.vel { display: grid; gap: 14px; }
+.vel > .b-suave { margin: 0; max-width: 760px; font-size: 15px; }
+.vel-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.vel-resumo > div { display: grid; gap: 2px; padding: 14px 16px; border-radius: 16px; background: #FBF8EF; border: 1px solid rgba(47, 56, 33, 0.12); }
+.vel-resumo .rotulo { font-size: 14px; color: var(--b-suave); }
+.vel-resumo strong { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--b-tinta); }
+@media (max-width: 560px) { .vel-resumo { grid-template-columns: 1fr; } }
+
+/* item da comanda que já aparece e ainda está sendo salvo */
+.cm-item--salvando { opacity: 0.72; }
+.cm-item--salvando .cm-item__meta { font-style: italic; }

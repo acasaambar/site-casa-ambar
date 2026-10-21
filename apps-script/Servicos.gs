@@ -406,15 +406,15 @@ function bancada_agendarServico(d, m) {
         }
       }
     }
-    SpreadsheetApp.flush();
-    esperaResolvida('servico', serv.id, cliente.cpf);
-    registrar(m, 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof + (serie ? ' · série de ' + serie.criados.length : ''));
-    var saida = atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === linha.id; })[0], m);
-    if (serie) saida.serie = serie;
-    return saida;
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
+  // fora da trava (não segura a fila dos outros): lista de espera, registro e a resposta montada com o que foi gravado
+  esperaResolvida('servico', serv.id, cliente.cpf);
+  registrar(m, 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof + (serie ? ' · série de ' + serie.criados.length : ''));
+  var saida = atendimentoPublico(linha, m);
+  if (serie) saida.serie = serie;
+  return saida;
 }
 
 // horário dentro do turno e sem choque (atendimento, folga, aula da profissional, casa fechada)
@@ -500,7 +500,7 @@ function reagendarServico(d, m, serv, prof, dur) {
     registrar(m, 'reagendou serviço', a.nome + ' · ' + serv.nome + ' · ' + de + ' → ' + d.data + ' ' + d.hora + ' · ' + prof);
     return atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === a.id; })[0], m);
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -554,7 +554,7 @@ function bancada_atualizarAtendimento(d, m) {
       mud.credito_id = venda.creditoId || '';
       mud.valor = dinheiro(venda.valor + venda.valeUsado);
     } finally {
-      trava.releaseLock();
+      soltarTrava(trava);
     }
   }
   if (d.obs != null && !prof) mud.obs = String(d.obs).slice(0, 500);

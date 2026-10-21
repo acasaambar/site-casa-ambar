@@ -14,9 +14,28 @@ function erroApi(msg, codigo, dados) {
   return e;
 }
 
+// ---------- medidor (tela Velocidade da bancada) ----------
+// Guarda neste computador as últimas idas ao servidor: tempo total, tempo no servidor e
+// quantas abas vieram da planilha ou do cache. Só números e o nome da ação (nada de dados de cliente).
+const CHAVE_MEDIDAS = 'ambar_medidas';
+export function lerMedidas() {
+  try { return JSON.parse(localStorage.getItem(CHAVE_MEDIDAS)) || []; } catch { return []; }
+}
+export function limparMedidas() {
+  try { localStorage.removeItem(CHAVE_MEDIDAS); } catch { /* sem armazenamento */ }
+}
+function anotarMedida(acao, total, medida) {
+  try {
+    const l = lerMedidas();
+    l.push({ a: acao, t: Math.round(total), s: medida?.ms ?? null, p: medida?.planilha ?? null, c: medida?.cache ?? null, q: Date.now() });
+    localStorage.setItem(CHAVE_MEDIDAS, JSON.stringify(l.slice(-400)));
+  } catch { /* sem armazenamento */ }
+}
+
 async function chamar(acao, dados = {}) {
   if (MODO_DEMO) return demo(acao, dados);
   let resp;
+  const inicio = performance.now();
   try {
     // Sem cabeçalhos: o navegador envia como text/plain e o
     // Apps Script aceita sem bloqueio de CORS.
@@ -33,6 +52,7 @@ async function chamar(acao, dados = {}) {
   } catch {
     throw new Error('O sistema de reservas não respondeu. Tente de novo em instantes.');
   }
+  anotarMedida(acao, performance.now() - inicio, json.medida);
   if (!json.ok) throw erroApi(json.erro || 'Algo deu errado. Tente de novo.', json.codigo, json.dados);
   return json.dados;
 }

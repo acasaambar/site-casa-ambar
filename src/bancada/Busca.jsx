@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, hora, hojeIso, segundaDe, cpfFmt, telFmt, dataBR, real } from './ui.jsx';
+import { useDados, useBuscaClientes, hora, hojeIso, segundaDe, cpfFmt, telFmt, dataBR, real } from './ui.jsx';
 
 // ============================================================
 //  BUSCA RÁPIDA (Ctrl+K ou "/"): clientes, comandas abertas, agenda de hoje e atalhos
@@ -28,6 +28,7 @@ const ATALHOS = [
   ['Equipe e acessos', '/bancada/equipe', null, ['admin']],
   ['Ajustes e taxas da maquininha', '/bancada/ajustes', null, ['admin']],
   ['Minhas clientes', '/bancada/clientes', null, ['professora']],
+  ['Velocidade deste computador', '/bancada/velocidade', null, ['admin', 'recepcao', 'professora']],
   ['Meus ganhos', '/bancada/ganhos', null, ['professora']],
 ];
 
@@ -58,12 +59,10 @@ export function BotaoBusca({ aoAbrir, className = '' }) {
 }
 
 export function Busca({ aoFechar }) {
-  const { membro, chamar } = useBancada();
+  const { membro } = useBancada();
   const nav = useNavigate();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [q, setQ] = useState('');
-  const [clientes, setClientes] = useState([]);
-  const [buscando, setBuscando] = useState(false);
   const [sel, setSel] = useState(0);
   const campo = useRef(null);
   const hoje = hojeIso();
@@ -74,16 +73,8 @@ export function Busca({ aoFechar }) {
   const { dados: minhas } = useDados('minhasClientes', {}, !balcao);
 
   useEffect(() => { campo.current?.focus(); document.body.classList.add('b-sem-rolagem'); return () => document.body.classList.remove('b-sem-rolagem'); }, []);
-  useEffect(() => {
-    const t = q.trim();
-    if (!balcao || t.length < 2) { setClientes([]); return undefined; }
-    let vivo = true;
-    const tm = setTimeout(() => {
-      setBuscando(true);
-      chamar('alunos', { busca: t }).then((l) => vivo && setClientes(l.slice(0, 6))).catch(() => vivo && setClientes([])).finally(() => vivo && setBuscando(false));
-    }, 250);
-    return () => { vivo = false; clearTimeout(tm); };
-  }, [q, balcao, chamar]);
+  // clientes: filtra na hora a lista já carregada e confirma com o servidor por trás
+  const { lista: clientes, buscando } = useBuscaClientes(q, 6, balcao);
 
   const grupos = useMemo(() => {
     const t = semAcento(q.trim());

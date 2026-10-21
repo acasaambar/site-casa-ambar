@@ -243,7 +243,7 @@ function bancada_substituir(d, m) {
     }
     registrar(m, voltou ? 'desfez substituição' : 'substituição', it.titulo + ' · ' + it.data + ' ' + it.hora + ' · ' + it.titular + (voltou ? '' : ' → ' + nome + ' (regra ' + (regra === 'titular' ? 'da titular' : 'de quem substitui') + ')'));
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   if (!voltou) avisarSubstituta(nome, it);
   return { profissional: nome, desfeita: voltou, alertas: alertas, avisos: avisosDaTroca(it, nome) };

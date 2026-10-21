@@ -30,7 +30,7 @@ function pimenta() {
       props.setProperty('SENHA_PIMENTA', p);
     }
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   return p;
 }
@@ -211,7 +211,7 @@ function novaSenha(d) {
     atualizarLinha('Redefinicoes', r._linha, { usado_em: agoraTexto() });
     anularLinksSenha(r.tipo, r.id);
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   return { tipo: r.tipo };
 }

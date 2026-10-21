@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
 import { useDados, Alertas, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
-  linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota } from './ui.jsx';
+  linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota, lembrarResultado, incluirNaListaDeClientes } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
 import { AnamneseConteudo } from './Anamnese.jsx';
@@ -22,6 +22,7 @@ const POR_PAGINA = 150;
 export function Alunos() {
   const local = useLocation();
   const nav = useNavigate();
+  const { token } = useBancada();
   const [busca, setBusca] = useState('');
   // a lista redesenha depois da digitação (não trava o teclado com milhares de clientes)
   const buscaAdiada = useDeferredValue(busca);
@@ -136,7 +137,14 @@ export function Alunos() {
           </button>
         </p>
       )}
-      {novo && <NovoAluno aoFechar={() => setNovo(false)} aoCriar={(cpf) => nav('/bancada/alunos/' + cpf)} />}
+      {novo && <NovoAluno aoFechar={() => setNovo(false)} aoCriar={(cpf, ficha) => {
+        if (ficha) {
+          lembrarResultado(token, 'aluno', { cpf }, ficha);
+          incluirNaListaDeClientes(token, { cpf, nome: ficha.nome, whatsapp: ficha.whatsapp || '', email: ficha.email || '', plano: ficha.plano || '', semCpf: !!ficha.semCpf,
+            ativo: true, ficha: !!ficha.ficha, temSenha: false, presencas: 0, servicos: 0, criadoEm: ficha.criadoEm || hojeIso(), wellhub: ficha.wellhub || '' });
+        }
+        nav('/bancada/alunos/' + cpf);
+      }} />}
       {importar && <Importar aoFechar={() => setImportar(false)} aoImportar={() => { setImportar(false); recarregar(); }} />}
     </>
   );
@@ -277,7 +285,7 @@ function NovoAluno({ aoFechar, aoCriar }) {
     setEnviando(true);
     try {
       const r = await chamar('novoAluno', { ...f, cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp) });
-      aoCriar(r.cpf);
+      aoCriar(r.cpf, r.ficha);
     } catch (err) {
       setErro(err.message);
       setDuplicado(err.codigo === 'DUPLICADO' && err.dados?.cpf ? err.dados.cpf : '');

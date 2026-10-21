@@ -173,7 +173,7 @@ function resgatarVale(d) {
     contarErroCodigo(normCpf(aluno.cpf));
     throw e;
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 

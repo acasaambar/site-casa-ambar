@@ -331,7 +331,7 @@ function bancada_importarClientes(d, m) {
     return { novos: novos.length, atualizados: atualizados, repetidos: repetidos, ignorados: ignorados.slice(0, 50), totalIgnorados: ignorados.length,
       semCpf: novos.filter(function (n) { return !temCpfReal(n.cpf); }).length, simulado: !!d.simular };
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -767,7 +767,7 @@ function bancada_excluirCliente(d, m) {
     esquecerAlertas();
     SpreadsheetApp.flush();
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   registrar(m, 'excluiu cliente', resultado.apagado ? 'cadastro sem histórico' : 'anonimizado (código ' + resultado.codigo + ')');
   return resultado;

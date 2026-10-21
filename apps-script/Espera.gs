@@ -175,7 +175,7 @@ function entrarEspera(d) {
         status: 'esperando', criado_por: 'site', origem: 'site' });
     }
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   return { naEspera: true };
 }

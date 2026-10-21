@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useBancada } from './sessao.jsx';
 import { useDados, Carregando, Erro, Cabecalho, Abas, BotaoAcao, Tag } from './ui.jsx';
+import { PainelVelocidade } from './Velocidade.jsx';
 
 const CAMPOS = [
   ['checkinAbreMinAntes', 'Check-in abre quantos minutos antes da aula', 'min'],
@@ -16,10 +17,11 @@ export default function Ajustes() {
   return (
     <>
       <Cabecalho titulo="Ajustes">Regras que valem para o site e para a bancada.</Cabecalho>
-      <Abas atual={aba} aoMudar={setAba} itens={[['regras', 'Regras'], ['taxas', 'Taxas da maquininha'], ['registro', 'Registro de ações']]} />
+      <Abas atual={aba} aoMudar={setAba} itens={[['regras', 'Regras'], ['taxas', 'Taxas da maquininha'], ['registro', 'Registro de ações'], ['velocidade', 'Velocidade']]} />
       {aba === 'regras' && <Regras />}
       {aba === 'taxas' && <Taxas />}
       {aba === 'registro' && <Registro />}
+      {aba === 'velocidade' && <PainelVelocidade />}
     </>
   );
 }

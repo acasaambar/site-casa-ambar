@@ -45,6 +45,7 @@ var PERMISSOES = {
   b_salvarMembro: ['admin'],
   b_ajustes: ['admin'],
   b_salvarAjustes: ['admin'],
+  b_lerPlanilhaDeNovo: ['admin'],
   b_registro: ['admin'],
   b_relatorio: ['admin'],
   // serviços
@@ -562,7 +563,7 @@ function bancada_agendar(d, m) {
     esperaResolvida('aula', aula.id, cpf);
     return { id: id, forma: descricao };
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -813,7 +814,7 @@ function bancada_salvarAluno(d, m) {
   if (x.cpf && soDigitos(x.cpf) !== normCpf(a.cpf)) {
     var trava = LockService.getScriptLock();
     esperarTrava(trava, 20000);
-    try { return bancada_aluno({ cpf: informarCpf(buscarAluno(a.cpf), x.cpf, m, !!x.juntarCpf) }); } finally { trava.releaseLock(); }
+    try { return bancada_aluno({ cpf: informarCpf(buscarAluno(a.cpf), x.cpf, m, !!x.juntarCpf) }); } finally { soltarTrava(trava); }
   }
   return bancada_aluno({ cpf: a.cpf });
 }
@@ -844,12 +845,15 @@ function bancada_novoAluno(d, m) {
       if (Object.keys(extra).length) atualizarLinha('Alunos', nova._linha, extra);
     }
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   registrar(m, 'cadastrou cliente', d.nome);
   var conviteEnviado = false;
   if (d.email && d.enviarConvite !== false && temCpfReal(cpf)) { enviarConviteAluno(buscarAluno(cpf)); conviteEnviado = true; }
-  return { cpf: normCpf(cpf), conviteEnviado: conviteEnviado };
+  // a ficha completa já vai junto: a tela abre o cadastro na hora, sem outro pedido
+  var ficha = null;
+  try { ficha = bancada_aluno({ cpf: normCpf(cpf) }, m); } catch (e) { Logger.log('ficha nova: ' + e.message); }
+  return { cpf: normCpf(cpf), conviteEnviado: conviteEnviado, ficha: ficha };
 }
 
 function enviarConviteAluno(a) {
@@ -946,7 +950,7 @@ function bancada_vender(d, m) {
     registrar(m, 'venda no balcão', aluno.nome + ' · ' + plano.nome + ' · R$ ' + v.valor + ' · ' + v.metodo);
     return v;
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -1058,7 +1062,7 @@ function bancada_aplicarVale(d, m) {
     registrar(m, 'aplicou vale', d.codigo + ' · ' + aluno.nome);
     return r;
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -1169,7 +1173,7 @@ function bancada_salvarGrade(d, m) {
     s.getRange('D:D').setNumberFormat('@');
     s.getRange(2, 1, linhas.length, 6).setValues(linhas.map(linhaSegura));
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   // reservas futuras acompanham a professora nova (presença, comissão e lembrete usam o nome da reserva)
   var hoje = hojeTexto();
@@ -1254,6 +1258,13 @@ function bancada_salvarMembro(d, m) {
   }
   registrar(m, existente ? 'editou acesso' : 'criou acesso', email + ' · ' + x.papel + ' · ' + ativo);
   return { equipe: bancada_equipe(), conviteEnviado: convite };
+}
+
+// depois de mexer na planilha à mão: as cópias guardadas no cache deixam de valer na hora
+function bancada_lerPlanilhaDeNovo(d, m) {
+  esquecerCacheDasAbas();
+  registrar(m, 'leu a planilha de novo', '');
+  return { ok: true };
 }
 
 function bancada_ajustes() {

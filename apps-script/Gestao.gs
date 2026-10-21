@@ -136,7 +136,7 @@ function bancada_movimentarEstoque(d, m) {
         forma: d.forma || 'Pix', status: d.pago === false ? 'a_pagar' : 'pago', fornecedor: d.fornecedor || '' }, m);
     }
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   registrar(m, 'estoque · ' + tipo, p.nome + ' · ' + qtd);
   return bancada_produtos();
@@ -366,7 +366,7 @@ function sincronizarComissoesAulas(de, ate) {
     });
     adicionarLinhas('Comissoes', novas);
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   cache.put('comissoes_aulas', chave, 300);
 }
@@ -454,7 +454,7 @@ function bancada_pagarComissoes(d, m) {
       });
     });
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   registrar(m, 'pagou comissões', pagas + ' lançamentos');
   return bancada_comissoes({ mes: d.mes });
@@ -1183,7 +1183,7 @@ function bancada_salvarComanda(d, m) {
     SpreadsheetApp.flush();
     return comandaPublica(acharComanda(id));
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -1296,7 +1296,7 @@ function bancada_reabrirComanda(d, m) {
     registrar(m, 'reabriu comanda', cm.nome + ' · ' + cm.id + ' · ' + motivo);
     return comandaPublica(acharComanda(cm.id));
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
 }
 
@@ -1450,7 +1450,7 @@ function bancada_fecharComanda(d, m) {
     SpreadsheetApp.flush();
     registrar(m, 'fechou comanda', cm.nome + ' · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + '));
   } finally {
-    trava.releaseLock();
+    soltarTrava(trava);
   }
   // vales vendidos: e-mail para quem recebe (se pedido) e o texto pronto do WhatsApp
   var saida = comandaPublica(acharComanda(d.id));

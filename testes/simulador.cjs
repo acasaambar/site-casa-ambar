@@ -56,7 +56,8 @@ function criar(arquivos) {
   const ctx = {
     SpreadsheetApp: { openById: () => ss, flush() {} },
     CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] || null, put: (k, v) => { cacheStore[k] = v; }, remove: k => { delete cacheStore[k]; },
-      getAll: ks => Object.fromEntries(ks.filter(k => k in cacheStore).map(k => [k, cacheStore[k]])), putAll: (o) => { Object.assign(cacheStore, o); } }) },
+      getAll: ks => Object.fromEntries(ks.filter(k => k in cacheStore).map(k => [k, cacheStore[k]])), putAll: (o) => { Object.assign(cacheStore, o); },
+      removeAll: ks => { ks.forEach(k => { delete cacheStore[k]; }); } }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, tryLock() { return true; }, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : (k === 'PASTA_ANAMNESES_ID' ? 'pasta' : null)), setProperty: (k, v) => { props[k] = v; } }) },
     DriveApp: (() => { const arquivos = {}; let n = 0; const pasta = { getId: () => 'pastaX', searchFiles: () => ({ hasNext: () => false }),
@@ -85,7 +86,17 @@ function criar(arquivos) {
   };
   vm.createContext(ctx);
   for (const a of arquivos) vm.runInContext(fs.readFileSync(a, 'utf8'), ctx, { filename: a });
-  const chamar = (acao, d) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ acao, ...d }) } }));
+  // mudança na planilha feita fora de um pedido (o teste mexendo direto, como alguém editando à mão):
+  // o cache das abas é esquecido, como no botão "Ler a planilha de novo" dos Ajustes
+  const digital = () => JSON.stringify(Object.values(ss.sheets).map((sh) => sh.rows));
+  let ultima = null;
+  const chamar = (acao, d) => {
+    const agora = digital();
+    if (ultima !== null && agora !== ultima && !ss.__semLimparCache) Object.keys(cacheStore).forEach((k) => { if (k.startsWith('v_')) delete cacheStore[k]; });
+    const r = JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ acao, ...d }) } }));
+    ultima = digital();
+    return r;
+  };
   return { ctx, chamar, ss, emails, props, chamadasIP, cacheStore };
 }
 module.exports = { criar };

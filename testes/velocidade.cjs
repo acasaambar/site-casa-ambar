@@ -27,7 +27,8 @@ const cacheOrig = m.ctx.CacheService.getScriptCache;
 m.ctx.CacheService.getScriptCache = () => {
   const c = cacheOrig();
   return { get: (k) => { cont.outras++; return c.get(k); }, put: (k, v, t) => { cont.outras++; return c.put(k, v, t); }, remove: (k) => { cont.outras++; return c.remove(k); },
-    getAll: (ks) => { cont.outras++; return c.getAll(ks); }, putAll: (o, t) => { cont.outras++; return c.putAll(o, t); } };
+    getAll: (ks) => { cont.outras++; return c.getAll(ks); }, putAll: (o, t) => { cont.outras++; return c.putAll(o, t); },
+    removeAll: (ks) => { cont.outras++; return c.removeAll(ks); } };
 };
 const ssGet = ss.getSheetByName;
 ss.getSheetByName = function (n) { cont.outras++; return ssGet.call(this, n); };
@@ -46,20 +47,24 @@ const medir = (rotulo, acao, dados) => {
 
 const total = [];
 const t = (...a) => { const x = medir(...a); total.push(x.est); return x.r; };
-console.log('— telas');
-t('Hoje (resumo)', 'b_resumo', {});
-t('Agenda de aulas', 'b_agenda', { de: hojeS, dias: 1 });
-t('Agenda de serviços', 'b_atendimentos', { de: hojeS, dias: 1 });
-t('Agenda (semana inteira)', 'b_agendaSemana', { de: m.ctx.somarDias(hojeS, -((new Date(hojeS + 'T12:00:00Z').getUTCDay() + 6) % 7)) });
-const cat = t('Catálogo de serviços', 'b_catalogoServicos', {}).dados;
-t('Clientes', 'b_alunos', {});
-t('Comandas', 'b_comandas', {});
-t('Caixa do dia', 'b_caixa', {});
-t('Estoque', 'b_produtos', {});
-t('Financeiro', 'b_financeiro', {});
-t('Comissões', 'b_comissoes', {});
-t('Relatórios', 'b_relatorio', {});
-t('Vendas', 'b_pagamentos', {});
+console.log('— telas (1ª vez, com o cache vazio)');
+const telas = [];
+const tt = (...a) => { telas.push(a); return t(...a); };
+tt('Hoje (resumo)', 'b_resumo', {});
+tt('Agenda de aulas', 'b_agenda', { de: hojeS, dias: 1 });
+tt('Agenda de serviços', 'b_atendimentos', { de: hojeS, dias: 1 });
+tt('Agenda (semana inteira)', 'b_agendaSemana', { de: m.ctx.somarDias(hojeS, -((new Date(hojeS + 'T12:00:00Z').getUTCDay() + 6) % 7)) });
+const cat = tt('Catálogo de serviços', 'b_catalogoServicos', {}).dados;
+tt('Clientes', 'b_alunos', {});
+tt('Comandas', 'b_comandas', {});
+tt('Caixa do dia', 'b_caixa', {});
+tt('Estoque', 'b_produtos', {});
+tt('Financeiro', 'b_financeiro', {});
+tt('Comissões', 'b_comissoes', {});
+tt('Relatórios', 'b_relatorio', {});
+tt('Vendas', 'b_pagamentos', {});
+console.log('— as mesmas telas de novo (cache cheio: é o caso normal, várias pessoas usando)');
+telas.forEach((a) => t(...a));
 console.log('— ações');
 const prof = cat.profissionais[0].nome;
 const h = t('Horários livres', 'b_horarios', { servicoId: 'drenagem', profissional: prof, data: m.ctx.somarDias(hojeS, 2) }).dados;

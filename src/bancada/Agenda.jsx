@@ -119,13 +119,16 @@ export default function Agenda() {
     if (atualAgora) setAbertas({ [atualAgora.id]: true });
   }, [dados]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // presença marca na hora (o servidor confirma por trás; se recusar, volta como estava e avisa)
+  const marcarNaTela = (id, status) => setDados((s) => s && ({ ...s, aulas: s.aulas.map((a) => ({ ...a, reservas: a.reservas.map((x) => (x.id === id ? { ...x, status } : x)) })) }));
   async function presenca(r, status) {
     setAviso('');
+    marcarNaTela(r.id, status);
     try {
       await chamar('presenca', { reservaId: r.id, status });
-      setDados((s) => ({ ...s, aulas: s.aulas.map((a) => ({ ...a, reservas: a.reservas.map((x) => (x.id === r.id ? { ...x, status } : x)) })) }));
     } catch (e) {
-      setAviso(e.message);
+      marcarNaTela(r.id, r.status);
+      setAviso(`${r.nome}: ${e.message}`);
     }
   }
 

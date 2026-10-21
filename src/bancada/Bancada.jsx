@@ -17,6 +17,7 @@ import Relatorios from './Relatorios.jsx';
 import Grade from './Grade.jsx';
 import Equipe from './Equipe.jsx';
 import Ajustes from './Ajustes.jsx';
+import Velocidade from './Velocidade.jsx';
 import { MinhasClientes, ClienteProfissional } from './Anamnese.jsx';
 import { Busca, BotaoBusca, useAtalhoBusca } from './Busca.jsx';
 import '@fontsource/ibm-plex-sans/400.css';
@@ -156,6 +157,7 @@ function Painel() {
           <Routes>
             <Route index element={<Inicio />} />
             <Route path="agenda" element={<Agenda />} />
+            <Route path="velocidade" element={<Velocidade />} />
             {pode(membro, 'admin', 'recepcao') && (
               <>
                 <Route path="alunos" element={<Alunos />} />
