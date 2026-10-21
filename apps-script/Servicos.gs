@@ -598,8 +598,37 @@ function bancada_salvarServico(d, m) {
   var ex = lerAba('Servicos').filter(function (s) { return String(s.id) === id; })[0];
   if (ex) atualizarLinha('Servicos', ex._linha, linha); else adicionarLinha('Servicos', linha);
   _itensVenda = null;
+  if (Array.isArray(x.profissionais)) acertarQuemFaz({ id: id, categoria: x.categoria }, x.profissionais);
   registrar(m, ex ? 'editou serviço' : 'criou serviço', nome + ' · R$ ' + linha.preco);
   return bancada_catalogoServicos();
+}
+
+// "Quem faz este serviço" (cadastro do serviço): acerta a lista de serviços de cada profissional.
+// Quem tem lista própria ganha/perde só este serviço (comissão e tempo dela nos outros continuam).
+// Quem atende pela área (sem lista): marcar acrescenta a área; desmarcar vira lista com tudo o que ela já fazia, menos este.
+function acertarQuemFaz(serv, nomes) {
+  var quer = {};
+  nomes.forEach(function (n) { quer[semAcento(n)] = true; });
+  var todos = listarServicos(true);
+  lerAba('Profissionais').forEach(function (row) {
+    if (!String(row.nome || '').trim()) return;
+    var lista = servicosDaProfissional(row.servicos);
+    var cats = String(row.categorias || '').split(',').map(function (c) { return c.trim(); }).filter(String);
+    var faz = lista.length ? lista.some(function (c) { return c.id === serv.id; }) : (!cats.length || cats.indexOf(serv.categoria) >= 0);
+    var deve = !!quer[semAcento(row.nome)];
+    if (faz === deve) return;
+    var texto = function (l) { return l.map(function (c) { return c.id + ':' + (c.comissao == null ? '' : c.comissao) + ':' + (c.duracao || ''); }).join(';'); };
+    if (deve) {
+      if (lista.length) atualizarLinha('Profissionais', row._linha, { servicos: texto(lista.concat([{ id: serv.id, comissao: null, duracao: null }])) });
+      else atualizarLinha('Profissionais', row._linha, { categorias: cats.concat([serv.categoria]).join(', ') });
+    } else if (lista.length) {
+      atualizarLinha('Profissionais', row._linha, { servicos: texto(lista.filter(function (c) { return c.id !== serv.id; })) });
+    } else {
+      var feitos = todos.filter(function (s) { return s.id !== serv.id && (!cats.length || cats.indexOf(s.categoria) >= 0); })
+        .map(function (s) { return { id: s.id, comissao: null, duracao: null }; });
+      atualizarLinha('Profissionais', row._linha, { servicos: texto(feitos) });
+    }
+  });
 }
 
 function bancada_salvarPacote(d, m) {

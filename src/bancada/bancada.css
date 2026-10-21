@@ -2274,3 +2274,9 @@
 /* item da comanda que já aparece e ainda está sendo salvo */
 .cm-item--salvando { opacity: 0.72; }
 .cm-item--salvando .cm-item__meta { font-style: italic; }
+
+/* cadastro do serviço: quem faz */
+.s-quemfaz__lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px 14px; }
+.s-quemfaz__lista .b-check { align-items: flex-start; }
+.s-quemfaz__lista .b-check small { display: block; font-size: 13px; }
+.s-quemfaz .aviso { margin: 0 0 8px; }

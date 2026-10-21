@@ -710,6 +710,9 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
           </label>
           <label className="b-campo"><span className="rotulo">Dia</span><input type="date" value={data} min={hojeIso()} onChange={(e) => { setData(e.target.value); setHoraSel(''); }} /></label>
         </div>
+        {serv && profs.length === 0 && (
+          <p className="aviso">Ninguém está marcado para fazer {serv.nome}. A administração acerta em Catálogo → Serviços → editar o serviço → "Quem faz este serviço".</p>
+        )}
 
         {serv && profissional && (
           <fieldset className="s-horarios">
@@ -1014,14 +1017,21 @@ export function CatalogoServicos() {
           </section>
         );
       })}
-      {editar?.tipo === 'servico' && <EditarServico s={editar.v} categorias={dados.categorias} produtos={dados.produtos || []} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
+      {editar?.tipo === 'servico' && <EditarServico s={editar.v} categorias={dados.categorias} produtos={dados.produtos || []} profissionais={dados.profissionais || []} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
       {editar?.tipo === 'pacote' && <EditarPacote p={editar.v} servicos={dados.servicos} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
     </>
   );
 }
 
-function EditarServico({ s, categorias, produtos = [], aoFechar, aoSalvar }) {
+function EditarServico({ s, categorias, produtos = [], profissionais = [], aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
+  const ativas = profissionais.filter((p) => p.ativo);
+  // quem faz: o que já está no cadastro de cada uma; serviço novo (ou que ninguém faz) já vem com quem atende a área
+  const daArea = (cat) => ativas.filter((p) => p.categorias.includes(cat)).map((p) => p.nome);
+  const fazemHoje = s.id ? ativas.filter((p) => fazServico(p, s)).map((p) => p.nome) : [];
+  const [quem, setQuem] = useState(() => (fazemHoje.length ? fazemHoje : daArea(s.categoria)));
+  const [mexeuQuem, setMexeuQuem] = useState(false);
+  const ninguemFazia = !!s.id && fazemHoje.length === 0;
   const [f, setF] = useState({ id: s.id || '', nome: s.nome || '', categoria: s.categoria, duracao: s.duracao || 60, preco: s.preco || '', descricao: s.descricao || '', semJurosAte: s.semJurosAte || 1, ativo: s.ativo !== false,
     comissao: s.comissao == null ? '' : String(s.comissao), consumo: s.consumo || [], retornoDias: s.retornoDias ? String(s.retornoDias) : '' });
   const [erro, setErro] = useState('');
@@ -1031,7 +1041,10 @@ function EditarServico({ s, categorias, produtos = [], aoFechar, aoSalvar }) {
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
         <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Área</span><select {...campo('categoria')}>{categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
+          <label className="b-campo"><span className="rotulo">Área</span><select value={f.categoria} onChange={(e) => {
+            setF({ ...f, categoria: e.target.value });
+            if (!mexeuQuem && (!s.id || ninguemFazia)) setQuem(daArea(e.target.value));
+          }}>{categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
           <label className="b-campo"><span className="rotulo">Duração (min)</span><input type="number" min={10} step={5} {...campo('duracao')} /></label>
         </div>
         <div className="b-linha2">
@@ -1063,12 +1076,27 @@ function EditarServico({ s, categorias, produtos = [], aoFechar, aoSalvar }) {
           {produtos.length ? <button type="button" className="link-acao" onClick={() => setF({ ...f, consumo: [...f.consumo, { produtoId: '', qtd: 1 }] })}>+ produto</button>
             : <span className="b-suave">Cadastre os insumos em Estoque para usar aqui.</span>}
         </fieldset>
+        {ativas.length > 0 && (
+          <fieldset className="b-opcoes s-quemfaz">
+            <legend className="rotulo">Quem faz este serviço</legend>
+            {ninguemFazia && <p className="aviso">Ninguém estava fazendo este serviço, por isso ele não aparecia para agendar. Já marcamos quem atende {f.categoria}: confira e salve.</p>}
+            <div className="s-quemfaz__lista">
+              {ativas.map((p) => (
+                <label key={p.nome} className="b-check">
+                  <input type="checkbox" checked={quem.includes(p.nome)} onChange={(e) => { setMexeuQuem(true); setQuem((l) => (e.target.checked ? [...l, p.nome] : l.filter((n) => n !== p.nome))); }} />
+                  <span>{p.nome}<small className="b-suave">{p.categorias.join(', ') || 'todas as áreas'}</small></span>
+                </label>
+              ))}
+            </div>
+            {quem.length === 0 && <p className="b-suave">Sem ninguém marcado, o serviço não aparece para agendar.</p>}
+          </fieldset>
+        )}
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Disponível para agendar</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
           try {
-            aoSalvar(await chamar('salvarServico', { servico: { ...f, preco: Number(String(f.preco).replace(',', '.')), duracao: Number(f.duracao), semJurosAte: Number(f.semJurosAte),
+            aoSalvar(await chamar('salvarServico', { servico: { ...f, profissionais: ativas.length ? quem : undefined, preco: Number(String(f.preco).replace(',', '.')), duracao: Number(f.duracao), semJurosAte: Number(f.semJurosAte),
               comissao: f.comissao === '' ? '' : Number(String(f.comissao).replace(',', '.')), retornoDias: Number(f.retornoDias) || '', consumo: f.consumo.map((c) => ({ produtoId: c.produtoId, qtd: Number(String(c.qtd).replace(',', '.')) })) } }));
           } catch (e) { setErro(e.message); }
         }}>Salvar serviço</BotaoAcao>
