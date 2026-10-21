@@ -849,12 +849,21 @@ function calcularItensComanda(itens, cpf, codigo) {
     if (tipo !== 'produto') tipo = cat.tipo === 'servico' ? 'servico' : cat.tipo === 'pacote' ? 'pacote' : 'plano';
     var qtd = tipo === 'produto' ? Math.min(Math.max(Math.round(numero(x.qtd)) || 1, 1), 99) : 1;
     var data = dataValida(x.data, hojeTexto());
+    // item ligado à agenda: "já pago" é decidido pelo atendimento (pago pela agenda, pacote ou cortesia), nunca pela tela
+    var atend = x.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === String(x.atendimentoId); })[0] : null;
+    var pagoAntes = atend ? atend.pagamento !== 'no_dia' : false;
     var it = { uid: String(x.uid || '') || novoId('I'), tipo: tipo, id: String(cat.id), nome: cat.nome, qtd: qtd, preco: dinheiro(cat.preco),
-      profissional: String(x.profissional || '').slice(0, 60), atendimentoId: String(x.atendimentoId || ''), data: data, pago: !!x.pago, promocao: '', cupom: '', vale: '',
+      profissional: String(x.profissional || '').slice(0, 60), atendimentoId: atend ? String(atend.id) : '', data: data, pago: pagoAntes, promocao: '', cupom: '', vale: '',
       valeUsado: 0, obs: String(x.obs || '').replace(/\s+/g, ' ').trim().slice(0, 200) };
     if (it.pago) { it.valor = 0; it.total = 0; it.desconto = 0; return it; }
     var calc;
     var cod = codigoLimpo(codigo);
+    // vale em R$ não vai no campo do código (abatia por unidade e passava do saldo): entra no Receber, forma Vale-presente
+    var valeEmReais = cod ? acharVale(cod) : null;
+    if (valeEmReais && valeEmReais.tipo !== 'plano') {
+      erroCodigo = 'Este vale é de R$ ' + numero(valeEmReais.valor).toFixed(2).replace('.', ',') + ': use na hora de receber (forma "Vale-presente").';
+      cod = '';
+    }
     if (cod && !(valeAulaUsado && /^AMBAR-/.test(cod))) {
       try {
         calc = calcularPreco(cat, cpf, cod, { data: data, canal: 'bancada' });
@@ -1148,6 +1157,16 @@ function bancada_fecharComanda(d, m) {
     var cm = comandaPublica(c);
     if (!cm.itens.length) throw new Error('A comanda está vazia.');
     var calc = calcularItensComanda(cm.itens, cm.cpf, cm.codigo);
+    calc.forEach(function (it) {
+      if (it.atendimentoId) {
+        var at = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
+        if (at && (at.status === 'cancelado' || at.status === 'falta')) {
+          throw new Error('O atendimento de ' + it.nome + ' (' + dataTexto(at.data).split('-').reverse().join('/') + ') está como ' + (at.status === 'falta' ? 'falta' : 'cancelado') + ': tire o item da comanda.');
+        }
+      } else if (it.tipo === 'servico' && !it.profissional) {
+        throw new Error('Escolha quem fez ' + it.nome + ' (comissão e produtos usados dependem disso).');
+      }
+    });
     var total = dinheiro(calc.reduce(function (s, i) { return s + i.total; }, 0));
     var pags = (d.pagamentos || []).map(function (p) {
       var metodo = METODOS_PAGAMENTO.indexOf(p.metodo) >= 0 ? p.metodo : '';
@@ -1181,9 +1200,10 @@ function bancada_fecharComanda(d, m) {
     calc.forEach(function (it, idx) {
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
       if (it.pago) {
-        // atendimento já pago (pacote, pago antes ou cortesia): só marca como atendido
-        if (a && a.status !== 'atendido') {
-          atualizarLinha('Atendimentos', a._linha, { status: 'atendido', comanda: cm.id, atualizado_em: agoraTexto() });
+        // atendimento já pago (pacote, pago antes ou cortesia): marca como atendido e (re)faz comissão e baixa,
+        // que podem ter sido canceladas ao reabrir a comanda (as duas funções não duplicam)
+        if (a) {
+          if (a.status !== 'atendido') atualizarLinha('Atendimentos', a._linha, { status: 'atendido', comanda: cm.id, atualizado_em: agoraTexto() });
           var a2 = lerAba('Atendimentos').filter(function (y) { return y.id === a.id; })[0];
           comissaoDoAtendimento(a2, true);
           aplicarConsumo(a2.servico_id, 'atend:' + a2.id, a2.nome, true, m.email);
@@ -1230,8 +1250,8 @@ function bancada_fecharComanda(d, m) {
           var a3 = lerAba('Atendimentos').filter(function (y) { return y.id === a.id; })[0];
           comissaoDoAtendimento(a3, true);
           aplicarConsumo(a3.servico_id, 'atend:' + a3.id, a3.nome, true, m.email);
-        } else if (it.profissional) {
-          // serviço feito na hora, sem agendamento
+        } else {
+          // serviço feito na hora, sem agendamento (a profissional é obrigatória, conferida acima)
           gravarComissao({ ref: cm.id + '-' + idx, data: hoje, profissional: it.profissional, origem: 'comanda', item: it.nome + ' · ' + cm.nome, base: it.total,
             pct: pctComissao(it.profissional, it.id) });
           aplicarConsumo(it.id, 'comanda:' + cm.id + '-' + idx, cm.nome, true, m.email);

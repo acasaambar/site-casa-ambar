@@ -184,13 +184,30 @@ function hhmm(m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m
 
 function atendimentosDoDia(data, ignorarId) {
   return lerAba('Atendimentos').filter(function (a) {
-    return dataTexto(a.data) === data && a.status !== 'cancelado' && a.id !== ignorarId;
+    // falta libera o horário para encaixe (o bloco tracejado continua na agenda)
+    return dataTexto(a.data) === data && a.status !== 'cancelado' && a.status !== 'falta' && a.id !== ignorarId;
   });
 }
 
 function turnosDe(prof, data) {
   var p = listarProfissionais().filter(function (x) { return semAcento(x.nome) === semAcento(prof); })[0];
   return turnosDoProfissional(p, data);
+}
+
+// além das folgas: casa fechada (bloqueio do dia todo, sem modalidade) e as aulas que a profissional dá no dia
+function ocupacoesDoDia(data, profissional) {
+  var extra = [];
+  valoresAba('Bloqueios').slice(1).forEach(function (b) {
+    if (dataTexto(b[0]) === data && !horaTexto(b[1]) && !String(b[2] || '').trim()) {
+      extra.push({ diaTodo: true, inicio: '00:00', fim: '23:59', motivo: 'casa fechada' + (b[3] ? ': ' + b[3] : '') });
+    }
+  });
+  gerarAulas(data, 1).forEach(function (a) {
+    if (a.data !== data || semAcento(a.professor) !== semAcento(profissional)) return;
+    var fim = minutos(a.hora) + (Number(a.duracao) || AJUSTES.duracaoAulaMin);
+    extra.push({ diaTodo: false, inicio: a.hora, fim: hhmm(fim), motivo: 'aula de ' + a.modalidade });
+  });
+  return folgasDoDia(data, profissional).concat(extra);
 }
 
 function conflito(data, hora, duracao, profissional, ignorarId, folgas, atendimentos) {
@@ -202,7 +219,7 @@ function conflito(data, hora, duracao, profissional, ignorarId, folgas, atendime
   })[0];
   if (c) return c;
   // horário bloqueado (folga, almoço, curso…)
-  var f = (folgas || folgasDoDia(data, profissional)).filter(function (x) {
+  var f = (folgas || ocupacoesDoDia(data, profissional)).filter(function (x) {
     var iv = intervaloFolga(x);
     return a0 < iv[1] && iv[0] < a1;
   })[0];
@@ -217,7 +234,7 @@ function bancada_horarios(d) {
   var dur = Number(d.duracao) || duracaoServico(serv, d.profissional);
   var turnos = turnosDe(d.profissional, d.data);
   if (!turnos.length) return { horarios: [], motivo: d.profissional + ' não atende neste dia.' };
-  var folgas = folgasDoDia(d.data, d.profissional);
+  var folgas = ocupacoesDoDia(d.data, d.profissional);
   var diaTodo = folgas.filter(function (f) { return f.diaTodo; })[0];
   if (diaTodo) return { horarios: [], motivo: d.profissional + ' não atende neste dia (' + diaTodo.motivo + ').' };
   var agora = new Date();
@@ -231,7 +248,7 @@ function bancada_horarios(d) {
       if (!conflito(d.data, h, dur, d.profissional, d.ignorarId, folgas, atend)) livres.push(h);
     }
   });
-  return { horarios: livres, duracao: dur, bloqueios: folgas,
+  return { horarios: livres, duracao: dur, bloqueios: folgas.filter(function (f) { return f.id; }),
     turnos: turnos.map(function (t) { return [hhmm(t[0]), hhmm(t[1])]; }) };
 }
 
@@ -304,6 +321,7 @@ function bancada_agendarServico(d, m) {
   if (!prof) throw new Error('Escolha o profissional.');
   if (!fazServico(profissionalPorNome(prof), serv)) throw new Error(prof + ' não faz ' + serv.nome + '. Confira em Catálogo → Profissionais.');
   var dur = Math.min(Math.max(Number(d.duracao) || duracaoServico(serv, prof), 10), 480);
+  if (d.reagendarId) return reagendarServico(d, m, serv, prof, dur);
   var cliente;
   if (d.cpf) {
     var al = buscarAluno(d.cpf);
@@ -326,8 +344,11 @@ function bancada_agendarServico(d, m) {
     if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
     if (c) throw new Error(prof + ' já atende ' + c.nome + ' às ' + horaTexto(c.hora) + '. Escolha outro horário.');
     if (cliente.novo) {
+      // mesmo WhatsApp de outra pessoa: pergunta antes (mãe e filha) em vez de juntar sem aviso
+      var outro = d.outraPessoa ? null : outroComMesmoWhats(cliente.nome, cliente.whatsapp);
+      if (outro) throw erroCod('Este WhatsApp já é de ' + outro.nome + '.', 'WHATSAPP_DE_OUTRA');
       // cliente sem CPF ganha cadastro (fica com histórico, pacotes e comandas)
-      var cad = clienteSemCpf(cliente.nome, cliente.whatsapp, '', 'agenda de serviços');
+      var cad = clienteSemCpf(cliente.nome, cliente.whatsapp, '', 'agenda de serviços', !!d.outraPessoa);
       cliente = { cpf: normCpf(cad.cpf), nome: cad.nome, whatsapp: String(cad.whatsapp || cliente.whatsapp), email: cad.email };
     }
     var forma = String(d.pagamento || 'no_dia');
@@ -352,16 +373,71 @@ function bancada_agendarServico(d, m) {
       linha.pagamento = 'no_dia';
     }
     adicionarLinha('Atendimentos', linha);
-    if (d.reagendarId) {
-      var antigo = lerAba('Atendimentos').filter(function (x) { return x.id === d.reagendarId; })[0];
-      if (antigo) atualizarLinha('Atendimentos', antigo._linha, { status: 'cancelado', obs: ('Reagendado para ' + d.data + ' ' + d.hora + '. ' + (antigo.obs || '')).slice(0, 500), atualizado_em: agoraTexto() });
-    }
     SpreadsheetApp.flush();
     registrar(m, 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof);
     return atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === linha.id; })[0], m);
   } finally {
     trava.releaseLock();
   }
+}
+
+// Reagendar MOVE o mesmo atendimento (mesmo id): pagamento, pacote, comanda aberta e comissão continuam valendo.
+// Trocar o serviço só quando ainda não foi pago (pago, pacote ou cortesia mantêm o serviço).
+function reagendarServico(d, m, serv, prof, dur) {
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    var a = lerAba('Atendimentos').filter(function (x) { return x.id === d.reagendarId; })[0];
+    if (!a) throw new Error('Atendimento não encontrado.');
+    if (a.status === 'cancelado') throw new Error('Este atendimento foi cancelado. Agende um novo.');
+    if (a.status === 'atendido') throw new Error('Este atendimento já foi feito.');
+    var trocaServico = String(a.servico_id) !== serv.id;
+    if (trocaServico && a.pagamento !== 'no_dia') throw new Error('Este horário já está pago (' + (a.pagamento === 'pacote' ? 'pacote' : a.pagamento) + '): dá para mudar dia, hora e profissional, mas não o serviço.');
+    var ini = minutos(d.hora);
+    var cabe = turnosDe(prof, d.data).some(function (t) { return ini >= t[0] && ini + dur <= t[1]; });
+    if (!cabe) throw new Error('Fora do horário de atendimento de ' + prof + ' neste dia.');
+    var c = conflito(d.data, d.hora, dur, prof, a.id);
+    if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
+    if (c) throw new Error(prof + ' já atende ' + c.nome + ' às ' + horaTexto(c.hora) + '. Escolha outro horário.');
+    var de = dataTexto(a.data) + ' ' + horaTexto(a.hora) + (a.profissional !== prof ? ' com ' + a.profissional : '');
+    var mud = { data: d.data, hora: d.hora, duracao_min: dur, profissional: prof, status: 'agendado', lembrete: '', atualizado_em: agoraTexto(),
+      obs: ('Reagendado de ' + de + '. ' + (d.obs != null ? d.obs : (a.obs || ''))).slice(0, 500) };
+    // outra profissional por reagendamento não é substituição
+    if (a.profissional !== prof) { mud.titular = ''; mud.comissao_de = ''; }
+    if (trocaServico) { mud.servico_id = serv.id; mud.servico = serv.nome; mud.categoria = serv.categoria; mud.valor = serv.preco; }
+    atualizarLinha('Atendimentos', a._linha, mud);
+    // comanda aberta e pagamento acompanham a profissional e o serviço
+    lerAba('Comandas').filter(function (cm) { return cm.status === 'aberta'; }).forEach(function (cm) {
+      var itens = parseJson(cm.itens, []);
+      var mudou = false;
+      itens.forEach(function (i) {
+        if (i.atendimentoId !== a.id) return;
+        if (i.profissional !== prof) { i.profissional = prof; mudou = true; }
+        if (trocaServico && i.id !== serv.id) { i.id = serv.id; i.nome = serv.nome; mudou = true; }
+        if (i.data !== d.data) { i.data = d.data; mudou = true; }
+      });
+      if (mudou) atualizarLinha('Comandas', cm._linha, { itens: JSON.stringify(itens) });
+    });
+    if (a.order_nsu && a.profissional !== prof) {
+      var pg = linhaPagamento(String(a.order_nsu));
+      if (pg) atualizarLinha('Pagamentos', pg._linha, { profissional: prof });
+    }
+    if (dataTexto(a.data) !== d.data || horaTexto(a.hora) !== d.hora || a.profissional !== prof) encerrarPedidosDeTroca('servico', a.id, 'Horário reagendado.');
+    SpreadsheetApp.flush();
+    registrar(m, 'reagendou serviço', a.nome + ' · ' + serv.nome + ' · ' + de + ' → ' + d.data + ' ' + d.hora + ' · ' + prof);
+    return atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === a.id; })[0], m);
+  } finally {
+    trava.releaseLock();
+  }
+}
+
+// pedidos de troca ainda em aberto deixam de valer quando o horário muda, é cancelado ou bloqueado
+function encerrarPedidosDeTroca(tipo, ref, motivo) {
+  lerAba('Substituicoes').forEach(function (x) {
+    if (x.tipo === tipo && String(x.ref) === String(ref) && x.status === 'pedido') {
+      atualizarLinha('Substituicoes', x._linha, { status: 'cancelada', resposta: motivo, feito_em: agoraTexto() });
+    }
+  });
 }
 
 // status: confirmado | atendido | falta | cancelado | agendado. Ao marcar atendido com pagamento no dia, registra o recebimento.
@@ -376,10 +452,25 @@ function bancada_atualizarAtendimento(d, m) {
   if (prof && a.status === 'cancelado') throw new Error('Este atendimento foi cancelado. Fale com a recepção.');
   if (prof && st !== 'agendado' && inicio({ data: dataTexto(a.data), hora: horaTexto(a.hora) }) > new Date()) throw new Error('Só dá para marcar depois do horário do atendimento.');
   var mud = { status: st, atualizado_em: agoraTexto() };
+  if (st === 'cancelado' || st === 'falta') {
+    // não deixa item "órfão" na comanda aberta (ao fechar, viraria atendido e cobrado)
+    var comAberta = lerAba('Comandas').filter(function (cm) {
+      return cm.status === 'aberta' && parseJson(cm.itens, []).some(function (i) { return i.atendimentoId === a.id; });
+    })[0];
+    if (comAberta) throw new Error('Este atendimento está na comanda aberta de ' + comAberta.nome + '. Tire o item da comanda antes de marcar ' + (st === 'falta' ? 'falta' : 'cancelado') + '.');
+    if (st === 'cancelado') encerrarPedidosDeTroca('servico', a.id, 'Atendimento cancelado.');
+  }
   if (st === 'atendido' && a.pagamento === 'no_dia' && d.metodo && !prof) {
     var trava = LockService.getScriptLock();
     esperarTrava(trava, 20000);
     try {
+      // relê dentro da trava: dois toques ou dois aparelhos não cobram duas vezes
+      a = lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0];
+      if (a.pagamento !== 'no_dia') throw new Error('Este atendimento já foi pago. Atualize a agenda.');
+      var naComanda = lerAba('Comandas').filter(function (cm) {
+        return cm.status === 'aberta' && parseJson(cm.itens, []).some(function (i) { return i.atendimentoId === a.id; });
+      })[0];
+      if (naComanda) throw new Error('Este atendimento está na comanda aberta de ' + naComanda.nome + ': receba por lá (Comandas).');
       var cliente = { cpf: a.cpf ? normCpf(a.cpf) : '', nome: a.nome, whatsapp: a.whatsapp };
       var venda = registrarVenda(cliente, buscarItemVenda(a.servico_id) || { id: a.servico_id, nome: a.servico, modalidade: 'Serviço', tipo: 'servico', aulas_total: 1, aulas_semana: 0, validade_dias: 90, preco: numero(a.valor) },
         { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
@@ -496,6 +587,23 @@ function bancada_salvarProfissional(d, m) {
   }
   var ex = lerAba('Profissionais').filter(function (p) { return semAcento(p.nome) === semAcento(x.nomeOriginal || nome); })[0];
   if (ex) atualizarLinha('Profissionais', ex._linha, linha); else adicionarLinha('Profissionais', linha);
-  registrar(m, ex ? 'editou profissional' : 'cadastrou profissional', nome);
+  // nome mudou: atendimentos e bloqueios de hoje em diante acompanham (senão viram uma coluna "fantasma" e marcam por cima)
+  var movidos = 0;
+  if (ex && String(ex.nome) !== nome) {
+    var antigo = semAcento(ex.nome);
+    var hoje = hojeTexto();
+    lerAba('Atendimentos').forEach(function (a) {
+      if (!a.id || dataTexto(a.data) < hoje) return;
+      var mud = {};
+      if (semAcento(a.profissional) === antigo) mud.profissional = nome;
+      if (a.titular && semAcento(a.titular) === antigo) mud.titular = nome;
+      if (a.comissao_de && semAcento(a.comissao_de) === antigo) mud.comissao_de = nome;
+      if (Object.keys(mud).length) { atualizarLinha('Atendimentos', a._linha, mud); movidos++; }
+    });
+    lerAba('Folgas').forEach(function (f) {
+      if (f.id && dataTexto(f.data) >= hoje && semAcento(f.profissional) === antigo) atualizarLinha('Folgas', f._linha, { profissional: nome });
+    });
+  }
+  registrar(m, ex ? 'editou profissional' : 'cadastrou profissional', nome + (movidos ? ' · ' + movidos + ' horários com o nome novo' : ''));
   return bancada_catalogoServicos();
 }

@@ -280,8 +280,10 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
             <fieldset className="b-tapetes">
               <legend className="rotulo">Tapete</legend>
               <div className="b-tapetes__sala">
-                {Array.from({ length: aula.capacidade }, (_, i) => i + 1).map((n) => (
-                  <button key={n} type="button" disabled={ocupados.includes(n)} aria-pressed={tapete === n} onClick={() => setTapete(n)}>{n}</button>
+                {/* encaixe em aula lotada: tapetes extras depois da capacidade */}
+                {Array.from({ length: aula.capacidade + (lotada && encaixe ? 3 : 0) }, (_, i) => i + 1).map((n) => (
+                  <button key={n} type="button" disabled={ocupados.includes(n)} aria-pressed={tapete === n} onClick={() => setTapete(n)}
+                    title={n > aula.capacidade ? 'Tapete extra (encaixe)' : undefined}>{n}</button>
                 ))}
               </div>
               <span className="b-suave">frente da sala</span>

@@ -265,7 +265,7 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
     let vivo = true;
     setHorarios(null);
     chamar('horarios', { servicoId, profissional, data, ignorarId: re?.id })
-      .then((r) => { if (vivo) { setHorarios(r); if (inicial.hora && !r.horarios.includes(inicial.hora)) setHoraSel(''); } })
+      .then((r) => { if (vivo) { setHorarios(r); setHoraSel((h) => (h && r.horarios.includes(h) ? h : '')); } })
       .catch((e) => vivo && setErro(e.message));
     return () => { vivo = false; };
   }, [servicoId, profissional, data]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -278,18 +278,24 @@ function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
     return () => { vivo = false; };
   }, [cliente, servicoId, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function salvar() {
+  async function salvar(outraPessoa) {
     setErro('');
     setEnviando(true);
     try {
       await chamar('agendarServico', {
-        servicoId, profissional, data, hora: horaSel, obs, pagamento, ...pg,
+        servicoId, profissional, data, hora: horaSel, obs, pagamento, ...pg, outraPessoa: outraPessoa === true || undefined,
         cpf: cliente?.cpf || undefined,
         cliente: cliente?.cpf ? undefined : cliente ? { nome: cliente.nome, whatsapp: cliente.whatsapp } : { ...semCadastro, whatsapp: soDigitos(semCadastro.whatsapp) },
         reagendarId: re?.id,
       });
       aoSalvar();
     } catch (e) {
+      // mãe e filha com o mesmo WhatsApp: confirma que é outra pessoa
+      if (e.codigo === 'WHATSAPP_DE_OUTRA' && window.confirm(`${e.message}\n\nOK = cadastrar ${cliente?.nome || semCadastro.nome} como outra pessoa com o mesmo número.\nCancelar = voltar e buscar o cadastro existente pelo nome.`)) {
+        setEnviando(false);
+        salvar(true);
+        return;
+      }
       setErro(e.message);
     } finally {
       setEnviando(false);

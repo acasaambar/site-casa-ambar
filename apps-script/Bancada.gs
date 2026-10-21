@@ -893,10 +893,17 @@ function bancada_estornar(d, m) {
   var pg = linhaPagamento(String(d.orderNsu));
   if (!pg) throw new Error('Pagamento não encontrado.');
   if (pg.status !== 'pago') throw new Error('Só pagamentos aprovados podem ser estornados.');
+  // venda da comanda: reabrir desfaz tudo junto (vale vendido, estoque, comissão, atendimento)
+  if (pg.comanda) throw new Error('Esta venda é de uma comanda: para desfazer, a administração usa "Reabrir para corrigir" na comanda (Comandas → Fechadas).');
   atualizarLinha('Pagamentos', pg._linha, { status: 'estornado', observacao: ('ESTORNADO em ' + agoraTexto() + ' por ' + m.email + (d.motivo ? ': ' + d.motivo : '') + '. ' + (pg.observacao || '')).slice(0, 500) });
   var mc = mapaCreditos();
   var c = mc['C' + String(pg.order_nsu).slice(1)];
   if (c) atualizarLinha('Creditos', c._linha, { ativo: 'NÃO' });
+  // vale em R$ usado neste pagamento volta a ter saldo
+  if (pg.vale) {
+    var v = acharVale(pg.vale);
+    if (v && v.tipo !== 'plano' && v.status === 'usado') atualizarLinha('Vales', v._linha, { status: 'ativo', resgatado_em: '', resgatado_cpf: '' });
+  }
   registrar(m, 'estorno', pg.nome + ' · ' + pg.descricao + ' · R$ ' + numero(pg.valor));
   return pagamentoPublico(linhaPagamento(pg.order_nsu));
 }
@@ -1048,6 +1055,11 @@ function bancada_desbloquear(d, m) {
   var s = aba('Bloqueios');
   var linha = Number(d.linha);
   if (linha < 2 || linha > s.getLastRow()) throw new Error('Bloqueio não encontrado.');
+  // confere que a linha ainda é o mesmo bloqueio (outra pessoa pode ter liberado antes e as linhas andaram)
+  var b = s.getRange(linha, 1, 1, 3).getValues()[0];
+  if (d.data && (dataTexto(b[0]) !== d.data || horaTexto(b[1]) !== String(d.hora || '') || String(b[2] || '') !== String(d.modalidade || ''))) {
+    throw new Error('A lista de bloqueios mudou. Atualize a página e tente de novo.');
+  }
   s.deleteRow(linha);
   registrar(m, 'desbloqueou', 'linha ' + linha);
   return true;
@@ -1081,7 +1093,18 @@ function bancada_salvarGrade(d, m) {
   } finally {
     trava.releaseLock();
   }
-  registrar(m, 'editou a grade', linhas.length + ' horários');
+  // reservas futuras acompanham a professora nova (presença, comissão e lembrete usam o nome da reserva)
+  var hoje = hojeTexto();
+  var porAula = {};
+  gerarAulas(hoje, 90).forEach(function (a) { porAula[a.id] = a.professor; });
+  var mudaram = 0;
+  lerAba('Reservas').forEach(function (r) {
+    if (r.status === 'cancelado' || !porAula[r.aula_id]) return;
+    if (dataTexto(r.data) < hoje || String(r.professor) === String(porAula[r.aula_id])) return;
+    atualizarLinha('Reservas', r._linha, { professor: porAula[r.aula_id] });
+    mudaram++;
+  });
+  registrar(m, 'editou a grade', linhas.length + ' horários' + (mudaram ? ' · ' + mudaram + ' reservas com a professora nova' : ''));
   return bancada_grade();
 }
 

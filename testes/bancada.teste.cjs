@@ -221,7 +221,9 @@ const seg = (() => { const d = new Date(Date.now() + 864e5); while (d.getUTCDay(
 r = chamar('b_horarios', { token: adm2, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: seg });
 ok(r.ok && r.dados.horarios[0] === '08:00' && r.dados.horarios.slice(-1)[0] === '17:00', 'horários livres respeitam a jornada', r.dados && [r.dados.horarios[0], r.dados.horarios.slice(-1)[0]]);
 r = chamar('b_agendarServico', { token: adm2, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: seg, hora: '09:00', cliente: { nome: 'Fernanda Torres', whatsapp: '85988887777' }, pagamento: 'no_dia' });
-ok(r.ok && r.dados.status === 'agendado', 'agendou cliente sem cadastro', r);
+ok(!r.ok && r.codigo === 'WHATSAPP_DE_OUTRA' && /Joana Lima/.test(r.erro), 'WhatsApp de outra pessoa: pergunta antes de juntar', r);
+r = chamar('b_agendarServico', { token: adm2, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: seg, hora: '09:00', cliente: { nome: 'Fernanda Torres', whatsapp: '85988887777' }, pagamento: 'no_dia', outraPessoa: true });
+ok(r.ok && r.dados.status === 'agendado' && r.dados.nome === 'Fernanda Torres', 'agendou cliente sem cadastro (outra pessoa, mesmo número)', r);
 const at1 = r.dados;
 r = chamar('b_agendarServico', { token: adm2, servicoId: 'limpeza-pele', profissional: 'Lia Esteticista', data: seg, hora: '09:30', cpf: '52998224725', pagamento: 'no_dia' });
 ok(!r.ok && /já atende/.test(r.erro), 'conflito de horário da profissional', r);

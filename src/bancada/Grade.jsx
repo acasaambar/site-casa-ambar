@@ -145,7 +145,7 @@ function Bloqueios() {
                 <strong>{dataBR(b.data)} · {b.hora ? hora(b.hora) : 'dia todo'} · {b.modalidade || 'todas'}</strong>
                 <span className="b-suave">{b.motivo}</span>
               </div>
-              <BotaoAcao className="link-sair" confirmar="Liberar de novo? As aulas voltam para a agenda (as reservas canceladas não voltam)." acao={async () => { await chamar('desbloquear', { linha: b.linha }); recarregar(); }}>liberar</BotaoAcao>
+              <BotaoAcao className="link-sair" confirmar="Liberar de novo? As aulas voltam para a agenda (as reservas canceladas não voltam)." acao={async () => { await chamar('desbloquear', { linha: b.linha, data: b.data, hora: b.hora, modalidade: b.modalidade }); recarregar(); }}>liberar</BotaoAcao>
             </li>
           ))}
         </ul>

@@ -95,6 +95,79 @@ ok(segundo && segundo.codigo !== novoVale.codigo, 'fechada de novo: nasce outro 
 r = chamar('b_reabrirComanda', { token: adm, id: cv.id, motivo: 'segunda correção' });
 ok(r.ok && ctx.lerAba('Vales').find((v) => v.codigo === segundo.codigo).status === 'cancelado', 'pode reabrir de novo (o vale antigo cancelado não atrapalha)', r);
 
+console.log('— revisão: reagendar move o atendimento, sem cobrar de novo');
+{
+  const diaU = (base) => { let d = base; while ([0, 6].includes(new Date(d + 'T12:00:00Z').getUTCDay())) d = ctx.somarDias(d, 1); return d; };
+  const d1 = diaU(ctx.somarDias(hoje, 8)), d2 = diaU(ctx.somarDias(d1, 1));
+  // pago na hora e reagendado: mesmo id, um pagamento só
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: d1, hora: '10:00', cpf: '52998224725', pagamento: 'pago', metodo: 'Pix' });
+  const idPago = r.dados.id;
+  const pagosAntes = ctx.lerAba('Pagamentos').filter((p) => p.cpf === '52998224725' && p.status === 'pago').length;
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: d2, hora: '11:00', cpf: '52998224725', pagamento: 'pago', metodo: 'Pix', reagendarId: idPago });
+  const movido = ctx.lerAba('Atendimentos').find((a) => a.id === idPago);
+  ok(r.ok && r.dados.id === idPago && String(movido.data).slice(0, 10) === d2 && movido.hora === '11:00' && movido.pagamento === 'pago', 'reagendar move o mesmo atendimento (continua pago)', [r, movido]);
+  ok(ctx.lerAba('Pagamentos').filter((p) => p.cpf === '52998224725' && p.status === 'pago').length === pagosAntes, 'reagendar não registra outro pagamento');
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'limpeza-pele', profissional: 'Lia Esteticista', data: d2, hora: '14:00', cpf: '52998224725', reagendarId: idPago });
+  ok(!r.ok && /não o serviço/.test(r.erro), 'horário pago não troca de serviço ao reagendar', r);
+  // última sessão do pacote: reagendar não pede outro pacote
+  chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'drenagem-5', metodo: 'Pix' });
+  const ids = [];
+  for (let i = 0; i < 5; i++) {
+    r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: ctx.somarDias(d2, 7 * (i + 1)), hora: '15:00', cpf: '52998224725', pagamento: 'pacote' });
+    if (r.ok) ids.push(r.dados.id);
+  }
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: ctx.somarDias(d2, 7), hora: '16:00', cpf: '52998224725', pagamento: 'pacote', reagendarId: ids[4] });
+  ok(ids.length === 5 && r.ok && r.dados.id === ids[4], 'reagendar a última sessão do pacote funciona', r);
+  r = chamar('b_aluno', { token: rec, cpf: '52998224725' });
+  const pac = r.dados.creditos.find((c) => /pacote/.test(c.descricao) && c.vigente);
+  ok(pac && pac.usadas === 5 && pac.limite === 5, 'ficha mostra as sessões usadas do pacote (5/5)', pac);
+  ids.forEach((id) => chamar('b_atualizarAtendimento', { token: rec, id, status: 'cancelado' }));
+}
+
+console.log('— revisão: comanda aberta e agenda não cobram duas vezes');
+{
+  const dA = ctx.somarDias(hoje, 0);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: ctx.somarDias(hoje, 20), hora: '08:00', cliente: { nome: 'Paula Nunes', whatsapp: '85977776666' }, pagamento: 'no_dia' });
+  const atC = r.dados.id;
+  const cmC = chamar('b_comandaDoAtendimento', { token: rec, atendimentoId: atC }).dados;
+  r = chamar('b_atualizarAtendimento', { token: rec, id: atC, status: 'atendido', metodo: 'Pix' });
+  ok(!r.ok && /comanda aberta/.test(r.erro), 'marcar atendido + receber pela agenda é recusado se já está numa comanda aberta', r);
+  r = chamar('b_atualizarAtendimento', { token: rec, id: atC, status: 'cancelado' });
+  ok(!r.ok && /Tire o item/.test(r.erro), 'cancelar atendimento que está numa comanda aberta pede para tirar o item antes', r);
+  // item com "pago" falso vindo da tela: o servidor decide pelo atendimento
+  r = chamar('b_salvarComanda', { token: rec, comanda: { id: cmC.id, itens: cmC.itens.map((i) => ({ ...i, pago: true })) } });
+  ok(r.ok && r.dados.total > 0 && !r.dados.itens[0].pago, 'a tela não consegue marcar o item da agenda como "já pago"', r.dados && r.dados.itens);
+  r = chamar('b_fecharComanda', { token: rec, id: cmC.id, pagamentos: [{ metodo: 'Pix', valor: r.dados.total }] });
+  ok(r.ok, 'comanda do atendimento fecha', r);
+  const pgC = ctx.lerAba('Pagamentos').find((p) => p.comanda === cmC.id);
+  r = chamar('b_estornar', { token: rec, orderNsu: pgC.order_nsu, motivo: 'teste' });
+  ok(!r.ok && /Reabrir/.test(r.erro), 'estorno de venda da comanda manda reabrir a comanda', r);
+  // vale em R$ no campo do código da comanda é recusado (abatia por unidade)
+  const cv = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Rita Gomes', whatsapp: '85991234567' }, itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor: 40 } }] } }).dados;
+  const v40 = chamar('b_fecharComanda', { token: rec, id: cv.id, pagamentos: [{ metodo: 'Pix', valor: 40 }] }).dados.valesCriados[0].codigo;
+  r = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Rita Gomes', whatsapp: '85991234567' }, codigo: v40, itens: [{ tipo: 'produto', id: protetor, qtd: 1 }] } });
+  ok(!r.ok && /na hora de receber/.test(r.erro), 'vale em R$ no campo do código: orienta usar no Receber', r);
+  void dA;
+}
+
+console.log('— revisão: aula da profissional, feriado e falta na agenda');
+{
+  chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Kalliny', categorias: ['Estética corporal'], dias: [1, 2, 3, 4, 5], inicio: '06:00', fim: '20:00' } });
+  let dU = ctx.somarDias(hoje, 3); while ([0, 6].includes(new Date(dU + 'T12:00:00Z').getUTCDay())) dU = ctx.somarDias(dU, 1);
+  r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Kalliny', data: dU });
+  ok(r.ok && !r.dados.horarios.includes('07:00') && !r.dados.horarios.includes('09:00') && r.dados.horarios.includes('10:00'), 'quem dá aula não recebe serviço no horário da própria aula', r.dados && r.dados.horarios.slice(0, 6));
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Kalliny', data: dU, hora: '08:00', cliente: { nome: 'Paula Nunes', whatsapp: '85977776666' } });
+  ok(!r.ok && /aula de Pilates/.test(r.erro), 'agendar em cima da aula é recusado', r);
+  const dF = ctx.somarDias(dU, 7);
+  chamar('b_bloquear', { token: adm, data: dF, motivo: 'Feriado' });
+  r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Kalliny', data: dF });
+  ok(r.ok && r.dados.horarios.length === 0 && /casa fechada/.test(r.dados.motivo), 'feriado (casa fechada) não oferece horário de serviço', r.dados);
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Kalliny', data: dU, hora: '14:00', cliente: { nome: 'Paula Nunes', whatsapp: '85977776666' } });
+  chamar('b_atualizarAtendimento', { token: rec, id: r.dados.id, status: 'falta' });
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Kalliny', data: dU, hora: '14:00', cliente: { nome: 'Rita Gomes', whatsapp: '85991234567' } });
+  ok(r.ok, 'falta libera o horário para encaixe', r);
+}
+
 console.log('— excluir cliente (só administração)');
 chamar('b_cancelarComanda', { token: rec, id: outra.id });
 chamar('b_cancelarComanda', { token: rec, id: cv.id });

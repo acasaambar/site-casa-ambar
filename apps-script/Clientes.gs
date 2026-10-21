@@ -187,9 +187,18 @@ function trocarSenha(d) {
 }
 
 // acha (pelo WhatsApp) ou cria cliente sem CPF. Quem chama segura a trava, se precisar.
-function clienteSemCpf(nome, whatsapp, email, origem) {
+// cadastro ativo com este WhatsApp e outro nome (para perguntar antes de juntar duas pessoas)
+function outroComMesmoWhats(nome, whatsapp) {
   var w = normWhats(whatsapp);
-  if (w.length >= 10) {
+  if (w.length < 10) return null;
+  var ex = lerAba('Alunos').filter(function (a) { return a.cpf && normWhats(a.whatsapp) === w && ativoSim(a.ativo); });
+  if (!ex.length || ex.some(function (a) { return semAcento(a.nome) === semAcento(nome); })) return null;
+  return ex[0];
+}
+// outraPessoa: mesmo WhatsApp, mas é outra pessoa (mãe e filha) → cria cadastro novo
+function clienteSemCpf(nome, whatsapp, email, origem, outraPessoa) {
+  var w = normWhats(whatsapp);
+  if (w.length >= 10 && !outraPessoa) {
     var ex = lerAba('Alunos').filter(function (a) { return a.cpf && normWhats(a.whatsapp) === w && ativoSim(a.ativo); });
     // prefere quem já tem CPF de verdade
     ex.sort(function (a, b) { return (temCpfReal(b.cpf) ? 1 : 0) - (temCpfReal(a.cpf) ? 1 : 0); });

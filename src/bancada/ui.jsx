@@ -404,7 +404,8 @@ export function BotaoAcao({ acao, children, className = 'botao botao--linha bota
   const [erro, setErro] = useState('');
   return (
     <>
-      <button type="button" className={className} disabled={ocupado || resto.disabled} {...resto}
+      {/* disabled depois do {...resto}: enquanto espera o servidor, não dá para tocar de novo (cobrança em dobro) */}
+      <button type="button" className={className} {...resto} disabled={ocupado || resto.disabled}
         onClick={async () => {
           if (confirmar && !window.confirm(confirmar)) return;
           setOcupado(true);
