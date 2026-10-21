@@ -163,6 +163,7 @@ function trocarEmail(d) {
   var antigo = String(a.email || '').trim().toLowerCase();
   if (novo !== antigo) {
     atualizarLinha('Alunos', a._linha, { email: novo });
+    anularLinksSenha('aluno', a.cpf);
     // o e-mail antigo fica sabendo (se não foi ela, procura a recepção)
     avisarAluna(antigo, 'Seu e-mail foi alterado · Casa Âmbar', 'E-mail alterado', ['Olá, ' + primeiroNome(a.nome) + '.',
       'O e-mail da sua conta na Casa Âmbar foi trocado para ' + mascararEmail(novo) + '. A partir de agora, os avisos e o "Esqueci minha senha" vão para ele.',
@@ -179,6 +180,7 @@ function trocarSenha(d) {
   if (String(d.senha) === String(d.senhaAtual)) throw new Error('A nova senha precisa ser diferente da atual.');
   gravarSenha('Alunos', a._linha, d.senha);
   encerrarSessoes('Sessoes', 's_', normCpf(a.cpf));
+  anularLinksSenha('aluno', a.cpf);
   var token = criarSessao(a.cpf);
   avisarAluna(a.email, 'Sua senha foi alterada · Casa Âmbar', 'Senha alterada', ['Olá, ' + primeiroNome(a.nome) + '.',
     'A senha da sua conta na Casa Âmbar acabou de ser trocada e os outros aparelhos foram desconectados.',
@@ -230,11 +232,17 @@ function transferirCpf(de, para) {
   });
 }
 
-function informarCpf(a, cpfNovo, m) {
+function informarCpf(a, cpfNovo, m, juntar) {
   var cpf = soDigitos(cpfNovo);
   if (!cpfValido(cpf)) throw new Error('CPF inválido.');
   if (temCpfReal(a.cpf)) throw new Error('Este cadastro já tem CPF.');
   var outro = buscarAluno(cpf);
+  // já existe conta com este CPF: só junta depois de a recepção confirmar que é a mesma pessoa
+  // (alguém poderia ter criado conta no site com o CPF de outra pessoa e ficar com o histórico dela)
+  if (outro && !juntar) {
+    throw erroCod('Este CPF já tem cadastro em nome de ' + outro.nome + (outro.whatsapp ? ' (WhatsApp final ' + soDigitos(outro.whatsapp).slice(-4) + ')' : '') +
+      '. Confira com a pessoa antes de juntar os dois cadastros.', 'CPF_DE_OUTRA', { nome: String(outro.nome) });
+  }
   transferirCpf(a.cpf, cpf);
   if (outro) {
     // já existia cadastro com este CPF (ex.: criou conta no site): junta os dois
@@ -246,7 +254,7 @@ function informarCpf(a, cpfNovo, m) {
     if (Object.keys(mud).length) atualizarLinha('Alunos', outro._linha, mud);
     var velho = lerAba('Alunos').filter(function (x) { return x._linha === a._linha; })[0];
     if (velho) atualizarLinha('Alunos', a._linha, { ativo: 'NÃO', origem_cadastro: 'unificado em ' + cpf });
-    registrar(m, 'unificou cadastro', a.nome + ' → ' + cpf);
+    registrar(m, 'unificou cadastro (confirmado)', a.nome + ' → cadastro de ' + outro.nome + ' (CPF final ' + cpf.slice(-3) + ')');
   } else {
     atualizarLinha('Alunos', a._linha, { cpf: cpf });
     registrar(m, 'informou CPF', a.nome);
@@ -592,7 +600,14 @@ function bancada_comandasCliente(d, m) {
   var abertas = lista.filter(function (c) { return c.status === 'aberta'; });
   var fechadas = lista.filter(function (c) { return c.status === 'fechada'; }).sort(function (a, b) { return b.fechadaEm.localeCompare(a.fechadaEm); }).slice(0, 12);
   var limpar = function (c) {
-    if (m.papel === 'professora') { c.cpf = ''; c.whatsapp = ''; c.pagamentos = []; c.codigo = ''; }
+    if (m.papel === 'professora') {
+      c.cpf = ''; c.whatsapp = ''; c.pagamentos = []; c.codigo = ''; c.historico = [];
+      // itens só com o que ela precisa ver: nada de código de vale-presente, dados de quem recebe ou cupom
+      c.itens = c.itens.map(function (i) {
+        return { uid: i.uid, tipo: i.tipo, id: i.tipo === 'vale' ? 'vale' : i.id, nome: i.tipo === 'vale' ? 'Vale-presente' : i.nome, qtd: i.qtd,
+          profissional: i.profissional, data: i.data, pago: !!i.pago, valor: i.valor, total: i.total, obs: i.obs || '' };
+      });
+    }
     return c;
   };
   return { abertas: abertas.map(limpar), fechadas: fechadas.map(limpar) };
@@ -694,6 +709,21 @@ function anonimizarNaAba(nomeAba, cpf, novo) {
   return n;
 }
 
+// o nome da cliente também sai dos textos de outras abas (comissões, trocas, estoque, registro)
+var TEXTOS_COM_NOME = [['Comissoes', 'item'], ['Substituicoes', 'titulo'], ['MovEstoque', 'motivo'], ['Registro', 'detalhe']];
+function apagarNomeDosTextos(nome) {
+  nome = String(nome || '').trim();
+  if (nome.length < 5 || nome.split(' ').length < 2) return; // nome curto demais: trocaria pedaços de outros textos
+  TEXTOS_COM_NOME.forEach(function (x) {
+    var v = valoresAba(x[0]), k = v[0].indexOf(x[1]);
+    if (k < 0) return;
+    for (var i = 1; i < v.length; i++) {
+      var t = String(v[i][k] || '');
+      if (t.indexOf(nome) >= 0) atualizarLinha(x[0], i + 1, (function () { var o = {}; o[x[1]] = t.split(nome).join(NOME_EXCLUIDO); return o; })());
+    }
+  });
+}
+
 function bancada_excluirCliente(d, m) {
   var a = buscarAluno(d.cpf);
   if (!a) throw new Error('Cliente não encontrado.');
@@ -730,6 +760,7 @@ function bancada_excluirCliente(d, m) {
       var s = aba('Alunos');
       s.getRange(a._linha, coluna('Alunos', 'cpf')).setNumberFormat('@');
       atualizarLinha('Alunos', a._linha, limpo);
+      apagarNomeDosTextos(a.nome);
       resultado = { anonimizado: true, codigo: novo };
     }
     esquecerListaClientes();

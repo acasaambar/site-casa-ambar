@@ -351,7 +351,7 @@ function textoLembrete(x, data) {
   var h = x.hora.replace(':00', 'h').replace(':', 'h');
   var base = 'Olá, ' + primeiroNome(x.nome) + '! Passando para lembrar do seu horário na Casa Âmbar ' + q.texto + ' às ' + h + ': ' + x.titulo + (x.com ? ' com ' + x.com : '') + (x.extra ? ', ' + x.extra : '') + '.';
   // serviço: confirmar ou pedir para remarcar num toque, pelo link
-  return x.tipo === 'servico' ? base + ' Confirme ou peça para remarcar por aqui: ' + linkConfirmacao(x.id) : base + ' Podemos confirmar?';
+  return x.tipo === 'servico' ? base + ' Confirme ou peça para remarcar por aqui: ' + linkConfirmacao(x.id, data, x.hora) : base + ' Podemos confirmar?';
 }
 
 function enviarEmailLembrete(x, data) {
@@ -366,7 +366,7 @@ function enviarEmailLembrete(x, data) {
   enviarEmail(x.email, 'Seu horário ' + q.assunto + ' · Casa Âmbar', q.ate, ['Olá, ' + primeiroNome(x.nome) + '!',
     'Este é um lembrete do seu horário na Casa Âmbar. Chegue com 10 minutos de antecedência.',
     servico ? 'Toque no botão para confirmar ou pedir para remarcar. Se preferir, fale com a gente pelo WhatsApp: (85) 99185-6528.' : 'Se precisar remarcar, fale com a gente pelo WhatsApp.'],
-    servico ? { texto: 'Confirmar ou remarcar', url: linkConfirmacao(x.id) } : { texto: 'Falar no WhatsApp', url: 'https://wa.me/5585991856528' }, cartao);
+    servico ? { texto: 'Confirmar ou remarcar', url: linkConfirmacao(x.id, data, x.hora) } : { texto: 'Falar no WhatsApp', url: 'https://wa.me/5585991856528' }, cartao);
 }
 
 function enviarLembretes(data) {
@@ -438,19 +438,21 @@ function chaveConfirmacao() {
   return k;
 }
 
-function tokenConfirmacao(id) {
-  var assin = Utilities.computeHmacSha256Signature('confirmar:' + String(id), chaveConfirmacao());
+// assina o id com o dia e a hora: se o horário mudar (remarcou), o link antigo deixa de valer
+function tokenConfirmacao(id, data, hora) {
+  var assin = Utilities.computeHmacSha256Signature('confirmar:' + String(id) + '|' + data + '|' + hora, chaveConfirmacao());
   return String(id) + '.' + assin.slice(0, 12).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
 }
 
-function linkConfirmacao(id) { return AJUSTES.siteUrl + '#/confirmar/' + tokenConfirmacao(id); }
+function linkConfirmacao(id, data, hora) { return AJUSTES.siteUrl + '#/confirmar/' + tokenConfirmacao(id, data, hora); }
 
 function atendimentoDoToken(t) {
   t = String(t || '');
   if (!/^A[A-Z0-9]{10,30}\.[a-f0-9]{24}$/.test(t)) return null;
   var id = t.split('.')[0];
-  if (tokenConfirmacao(id) !== t) return null;
-  return lerAba('Atendimentos').filter(function (a) { return a.id === id; })[0] || null;
+  var a = lerAba('Atendimentos').filter(function (x) { return x.id === id; })[0];
+  if (!a || tokenConfirmacao(id, dataTexto(a.data), horaTexto(a.hora)) !== t) return null;
+  return a;
 }
 
 function confirmacaoPublica(a) {

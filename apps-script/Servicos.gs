@@ -262,7 +262,7 @@ function atendimentoPublico(a, m) {
     creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || ''), titular: String(a.titular || ''), alertas: alertasDe(a.cpf),
     resposta: String(a.resposta || ''), respostaEm: String(a.resposta_em || ''),
     // link "confirmo / preciso remarcar" para o lembrete pelo WhatsApp (só para o balcão)
-    linkConfirmar: m && m.papel !== 'professora' ? linkConfirmacao(a.id) : '' };
+    linkConfirmar: m && m.papel !== 'professora' ? linkConfirmacao(a.id, dataTexto(a.data), horaTexto(a.hora)) : '' };
 }
 
 function bancada_atendimentos(d, m) {
@@ -496,6 +496,8 @@ function bancada_atualizarAtendimento(d, m) {
   if (prof && ['atendido', 'falta', 'agendado'].indexOf(st) < 0) throw new Error('Seu acesso permite só marcar atendido ou falta.');
   if (prof && a.status === 'cancelado') throw new Error('Este atendimento foi cancelado. Fale com a recepção.');
   if (prof && st !== 'agendado' && inicio({ data: dataTexto(a.data), hora: horaTexto(a.hora) }) > new Date()) throw new Error('Só dá para marcar depois do horário do atendimento.');
+  // a profissional corrige só até 24 h depois do horário (depois disso, mexe na comissão: só a recepção)
+  if (prof && Date.now() - inicio({ data: dataTexto(a.data), hora: horaTexto(a.hora) }).getTime() > 24 * 3600000) throw new Error('Já passou mais de um dia deste atendimento. Peça à recepção para corrigir.');
   var mud = { status: st, atualizado_em: agoraTexto() };
   if (st === 'cancelado' || st === 'falta') {
     // não deixa item "órfão" na comanda aberta (ao fechar, viraria atendido e cobrado)

@@ -90,7 +90,9 @@ r = chamar('b_agenda', { token: prof, de: aulaY.data, dias: 1 });
 ok(r.ok && r.dados.every(a => a.professor === aulaY.professor || /Ana/.test(a.professor)), 'professora vê só as aulas dela', r.dados && r.dados.map(a => a.professor));
 const agp = r.dados.find(a => a.id === aulaY.id);
 ok(agp && agp.reservas[0].cpf === '' && agp.reservas[0].whatsapp === '', 'professora não vê CPF/WhatsApp');
-r = chamar('b_presenca', { token: prof, reservaId: agp.reservas[0].id, status: 'check-in' }); ok(r.ok, 'professora marcou presença', r);
+// a aula é de outro dia: a professora só marca de 1 h antes até 24 h depois; a recepção marca quando quiser
+r = chamar('b_presenca', { token: prof, reservaId: agp.reservas[0].id, status: 'check-in' }); ok(!r.ok && /recepção/.test(r.erro), 'professora não marca presença fora do horário da aula', r);
+r = chamar('b_presenca', { token: rec, reservaId: agp.reservas[0].id, status: 'check-in' }); ok(r.ok, 'recepção marcou presença', r);
 r = chamar('b_ficha', { token: prof, reservaId: agp.reservas[0].id }); ok(r.ok && r.dados.ficha === null, 'ficha (sem anamnese) pela professora', r);
 r = chamar('b_aluno', { token: rec, cpf: '39053344705' });
 ok(r.ok && r.dados.creditos.length === 1 && r.dados.pagamentos[0].origem === 'balcão', 'ficha do aluno completa', r.dados && { c: r.dados.creditos, p: r.dados.pagamentos });

@@ -15,6 +15,9 @@ on:
     paths: ['apps-script/**']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: apps-script
   cancel-in-progress: false

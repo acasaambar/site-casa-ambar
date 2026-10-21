@@ -297,6 +297,9 @@ function doPost(e) {
     // só códigos de pagamento do site, com a confirmação da InfinitePay (o resto nem pega a trava)
     if (!/^P\d{14,20}$/.test(String(corpo.order_nsu)) || !corpo.transaction_nsu || !(corpo.invoice_slug || corpo.slug)) return responder(false, null, 'Pedido inválido.');
     try {
+      var previo = linhaPagamento(String(corpo.order_nsu));
+      if (!previo) return responder(false, null, 'Não processado.');
+      if (previo.status !== 'pendente') return responder(true, { recebido: true });
       processarPagamento(String(corpo.order_nsu), corpo.transaction_nsu, corpo.invoice_slug || corpo.slug, 'webhook');
       return responder(true, { recebido: true });
     } catch (err) {
@@ -444,7 +447,7 @@ function sair(d) {
   var h = hashToken(d.token);
   var linhas = s.getDataRange().getValues();
   for (var i = linhas.length - 1; i >= 1; i--) {
-    if (linhas[i][0] === h || linhas[i][0] === d.token) s.deleteRow(i + 1);
+    if (linhas[i][0] === h) s.deleteRow(i + 1);
   }
   try { CacheService.getScriptCache().remove('s_' + h); } catch (e) { /* ignora */ }
   return true;
@@ -512,7 +515,8 @@ function alunoDaSessao(token) {
     var linhas = valoresAba('Sessoes');
     for (var i = 1; i < linhas.length; i++) {
       // aceita também sessões antigas (token puro), criadas antes desta versão
-      if ((linhas[i][0] === h || linhas[i][0] === token) && sessaoValida(linhas[i], AJUSTES.validadeSessaoDias * 86400000)) {
+      // só o hash confere (o valor guardado na planilha não serve como token)
+      if (linhas[i][0] === h && sessaoValida(linhas[i], AJUSTES.validadeSessaoDias * 86400000)) {
         cpf = normCpf(linhas[i][1]);
         break;
       }

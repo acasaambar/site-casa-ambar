@@ -227,7 +227,7 @@ function membroDaSessao(token) {
     var linhas = valoresAba('SessoesEquipe');
     var hoje = hojeTexto();
     for (var i = 1; i < linhas.length; i++) {
-      if ((linhas[i][0] === h || linhas[i][0] === token) && sessaoValida(linhas[i], SESSAO_EQUIPE_MAX_MS)
+      if (linhas[i][0] === h && sessaoValida(linhas[i], SESSAO_EQUIPE_MAX_MS)
         && Utilities.formatDate(momentoDe(linhas[i][2]), AJUSTES.fuso, 'yyyy-MM-dd') === hoje) { email = String(linhas[i][1]).toLowerCase(); break; }
     }
     if (!email) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
@@ -260,7 +260,7 @@ function encerrarSessaoToken(token) {
   var s = aba('SessoesEquipe');
   var h = hashToken(token);
   var linhas = s.getDataRange().getValues();
-  for (var i = linhas.length - 1; i >= 1; i--) if (linhas[i][0] === h || linhas[i][0] === token) s.deleteRow(i + 1);
+  for (var i = linhas.length - 1; i >= 1; i--) if (linhas[i][0] === h) s.deleteRow(i + 1);
   try { var cc = CacheService.getScriptCache(); cc.remove('e_' + h); cc.remove('m_' + h); cc.remove('u_' + h); } catch (e) { /* ignora */ }
 }
 
@@ -469,6 +469,11 @@ function acharReservaPorId(id) {
 function bancada_presenca(d, m) {
   var r = acharReservaPorId(d.reservaId);
   if (m.papel === 'professora' && !mesmaProfessora(r.professor, m)) throw new Error('Esta aula não é sua.');
+  // a profissional marca presença de 1 h antes até 24 h depois da aula (depois disso, só a recepção corrige)
+  if (m.papel === 'professora') {
+    var ini = inicio(r).getTime();
+    if (Date.now() < ini - 3600000 || Date.now() > ini + 24 * 3600000) throw new Error('A presença desta aula só pode ser mudada pela recepção agora.');
+  }
   var st = { 'check-in': 'check-in', falta: 'falta', reservado: 'reservado' }[d.status];
   if (!st) throw new Error('Situação inválida.');
   if (r.status === 'cancelado' || r.status === 'pendente') throw new Error('Esta reserva não está confirmada.');
@@ -778,7 +783,7 @@ function bancada_salvarAluno(d, m) {
   if (x.cpf && soDigitos(x.cpf) !== normCpf(a.cpf)) {
     var trava = LockService.getScriptLock();
     esperarTrava(trava, 20000);
-    try { return bancada_aluno({ cpf: informarCpf(buscarAluno(a.cpf), x.cpf, m) }); } finally { trava.releaseLock(); }
+    try { return bancada_aluno({ cpf: informarCpf(buscarAluno(a.cpf), x.cpf, m, !!x.juntarCpf) }); } finally { trava.releaseLock(); }
   }
   return bancada_aluno({ cpf: a.cpf });
 }
@@ -1132,7 +1137,7 @@ function bancada_salvarGrade(d, m) {
     // limpa as linhas antigas (o Sheets não deixa apagar todas) e grava a grade nova
     if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, 6).clearContent();
     s.getRange('D:D').setNumberFormat('@');
-    s.getRange(2, 1, linhas.length, 6).setValues(linhas);
+    s.getRange(2, 1, linhas.length, 6).setValues(linhas.map(linhaSegura));
   } finally {
     trava.releaseLock();
   }

@@ -209,10 +209,21 @@ function novaSenha(d) {
       limparFalhas('e_' + String(r.id).toLowerCase());
     }
     atualizarLinha('Redefinicoes', r._linha, { usado_em: agoraTexto() });
+    anularLinksSenha(r.tipo, r.id);
   } finally {
     trava.releaseLock();
   }
   return { tipo: r.tipo };
+}
+
+// links de senha ainda não usados deixam de valer (trocou e-mail ou senha: um link antigo não serve mais)
+function anularLinksSenha(tipo, id) {
+  lerAba('Redefinicoes').forEach(function (r) {
+    if (r.tipo !== tipo || r.usado_em || Number(r.expira_ms) < Date.now()) return;
+    if (tipo === 'aluno' ? normCpf(r.id) === normCpf(id) : String(r.id).toLowerCase() === String(id).toLowerCase()) {
+      atualizarLinha('Redefinicoes', r._linha, { usado_em: 'anulado ' + agoraTexto() });
+    }
+  });
 }
 
 // apaga as sessões abertas (troca de senha desconecta os outros aparelhos)

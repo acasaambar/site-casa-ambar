@@ -108,7 +108,9 @@ Ao criar algo novo no backend, acrescente casos em `testes/*.teste.cjs`.
 - **Nunca** apagar nem alterar a propriedade `SENHA_PIMENTA` (todas as senhas deixariam de funcionar).
 - Não pedir nem colar no chat o conteúdo do `.clasprc.json` ou qualquer token.
 - Todo texto que vai para a planilha passa por `seguro()` (impede fórmulas). Use sempre `adicionarLinha(s)`/`atualizarLinha`.
-- Sessões são guardadas só como hash. Mensagens de erro internas não vão para a tela.
+- Sessões são guardadas só como hash (o valor da planilha não serve como token). Mensagens de erro internas não vão para a tela.
+- Login expira: **bancada** até a meia-noite (Fortaleza, no máximo 14 h) e depois de 3 h sem uso (servidor: marca `u_` no cache; tela: toque/tecla); **área do aluno** 7 dias (`validadeSessaoDias`) e 3 dias sem abrir o site (tela). `sessaoValida`/`momentoDe` (Codigo.gs) conferem também a data de criação (sessões antigas caem).
+- Revisão de out/2026: a profissional vê a comanda sem código de vale/cupom/dados de quem recebe; muda presença/atendimento só até 24 h depois (depois, a recepção); juntar cadastro pelo CPF pede confirmação (`CPF_DE_OUTRA` → `juntarCpf`); trocar e-mail/senha anula links de senha pendentes (`anularLinksSenha`); link de confirmação assina dia e hora (remarcou = link novo); excluir cliente tira o nome de Comissoes/Substituicoes/MovEstoque/Registro; webhook só pega a trava para pedido pendente. Pendências baixas: aviso "CPF já tem cadastro" no site, limite global de cadastros, `tokenLista` usa `SENHA_PIMENTA` (trocar invalidaria links de descadastro já enviados), arquivos do Drive vão para a lixeira (30 dias).
 - Professora/profissional só vê o que é dela (`mesmaProfessora`), sem CPF nem WhatsApp das clientes.
 - Dados de saúde e fotos são sensíveis (LGPD): planilha e pastas do Drive devem ficar com acesso **Restrito**.
 

@@ -187,8 +187,11 @@ console.log('— confirmação pelo link do lembrete');
   ok(chamar('b_resumo', { token: rec }).dados.remarcar.n === 1, 'tela Hoje mostra o pedido para remarcar');
   r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Mara Facial', data: amanha, hora: '08:00', reagendarId: at.id });
   ok(r.ok && !r.dados.resposta && chamar('b_resumo', { token: rec }).dados.remarcar.n === 0, 'reagendado: o pedido some');
+  ok(!chamar('verConfirmacao', { t }).ok, 'remarcou: o link antigo deixa de valer');
+  const t2 = r.dados.linkConfirmar.split('/confirmar/')[1];
+  ok(t2 !== t && chamar('verConfirmacao', { t: t2 }).dados.hora === '08:00', 'o link novo mostra o horário novo');
   chamar('b_atualizarAtendimento', { token: rec, id: at.id, status: 'cancelado' });
-  r = chamar('responderConfirmacao', { t, resposta: 'confirmo' });
+  r = chamar('responderConfirmacao', { t: t2, resposta: 'confirmo' });
   ok(!r.ok && /cancelado/.test(r.erro), 'horário cancelado não aceita confirmação');
 }
 
@@ -288,6 +291,38 @@ console.log('— o login expira');
   const e3 = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
   chamar('b_sair', { token: e3 });
   ok(!chamar('b_eu', { token: e3 }).ok, 'sair encerra na hora');
+}
+
+console.log('— revisão de segurança');
+{
+  // 1. a profissional não vê código de vale-presente nem dados de quem recebe
+  const cv = chamar('b_salvarComanda', { token: rec, comanda: { cpf: MARIA, itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor: 300, nome: 'Ana Recebe', whatsapp: '85988887777', email: 'ana@x.com' } }] } }).dados;
+  chamar('b_fecharComanda', { token: rec, id: cv.id, pagamentos: [{ metodo: 'Pix', valor: 300 }] });
+  const atL = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '11:00', cpf: MARIA, pagamento: 'no_dia' }).dados;
+  r = chamar('b_comandasCliente', { token: lia, atendimentoId: atL.id });
+  const txt = JSON.stringify(r.dados);
+  ok(r.ok && !/AMBAR-/.test(txt) && !/88887777|ana@x\.com/.test(txt), 'a profissional não vê o código do vale nem o contato de quem recebe', txt.slice(0, 300));
+  chamar('b_atualizarAtendimento', { token: rec, id: atL.id, status: 'cancelado' });
+  // 2. o hash guardado na planilha não serve como login
+  const tok = chamar('entrar', { cpf: MARIA, senha: 'abc12345' }).dados.token;
+  ok(!chamar('minhaConta', { token: ctx.hashToken(tok) }).ok, 'o valor guardado na aba Sessoes não entra como a aluna');
+  // 3. CPF de outra conta: só junta depois de confirmar
+  const sem = chamar('b_novoAluno', { token: rec, nome: 'Clara Sem Cpf', whatsapp: '85977776666' }).dados.cpf;
+  r = chamar('b_salvarAluno', { token: rec, cpf: sem, dados: { cpf: MARIA } });
+  ok(!r.ok && r.codigo === 'CPF_DE_OUTRA', 'CPF que já tem cadastro: pede confirmação antes de juntar', r);
+  ok(ctx.lerAba('Alunos').find((a) => a.cpf === sem && a.ativo !== 'NÃO'), 'nada foi juntado sem confirmar');
+  // 5. trocar o e-mail anula links de senha pendentes
+  chamar('b_enviarLinkSenha', { token: rec, cpf: MARIA });
+  const link = (emails.at(-1).body.match(/t=([a-f0-9]+)/) || [])[1];
+  chamar('trocarEmail', { token: tok, email: 'maria.nova@gmail.com', senha: 'abc12345' });
+  ok(!chamar('novaSenha', { t: link, senha: 'outra12345' }).ok, 'trocou o e-mail: o link de senha antigo não vale mais');
+  // 4. a profissional não muda atendimento de muitos dias atrás
+  let diaVelho = ctx.somarDias(hoje, -3);
+  while ([0, 6].includes(new Date(diaVelho + 'T12:00:00Z').getUTCDay())) diaVelho = ctx.somarDias(diaVelho, -1);
+  const velho = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: diaVelho, hora: '09:00', cpf: MARIA, pagamento: 'no_dia' }).dados;
+  chamar('b_atualizarAtendimento', { token: rec, id: velho.id, status: 'falta' });
+  r = chamar('b_atualizarAtendimento', { token: lia, id: velho.id, status: 'atendido' });
+  ok(!r.ok && /recepção/.test(r.erro), 'a profissional não transforma falta antiga em atendido (comissão)', r);
 }
 
 // --- próximas seções acrescentadas abaixo ---

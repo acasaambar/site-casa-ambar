@@ -635,7 +635,13 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
           if (f.cpf && !cpfValido(f.cpf)) { setErro('CPF inválido.'); return; }
-          try { await aoSalvar({ ...f, whatsapp: soDigitos(f.whatsapp), cpf: soDigitos(f.cpf) || undefined }); } catch (e) { setErro(e.message); }
+          const dados = { ...f, whatsapp: soDigitos(f.whatsapp), cpf: soDigitos(f.cpf) || undefined };
+          try { await aoSalvar(dados); } catch (e) {
+            // CPF de um cadastro que já existe: junta só se a recepção confirmar que é a mesma pessoa
+            if (e.codigo === 'CPF_DE_OUTRA' && window.confirm(`${e.message}\n\nOK = é a mesma pessoa: juntar os cadastros (o histórico passa para o cadastro com CPF).\nCancelar = não juntar.`)) {
+              try { await aoSalvar({ ...dados, juntarCpf: true }); } catch (e2) { setErro(e2.message); }
+            } else setErro(e.message);
+          }
         }}>Salvar</BotaoAcao>
       </div>
     </Modal>
