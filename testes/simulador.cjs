@@ -10,6 +10,8 @@ class Range {
   constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
   setNumberFormat(f) { for (let c = this.c - 1; c < this.c - 1 + this.nc; c++) this.sh.fmt[c] = f; return this; }
   setFontWeight() { return this; } setBackground() { return this; } setFontColor() { return this; }
+  // texto que a planilha mostra (data/hora convertida aparece como foi digitada)
+  getDisplayValues() { return this.getValues().map((l) => l.map((x) => (x instanceof Date ? x._tela : String(x)))); }
   getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push((this.sh.rows[this.r - 1 + i] || [])[this.c - 1 + j] ?? ''); o.push(row); } return o; }
   setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { const R = this.r - 1 + i; this.sh.rows[R] = this.sh.rows[R] || []; this.sh.rows[R][this.c - 1 + j] = this.sh.conv(x, this.c - 1 + j); })); return this; }
   setValue(x) { return this.setValues([[x]]); }
@@ -18,15 +20,17 @@ class Range {
 }
 class Sheet {
   constructor(name) { this.name = name; this.rows = []; this.fmt = {}; }
-  conv(x, c) {
-    if (this.fmt[c] === '@') return typeof x === 'number' ? String(x) : x;
+  // como o Google: texto de data/hora vira data (salvo em coluna de texto); appendRow do Google ignora o formato de texto
+  conv(x, c, ignoraTexto) {
+    if (this.fmt[c] === '@' && !ignoraTexto) return typeof x === 'number' ? String(x) : x;
     if (typeof x === 'string' && /^\d+(\.\d+)?$/.test(x)) return Number(x);
-    if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(x)) return new Date(x.replace(' ', 'T') + (x.length > 10 ? 'Z' : 'T00:00:00Z'));
-    if (typeof x === 'string' && /^\d{2}:\d{2}$/.test(x)) return new Date('1899-12-30T' + x + ':00Z');
+    const data = (d) => Object.assign(d, { _tela: x });
+    if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/.test(x)) return data(new Date(x.replace(' ', 'T') + (x.length > 10 ? 'Z' : 'T00:00:00Z')));
+    if (typeof x === 'string' && /^\d{2}:\d{2}$/.test(x)) return data(new Date('1899-12-30T' + x + ':00Z'));
     return x;
   }
   getName() { return this.name; }
-  appendRow(v) { this.rows.push(v.map((x, i) => this.conv(x, i))); }
+  appendRow(v) { this.rows.push(v.map((x, i) => this.conv(x, i, this.ss && this.ss.__appendIgnoraTexto))); }
   getLastRow() { let n = this.rows.length; while (n > 0 && (this.rows[n - 1] || []).every(x => x === '' || x == null)) n--; return n; }
   getLastColumn() { return Math.max(0, ...this.rows.map(r => r.length)); }
   getDataRange() { const n = Math.max(1, this.getLastRow()); return new Range(this, 1, 1, n, Math.max(1, ...this.rows.map(r => r.length))); }
@@ -37,7 +41,9 @@ class Sheet {
   setFrozenRows() {} deleteRow(i) { this.rows.splice(i - 1, 1); }
 }
 function criar(arquivos) {
-  const ss = { getSpreadsheetTimeZone: () => 'GMT', sheets: {}, getSheetByName(n) { return this.sheets[n] || null; }, insertSheet(n) { return (this.sheets[n] = new Sheet(n)); }, getSheets() { return Object.values(this.sheets); } };
+  // __fuso: o fuso que a planilha informa (as datas do simulador ficam em GMT: outro valor imita a planilha num fuso diferente)
+  const ss = { __fuso: 'GMT', getSpreadsheetTimeZone() { return this.__fuso; }, sheets: {}, getSheetByName(n) { return this.sheets[n] || null; },
+    insertSheet(n) { const sh = new Sheet(n); sh.ss = this; return (this.sheets[n] = sh); }, getSheets() { return Object.values(this.sheets); } };
   const cacheStore = {}; const props = {}; const emails = []; const chamadasIP = [];
   const UrlFetchApp = { fetch: (url, opt) => {
     const corpo = opt && opt.payload ? JSON.parse(opt.payload) : {};
@@ -51,7 +57,7 @@ function criar(arquivos) {
     SpreadsheetApp: { openById: () => ss, flush() {} },
     CacheService: { getScriptCache: () => ({ get: k => cacheStore[k] || null, put: (k, v) => { cacheStore[k] = v; }, remove: k => { delete cacheStore[k]; },
       getAll: ks => Object.fromEntries(ks.filter(k => k in cacheStore).map(k => [k, cacheStore[k]])), putAll: (o) => { Object.assign(cacheStore, o); } }) },
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock() { return true; }, releaseLock() {} }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k in props ? props[k] : (k === 'PASTA_ANAMNESES_ID' ? 'pasta' : null)), setProperty: (k, v) => { props[k] = v; } }) },
     DriveApp: (() => { const arquivos = {}; let n = 0; const pasta = { getId: () => 'pastaX', searchFiles: () => ({ hasNext: () => false }),
       createFile: (b) => { const id = 'arquivo' + String(++n).padStart(8, '0'); arquivos[id] = b; return { getUrl: () => 'https://drive/pdf', getId: () => id }; } };

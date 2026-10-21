@@ -392,6 +392,7 @@ function doGet() {
 }
 
 function responder(ok, dados, erro, codigo) {
+  try { datasParaTexto(); } catch (e) { Logger.log('datas: ' + e.message); }
   return ContentService.createTextOutput(JSON.stringify({ ok: ok, dados: dados, erro: erro || null, codigo: codigo || null }))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -1068,7 +1069,7 @@ function completarCreditosManuais(abaC, linhas) {
 function valoresCreditos() {
   if (!_memo.Creditos) {
     var abaC = aba('Creditos');
-    _memo.Creditos = { valores: completarCreditosManuais(abaC, abaC.getDataRange().getValues()), objetos: null };
+    _memo.Creditos = { valores: completarCreditosManuais(abaC, valoresComTexto(abaC.getDataRange(), 'Creditos')), objetos: null };
   }
   return _memo.Creditos.valores;
 }
@@ -1480,6 +1481,7 @@ function novaExecucao() {
   _ajustesAplicados = false;
   _cabecalhoOk = null;
   _alertas = null;
+  _abasComData = {};
 }
 
 // Pega a trava (uma ação por vez) e esquece o que foi lido antes:
@@ -1501,7 +1503,7 @@ function valoresAba(nome) {
   if (!_memo[nome]) {
     var v = ABAS_EM_CACHE[nome] && !_semCacheGlobal ? lerCacheAba(nome) : null;
     if (!v) {
-      v = abaSemDescartar(nome).getDataRange().getValues();
+      v = valoresComTexto(abaSemDescartar(nome).getDataRange(), nome);
       if (ABAS_EM_CACHE[nome]) guardarCacheAba(nome, v);
     }
     _memo[nome] = { valores: v, objetos: null };
@@ -1692,6 +1694,81 @@ function objeto(cab, linha) {
     o[cab[i]] = v;
   }
   return o;
+}
+
+// ---------- datas e horas lidas como TEXTO (sem depender de fuso) ----------
+// A planilha transforma "2026-10-27" e "09:00" em data/hora. Lida pelo Google, essa data vem
+// convertida pelo fuso, e com a planilha num fuso diferente a hora "andava" (09:00 virava 01:00 e o dia
+// voltava um). O texto que a planilha MOSTRA é exatamente o que foi gravado: é ele que vale.
+var _abasComData = {};
+function valoresComTexto(r, nome) {
+  var v = r.getValues();
+  var tela = null;
+  for (var i = 0; i < v.length; i++) {
+    for (var j = 0; j < v[i].length; j++) {
+      if (!ehData(v[i][j])) continue;
+      if (!tela) tela = r.getDisplayValues();
+      v[i][j] = textoDeData(tela[i][j], v[i][j]);
+      if (nome && i > 0) _abasComData[nome] = true;
+    }
+  }
+  return v;
+}
+
+// texto da tela → "aaaa-mm-dd", "aaaa-mm-dd hh:mm:ss" ou "hh:mm" (os mesmos formatos que o sistema grava)
+function textoDeData(tela, d) {
+  var t = String(tela || '').trim();
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(t);
+  var x = m ? [m[1], m[2], m[3], m[4], m[5], m[6]] : null;
+  if (!x && (m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?: (\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(t))) x = [m[3], m[2], m[1], m[4], m[5], m[6]];
+  var dois = function (n) { return ('0' + n).slice(-2); };
+  if (x && Number(x[0]) >= 1901) {
+    var dia = x[0] + '-' + dois(x[1]) + '-' + dois(x[2]);
+    var hora = x[3] != null ? dois(x[3]) + ':' + x[4] + ':' + (x[5] || '00') : '';
+    return hora && hora !== '00:00:00' ? dia + ' ' + hora : dia;
+  }
+  if (x && x[3] != null) return dois(x[3]) + ':' + x[4];
+  if ((m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(t))) return dois(m[1]) + ':' + m[2];
+  // formato que não dá para ler na tela: conversão pelo fuso (como antes)
+  var c = dataHoraTexto(d);
+  return d.getFullYear() < 1901 ? c.slice(11, 16) : c.replace(/ 00:00:00$/, '');
+}
+
+// No fim do pedido, guarda como texto as datas/horas que a planilha converteu (linhas novas):
+// a próxima leitura não precisa buscar a tela. Só com a trava livre e fora das abas que apagam
+// linhas sem a trava (as linhas poderiam andar entre ler e gravar).
+var ABAS_SEM_DATA_TEXTO = { Sessoes: 1, SessoesEquipe: 1, Redefinicoes: 1, Evolucoes: 1, AnamnesesProf: 1, Bloqueios: 1 };
+function datasParaTexto() {
+  var nomes = Object.keys(_abasComData).filter(function (n) { return !ABAS_SEM_DATA_TEXTO[n]; });
+  _abasComData = {};
+  if (!nomes.length) return;
+  var trava = LockService.getScriptLock();
+  if (!trava.tryLock(500)) return;
+  try {
+    var gravadas = 0;
+    nomes.forEach(function (nome) {
+      var s = planilha().getSheetByName(nome);
+      if (!s || gravadas > 60) return;
+      var r = s.getDataRange();
+      var v = r.getValues(), tela = null;
+      for (var j = 0; j < (v[0] || []).length; j++) {
+        for (var i = 1; i < v.length;) {
+          if (!ehData(v[i][j])) { i++; continue; }
+          var ini = i;
+          while (i < v.length && ehData(v[i][j])) i++;
+          if (!tela) tela = r.getDisplayValues();
+          var textos = [];
+          for (var k = ini; k < i; k++) textos.push([textoDeData(tela[k][j], v[k][j])]);
+          s.getRange(ini + 1, j + 1, i - ini, 1).setNumberFormat('@').setValues(textos);
+          gravadas++;
+        }
+      }
+      delete _memo[nome];
+      if (ABAS_EM_CACHE[nome]) esquecerCacheAba(nome);
+    });
+  } finally {
+    trava.releaseLock();
+  }
 }
 
 // "aaaa-mm-dd hh:mm:ss" no fuso da planilha. Formatar pelo Google é caro (milhares de células por tela):

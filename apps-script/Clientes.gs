@@ -96,7 +96,7 @@ function contaPublica(a) {
   var s = abaSemDescartar('Anamneses'), n = s.getLastRow(), ficha = null;
   if (n >= 2) {
     var colN = ABAS.Anamneses.indexOf('data_nascimento') + 1;
-    var v = s.getRange(2, 1, n - 1, colN).getValues();
+    var v = valoresComTexto(s.getRange(2, 1, n - 1, colN));
     for (var i = 0; i < v.length && !ficha; i++) if (normCpf(v[i][0]) === cpf) ficha = v[i];
     if (ficha && !nasc) nasc = ehData(ficha[colN - 1]) ? dataTexto(ficha[colN - 1]) : String(ficha[colN - 1] || '').slice(0, 10);
   }

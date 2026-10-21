@@ -1131,7 +1131,7 @@ function bancada_desbloquear(d, m) {
   var linha = Number(d.linha);
   if (linha < 2 || linha > s.getLastRow()) throw new Error('Bloqueio não encontrado.');
   // confere que a linha ainda é o mesmo bloqueio (outra pessoa pode ter liberado antes e as linhas andaram)
-  var b = s.getRange(linha, 1, 1, 3).getValues()[0];
+  var b = valoresComTexto(s.getRange(linha, 1, 1, 3))[0];
   if (d.data && (dataTexto(b[0]) !== d.data || horaTexto(b[1]) !== String(d.hora || '') || String(b[2] || '') !== String(d.modalidade || ''))) {
     throw new Error('A lista de bloqueios mudou. Atualize a página e tente de novo.');
   }
