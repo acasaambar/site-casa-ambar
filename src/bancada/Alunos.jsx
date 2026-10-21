@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
 import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
-  linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, useEsquecerPedidoDaRota } from './ui.jsx';
+  linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
 import { AnamneseConteudo } from './Anamnese.jsx';
@@ -667,7 +667,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, bandeira, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : Number(String(valor).replace(',', '.')), inicio, obs });
+      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, bandeira, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : numBR(valor), inicio, obs });
       aoVender();
     } catch (e) {
       setErro(e.message);
@@ -676,7 +676,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     }
   }
 
-  const final = metodo === 'Cortesia' ? 0 : valor !== '' ? Number(String(valor).replace(',', '.')) : plano?.preco;
+  const final = metodo === 'Cortesia' ? 0 : valor !== '' ? numBR(valor) : plano?.preco;
   return (
     <Modal rotulo="Venda no balcão" titulo="Vender plano ou aula" aoFechar={aoFechar}>
       <div className="b-form">
@@ -700,19 +700,21 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
             <span className="rotulo">Recebido por</span>
             <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
           </label>
-          {/Cartão de crédito|Link/.test(metodo) ? (
+          <label className="b-campo">
+            <span className="rotulo">Começa em</span>
+            <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+          </label>
+        </div>
+        {/* no cartão, parcelas e bandeira ficam juntas (antes o "Começa em" sumia e o plano sempre começava hoje) */}
+        <div className="b-linha2">
+          {/Cartão de crédito|Link/.test(metodo) && (
             <label className="b-campo">
               <span className="rotulo">Parcelas</span>
               <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select>
             </label>
-          ) : (
-            <label className="b-campo">
-              <span className="rotulo">Começa em</span>
-              <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
-            </label>
           )}
+          <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
         </div>
-        <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
         {plano && metodo !== 'Cortesia' && (
           <>
             <div className="b-linha2">

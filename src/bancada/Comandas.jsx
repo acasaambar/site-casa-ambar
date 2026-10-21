@@ -986,6 +986,9 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
         <section className="b-cartao">
           <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Caixa fechado</h2><Tag tom={Math.abs(cx.diferenca || 0) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(cx.diferenca || 0) < 0.01 ? 'bateu' : `diferença ${real(cx.diferenca)}`}</Tag></header>
           <p className="b-suave">Contado {real(cx.contado)} · esperado {real(cx.esperado)} · por {cx.fechadoPor} {passado || cx.fechadoEm.slice(0, 10) !== dia ? `em ${dataBR(cx.fechadoEm).slice(0, 5)} ` : ''}às {hora(cx.fechadoEm.slice(11, 16))}{cx.obs ? ' · ' + cx.obs : ''}</p>
+          {Math.abs(cx.depoisDoFechamento || 0) > 0.009 && (
+            <p className="aviso">Depois do fechamento {cx.depoisDoFechamento > 0 ? 'entraram' : 'saíram'} {real(Math.abs(cx.depoisDoFechamento))} em dinheiro (comanda ou venda lançada mais tarde). {admin ? 'Reabra o caixa para conferir de novo.' : 'Avise a administração.'}</p>
+          )}
           {admin && <BotaoAcao acao={() => acao('reabrirCaixa', {})}>Reabrir</BotaoAcao>}
         </section>
       )}

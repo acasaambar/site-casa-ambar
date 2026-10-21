@@ -80,19 +80,20 @@ function relFinanceiro(pagamentos, planos, de, ate, dias) {
   var linksSite = pagamentos.filter(function (p) { return String(p.origem || 'site') === 'site' && numero(p.valor) > 0 && String(p.criado_em).slice(0, 10) >= de && String(p.criado_em).slice(0, 10) <= ate; });
   var estornos = pagamentos.filter(function (p) { return p.status === 'estornado' && noPeriodo(p); });
   var comCupom = pagos.filter(function (p) { return p.cupom; });
+  var partes = partesDasVendas(vendas);
   return {
     receita: receita,
     receitaAnterior: receitaAnt,
     variacao: receitaAnt > 0 ? Math.round((receita - receitaAnt) / receitaAnt * 1000) / 10 : null,
     vendas: vendas.length,
     ticketMedio: vendas.length ? Math.round(receita / vendas.length * 100) / 100 : 0,
-    porForma: agrupar(vendas, function (p) { return String(p.metodo || 'não informado'); }, function (p) { return numero(p.valor); }),
-    porBandeira: agrupar(vendas.filter(function (p) { return String(p.bandeira || '').trim(); }), function (p) { return String(p.bandeira); }, function (p) { return numero(p.valor); }),
+    porForma: agrupar(partes, function (p) { return p.metodo; }, function (p) { return p.valor; }),
+    porBandeira: agrupar(partes.filter(function (p) { return p.bandeira; }), function (p) { return p.bandeira; }, function (p) { return p.valor; }),
     porModalidade: agrupar(vendas, modalidade, function (p) { return numero(p.valor); }),
     porTipo: agrupar(vendas, tipo, function (p) { return numero(p.valor); }),
     porPlano: agrupar(vendas, function (p) { return String(p.descricao); }, function (p) { return numero(p.valor); }).slice(0, 15),
     porOrigem: agrupar(vendas, function (p) { return String(p.origem || 'site'); }, function (p) { return numero(p.valor); }),
-    porParcelas: agrupar(vendas.filter(function (p) { return /Cart/.test(String(p.metodo)); }), function (p) { return (Number(p.parcelas) || 1) + 'x'; }, function (p) { return numero(p.valor); }),
+    porParcelas: agrupar(partes.filter(function (p) { return /Cartão de crédito|Link/.test(p.metodo); }), function (p) { return p.parcelas + 'x'; }, function (p) { return p.valor; }),
     serie: Object.keys(serie).sort().map(function (k) { return serie[k]; }),
     seriePorMes: porMes,
     descontosCupom: soma(comCupom, function (p) { return numero(p.desconto); }),
@@ -300,4 +301,25 @@ function relServicos(pagamentos, planos, de, ate) {
     porProfissional: agrupar(lista.filter(function (a) { return a.status !== 'cancelado'; }), function (a) { return String(a.profissional); }, function (a) { return numero(a.valor); }),
     receitaPorCategoria: agrupar(vendas, function (p) { return String(planos[String(p.plano_id)].categoria || 'Serviços'); }, function (p) { return numero(p.valor); }),
   };
+}
+
+// cada forma de pagamento de verdade (comanda dividida em Pix + cartão entra com cada parte e a bandeira certa),
+// o mesmo critério do Financeiro e do Caixa (formasDasVendas)
+function partesDasVendas(vendas) {
+  var partes = [];
+  var comandas = {};
+  vendas.forEach(function (p) {
+    if (p.comanda) { comandas[String(p.comanda)] = 1; return; }
+    partes.push({ metodo: String(p.metodo || 'não informado'), bandeira: String(p.bandeira || '').trim(), parcelas: Number(p.parcelas) || 1, valor: numero(p.valor) });
+  });
+  if (Object.keys(comandas).length) {
+    lerAba('Comandas').forEach(function (c) {
+      if (!comandas[String(c.id)]) return;
+      parseJson(c.pagamentos, []).forEach(function (x) {
+        if (x.metodo === 'Vale-presente') return;
+        partes.push({ metodo: String(x.metodo), bandeira: String(x.bandeira || '').trim(), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) });
+      });
+    });
+  }
+  return partes;
 }

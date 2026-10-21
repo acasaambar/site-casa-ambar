@@ -530,7 +530,8 @@ function bancada_salvarDespesa(d, m) {
     var pago = x.status === 'pago';
     atualizarLinha('Despesas', ex._linha, { data: x.data, descricao: String(x.descricao).trim().slice(0, 200),
       categoria: CATEGORIAS_DESPESA.indexOf(x.categoria) >= 0 ? x.categoria : 'Outros', valor: dinheiro(x.valor), forma: String(x.forma || ''),
-      status: pago ? 'pago' : 'a_pagar', pago_em: pago ? (ex.pago_em ? dataTexto(ex.pago_em) : dataValida(x.pagoEm, x.data <= hojeTexto() ? x.data : hojeTexto())) : '',
+      // mudou a data de uma despesa já paga: o dia do pagamento acompanha (senão segue somando no mês antigo do Financeiro)
+      status: pago ? 'pago' : 'a_pagar', pago_em: pago ? (ex.pago_em && dataTexto(ex.data) === x.data ? dataTexto(ex.pago_em) : dataValida(x.pagoEm, x.data <= hojeTexto() ? x.data : hojeTexto())) : '',
       recorrente: x.recorrente ? 'mensal' : '', fornecedor: String(x.fornecedor || '').slice(0, 100), obs: String(x.obs || '').slice(0, 300) });
     registrar(m, 'editou despesa', x.descricao + ' · ' + brl(x.valor));
   } else {
@@ -552,6 +553,8 @@ function bancada_pagarDespesa(d, m) {
 function bancada_excluirDespesa(d, m) {
   var ex = lerAba('Despesas').filter(function (y) { return String(y.id) === String(d.id); })[0];
   if (!ex) throw new Error('Despesa não encontrada.');
+  // saiu da gaveta: apagar aqui deixaria o caixa do dia desencontrado
+  if (String(ex.ref) === 'caixa') throw new Error('Esta despesa saiu do caixa do dia ' + dataTexto(ex.data).split('-').reverse().join('/') + '. Para corrigir, lance um suprimento de ' + brl(ex.valor) + ' nesse caixa.');
   atualizarLinha('Despesas', ex._linha, { status: 'cancelada', recorrente: '' });
   // pagamento de comissão desfeito: as comissões voltam para "a pagar"
   if (String(ex.ref) === 'comissao') {
@@ -583,6 +586,7 @@ function formasDasVendas(pags) {
 
 function grupoDoPagamento(p, itens) {
   if (String(p.tipo_item) === 'produto') return 'Produtos';
+  if (String(p.tipo_item) === 'vale') return 'Vales-presente';
   var it = itens[String(p.plano_id)];
   if (!it) return 'Outros';
   return String(it.modalidade) === 'Serviço' ? String(it.categoria || 'Serviços') : String(it.modalidade);
@@ -654,7 +658,14 @@ function resumoCaixa(data) {
   var tot = function (t) { return dinheiro(movs.filter(function (x) { return x.tipo === t; }).reduce(function (s, x) { return s + numero(x.valor); }, 0)); };
   var dinheiroVendas = formas['Dinheiro'] || 0;
   var esperado = dinheiro(abertura + dinheiroVendas + tot('suprimento') - tot('sangria') - tot('despesa'));
+  // caixa já fechado: vale o esperado da hora do fechamento; o dinheiro que entrou depois aparece à parte
+  var depois = 0;
+  if (c && String(c.status) === 'fechado' && c.esperado !== '' && c.esperado != null) {
+    depois = dinheiro(esperado - numero(c.esperado));
+    esperado = dinheiro(c.esperado);
+  }
   return {
+    depoisDoFechamento: depois,
     data: data, status: c ? String(c.status) : 'nao_aberto', abertura: abertura, abertoPor: c ? String(c.aberto_por || '').split('@')[0] : '',
     abertoEm: c ? String(c.aberto_em || '') : '', movimentos: movs, porForma: Object.keys(formas).map(function (k) { return { nome: k, valor: formas[k] }; }),
     vendas: dinheiro(pags.reduce(function (s, p) { return s + numero(p.valor); }, 0)), qtdVendas: pags.length,
@@ -668,7 +679,9 @@ function bancada_caixa(d, m) {
   var data = dataValida(d.data, hojeTexto());
   var r = resumoCaixa(data);
   if (m.papel === 'admin') {
-    r.anteriores = lerAba('Caixa').filter(function (c) { return dataTexto(c.data) < data; }).slice(-10).reverse().map(function (c) {
+    // os 10 dias mais recentes (um caixa aberto depois para uma data antiga não empurra os recentes)
+    r.anteriores = lerAba('Caixa').filter(function (c) { return dataTexto(c.data) < data; })
+      .sort(function (a, b) { return dataTexto(a.data).localeCompare(dataTexto(b.data)); }).slice(-10).reverse().map(function (c) {
       return { data: dataTexto(c.data), status: String(c.status), esperado: dinheiro(c.esperado), contado: c.contado === '' ? null : dinheiro(c.contado),
         diferenca: c.diferenca === '' ? null : dinheiro(c.diferenca), fechadoPor: String(c.fechado_por || '').split('@')[0] };
     });
@@ -1052,7 +1065,9 @@ function bancada_comandaDoAtendimento(d, m) {
   var aberta = lerAba('Comandas').filter(function (c) { return c.status === 'aberta' && parseJson(c.itens, []).some(function (i) { return i.atendimentoId === a.id; }); })[0];
   if (aberta) return comandaPublica(aberta);
   // outra comanda aberta da mesma cliente hoje: junta
-  var mesma = a.cpf ? lerAba('Comandas').filter(function (c) { return c.status === 'aberta' && c.cpf && normCpf(c.cpf) === normCpf(a.cpf); })[0] : null;
+  var mesma = a.cpf ? lerAba('Comandas').filter(function (c) {
+    return c.status === 'aberta' && c.cpf && normCpf(c.cpf) === normCpf(a.cpf) && String(c.aberta_em || '').slice(0, 10) === hojeTexto();
+  })[0] : null;
   var item = { tipo: 'servico', id: String(a.servico_id), nome: a.servico, profissional: a.profissional, atendimentoId: a.id, data: dataTexto(a.data),
     pago: a.pagamento !== 'no_dia' };
   if (mesma) {

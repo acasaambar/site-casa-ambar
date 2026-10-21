@@ -120,7 +120,13 @@ export const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de d�
 export const MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 export const mesTexto = (m) => { const [a, n] = String(m).split('-'); return `${MESES_LONGOS[Number(n) - 1]} ${a}`; };
 export const somarMes = (m, n) => { const [a, x] = String(m).split('-').map(Number); const d = new Date(a, x - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
-export const numBR = (v) => Number(String(v ?? '').replace(/\./g, '').replace(',', '.')) || 0;
+// valor digitado no balcão: "1.200,00", "1200,5" e "99.90" (ponto com 1–2 casas no fim é decimal)
+export const numBR = (v) => {
+  let t = String(v ?? '').trim();
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (!/^\d+\.\d{1,2}$/.test(t)) t = t.replace(/\./g, '');
+  return Number(t) || 0;
+};
 export function telFmt(t) {
   const d = String(t || '').replace(/\D/g, '');
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
