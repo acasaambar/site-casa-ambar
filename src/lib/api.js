@@ -70,6 +70,10 @@ export const api = {
   trocarEmail: (token, email, senha) => chamar('trocarEmail', { token, email, senha }),
   trocarSenha: (token, senhaAtual, senha) => chamar('trocarSenha', { token, senhaAtual, senha }),
   regras: () => chamar('regras'),
+  entrarEspera: (token, aulaId) => chamar('entrarEspera', { token, aulaId }),
+  verConfirmacao: (t) => chamar('verConfirmacao', { t }),
+  responderConfirmacao: (t, resposta, recado) => chamar('responderConfirmacao', { t, resposta, recado }),
+  sairEspera: (token, aulaId) => chamar('sairEspera', { token, aulaId }),
   sairLista: (t) => chamar('sairLista', { t }),
   confirmarPagamento: (token, retorno) => chamar('confirmarPagamento', { token, ...retorno }),
   ativarWellhub: (token, wellhubId, confirmo) => chamar('ativarWellhub', { token, wellhubId, confirmo }),
@@ -400,6 +404,12 @@ async function demo(acao, d) {
     }
     case 'regras':
       return { checkinAbreMinAntes: CONFIG.checkinAbreMinAntes, cancelarAteHorasAntes: CONFIG.cancelarAteHorasAntes, diasVisiveis: CONFIG.diasVisiveis, wellhubAtivo: true };
+    case 'verConfirmacao':
+    case 'responderConfirmacao':
+      throw new Error('A confirmação de horário funciona só no sistema real.');
+    case 'entrarEspera':
+    case 'sairEspera':
+      return { naEspera: acao === 'entrarEspera' };
     case 'validarCodigo':
     case 'resgatarVale':
       throw new Error('Cupons e vales funcionam só no sistema real.');

@@ -626,6 +626,14 @@ a.rodape__item:hover > svg { color: var(--creme); }
 .aula__prof { font-size: 13px; color: var(--tinta-suave); }
 .aula__vagas { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; flex-wrap: wrap; }
 .selo-estado { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--tinta-suave); padding: 0 8px; }
+/* aula lotada: horário e vagas esmaecidos, mas o botão da lista de espera continua nítido */
+.aula--lotada .aula__hora, .aula--lotada .aula__info { opacity: 0.6; }
+.aula__espera { display: grid; justify-items: end; gap: 6px; }
+.aula__espera-aviso { max-width: 220px; font-size: 13px; line-height: 1.4; color: var(--tinta-suave); text-align: right; }
+@media (max-width: 560px) {
+  .aula__espera { justify-items: stretch; }
+  .aula__espera-aviso { max-width: none; text-align: left; }
+}
 .mini { display: inline-flex; gap: 3px; }
 .mini i { width: 6px; height: 14px; border-radius: 2px; background: var(--oliva); }
 .mini i.cheio { background: #CFC6B0; }
@@ -1790,3 +1798,17 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
 .conta__rodape p { margin: 0; flex: 1 1 280px; font-size: 13px; line-height: 1.6; color: var(--tinta-suave); }
 .conta__rodape a { color: var(--terracota); }
 .conta .termo span { min-width: 0; }
+
+/* confirmação do horário pelo link do lembrete */
+.confirmar { display: grid; gap: 14px; }
+.confirmar__cartao {
+  display: grid; gap: 2px; padding: 22px 24px; border-radius: var(--raio); background: var(--branco, #FBF8EF);
+  border: 1px solid rgba(47, 56, 33, 0.12); box-shadow: inset 5px 0 0 var(--caramelo);
+}
+.confirmar__quando { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--terracota); }
+.confirmar__hora { font-family: var(--display); font-weight: 400; font-size: 46px; line-height: 1.05; color: var(--verde, #2F3821); }
+.confirmar__servico { font-size: 16px; color: var(--tinta); }
+.confirmar__com { font-size: 13px; color: var(--tinta-suave); }
+.confirmar__botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirmar textarea { width: 100%; font: inherit; }
+@media (max-width: 420px) { .confirmar__botoes { grid-template-columns: 1fr; } }

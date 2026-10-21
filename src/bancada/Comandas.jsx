@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, BANDEIRAS, ehCartao, pedeBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
+import { useDados, Alertas, BANDEIRAS, ehCartao, pedeBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
   telFmt, numBR, plural, METODOS, useEsquecerPedidoDaRota } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -19,8 +19,8 @@ const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 export default function Comandas() {
   const local = useLocation();
   const [vista, setVista] = useState(local.state?.vista || 'abertas');
-  const [aberta, setAberta] = useState(local.state?.nova ? { nova: true } : null);
-  useEsquecerPedidoDaRota('nova');
+  const [aberta, setAberta] = useState(local.state?.nova ? { nova: true } : local.state?.abrir ? { id: local.state.abrir } : null);
+  useEsquecerPedidoDaRota('nova', 'abrir');
   const [versao, setVersao] = useState(0);
   return (
     <>
@@ -283,6 +283,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
             <span className="b-suave">{c ? `nº ${c.id.slice(-5)}` : 'nova'}</span>
           </div>
           {nomeCliente && <p className="cm-papel__cliente">{balcao && (c?.cpf || cliente?.cpf) ? <Link to={`/bancada/alunos/${c?.cpf || cliente.cpf}`} title="Abrir o cadastro">{nomeCliente}</Link> : nomeCliente}</p>}
+          <Alertas lista={c?.alertas} compacto />
           {itens.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda.</p>}
           <ul className="cm-itens">
             {itens.map((it, idx) => (
@@ -299,6 +300,11 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                       {it.tipo === 'servico' && !it.profissional && <button type="button" className="link-acao cm-item__falta" onClick={() => setEditando(idx)} disabled={!catalogo}>escolher profissional</button>}
                     </span>
                   )}
+                  {!fechada && balcao && tirando !== idx && it.tipo === 'servico' && !it.pago && (it.pacote || it.pacoteDisponivel) && (
+                    <button type="button" className={`cm-pacote${it.pacote ? ' cm-pacote--usando' : ''}`} disabled={salvando} onClick={() => mudarItem(idx, { usarPacote: !it.pacote })}>
+                      {it.pacote ? 'Cobrar avulso em vez do pacote' : `Usar sessão do pacote · ${plural(it.pacoteDisponivel.restantes, 'sessão restante', 'sessões restantes')}`}
+                    </button>
+                  )}
                 </div>
                 <div className="cm-item__qtd">
                   {it.tipo === 'produto' && !fechada && !it.pago ? (
@@ -311,7 +317,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                 </div>
                 <div className="cm-item__valor">
                   {it.desconto > 0.009 && <s>{real(it.preco * it.qtd)}</s>}
-                  <strong>{it.pago ? 'já pago' : real(it.total)}</strong>
+                  <strong>{it.pago ? 'já pago' : it.pacote ? 'pacote' : real(it.total)}</strong>
                   {it.qtd > 1 && !it.pago && <span className="b-suave">{real(it.valor)} cada</span>}
                 </div>
                 {!fechada && balcao && (
@@ -459,6 +465,7 @@ function MetaItem({ it, fechada }) {
   if (it.atendimentoId) partes.push('da agenda');
   if (it.profissional) partes.push(`com ${it.profissional}`);
   if (it.pago) partes.push('pago antes (pacote, antecipado ou cortesia)');
+  if (it.pacote) partes.push(`sessão de ${it.pacoteDescricao || 'pacote'}`);
   if (it.promocao) partes.push(`promoção ${it.promocao}`);
   if (it.cupom) partes.push(`cupom ${it.cupom}`);
   if (it.vale && it.tipo !== 'vale') partes.push(`vale ${it.vale}`);
@@ -884,6 +891,7 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
   const [mov, setMov] = useState(null);
   const [contado, setContado] = useState('');
   const [obs, setObs] = useState('');
+  const [extrato, setExtrato] = useState({}); // forma → valor do extrato da maquininha/link/Pix
   const [erroA, setErroA] = useState('');
   const aberturaDepois = /^Aberto depois/.test(cx?.obs || '');
   const faixa = passado && (
@@ -980,7 +988,9 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
             <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
           </div>
           {dif != null && <p className={Math.abs(dif) < 0.01 ? 'aviso' : 'b-alerta-txt'}>{Math.abs(dif) < 0.01 ? 'Bateu certinho.' : dif > 0 ? `Sobrando ${real(dif)}.` : `Faltando ${real(-dif)}.`}</p>}
-          <BotaoAcao className="botao botao--cheio" disabled={contado === ''} acao={() => acao('fecharCaixa', { contado: numBR(contado), obs })}>Fechar caixa</BotaoAcao>
+          <ConferirExtrato conferir={cx.conferir || []} valores={extrato} aoMudar={setExtrato} />
+          <BotaoAcao className="botao botao--cheio" disabled={contado === ''} acao={() => acao('fecharCaixa', { contado: numBR(contado), obs,
+            conferencia: Object.fromEntries(Object.entries(extrato).filter(([, v]) => v !== '').map(([k, v]) => [k, numBR(v)])) })}>Fechar caixa</BotaoAcao>
         </section>
       ) : (
         <section className="b-cartao">
@@ -988,6 +998,16 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
           <p className="b-suave">Contado {real(cx.contado)} · esperado {real(cx.esperado)} · por {cx.fechadoPor} {passado || cx.fechadoEm.slice(0, 10) !== dia ? `em ${dataBR(cx.fechadoEm).slice(0, 5)} ` : ''}às {hora(cx.fechadoEm.slice(11, 16))}{cx.obs ? ' · ' + cx.obs : ''}</p>
           {Math.abs(cx.depoisDoFechamento || 0) > 0.009 && (
             <p className="aviso">Depois do fechamento {cx.depoisDoFechamento > 0 ? 'entraram' : 'saíram'} {real(Math.abs(cx.depoisDoFechamento))} em dinheiro (comanda ou venda lançada mais tarde). {admin ? 'Reabra o caixa para conferir de novo.' : 'Avise a administração.'}</p>
+          )}
+          {cx.conferencia?.length > 0 && (
+            <ul className="cx-conf cx-conf--fechado">
+              {cx.conferencia.map((x) => (
+                <li key={x.forma}>
+                  <span>{x.forma}</span><span className="num">{real(x.sistema)}</span><span className="num">{real(x.informado)}</span>
+                  <Tag tom={Math.abs(x.diferenca) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(x.diferenca) < 0.01 ? 'bateu' : x.diferenca > 0 ? `+${real(x.diferenca)}` : `−${real(-x.diferenca)}`}</Tag>
+                </li>
+              ))}
+            </ul>
           )}
           {admin && <BotaoAcao acao={() => acao('reabrirCaixa', {})}>Reabrir</BotaoAcao>}
         </section>
@@ -1012,6 +1032,38 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
 }
 
 // administração: os últimos caixas antes do dia escolhido (abre o dia ao tocar)
+// fechamento: confere o total de cada forma com o extrato da maquininha, do link e do Pix (opcional)
+function ConferirExtrato({ conferir, valores, aoMudar }) {
+  const formas = conferir.filter((f) => f.valor > 0 || valores[f.forma]);
+  const resto = conferir.filter((f) => !formas.includes(f));
+  const [mostrarTodas, setMostrarTodas] = useState(false);
+  const lista = mostrarTodas ? conferir : formas;
+  if (!conferir.length) return null;
+  return (
+    <fieldset className="cx-conf-campos">
+      <legend className="rotulo">Conferir com o extrato (opcional)</legend>
+      <p className="b-suave">Digite o total que aparece no extrato da maquininha, do link e do banco para cada forma. Os valores com diferença ficam marcados no fechamento.</p>
+      {lista.length === 0 && <p className="b-suave">Nenhuma venda em Pix ou cartão {mostrarTodas ? '' : 'por enquanto'}.</p>}
+      <ul className="cx-conf">
+        {lista.map((f) => {
+          const v = valores[f.forma] ?? '';
+          const d = v === '' ? null : Math.round((numBR(v) - f.valor) * 100) / 100;
+          return (
+            <li key={f.forma}>
+              <span className="cx-conf__forma">{f.forma}{f.bandeiras.length > 0 && <small>{f.bandeiras.map((b) => `${b.nome} ${real(b.valor)}`).join(' · ')}</small>}</span>
+              <span className="num cx-conf__sistema"><small>no sistema</small>{real(f.valor)}</span>
+              <input className="cx-conf__campo" inputMode="decimal" value={v} placeholder="extrato" aria-label={`Total de ${f.forma} no extrato`}
+                onChange={(e) => aoMudar({ ...valores, [f.forma]: e.target.value.replace(/[^\d,.]/g, '') })} />
+              <span className="cx-conf__dif">{d == null ? '' : <Tag tom={Math.abs(d) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(d) < 0.01 ? 'bateu' : d > 0 ? `+${real(d)}` : `−${real(-d)}`}</Tag>}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {!mostrarTodas && resto.length > 0 && <button type="button" className="link-acao" onClick={() => setMostrarTodas(true)}>Conferir também {resto.map((f) => f.forma).join(', ')}</button>}
+    </fieldset>
+  );
+}
+
 function CaixasAnteriores({ lista, aoAbrir }) {
   if (!lista?.length) return null;
   return (

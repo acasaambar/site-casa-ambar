@@ -349,7 +349,9 @@ function quandoLembrete(data) {
 function textoLembrete(x, data) {
   var q = quandoLembrete(data);
   var h = x.hora.replace(':00', 'h').replace(':', 'h');
-  return 'Olá, ' + primeiroNome(x.nome) + '! Passando para lembrar do seu horário na Casa Âmbar ' + q.texto + ' às ' + h + ': ' + x.titulo + (x.com ? ' com ' + x.com : '') + (x.extra ? ', ' + x.extra : '') + '. Podemos confirmar?';
+  var base = 'Olá, ' + primeiroNome(x.nome) + '! Passando para lembrar do seu horário na Casa Âmbar ' + q.texto + ' às ' + h + ': ' + x.titulo + (x.com ? ' com ' + x.com : '') + (x.extra ? ', ' + x.extra : '') + '.';
+  // serviço: confirmar ou pedir para remarcar num toque, pelo link
+  return x.tipo === 'servico' ? base + ' Confirme ou peça para remarcar por aqui: ' + linkConfirmacao(x.id) : base + ' Podemos confirmar?';
 }
 
 function enviarEmailLembrete(x, data) {
@@ -360,9 +362,11 @@ function enviarEmailLembrete(x, data) {
     '<div style="font-size:26px;color:#2F3821;margin:6px 0 2px">' + escHtml(h) + '</div>' +
     '<div style="font-size:16px;color:#2F3821">' + escHtml(x.titulo) + '</div>' +
     '<div style="font-family:Arial,sans-serif;font-size:13px;color:#6F784D;margin-top:4px">' + escHtml((x.com ? 'com ' + x.com : '') + (x.extra ? ' · ' + x.extra : '')) + '</div></div>';
+  var servico = x.tipo === 'servico';
   enviarEmail(x.email, 'Seu horário ' + q.assunto + ' · Casa Âmbar', q.ate, ['Olá, ' + primeiroNome(x.nome) + '!',
     'Este é um lembrete do seu horário na Casa Âmbar. Chegue com 10 minutos de antecedência.',
-    'Se precisar remarcar, fale com a gente pelo WhatsApp.'], { texto: 'Falar no WhatsApp', url: 'https://wa.me/5585991856528' }, cartao);
+    servico ? 'Toque no botão para confirmar ou pedir para remarcar. Se preferir, fale com a gente pelo WhatsApp: (85) 99185-6528.' : 'Se precisar remarcar, fale com a gente pelo WhatsApp.'],
+    servico ? { texto: 'Confirmar ou remarcar', url: linkConfirmacao(x.id) } : { texto: 'Falar no WhatsApp', url: 'https://wa.me/5585991856528' }, cartao);
 }
 
 function enviarLembretes(data) {
@@ -420,4 +424,60 @@ function bancada_lembretesAuto(d, m) {
   PropertiesService.getScriptProperties().setProperty('LEMBRETES_ULTIMO', agoraTexto());
   if (n) registrar(m, 'lembretes automáticos', n + ' e-mails');
   return { enviados: n };
+}
+
+// ============================================================
+//  CONFIRMAÇÃO PELO LINK (sem WhatsApp pago): "Confirmo" ou "Preciso remarcar"
+// ============================================================
+// O link leva o id do atendimento e uma assinatura (HMAC com uma chave guardada nas Propriedades):
+// não dá para adivinhar o link de outra pessoa, e nada precisa ser gravado para criar o link.
+function chaveConfirmacao() {
+  var props = PropertiesService.getScriptProperties();
+  var k = props.getProperty('CHAVE_CONFIRMACAO');
+  if (!k) { k = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('CHAVE_CONFIRMACAO', k); }
+  return k;
+}
+
+function tokenConfirmacao(id) {
+  var assin = Utilities.computeHmacSha256Signature('confirmar:' + String(id), chaveConfirmacao());
+  return String(id) + '.' + assin.slice(0, 12).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');
+}
+
+function linkConfirmacao(id) { return AJUSTES.siteUrl + '#/confirmar/' + tokenConfirmacao(id); }
+
+function atendimentoDoToken(t) {
+  t = String(t || '');
+  if (!/^A[A-Z0-9]{10,30}\.[a-f0-9]{24}$/.test(t)) return null;
+  var id = t.split('.')[0];
+  if (tokenConfirmacao(id) !== t) return null;
+  return lerAba('Atendimentos').filter(function (a) { return a.id === id; })[0] || null;
+}
+
+function confirmacaoPublica(a) {
+  var data = dataTexto(a.data), h = horaTexto(a.hora);
+  return { nome: primeiroNome(a.nome), servico: String(a.servico), data: data, hora: h, profissional: String(a.profissional), status: String(a.status),
+    resposta: String(a.resposta || ''), passou: inicio({ data: data, hora: h }) < new Date(), quando: quandoLembrete(data).texto };
+}
+
+function verConfirmacao(d) {
+  var a = atendimentoDoToken(d.t);
+  if (!a) throw new Error('Este link não é válido. Fale com a Casa Âmbar pelo WhatsApp.');
+  return confirmacaoPublica(a);
+}
+
+// resposta: 'confirmo' | 'remarcar' (com um recado opcional)
+function responderConfirmacao(d) {
+  var a = atendimentoDoToken(d.t);
+  if (!a) throw new Error('Este link não é válido. Fale com a Casa Âmbar pelo WhatsApp.');
+  var x = confirmacaoPublica(a);
+  if (x.status === 'cancelado') throw new Error('Este horário foi cancelado. Para marcar outro, fale com a gente pelo WhatsApp.');
+  if (x.status === 'atendido' || x.passou) throw new Error('Este horário já passou.');
+  var remarcar = d.resposta === 'remarcar';
+  var recado = String(d.recado || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  var mud = { resposta: remarcar ? 'remarcar' : 'confirmou', resposta_em: agoraTexto(), atualizado_em: agoraTexto() };
+  if (!remarcar && x.status === 'agendado') mud.status = 'confirmado';
+  if (remarcar && recado) mud.obs = ('Pediu para remarcar: ' + recado + '. ' + String(a.obs || '')).slice(0, 500);
+  atualizarLinha('Atendimentos', a._linha, mud);
+  registrar(null, remarcar ? 'cliente pediu para remarcar' : 'cliente confirmou pelo link', a.nome + ' · ' + a.servico + ' · ' + x.data + ' ' + x.hora);
+  return confirmacaoPublica(lerAba('Atendimentos').filter(function (y) { return y.id === a.id; })[0]);
 }

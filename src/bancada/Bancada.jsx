@@ -18,6 +18,7 @@ import Grade from './Grade.jsx';
 import Equipe from './Equipe.jsx';
 import Ajustes from './Ajustes.jsx';
 import { MinhasClientes, ClienteProfissional } from './Anamnese.jsx';
+import { Busca, BotaoBusca, useAtalhoBusca } from './Busca.jsx';
 import '@fontsource/ibm-plex-sans/400.css';
 import '@fontsource/ibm-plex-sans/500.css';
 import '@fontsource/ibm-plex-sans/600.css';
@@ -88,6 +89,8 @@ function Portao() {
 function Painel() {
   const { membro, sair, chamar, token } = useBancada();
   const [menu, setMenu] = useState(false);
+  const [busca, setBusca] = useState(false);
+  useAtalhoBusca(() => setBusca(true));
   const local = useLocation();
   useEffect(() => { setMenu(false); }, [local.pathname]);
   useEffect(() => {
@@ -112,6 +115,7 @@ function Painel() {
           <Logo variante="creme" largura={92} />
           <span className="rotulo">Bancada</span>
         </div>
+        <BotaoBusca className="bg-botao--lateral" aoAbrir={() => setBusca(true)} />
         <nav className="b-menu" aria-label="Bancada">
           {grupos.map(([g, l]) => (
             <div key={g} className="b-menu__grupo">
@@ -137,6 +141,7 @@ function Painel() {
       </aside>
       {menu && <button type="button" className="b-veu" aria-label="Fechar menu" onClick={() => setMenu(false)} />}
 
+      {busca && <Busca aoFechar={() => setBusca(false)} />}
       <Atualizando />
       <div className="b-conteudo">
         <div className="b-topo-cel">
@@ -145,6 +150,7 @@ function Painel() {
           </button>
           <Logo variante="verde" largura={64} />
           <span className="rotulo">Bancada</span>
+          <BotaoBusca className="bg-botao--cel" aoAbrir={() => setBusca(true)} />
         </div>
         <main className="b-pagina">
           <Routes>

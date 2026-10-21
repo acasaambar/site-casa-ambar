@@ -5,6 +5,7 @@ import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Ab
   numBR, MESES_LONGOS, DIAS_LONGOS, diaSemana, plural } from './ui.jsx';
 import { Cupons } from './Vales.jsx';
 import { useCatalogoComanda } from './Comandas.jsx';
+import { NovoAtendimento } from './Servicos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { comNumeros } from '../components/Num.jsx';
 
@@ -18,10 +19,11 @@ export default function Marketing() {
   return (
     <>
       <Cabecalho titulo="Marketing">Promoções automáticas, campanhas para trazer de volta quem sumiu, lembretes e cupons.</Cabecalho>
-      <Abas atual={aba} aoMudar={setAba} itens={[['promocoes', 'Promoções'], ['campanhas', 'Campanhas'], ['lembretes', 'Lembretes'], ['cupons', 'Cupons']]} />
+      <Abas atual={aba} aoMudar={setAba} itens={[['promocoes', 'Promoções'], ['campanhas', 'Campanhas'], ['lembretes', 'Lembretes'], ['retornos', 'Retornos'], ['cupons', 'Cupons']]} />
       {aba === 'promocoes' && <Promocoes admin={pode(membro, 'admin')} />}
       {aba === 'campanhas' && <Campanhas admin={pode(membro, 'admin')} />}
       {aba === 'lembretes' && <Lembretes />}
+      {aba === 'retornos' && <Retornos admin={pode(membro, 'admin')} />}
       {aba === 'cupons' && <Cupons podeEditar={pode(membro, 'admin')} />}
     </>
   );
@@ -376,6 +378,48 @@ function Lembretes() {
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+// ============================================================
+//  RETORNOS: quem fez um serviço com retorno sugerido e ainda não voltou
+// ============================================================
+function Retornos({ admin }) {
+  const { chamar } = useBancada();
+  const { dados, erro, carregando, setDados, recarregar } = useDados('retornos', {});
+  const { dados: catalogo } = useDados('catalogoServicos', {});
+  const [agendar, setAgendar] = useState(null);
+  if (carregando && !dados) return <Carregando />;
+  if (!dados) return <Erro>{erro}</Erro>;
+  const tirar = (x) => setDados((d) => ({ ...d, lista: d.lista.filter((y) => y.atendimentoId !== x.atendimentoId) }));
+  const marcar = (x, como) => chamar('marcarRetorno', { atendimentoId: x.atendimentoId, como }).then(() => tirar(x));
+  const hoje = hojeIso();
+  const texto = (x) => `Olá, ${primeiro(x.nome)}! Aqui é da Casa Âmbar. Já faz ${plural(Math.max(1, Math.round((new Date(hoje) - new Date(x.ultima)) / 86400000)), 'dia', 'dias')} da sua sessão de ${x.servico}${x.profissional ? ` com ${primeiro(x.profissional)}` : ''}: é um bom momento para o retorno. Quer que a gente reserve um horário?`;
+  return (
+    <>
+      <div className="b-barra-acoes">
+        <p className="b-suave">Aparece aqui quem fez um serviço com retorno sugerido, chegou no prazo e ainda não tem nada marcado. {admin ? 'O prazo de cada serviço fica em Catálogo → Serviços.' : 'O prazo de cada serviço é definido pela administração no Catálogo.'}</p>
+      </div>
+      {dados.semConfiguracao && <Vazio titulo="Nenhum serviço com retorno sugerido" forma="equilibrio">{admin ? 'Em Catálogo → Serviços, edite um serviço e preencha "Retorno sugerido". Ex.: limpeza de pele em 30 dias, peeling em 7.' : 'Peça à administração para preencher o retorno sugerido dos serviços no Catálogo.'}</Vazio>}
+      {!dados.semConfiguracao && dados.lista.length === 0 && <Vazio titulo="Ninguém para chamar agora" forma="presenca">Quando alguém chegar no prazo do retorno, aparece aqui.</Vazio>}
+      {dados.lista.length > 0 && (
+        <ul className="lb-lista rt-lista">
+          {dados.lista.map((x) => (
+            <li key={x.atendimentoId} className={`lb${x.retornoEm < hoje ? ' rt--passou' : ''}`}>
+              <span className="lb__hora rt__quando">{x.retornoEm <= hoje ? 'já' : dataCurta(x.retornoEm)}</span>
+              <span className="lb__quem"><strong>{x.nome}</strong><small>{x.servico} em {dataBR(x.ultima)}{x.profissional ? ` com ${x.profissional}` : ''} · retorno em {plural(x.dias, 'dia', 'dias')}</small></span>
+              <span className="rt__acoes">
+                {x.whatsapp && <a className="link-acao com-icone" href={linkWhats(x.whatsapp, texto(x))} target="_blank" rel="noreferrer" onClick={() => marcar(x, 'avisado').catch(() => {})}><IconeWhatsapp tamanho={14} /> Chamar</a>}
+                <button type="button" className="link-acao" disabled={!catalogo} onClick={() => setAgendar(x)}>Agendar</button>
+                <BotaoAcao className="link-sair" confirmar={`Tirar ${x.nome} dos retornos?`} acao={() => marcar(x, 'dispensado')}>dispensar</BotaoAcao>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {agendar && catalogo && <NovoAtendimento catalogo={catalogo} inicial={{ data: hoje, servicoId: agendar.servicoId, profissional: agendar.profissional, cliente: { nome: agendar.nome, cpf: agendar.cpf, whatsapp: agendar.whatsapp } }}
+        aoFechar={() => setAgendar(null)} aoSalvar={() => { setAgendar(null); recarregar(); }} />}
     </>
   );
 }

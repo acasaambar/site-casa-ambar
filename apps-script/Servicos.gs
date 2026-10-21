@@ -63,6 +63,7 @@ function listarServicos(todos) {
       duracao: numero(x.duracao_min) || 60, preco: numero(x.preco), descricao: String(x.descricao || ''), semJurosAte: numero(x.sem_juros_ate) || 1,
       comissao: String(x.comissao) === '' ? null : numero(x.comissao),
       // produtos usados em cada sessão: "p-acido:0.5;p-luva:2"
+      retornoDias: numero(x.retorno_dias) || 0,
       consumo: String(x.consumo || '').split(';').map(function (c) { var q = c.split(':'); return { produtoId: String(q[0] || '').trim(), qtd: numero(q[1]) }; })
         .filter(function (c) { return c.produtoId && c.qtd > 0; }) };
   });
@@ -258,7 +259,10 @@ function atendimentoPublico(a, m) {
   return { id: String(a.id), data: dataTexto(a.data), hora: horaTexto(a.hora), duracao: numero(a.duracao_min) || 60, servicoId: String(a.servico_id), servico: String(a.servico),
     categoria: String(a.categoria), profissional: String(a.profissional), cpf: esconder ? '' : (a.cpf ? normCpf(a.cpf) : ''), nome: String(a.nome),
     whatsapp: esconder ? '' : String(a.whatsapp || ''), status: String(a.status), pagamento: String(a.pagamento), valor: numero(a.valor), obs: String(a.obs || ''),
-    creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || ''), titular: String(a.titular || '') };
+    creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || ''), titular: String(a.titular || ''), alertas: alertasDe(a.cpf),
+    resposta: String(a.resposta || ''), respostaEm: String(a.resposta_em || ''),
+    // link "confirmo / preciso remarcar" para o lembrete pelo WhatsApp (só para o balcão)
+    linkConfirmar: m && m.papel !== 'professora' ? linkConfirmacao(a.id) : '' };
 }
 
 function bancada_atendimentos(d, m) {
@@ -277,8 +281,14 @@ function bancada_atendimentos(d, m) {
   return { atendimentos: lista, profissionais: profs.map(function (p) { return p.nome; }), folgas: folgas,
     // quem atende e em que turnos no primeiro dia (a agenda marca o resto como "fora do horário")
     equipe: profs.map(function (p) {
-      return { nome: p.nome, categorias: p.categorias, turnos: turnosDoProfissional(p, de).map(function (t) { return [hhmm(t[0]), hhmm(t[1])]; }) };
-    }) };
+      var e = { nome: p.nome, categorias: p.categorias, turnos: turnosDoProfissional(p, de).map(function (t) { return [hhmm(t[0]), hhmm(t[1])]; }) };
+      // visão da semana: os turnos de cada dia do período
+      if (d.porDia) {
+        e.dias = {};
+        for (var dt = de; dt <= ate; dt = somarDias(dt, 1)) e.dias[dt] = turnosDoProfissional(p, dt).map(function (t) { return [hhmm(t[0]), hhmm(t[1])]; });
+      }
+      return e;
+    }).filter(function (e) { return m.papel !== 'professora' || mesmaProfessora(e.nome, m) || !d.porDia; }) };
 }
 
 function bancada_catalogoServicos(d, m) {
@@ -337,13 +347,9 @@ function bancada_agendarServico(d, m) {
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   try {
-    var ini = minutos(d.hora);
-    var cabe = turnosDe(prof, d.data).some(function (t) { return ini >= t[0] && ini + dur <= t[1]; });
-    if (!cabe) throw new Error('Fora do horário de atendimento de ' + prof + ' neste dia.');
-    var c = conflito(d.data, d.hora, dur, prof, d.reagendarId);
-    if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
-    if (c) throw new Error(prof + ' já atende ' + c.nome + ' às ' + horaTexto(c.hora) + '. Escolha outro horário.');
     if (cliente.novo) {
+      // confere o horário antes de criar o cadastro (não deixa cadastro solto se o horário falhar)
+      conferirHorarioLivre(d.data, d.hora, dur, prof);
       // mesmo WhatsApp de outra pessoa: pergunta antes (mãe e filha) em vez de juntar sem aviso
       var outro = d.outraPessoa ? null : outroComMesmoWhats(cliente.nome, cliente.whatsapp);
       if (outro) throw erroCod('Este WhatsApp já é de ' + outro.nome + '.', 'WHATSAPP_DE_OUTRA');
@@ -352,33 +358,72 @@ function bancada_agendarServico(d, m) {
       cliente = { cpf: normCpf(cad.cpf), nome: cad.nome, whatsapp: String(cad.whatsapp || cliente.whatsapp), email: cad.email };
     }
     var forma = String(d.pagamento || 'no_dia');
-    var linha = { id: novoId('A'),
-      data: d.data, hora: d.hora, duracao_min: dur, servico_id: serv.id, servico: serv.nome, categoria: serv.categoria, profissional: prof,
-      cpf: cliente.cpf, nome: cliente.nome, whatsapp: cliente.whatsapp, status: 'agendado', pagamento: forma, valor: serv.preco,
-      obs: String(d.obs || '').slice(0, 500), criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto() };
-    if (forma === 'pacote') {
-      if (!cliente.cpf) throw new Error('Pacote só para cliente com cadastro.');
-      var cred = creditoDeServico(cliente.cpf, serv.id, d.data);
-      if (!cred) throw erroCod(primeiroNome(cliente.nome) + ' não tem pacote de ' + serv.nome + ' com sessões disponíveis.', 'SEM_PACOTE');
-      linha.credito_id = cred.id;
-      linha.valor = 0;
-    } else if (forma === 'pago') {
-      var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: d.data, obs: 'serviço ' + serv.nome }, m);
-      linha.order_nsu = venda.orderNsu;
-      linha.credito_id = venda.creditoId || '';
-      linha.valor = dinheiro(venda.valor + venda.valeUsado);
-    } else if (forma === 'cortesia') {
-      linha.valor = 0;
-    } else {
-      linha.pagamento = 'no_dia';
+    var linha = criarAtendimento(d, m, serv, prof, dur, cliente, d.data, forma);
+    // série (fisioterapia 2x por semana, drenagem semanal…): as próximas datas no mesmo horário.
+    // Só a primeira é cobrada no "já pagou"; o pacote vale para todas enquanto houver sessão.
+    var serie = null;
+    var rep = d.repetir || {};
+    var vezes = Math.min(Math.max(Math.round(numero(rep.vezes)) || 0, 0), 24);
+    var cada = [7, 14, 21, 28].indexOf(Number(rep.cadaDias)) >= 0 ? Number(rep.cadaDias) : 0;
+    if (vezes > 1 && cada) {
+      serie = { criados: [{ id: linha.id, data: d.data, pagamento: linha.pagamento }], pulados: [] };
+      for (var k = 1; k < vezes; k++) {
+        var dt = somarDias(d.data, k * cada);
+        var fk = forma === 'pacote' ? (creditoDeServico(cliente.cpf, serv.id, dt) ? 'pacote' : 'no_dia') : forma === 'cortesia' ? 'cortesia' : 'no_dia';
+        try {
+          var lk = criarAtendimento(d, m, serv, prof, duracaoServico(serv, prof), cliente, dt, fk);
+          serie.criados.push({ id: lk.id, data: dt, pagamento: lk.pagamento });
+        } catch (e) {
+          serie.pulados.push({ data: dt, motivo: e.message });
+        }
+      }
     }
-    adicionarLinha('Atendimentos', linha);
     SpreadsheetApp.flush();
-    registrar(m, 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof);
-    return atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === linha.id; })[0], m);
+    esperaResolvida('servico', serv.id, cliente.cpf);
+    registrar(m, 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof + (serie ? ' · série de ' + serie.criados.length : ''));
+    var saida = atendimentoPublico(lerAba('Atendimentos').filter(function (x) { return x.id === linha.id; })[0], m);
+    if (serie) saida.serie = serie;
+    return saida;
   } finally {
     trava.releaseLock();
   }
+}
+
+// horário dentro do turno e sem choque (atendimento, folga, aula da profissional, casa fechada)
+function conferirHorarioLivre(data, hora, dur, prof, ignorarId) {
+  var ini = minutos(hora);
+  var cabe = turnosDe(prof, data).some(function (t) { return ini >= t[0] && ini + dur <= t[1]; });
+  if (!cabe) throw new Error('Fora do horário de atendimento de ' + prof + ' neste dia.');
+  var c = conflito(data, hora, dur, prof, ignorarId);
+  if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
+  if (c) throw new Error(prof + ' já atende ' + c.nome + ' às ' + horaTexto(c.hora) + '. Escolha outro horário.');
+}
+
+// cria um atendimento (dentro da trava): confere o horário e registra o pagamento escolhido
+function criarAtendimento(d, m, serv, prof, dur, cliente, data, forma) {
+  conferirHorarioLivre(data, d.hora, dur, prof);
+  var linha = { id: novoId('A'),
+    data: data, hora: d.hora, duracao_min: dur, servico_id: serv.id, servico: serv.nome, categoria: serv.categoria, profissional: prof,
+    cpf: cliente.cpf, nome: cliente.nome, whatsapp: cliente.whatsapp, status: 'agendado', pagamento: forma, valor: serv.preco,
+    obs: String(d.obs || '').slice(0, 500), criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto() };
+  if (forma === 'pacote') {
+    if (!cliente.cpf) throw new Error('Pacote só para cliente com cadastro.');
+    var cred = creditoDeServico(cliente.cpf, serv.id, data);
+    if (!cred) throw erroCod(primeiroNome(cliente.nome) + ' não tem pacote de ' + serv.nome + ' com sessões disponíveis.', 'SEM_PACOTE');
+    linha.credito_id = cred.id;
+    linha.valor = 0;
+  } else if (forma === 'pago') {
+    var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: data, obs: 'serviço ' + serv.nome }, m);
+    linha.order_nsu = venda.orderNsu;
+    linha.credito_id = venda.creditoId || '';
+    linha.valor = dinheiro(venda.valor + venda.valeUsado);
+  } else if (forma === 'cortesia') {
+    linha.valor = 0;
+  } else {
+    linha.pagamento = 'no_dia';
+  }
+  adicionarLinha('Atendimentos', linha);
+  return linha;
 }
 
 // Reagendar MOVE o mesmo atendimento (mesmo id): pagamento, pacote, comanda aberta e comissão continuam valendo.
@@ -400,8 +445,8 @@ function reagendarServico(d, m, serv, prof, dur) {
     if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
     if (c) throw new Error(prof + ' já atende ' + c.nome + ' às ' + horaTexto(c.hora) + '. Escolha outro horário.');
     var de = dataTexto(a.data) + ' ' + horaTexto(a.hora) + (a.profissional !== prof ? ' com ' + a.profissional : '');
-    var mud = { data: d.data, hora: d.hora, duracao_min: dur, profissional: prof, status: 'agendado', lembrete: '', atualizado_em: agoraTexto(),
-      obs: ('Reagendado de ' + de + '. ' + (d.obs != null ? d.obs : (a.obs || ''))).slice(0, 500) };
+    var mud = { data: d.data, hora: d.hora, duracao_min: dur, profissional: prof, status: 'agendado', lembrete: '', resposta: '', resposta_em: '', atualizado_em: agoraTexto(),
+      obs: ('Reagendado de ' + de + '. ' + String(d.obs != null ? d.obs : a.obs || '').replace(/^(Reagendado de [^.]*\.\s*)+/, '')).slice(0, 500) };
     // outra profissional por reagendamento não é substituição
     if (a.profissional !== prof) { mud.titular = ''; mud.comissao_de = ''; }
     if (trocaServico) { mud.servico_id = serv.id; mud.servico = serv.nome; mud.categoria = serv.categoria; mud.valor = serv.preco; }
@@ -509,6 +554,7 @@ function bancada_salvarServico(d, m) {
   var linha = { id: id, ativo: x.ativo === false ? 'NÃO' : 'SIM', categoria: x.categoria, nome: nome, duracao_min: Math.min(Math.max(numero(x.duracao) || 60, 10), 480),
     preco: numero(x.preco), descricao: String(x.descricao || '').slice(0, 200), sem_juros_ate: Math.min(Math.max(numero(x.semJurosAte) || 1, 1), 12),
     comissao: x.comissao === '' || x.comissao == null ? '' : Math.min(Math.max(numero(x.comissao), 0), 100),
+    retorno_dias: numero(x.retornoDias) > 0 ? Math.min(Math.round(numero(x.retornoDias)), 365) : '',
     consumo: (x.consumo || []).filter(function (c) { return c.produtoId && numero(c.qtd) > 0; }).slice(0, 12)
       .map(function (c) { return String(c.produtoId).replace(/[:;]/g, '') + ':' + numero(c.qtd); }).join(';') };
   var ex = lerAba('Servicos').filter(function (s) { return String(s.id) === id; })[0];

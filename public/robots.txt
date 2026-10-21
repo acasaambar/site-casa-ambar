@@ -1,0 +1,7 @@
+# Casa Âmbar · www.acasambar.com.br
+# Tudo liberado. A bancada da equipe (/#/bancada) e a área do aluno usam "#"
+# no endereço: o Google não as trata como páginas separadas e elas pedem login.
+User-agent: *
+Allow: /
+
+Sitemap: https://www.acasambar.com.br/sitemap.xml

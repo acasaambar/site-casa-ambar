@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import { useDados, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Ocupacao } from './Graficos.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { comNumeros } from '../components/Num.jsx';
-import { AgendaServicos } from './Servicos.jsx';
+import { AgendaServicos, AgendaSemana } from './Servicos.jsx';
 import { TrocaProfissional, AlguemNaoVem, PedirSubstituicao, PainelTrocas } from './Trocas.jsx';
 
 export default function Agenda() {
@@ -14,6 +14,7 @@ export default function Agenda() {
   const local = useLocation();
   // lembra o dia escolhido por 2 horas (sair para Clientes ou Comanda e voltar não leva de volta para hoje)
   const [dia, setDiaBruto] = useState(() => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(local.state?.dia || '')) return local.state.dia;
     try {
       const x = JSON.parse(sessionStorage.getItem('ambar_agenda_dia'));
       if (x && /^\d{4}-\d{2}-\d{2}$/.test(x.dia) && Date.now() - x.quando < 2 * 3600e3) return x.dia;
@@ -29,10 +30,14 @@ export default function Agenda() {
   const [agendar, setAgendar] = useState(null);
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
-  const [vistaEscolhida, setVista] = useState(local.state?.abrir ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas' : local.state?.novoServico ? 'dia' : null);
+  const [vistaEscolhida, setVista] = useState(local.state?.abrir || local.state?.vista === 'aulas' ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas'
+    : local.state?.vista === 'semana' ? 'semana' : local.state?.novoServico || local.state?.espera || local.state?.vista === 'dia' ? 'dia' : null);
+  // "lista de espera" da tela Hoje abre a folha da lista (uma vez só)
+  const [abrirEspera] = useState(!!local.state?.espera);
+  const [esperaAula, setEsperaAula] = useState(null); // aula em que vai pôr alguém na lista de espera
   // "Agendar serviço" da tela Hoje abre o formulário direto (uma vez só)
   const [abrirNovoServico] = useState(!!local.state?.novoServico);
-  useEsquecerPedidoDaRota('novoServico');
+  useEsquecerPedidoDaRota('novoServico', 'espera');
   const [trocar, setTrocar] = useState(null); // aula aberta na folha de troca
   const [naoVem, setNaoVem] = useState(false);
   const [pedir, setPedir] = useState(null); // {} = período; { item } = um horário
@@ -86,29 +91,30 @@ export default function Agenda() {
       {vista === 'trocas' ? (
         <Cabecalho titulo="Trocas de profissional">{equipeBalcao ? 'Pedidos da equipe, trocas feitas e quem cobriu quem.' : 'Seus pedidos de substituição e os horários que você cobre.'}</Cabecalho>
       ) : (<>
-      <Cabecalho titulo={comNumeros(`${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`)}
+      <Cabecalho titulo={comNumeros(vista === 'semana' ? tituloSemana(dia) : `${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`)}
         acoes={
           <div className="b-agenda__nav">
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, -1))} aria-label="Dia anterior">‹</button>
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, vista === 'semana' ? -7 : -1))} aria-label={vista === 'semana' ? 'Semana anterior' : 'Dia anterior'}>‹</button>
             <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(hojeIso())} disabled={dia === hojeIso()}>Hoje</button>
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, 1))} aria-label="Próximo dia">›</button>
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, vista === 'semana' ? 7 : 1))} aria-label={vista === 'semana' ? 'Próxima semana' : 'Próximo dia'}>›</button>
             <input type="date" value={dia} onChange={(e) => e.target.value && setDia(e.target.value)} aria-label="Escolher data" className="b-data" />
           </div>
         } />
 
-      <div className="b-tira" role="tablist" aria-label="Dias">
+      {vista !== 'semana' && <div className="b-tira" role="tablist" aria-label="Dias">
         {tira.map((d) => (
           <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}>
             <span>{DIAS[diaSemana(d)]}</span>
             <strong>{Number(d.slice(8))}</strong>
           </button>
         ))}
-      </div>
+      </div>}
       </>)}
 
       <div className="b-agenda__vista">
         <div className="b-segmento" role="tablist" aria-label="O que mostrar">
           <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}>Agenda do dia</button>
+          <button type="button" role="tab" aria-selected={vista === 'semana'} onClick={() => setVista('semana')}>Semana</button>
           <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}>Aulas e presença</button>
           <button type="button" role="tab" aria-selected={vista === 'trocas'} onClick={() => setVista('trocas')}>Trocas</button>
         </div>
@@ -123,10 +129,11 @@ export default function Agenda() {
         {!equipeBalcao && vista !== 'trocas' && <button type="button" className="botao botao--linha botao--p tr-naovem" onClick={() => setPedir({})}>Pedir substituição</button>}
       </div>
 
+      {vista === 'semana' && <AgendaSemana dia={dia} aoAbrirDia={(d) => { setDia(d); setVista('dia'); }} />}
       {vista === 'trocas' && <PainelTrocas dia={dia} aoMudar={() => { recarregar(); setVersao((v) => v + 1); }} />}
 
       {vista === 'dia' && (
-        <AgendaServicos key={versao} dia={dia} abrirNovo={abrirNovoServico} aulas={dados || []} aoAbrirAula={(a) => {
+        <AgendaServicos key={versao} dia={dia} abrirNovo={abrirNovoServico} abrirEspera={abrirEspera} aulas={dados || []} aoAbrirAula={(a) => {
           setFiltro('Todas');
           setAbertas({ [a.id]: true });
           setVista('aulas');
@@ -156,6 +163,7 @@ export default function Agenda() {
                 <span className="b-aula__num">
                   <strong>{a.ocupadosQtd}/{a.capacidade}</strong>
                   <small>{a.passada ? plural(presentes, 'presente', 'presentes') : a.ocupadosQtd >= a.capacidade ? 'lotada' : plural(a.capacidade - a.ocupadosQtd, 'livre', 'livres')}</small>
+                  {!a.passada && a.espera?.length > 0 && <small className="b-aula__espera">{plural(a.espera.length, 'na espera', 'na espera')}</small>}
                 </span>
                 <span className="b-aula__seta" aria-hidden="true">{aberta ? '−' : '+'}</span>
               </button>
@@ -184,6 +192,7 @@ export default function Agenda() {
                               <Tag>{r.forma}</Tag>
                               {r.status === 'pendente' && <Tag tom="aviso">{st[0]}</Tag>}
                             </span>
+                            <Alertas lista={r.alertas} compacto />
                           </div>
                           {r.status !== 'pendente' && (
                             <div className="b-reserva__acoes">
@@ -212,6 +221,9 @@ export default function Agenda() {
                       );
                     })}
                   </ul>
+                  {equipeBalcao && !a.passada && (a.espera?.length > 0 || a.ocupadosQtd >= a.capacidade) && (
+                    <EsperaDaAula aula={a} aoAgendar={(x) => setAgendar({ ...a, alunoInicial: x })} aoPor={() => setEsperaAula(a)} aoMudar={recarregar} />
+                  )}
                   {equipeBalcao && (
                     <div className="b-botoes b-aula__rodape">
                       <button type="button" className="botao botao--cheio botao--p b-aula__agendar" onClick={() => setAgendar(a)}>Agendar aluno</button>
@@ -232,6 +244,7 @@ export default function Agenda() {
 
       </>)}
 
+      {esperaAula && <EntrarEsperaAula aula={esperaAula} aoFechar={() => setEsperaAula(null)} aoSalvar={() => { setEsperaAula(null); recarregar(); }} />}
       {agendar && <Agendar aula={agendar} aoFechar={() => setAgendar(null)} aoAgendar={() => { setAgendar(null); recarregar(); setAbertas((x) => ({ ...x, [agendar.id]: true })); }} />}
       {ficha && <FichaModal {...ficha} aoFechar={() => setFicha(null)} />}
       {trocar && <TrocaProfissional tipo="aula" id={trocar.id} aoFechar={() => setTrocar(null)} aoTerminar={() => { setTrocar(null); recarregar(); }} />}
@@ -239,6 +252,16 @@ export default function Agenda() {
       {pedir && <PedirSubstituicao dia={dia} item={pedir.item} aoFechar={() => setPedir(null)} aoEnviar={() => { setPedir(null); setVersao((v) => v + 1); }} />}
     </>
   );
+}
+
+// "Semana de 20 a 26 de out" (ou "27 de out a 2 de nov")
+function tituloSemana(dia) {
+  const ini = somarDias(dia, -((diaSemana(dia) + 6) % 7));
+  const fim = somarDias(ini, 6);
+  const mes = (d) => MESES[Number(d.slice(5, 7)) - 1];
+  return ini.slice(5, 7) === fim.slice(5, 7)
+    ? `Semana de ${Number(ini.slice(8))} a ${Number(fim.slice(8))} de ${mes(fim)}`
+    : `Semana de ${Number(ini.slice(8))} de ${mes(ini)} a ${Number(fim.slice(8))} de ${mes(fim)}`;
 }
 
 const FORMAS = [
@@ -249,9 +272,71 @@ const FORMAS = [
 ];
 const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito'];
 
+// lista de espera dentro da aula: quem espera, aviso por WhatsApp, agendar quando abrir vaga
+function EsperaDaAula({ aula, aoAgendar, aoPor, aoMudar }) {
+  const { chamar } = useBancada();
+  const lista = aula.espera || [];
+  const temVaga = aula.ocupadosQtd < aula.capacidade;
+  const quando = `${DIAS_LONGOS[diaSemana(aula.data)].toLowerCase()}, ${aula.data.slice(8)}/${aula.data.slice(5, 7)}`;
+  const mudar = async (x, status) => { await chamar('atualizarEspera', { id: x.id, status }); aoMudar(); };
+  return (
+    <div className="esp-aula">
+      <div className="esp-aula__topo">
+        <span className="rotulo">Lista de espera{lista.length ? ` · ${lista.length}` : ''}</span>
+        <button type="button" className="link-acao" onClick={aoPor}>+ pôr na lista</button>
+      </div>
+      {lista.length === 0 && <p className="b-suave">Ninguém esperando. Quem entrar recebe e-mail quando abrir uma vaga.</p>}
+      {lista.length > 0 && temVaga && <p className="esp-aula__vaga">Abriu vaga: avise quem está esperando (por ordem de chegada).</p>}
+      {lista.length > 0 && (
+        <ol className="esp-lista">
+          {lista.map((x) => (
+            <li key={x.id}>
+              <span className="esp-lista__quem"><strong>{x.nome}</strong>
+                <small>{x.origem === 'site' ? 'pelo site' : 'pela recepção'}{x.status === 'avisado' ? ' · aviso enviado' : ''}</small></span>
+              <span className="esp-lista__acoes">
+                {x.whatsapp && (
+                  <a className="link-acao com-icone" href={linkWhats(x.whatsapp, `Olá, ${primeiro(x.nome)}! Abriu uma vaga na aula de ${aula.modalidade} de ${quando} às ${hora(aula.hora)}, com ${aula.professor}. Quer que a gente reserve para você?`)}
+                    target="_blank" rel="noreferrer" onClick={() => x.status !== 'avisado' && mudar(x, 'avisado').catch(() => {})}><IconeWhatsapp tamanho={14} /> Avisar</a>
+                )}
+                {temVaga && <button type="button" className="link-acao" onClick={() => aoAgendar(x)}>Agendar</button>}
+                <BotaoAcao className="link-sair" confirmar={`Tirar ${x.nome} da lista de espera?`} acao={() => mudar(x, 'desistiu')}>tirar</BotaoAcao>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function EntrarEsperaAula({ aula, aoFechar, aoSalvar }) {
+  const { chamar } = useBancada();
+  const [erro, setErro] = useState('');
+  const excluir = [...aula.reservas.map((r) => r.cpf), ...(aula.espera || []).map((x) => x.cpf)].filter(Boolean);
+  return (
+    <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${aula.professor}`} titulo="Lista de espera" aoFechar={aoFechar}>
+      <div className="b-form">
+        <p className="b-suave">Quando alguém cancelar, quem está na lista recebe e-mail na hora, e a vaga aparece aqui para a recepção avisar pelo WhatsApp.</p>
+        <BuscaAluno autoFocus excluir={excluir} motivoExcluir="já está na aula ou na lista" aoEscolher={async (a) => {
+          setErro('');
+          try { await chamar('entrarEspera', { tipo: 'aula', aulaId: aula.id, cpf: a.cpf }); aoSalvar(); } catch (e) { setErro(e.message); }
+        }} />
+        <Erro>{erro}</Erro>
+      </div>
+    </Modal>
+  );
+}
+
 function Agendar({ aula, aoFechar, aoAgendar }) {
   const { chamar } = useBancada();
   const [aluno, setAluno] = useState(null);
+  // veio da lista de espera: já abre com a pessoa escolhida (busca o plano dela)
+  useEffect(() => {
+    if (!aula.alunoInicial?.cpf) return undefined;
+    let vivo = true;
+    chamar('alunos', { busca: aula.alunoInicial.cpf }).then((l) => { if (vivo) setAluno(l.find((x) => x.cpf === aula.alunoInicial.cpf) || null); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [aula, chamar]);
   const [tapete, setTapete] = useState(null);
   const [forma, setForma] = useState('credito');
   const [pg, setPg] = useState(PAGAMENTO_INICIAL);

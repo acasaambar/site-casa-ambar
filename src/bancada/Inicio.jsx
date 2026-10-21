@@ -195,10 +195,15 @@ export default function Inicio() {
                   <Atencao n={r.caixa === 'nao_aberto' ? 1 : 0} simbolo="R$" texto="abrir o caixa de hoje" para="/bancada/comandas" estado={{ vista: 'caixa' }} />
                   <Atencao n={r.comandasAbertas} texto={r.comandasAbertas === 1 ? 'comanda aberta' : 'comandas abertas'} para="/bancada/comandas" />
                   <Atencao n={r.estoqueBaixo} texto="produtos acabando" para="/bancada/estoque" estado={{ filtro: 'falta' }} />
+                  <Atencao n={r.remarcar?.n} texto={r.remarcar?.n === 1 ? 'pedido para remarcar (pelo link do lembrete)' : 'pedidos para remarcar (pelo link do lembrete)'} para="/bancada/agenda" estado={{ dia: r.remarcar?.dia, vista: 'dia' }} />
+                  <Atencao n={r.espera?.aulasComVaga} texto={r.espera?.aulasComVaga === 1 ? 'aula com vaga e gente na lista de espera' : 'aulas com vaga e gente na lista de espera'} para="/bancada/agenda" estado={{ vista: 'aulas' }} />
+                  <Atencao n={r.espera?.servicos} texto={r.espera?.servicos === 1 ? 'pedido na lista de espera de serviços' : 'pedidos na lista de espera de serviços'} para="/bancada/agenda" estado={{ espera: true }} />
+                  <Atencao n={r.retornos} texto={r.retornos === 1 ? 'retorno para sugerir' : 'retornos para sugerir'} para="/bancada/marketing" estado={{ aba: 'retornos' }} />
                   <Atencao n={r.lembretesWhats} texto="lembretes de amanhã para mandar no WhatsApp" para="/bancada/marketing" estado={{ aba: 'lembretes' }} />
                   <Atencao n={r.contasVencendo} texto="contas vencendo" para="/bancada/financeiro" estado={{ aba: 'despesas' }} />
                 </ul>
-                {!r.pedidosTroca && !r.wellhubPendentes && !r.devolverJuros && !r.vencendo && !r.comandasAbertas && !r.estoqueBaixo && !r.lembretesWhats && !r.contasVencendo && r.caixa !== 'nao_aberto' && <p className="b-suave">Nada pendente.</p>}
+                {!r.pedidosTroca && !r.wellhubPendentes && !r.devolverJuros && !r.vencendo && !r.comandasAbertas && !r.estoqueBaixo && !r.lembretesWhats && !r.contasVencendo && r.caixa !== 'nao_aberto'
+                  && !r.espera?.aulasComVaga && !r.remarcar?.n && !r.espera?.servicos && !r.retornos && <p className="b-suave">Nada pendente.</p>}
                 <nav className="atalhos" aria-label="Atalhos">
                   <Link to="/bancada/comandas" state={{ nova: true }}>Abrir comanda</Link>
                   <Link to="/bancada/agenda" state={{ vista: 'servicos', novoServico: true }}>Agendar serviço</Link>

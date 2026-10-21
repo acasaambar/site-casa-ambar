@@ -123,6 +123,12 @@ var PERMISSOES = {
   b_enviarLembretes: ['admin', 'recepcao'],
   b_marcarLembrete: ['admin', 'recepcao'],
   b_lembretesAuto: ['admin', 'recepcao'],
+  // lista de espera e retornos (Espera.gs)
+  b_espera: ['admin', 'recepcao'],
+  b_entrarEspera: ['admin', 'recepcao'],
+  b_atualizarEspera: ['admin', 'recepcao'],
+  b_retornos: ['admin', 'recepcao'],
+  b_marcarRetorno: ['admin', 'recepcao'],
 };
 
 function executarBancada(d) {
@@ -361,6 +367,13 @@ function bancada_resumo(d, m) {
     r.caixa = cx ? String(cx.status) : 'nao_aberto';
     var amanha = somarDias(hoje, 1);
     r.lembretesWhats = lembretesDe(amanha).filter(function (x) { return !x.enviado && !x.email && soDigitos(x.whatsapp).length >= 10; }).length;
+    r.espera = resumoEspera();
+    // pediram para remarcar pelo link do lembrete (e ainda não foram remarcados)
+    var pedidos = lerAba('Atendimentos').filter(function (a) {
+      return a.id && a.resposta === 'remarcar' && dataTexto(a.data) >= hoje && (a.status === 'agendado' || a.status === 'confirmado');
+    }).map(function (a) { return dataTexto(a.data); }).sort();
+    r.remarcar = { n: pedidos.length, dia: pedidos[0] || '' };
+    r.retornos = bancada_retornos({}).lista.length;
     if (m.papel === 'admin') {
       r.contasVencendo = lerAba('Despesas').filter(function (x) { return x.status === 'a_pagar' && dataTexto(x.data) <= somarDias(hoje, 3); }).length;
     }
@@ -400,6 +413,14 @@ function bancada_agenda(d, m) {
 
   var aulas = aulasDoPeriodo(de, dias, reservas);
   if (m.papel === 'professora') aulas = aulas.filter(function (a) { return mesmaProfessora(a.professor, m); });
+  // lista de espera de cada aula (só para a recepção e a administração)
+  var espera = {};
+  if (m.papel !== 'professora') {
+    var hojeE = hojeTexto();
+    lerAba('Espera').forEach(function (x) {
+      if (x.tipo === 'aula' && esperaVigente(x, hojeE)) (espera[x.aula_id] = espera[x.aula_id] || []).push(esperaPublica(x));
+    });
+  }
   return aulas.map(function (a) {
     var lista = reservas.filter(function (r) {
       if (r.aula_id !== a.id || r.status === 'cancelado') return false;
@@ -412,11 +433,12 @@ function bancada_agenda(d, m) {
         id: r.id, nome: r.nome || al.nome, cpf: m.papel === 'professora' ? '' : cpf, whatsapp: m.papel === 'professora' ? '' : String(al.whatsapp || ''),
         tapete: r.tapete ? Number(r.tapete) : null, status: r.status, forma: formaDaReserva(r, creditos),
         ficha: !!f, alerta: f ? String(f.parq_algum_sim) === 'SIM' || !!String(f.lesoes || '').trim() || String(f.gestante) === 'sim' : false,
-        primeiraAula: primeiras[cpf] === r.id,
+        primeiraAula: primeiras[cpf] === r.id, alertas: alertasDe(cpf),
       };
     }).sort(function (x, y) { return (x.tapete || 99) - (y.tapete || 99) || String(x.nome).localeCompare(String(y.nome)); });
     a.reservas = lista;
     a.ocupadosQtd = lista.length;
+    a.espera = (espera[a.id] || []).filter(function (x) { return !lista.some(function (r) { return r.cpf && r.cpf === x.cpf; }); });
     a.passada = inicio(a).getTime() + AJUSTES.duracaoAulaMin * 60000 < Date.now();
     return a;
   });
@@ -486,6 +508,7 @@ function bancada_agendar(d, m) {
       creditoId, '', '']));
     SpreadsheetApp.flush();
     registrar(m, 'agendou', aluno.nome + ' · ' + aula.id + ' · ' + descricao);
+    esperaResolvida('aula', aula.id, cpf);
     return { id: id, forma: descricao };
   } finally {
     trava.releaseLock();
@@ -498,7 +521,8 @@ function bancada_cancelarReserva(d, m) {
   atualizarLinha('Reservas', r._linha, { status: 'cancelado', cancelada_em: agoraTexto() });
   esquecerComissoesAulas();
   registrar(m, 'cancelou reserva', r.nome + ' · ' + r.aula_id + (d.motivo ? ' · ' + d.motivo : ''));
-  return true;
+  // quem está na lista de espera recebe o aviso da vaga
+  return { avisados: avisarVagaAula(r.aula_id) };
 }
 
 // ============================================================
@@ -675,6 +699,8 @@ function bancada_aluno(d) {
   r.nascimento = String(a.nascimento || '').slice(0, 10);
   r.endereco = enderecoPublico(a);
   r.comoConheceu = String(a.como_conheceu || '');
+  r.alertaFixo = String(a.alerta || '');
+  r.alertas = alertasDe(cpf);
   r.marketing = String(a.marketing).toUpperCase() !== 'NÃO';
   r.fichaEstetica = !!linhaFichaEstetica(cpf);
   r.evolucoes = evolucoesDe(cpf).length;
@@ -730,6 +756,7 @@ function bancada_salvarAluno(d, m) {
   if (x.marketing != null) mud.marketing = x.marketing ? '' : 'NÃO';
   if (x.endereco) Object.assign(mud, enderecoDe(x.endereco));
   if (x.comoConheceu != null) mud.como_conheceu = textoComoConheceu(x.comoConheceu);
+  if (x.alertaFixo != null) mud.alerta = String(x.alertaFixo).trim().replace(/\s+/g, ' ').slice(0, 200);
   atualizarLinha('Alunos', a._linha, mud);
   registrar(m, 'editou aluno', a.nome + ' · ' + Object.keys(mud).join(', '));
   if (x.cpf && soDigitos(x.cpf) !== normCpf(a.cpf)) {
@@ -1182,7 +1209,7 @@ function bancada_ajustes() {
   return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes,
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
     wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
-    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas,
+    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, taxas: AJUSTES.taxas,
     ultimosLembretes: PropertiesService.getScriptProperties().getProperty('LEMBRETES_ULTIMO') || '',
     emailsRestantes: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } })() };
 }
@@ -1199,6 +1226,15 @@ function bancada_salvarAjustes(d, m) {
     if (isNaN(n) || n < limites[k][0] || n > limites[k][1]) throw new Error('Valor fora do limite em ' + k + ' (' + limites[k][0] + ' a ' + limites[k][1] + ').');
     salvar[k] = n;
   });
+  // taxas da maquininha (% de 0 a 20, com até 2 casas)
+  if (a.taxas && typeof a.taxas === 'object') {
+    salvar.taxas = {};
+    Object.keys(AJUSTES.taxas).forEach(function (k) {
+      var n = Math.round(numero(a.taxas[k]) * 100) / 100;
+      if (isNaN(n) || n < 0 || n > 20) throw new Error('Taxa fora do limite (0 a 20%).');
+      salvar.taxas[k] = n;
+    });
+  }
   var props = PropertiesService.getScriptProperties();
   var atual = {};
   try { atual = JSON.parse(props.getProperty('AJUSTES_JSON') || '{}') || {}; } catch (e) { atual = {}; }

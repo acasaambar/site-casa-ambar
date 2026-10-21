@@ -14,7 +14,7 @@ var CONDICOES_ESTETICA = ['Hipertensão', 'Diabetes', 'Marcapasso ou implante me
   'Distúrbio de coagulação', 'Gestante ou amamentando', 'Uso de isotretinoína (Roacutan) nos últimos 6 meses'];
 var PASTA_FOTOS = 'Casa Âmbar · Fotos de clientes';
 // abas que guardam o CPF do cliente (para transferir quando o CPF é informado depois)
-var ABAS_COM_CPF = ['Atendimentos', 'Pagamentos', 'Creditos', 'Reservas', 'Vales', 'Comandas', 'Evolucoes', 'FichasEstetica', 'Anamneses', 'AnamnesesProf'];
+var ABAS_COM_CPF = ['Atendimentos', 'Pagamentos', 'Creditos', 'Reservas', 'Vales', 'Comandas', 'Evolucoes', 'FichasEstetica', 'Anamneses', 'AnamnesesProf', 'Espera'];
 
 function temCpfReal(id) { var d = soDigitos(id); return d.length === 11 && cpfValido(d); }
 
@@ -708,6 +708,7 @@ function bancada_excluirCliente(d, m) {
     // dados de saúde e fotos: sempre apagados
     apagarLinhasDoCpf('Anamneses', cpf, function (l) { var id = (String(l.pdf || '').match(/\/d\/([\w-]+)/) || [])[1]; lixeiraDrive(id); });
     apagarLinhasDoCpf('FichasEstetica', cpf);
+    apagarLinhasDoCpf('Espera', cpf);
     apagarLinhasDoCpf('Evolucoes', cpf, function (l) { String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive); });
     apagarLinhasDoCpf('AnamnesesProf', cpf, function (l) {
       String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive);
@@ -725,17 +726,74 @@ function bancada_excluirCliente(d, m) {
       ABAS_COM_HISTORICO.forEach(function (n) { anonimizarNaAba(n, cpf, novo); });
       var limpo = { cpf: novo, nome: NOME_EXCLUIDO, ativo: 'NÃO', origem_cadastro: 'excluído em ' + hojeTexto(), marketing: 'NÃO' };
       ['whatsapp', 'email', 'senha_hash', 'sal', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'nascimento', 'cep', 'endereco', 'numero', 'complemento',
-        'bairro', 'cidade', 'uf', 'como_conheceu'].forEach(function (c) { limpo[c] = ''; });
+        'bairro', 'cidade', 'uf', 'como_conheceu', 'alerta'].forEach(function (c) { limpo[c] = ''; });
       var s = aba('Alunos');
       s.getRange(a._linha, coluna('Alunos', 'cpf')).setNumberFormat('@');
       atualizarLinha('Alunos', a._linha, limpo);
       resultado = { anonimizado: true, codigo: novo };
     }
     esquecerListaClientes();
+    esquecerAlertas();
     SpreadsheetApp.flush();
   } finally {
     trava.releaseLock();
   }
   registrar(m, 'excluiu cliente', resultado.apagado ? 'cadastro sem histórico' : 'anonimizado (código ' + resultado.codigo + ')');
   return resultado;
+}
+
+// ============================================================
+//  ALERTAS DA CLIENTE (alergia, gestante, cuidado especial)
+// ============================================================
+// Vêm do alerta fixo escrito pela equipe (Alunos.alerta), da ficha de saúde (alergias, gestante)
+// e da ficha de estética (alergias). Aparecem na agenda, nas aulas e na comanda.
+// O mapa fica 30 min no cache; gravar em Alunos, Anamneses ou FichasEstetica pelo sistema apaga na hora.
+var ABAS_DOS_ALERTAS = { Alunos: 1, Anamneses: 1, FichasEstetica: 1 };
+var CHAVE_ALERTAS = 'alertas_clientes';
+var NADA_A_DECLARAR = /^(n[aã]o|nenhuma?|nada|nao tenho|não tenho|desconhe[cç]o|sem alergias?|-+|n\/?a|negativo)\.?$/i;
+
+function montarAlertas() {
+  var o = {};
+  var add = function (cpf, t) {
+    cpf = normCpf(cpf);
+    t = String(t || '').trim().replace(/\s+/g, ' ');
+    if (!cpf || !t) return;
+    if (t.length > 90) t = t.slice(0, 88) + '…';
+    (o[cpf] = o[cpf] || []);
+    if (o[cpf].indexOf(t) < 0) o[cpf].push(t);
+  };
+  var alergia = function (cpf, t) { t = String(t || '').trim(); if (t && !NADA_A_DECLARAR.test(t)) add(cpf, 'Alergia: ' + t); };
+  var al = valoresAba('Alunos'), k = indiceColunas(al[0]);
+  if (k.alerta != null) for (var i = 1; i < al.length; i++) if (al[i][k.cpf]) add(al[i][k.cpf], al[i][k.alerta]);
+  var an = valoresAba('Anamneses'), ka = indiceColunas(an[0]);
+  for (i = 1; i < an.length; i++) {
+    if (!an[i][ka.cpf]) continue;
+    alergia(an[i][ka.cpf], an[i][ka.alergias]);
+    if (String(an[i][ka.gestante]).toLowerCase() === 'sim') add(an[i][ka.cpf], 'Gestante' + (an[i][ka.gestante_semanas] ? ' (' + an[i][ka.gestante_semanas] + ' semanas na ficha)' : ''));
+  }
+  var fe = valoresAba('FichasEstetica'), kf = indiceColunas(fe[0]);
+  for (i = 1; i < fe.length; i++) if (fe[i][kf.cpf]) alergia(fe[i][kf.cpf], fe[i][kf.alergias]);
+  return o;
+}
+
+var _alertas = null;
+function mapaAlertas() {
+  if (_alertas) return _alertas;
+  var cache = CacheService.getScriptCache();
+  try {
+    var t = cache.get(CHAVE_ALERTAS);
+    if (t) { _alertas = JSON.parse(t); return _alertas; }
+  } catch (e) { /* lê da planilha */ }
+  _alertas = montarAlertas();
+  try { var j = JSON.stringify(_alertas); if (j.length < 95000) cache.put(CHAVE_ALERTAS, j, 1800); } catch (e) { /* sem cache */ }
+  return _alertas;
+}
+
+function esquecerAlertas() {
+  _alertas = null;
+  try { CacheService.getScriptCache().remove(CHAVE_ALERTAS); } catch (e) { /* ignora */ }
+}
+
+function alertasDe(cpf) {
+  return cpf ? (mapaAlertas()[normCpf(cpf)] || []) : [];
 }

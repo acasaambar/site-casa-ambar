@@ -305,6 +305,18 @@ export function Erro({ children }) {
   return <p className="erro erro--destaque" role="alert">{children}</p>;
 }
 
+// alertas da cliente (alergia, gestante, cuidado combinado): sempre à vista na agenda, nas aulas e na comanda
+export function Alertas({ lista, compacto }) {
+  if (!lista?.length) return null;
+  return (
+    <div className={`b-alertas${compacto ? ' b-alertas--compacto' : ''}`} role="note">
+      <span className="b-alertas__icone" aria-hidden="true">!</span>
+      <span className="b-alertas__rotulo">Atenção</span>
+      <ul>{lista.map((t) => <li key={t}>{t}</li>)}</ul>
+    </div>
+  );
+}
+
 export function Tag({ tom = 'neutro', children, title }) {
   return <span className={`b-tag b-tag--${tom}`} title={title}>{children}</span>;
 }

@@ -22,6 +22,10 @@ export function Header() {
   useEffect(() => {
     setAberto(false);
   }, [pathname]);
+  // título da aba por página (a bancada cuida do próprio título)
+  useEffect(() => {
+    document.title = tituloDaPagina(pathname);
+  }, [pathname]);
 
   const transparente = naHome && !rolou && !aberto;
 
@@ -73,6 +77,26 @@ export function Header() {
       )}
     </header>
   );
+}
+
+const TITULO_INICIO = 'Casa Âmbar · Yoga, Pilates, Estética e Fisioterapia na Aldeota, Fortaleza';
+const TITULOS = {
+  '/entrar': 'Entrar',
+  '/aulas': 'Aulas',
+  '/meu-plano': 'Meu plano',
+  '/pagamento': 'Pagamento',
+  '/ficha-saude': 'Ficha de saúde',
+  '/minhas-reservas': 'Minhas reservas',
+  '/minha-conta': 'Minha conta',
+  '/esqueci-senha': 'Esqueci a senha',
+  '/nova-senha': 'Nova senha',
+  '/descadastrar': 'Descadastrar',
+  '/confirmar': 'Confirmar horário',
+};
+function tituloDaPagina(pathname) {
+  if (pathname === '/') return TITULO_INICIO;
+  const nome = TITULOS[pathname] || (pathname.startsWith('/aula/') ? 'Reservar aula' : pathname.startsWith('/confirmar/') ? TITULOS['/confirmar'] : '');
+  return nome ? `${nome} · Casa Âmbar` : TITULO_INICIO;
 }
 
 function irPara(e, id) {

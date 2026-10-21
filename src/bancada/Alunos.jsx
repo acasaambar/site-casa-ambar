@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
-import { useDados, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
+import { useDados, Alertas, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
@@ -384,6 +384,7 @@ export function AlunoDetalhe() {
         {wh && <Tag tom={wh[1]}>{wh[0]}{a.wellhubId ? ' · ID ' + a.wellhubId : ''}</Tag>}
         {!a.temSenha && !a.semCpf && <Tag>ainda não criou senha</Tag>}
       </div>
+      <Alertas lista={a.alertas} />
       <Erro>{erro}</Erro>
       {aviso && <p className="aviso">{aviso}</p>}
 
@@ -603,7 +604,7 @@ function Prorrogar({ c, aoSalvar }) {
 }
 
 function EditarAluno({ a, aoFechar, aoSalvar }) {
-  const [f, setF] = useState({ nome: a.nome, whatsapp: telFmt(a.whatsapp), email: a.email, obs: a.obs, ativo: a.ativo, wellhubId: a.wellhubId, nascimento: a.nascimento || '',
+  const [f, setF] = useState({ nome: a.nome, whatsapp: telFmt(a.whatsapp), email: a.email, obs: a.obs, alertaFixo: a.alertaFixo || '', ativo: a.ativo, wellhubId: a.wellhubId, nascimento: a.nascimento || '',
     marketing: a.marketing !== false, cpf: '', comoConheceu: a.comoConheceu || '', endereco: { ...ENDERECO_VAZIO, ...(a.endereco || {}) } });
   const [erro, setErro] = useState('');
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
@@ -626,6 +627,8 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
         <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
         <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
         <label className="b-check"><input type="checkbox" checked={f.marketing} onChange={(e) => setF((x) => ({ ...x, marketing: e.target.checked }))} /> Recebe campanhas por e-mail</label>
+        <label className="b-campo"><span className="rotulo">Alerta fixo (aparece na agenda, nas aulas e na comanda)</span>
+          <input {...campo('alertaFixo')} maxLength={200} placeholder="Ex.: alergia a látex · pressão baixa · não usar óleo de amêndoas" /></label>
         <label className="b-campo"><span className="rotulo">Observações internas</span><textarea rows={3} {...campo('obs')} placeholder="Só a equipe vê. Ex.: prefere tapete perto da janela" /></label>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF((x) => ({ ...x, ativo: e.target.checked }))} /> Cadastro ativo (pode entrar e reservar)</label>
         <Erro>{erro}</Erro>

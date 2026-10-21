@@ -94,7 +94,7 @@ export default function Aulas() {
               </div>
             ) : (
               <ul className="lista-aulas">
-                {doDia.map((a) => <ItemAula key={a.id} aula={a} />)}
+                {doDia.map((a) => <ItemAula key={a.id} aula={a} token={token} aoMudar={(x) => setAulas((l) => l.map((y) => (y.id === a.id ? { ...y, ...x } : y)))} />)}
               </ul>
             )}
           </>
@@ -104,7 +104,9 @@ export default function Aulas() {
   );
 }
 
-function ItemAula({ aula }) {
+function ItemAula({ aula, token, aoMudar }) {
+  const [ocupado, setOcupado] = useState(false);
+  const [aviso, setAviso] = useState('');
   const livres = aula.capacidade - aula.ocupadosQtd;
   const passou = inicioDaAula(aula) < new Date();
   const lotada = livres <= 0;
@@ -114,11 +116,34 @@ function ItemAula({ aula }) {
   let acao;
   if (aula.minhaReserva) acao = <Link to="/minhas-reservas" className="botao botao--pequeno botao--reservado">{yoga ? `Tapete ${aula.minhaReserva.tapete}` : 'Reservado'}</Link>;
   else if (passou) acao = <span className="selo-estado">Encerrada</span>;
-  else if (lotada) acao = <span className="selo-estado">Lotada</span>;
-  else acao = <Link to={`/aula/${encodeURIComponent(aula.id)}`} className="botao botao--pequeno botao--cheio">Reservar</Link>;
+  else if (lotada) {
+    // aula lotada: lista de espera (e-mail na hora em que abrir uma vaga)
+    const espera = async () => {
+      setOcupado(true);
+      setAviso('');
+      try {
+        const r = aula.naEspera ? await api.sairEspera(token, aula.id) : await api.entrarEspera(token, aula.id);
+        aoMudar({ naEspera: r.naEspera });
+        setAviso(r.naEspera ? 'Pronto! Se abrir uma vaga, avisamos por e-mail.' : '');
+      } catch (e) {
+        setAviso(e.message);
+      } finally {
+        setOcupado(false);
+      }
+    };
+    acao = (
+      <div className="aula__espera">
+        <button type="button" className={`botao botao--pequeno ${aula.naEspera ? 'botao--reservado' : 'botao--linha'}`} disabled={ocupado} onClick={espera}
+          aria-pressed={!!aula.naEspera} title={aula.naEspera ? 'Toque para sair da lista de espera' : undefined}>
+          {ocupado ? 'Aguarde…' : aula.naEspera ? 'Na lista de espera ✓' : 'Lista de espera'}
+        </button>
+        {aviso && <span className="aula__espera-aviso" role="status">{aviso}</span>}
+      </div>
+    );
+  } else acao = <Link to={`/aula/${encodeURIComponent(aula.id)}`} className="botao botao--pequeno botao--cheio">Reservar</Link>;
 
   return (
-    <li className={`aula aula--${yoga ? 'yoga' : 'pilates'} ${passou || lotada ? 'aula--apagada' : ''}`}>
+    <li className={`aula aula--${yoga ? 'yoga' : 'pilates'} ${passou ? 'aula--apagada' : lotada ? 'aula--lotada' : ''}`}>
       <div className="aula__hora">
         <strong>{formatarHora(aula.hora)}</strong>
         <span>até {formatarHora(horaFim(aula.hora, aula.duracao || 60))}</span>

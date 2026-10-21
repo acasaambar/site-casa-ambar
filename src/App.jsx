@@ -14,6 +14,7 @@ import MeuPlano from './pages/MeuPlano.jsx';
 import Pagamento from './pages/Pagamento.jsx';
 import WhatsFlutuante from './components/WhatsFlutuante.jsx';
 import { EsqueciSenha, NovaSenha, Descadastrar } from './pages/Senha.jsx';
+import Confirmar from './pages/Confirmar.jsx';
 
 // a bancada só é baixada por quem abre /#/bancada (o site do aluno fica leve)
 const Bancada = lazy(() => import('./bancada/Bancada.jsx'));
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/esqueci-senha" element={<EsqueciSenha />} />
           <Route path="/nova-senha" element={<NovaSenha />} />
           <Route path="/descadastrar" element={<Descadastrar />} />
+          <Route path="/confirmar/:t" element={<Confirmar />} />
           <Route path="/bancada/*" element={<Suspense fallback={<div className="b-carregando-tela" role="status">Abrindo a bancada…</div>}><Bancada /></Suspense>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -590,6 +590,54 @@ function formasDasVendas(pags) {
   return r;
 }
 
+// cada pedaço recebido: { metodo, bandeira, parcelas, valor } (comanda dividida conta cada forma)
+function partesRecebidas(pags) {
+  var partes = [];
+  var comandas = {};
+  pags.forEach(function (p) {
+    if (p.comanda) { comandas[String(p.comanda)] = 1; return; }
+    // pagamento pelo site (checkout da InfinitePay): cartão é cobrado como link
+    var metodo = String(p.metodo || 'não informado');
+    if (metodo === 'Cartão' && String(p.origem || 'site') !== 'balcão') metodo = 'Link InfinitePay';
+    partes.push({ metodo: metodo, bandeira: String(p.bandeira || ''), parcelas: Number(p.parcelas) || 1, valor: numero(p.valor) });
+  });
+  if (Object.keys(comandas).length) {
+    lerAba('Comandas').forEach(function (c) {
+      if (!comandas[String(c.id)]) return;
+      parseJson(c.pagamentos, []).forEach(function (x) {
+        if (x.metodo !== 'Vale-presente') partes.push({ metodo: x.metodo, bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) });
+      });
+    });
+  }
+  return partes;
+}
+
+// taxa estimada da maquininha/link sobre um pedaço recebido (Ajustes → Taxas)
+function taxaDaParte(x) {
+  var t = AJUSTES.taxas || {};
+  var pct = x.metodo === 'Pix' ? t.pix : x.metodo === 'Cartão de débito' ? t.debito : x.metodo === 'Link InfinitePay' ? t.link
+    : x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão' ? (x.parcelas > 6 ? t.credito7a12 : x.parcelas > 1 ? t.credito2a6 : t.credito1) : 0;
+  return dinheiro(x.valor * (numero(pct) || 0) / 100);
+}
+
+var FORMAS_MAQUININHA = ['Pix', 'Cartão de débito', 'Cartão de crédito', 'Link InfinitePay'];
+
+// o que conferir com o extrato (maquininha, link e Pix): total por forma e por bandeira
+function conferirPorForma(pags) {
+  var r = {};
+  FORMAS_MAQUININHA.forEach(function (f) { r[f] = { forma: f, valor: 0, bandeiras: {} }; });
+  partesRecebidas(pags).forEach(function (x) {
+    var f = x.metodo === 'Cartão' ? 'Cartão de crédito' : x.metodo;
+    if (!r[f]) return;
+    r[f].valor = dinheiro(r[f].valor + x.valor);
+    if (x.bandeira) r[f].bandeiras[x.bandeira] = dinheiro((r[f].bandeiras[x.bandeira] || 0) + x.valor);
+  });
+  return FORMAS_MAQUININHA.map(function (f) {
+    var b = r[f].bandeiras;
+    return { forma: f, valor: r[f].valor, bandeiras: Object.keys(b).map(function (k) { return { nome: k, valor: b[k] }; }).sort(function (x, y) { return y.valor - x.valor; }) };
+  });
+}
+
 function grupoDoPagamento(p, itens) {
   if (String(p.tipo_item) === 'produto') return 'Produtos';
   if (String(p.tipo_item) === 'vale') return 'Vales-presente';
@@ -638,7 +686,18 @@ function bancada_financeiro(d) {
     serie.push({ chave: k, entradas: soma(vendas.filter(function (p) { return dia(p) === k; }), function (p) { return numero(p.valor); }),
       saidas: soma(saidas.filter(function (x) { return pagoNo(x) === k; }), function (x) { return x.valor; }) });
   }
+  // taxas estimadas da maquininha e do link (Ajustes → Taxas)
+  var taxasPorForma = {};
+  var taxas = 0;
+  partesRecebidas(vendas).forEach(function (x) {
+    var t = taxaDaParte(x);
+    if (!t) return;
+    taxas = dinheiro(taxas + t);
+    taxasPorForma[x.metodo] = dinheiro((taxasPorForma[x.metodo] || 0) + t);
+  });
+  var taxasConfiguradas = Object.keys(AJUSTES.taxas || {}).some(function (k) { return numero(AJUSTES.taxas[k]) > 0; });
   return {
+    taxas: taxas, taxasPorForma: lista(taxasPorForma), taxasConfiguradas: taxasConfiguradas, liquido: dinheiro(entradas - taxas - totalSaidas),
     mes: mes, entradas: entradas, saidas: totalSaidas, resultado: dinheiro(entradas - totalSaidas),
     entradasAnterior: soma(vendasAnt, function (p) { return numero(p.valor); }), saidasAnterior: soma(saidasAnt, function (x) { return x.valor; }),
     aPagar: soma(aPagar, function (x) { return x.valor; }), aPagarQtd: aPagar.length,
@@ -678,6 +737,8 @@ function resumoCaixa(data) {
     dinheiroVendas: dinheiroVendas, suprimentos: tot('suprimento'), sangrias: tot('sangria'), despesas: tot('despesa'), esperado: esperado,
     contado: c && c.contado !== '' ? dinheiro(c.contado) : null, diferenca: c && c.diferenca !== '' ? dinheiro(c.diferenca) : null,
     fechadoPor: c ? String(c.fechado_por || '').split('@')[0] : '', fechadoEm: c ? String(c.fechado_em || '') : '', obs: c ? String(c.obs || '') : '',
+    // conferir com o extrato da maquininha: o sistema por forma/bandeira e o que foi informado ao fechar
+    conferir: conferirPorForma(pags), conferencia: c ? parseJson(c.conferencia, []) : [],
   };
 }
 
@@ -749,9 +810,18 @@ function bancada_fecharCaixa(d, m) {
   if (String(d.contado) === '' || numero(d.contado) < 0) throw new Error('Conte o dinheiro da gaveta e informe o valor.');
   var r = resumoCaixa(data);
   var contado = dinheiro(d.contado);
+  // extrato da maquininha/link/Pix informado por forma (opcional): guarda o que bateu e o que não bateu
+  var conf = [];
+  var inf = d.conferencia || {};
+  r.conferir.forEach(function (f) {
+    if (inf[f.forma] == null || String(inf[f.forma]) === '' || isNaN(numero(inf[f.forma]))) return;
+    var v = dinheiro(inf[f.forma]);
+    conf.push({ forma: f.forma, sistema: f.valor, informado: v, diferenca: dinheiro(v - f.valor) });
+  });
   atualizarLinha('Caixa', c._linha, { status: 'fechado', dinheiro_vendas: r.dinheiroVendas, esperado: r.esperado, contado: contado,
-    diferenca: dinheiro(contado - r.esperado), fechado_por: m.email, fechado_em: agoraTexto(), obs: String(d.obs || '').slice(0, 300) });
-  registrar(m, 'fechou o caixa', 'esperado ' + brl(r.esperado) + ' · contado ' + brl(contado));
+    diferenca: dinheiro(contado - r.esperado), fechado_por: m.email, fechado_em: agoraTexto(), obs: String(d.obs || '').slice(0, 300), conferencia: conf.length ? JSON.stringify(conf) : '' });
+  var naoBateu = conf.filter(function (x) { return Math.abs(x.diferenca) > 0.009; });
+  registrar(m, 'fechou o caixa', 'esperado ' + brl(r.esperado) + ' · contado ' + brl(contado) + (naoBateu.length ? ' · extrato diferente em ' + naoBateu.map(function (x) { return x.forma; }).join(', ') : ''));
   return bancada_caixa({ data: data }, m);
 }
 
@@ -759,7 +829,7 @@ function bancada_reabrirCaixa(d, m) {
   var data = dataValida(d.data, hojeTexto());
   var c = caixaDoDia(data);
   if (!c) throw new Error('Caixa não encontrado.');
-  atualizarLinha('Caixa', c._linha, { status: 'aberto', contado: '', diferenca: '', fechado_por: '', fechado_em: '' });
+  atualizarLinha('Caixa', c._linha, { status: 'aberto', contado: '', diferenca: '', fechado_por: '', fechado_em: '', conferencia: '' });
   registrar(m, 'reabriu o caixa', data);
   return bancada_caixa({ data: data }, m);
 }
@@ -837,7 +907,7 @@ function comandaPublica(c) {
     cpf: c.cpf ? normCpf(c.cpf) : '', nome: String(c.nome || ''), whatsapp: String(c.whatsapp || ''), itens: parseJson(c.itens, []),
     subtotal: dinheiro(c.subtotal), desconto: dinheiro(c.desconto), total: dinheiro(c.total), pagamentos: parseJson(c.pagamentos, []),
     codigo: String(c.codigo || ''), obs: String(c.obs || ''), abertaPor: String(c.aberta_por || '').split('@')[0], fechadaPor: String(c.fechada_por || '').split('@')[0],
-    historico: parseJson(c.historico, []) };
+    historico: parseJson(c.historico, []), alertas: alertasDe(c.cpf) };
 }
 
 function acharComanda(id) {
@@ -860,6 +930,7 @@ function calcularItensComanda(itens, cpf, codigo) {
   var usado = false;
   var erroCodigo = '';
   var valeAulaUsado = false;
+  var usoPacote = {}; // sessões de pacote já usadas por outros itens desta comanda
   var lista = itens.map(function (x, i) {
     var tipo = String(x.tipo || '');
     if (tipo === 'vale') return itemValeVendido(x);
@@ -875,6 +946,21 @@ function calcularItensComanda(itens, cpf, codigo) {
       profissional: String(x.profissional || '').slice(0, 60), atendimentoId: atend ? String(atend.id) : '', data: data, pago: pagoAntes, promocao: '', cupom: '', vale: '',
       valeUsado: 0, obs: String(x.obs || '').replace(/\s+/g, ' ').trim().slice(0, 200) };
     if (it.pago) { it.valor = 0; it.total = 0; it.desconto = 0; return it; }
+    // serviço de quem tem pacote: pode usar uma sessão em vez de cobrar
+    if (tipo === 'servico' && cpf) {
+      var cred = creditoDeServico(cpf, cat.id, data);
+      var restam = cred ? cred.restantes - (usoPacote[cred.id] || 0) : 0;
+      if (cred && restam > 0) it.pacoteDisponivel = { id: String(cred.id), descricao: String(cred.descricao), restantes: restam, fim: String(cred.fim) };
+      if (x.usarPacote) {
+        if (!it.pacoteDisponivel) throw new Error((x.nome || cat.nome) + ': não há pacote com sessão disponível para usar.');
+        usoPacote[cred.id] = (usoPacote[cred.id] || 0) + 1;
+        it.usarPacote = true;
+        it.pacote = String(cred.id);
+        it.pacoteDescricao = String(cred.descricao);
+        it.valor = 0; it.total = 0; it.desconto = 0;
+        return it;
+      }
+    }
     var calc;
     var cod = codigoLimpo(codigo);
     // vale em R$ não vai no campo do código (abatia por unidade e passava do saldo): entra no Receber, forma Vale-presente
@@ -1004,7 +1090,7 @@ function bancada_salvarComanda(d, m) {
   var itens = (x.itens || []).slice(0, 40).map(function (i) {
     return { uid: i.uid, tipo: String(i.tipo || ''), id: String(i.tipo === 'vale' ? 'vale' : i.id || ''), nome: String(i.nome || ''), qtd: i.qtd, profissional: i.profissional,
       atendimentoId: i.atendimentoId, valorManual: i.valorManual, pago: !!i.pago, data: i.data, descontoTipo: i.descontoTipo, descontoValor: i.descontoValor,
-      motivoDesconto: i.motivoDesconto, obs: i.obs, vale: i.tipo === 'vale' ? i.vale || i.dadosVale : undefined };
+      motivoDesconto: i.motivoDesconto, obs: i.obs, vale: i.tipo === 'vale' ? i.vale || i.dadosVale : undefined, usarPacote: !!i.usarPacote };
   }).filter(function (i) { return i.id; });
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
@@ -1016,7 +1102,7 @@ function bancada_salvarComanda(d, m) {
     var precisaCadastro = itens.some(function (i) { if (i.tipo === 'vale') return false; var it = itemDoCatalogo(i.tipo, i.id); return it && (it.tipo === 'pacote' || (i.tipo !== 'produto' && it.modalidade !== 'Serviço')); });
     if (precisaCadastro && !cli.cpf) throw new Error('Plano e pacote ficam na conta de quem compra: escolha alguém com cadastro (ou informe nome e WhatsApp).');
     var calc = calcularItensComanda(itens, cli.cpf, x.codigo);
-    var subtotal = dinheiro(calc.reduce(function (s, i) { return s + (i.pago ? 0 : i.preco * i.qtd); }, 0));
+    var subtotal = dinheiro(calc.reduce(function (s, i) { return s + (i.pago || i.pacote ? 0 : i.preco * i.qtd); }, 0));
     var total = dinheiro(calc.reduce(function (s, i) { return s + i.total; }, 0));
     var linha = { status: 'aberta', cpf: cli.cpf, nome: cli.nome, whatsapp: cli.whatsapp, itens: JSON.stringify(calc), subtotal: subtotal,
       desconto: dinheiro(subtotal - total), total: total, codigo: codigoLimpo(x.codigo), obs: String(x.obs || '').slice(0, 300) };
@@ -1137,6 +1223,7 @@ function bancada_reabrirComanda(d, m) {
     creditos.forEach(function (id) { if (mc[id]) atualizarLinha('Creditos', mc[id]._linha, { ativo: 'NÃO' }); });
     valesVendidos.forEach(function (v) { atualizarLinha('Vales', v._linha, { status: 'cancelado' }); });
     // estoque e comissões
+    var criadosNaComanda = {}; // atendimentos criados só para contar a sessão do pacote: saem junto
     cm.itens.forEach(function (it, idx) {
       if (it.tipo === 'produto') {
         try { movimentarEstoque(it.id, it.qtd, 'devolução', 'Comanda ' + cm.id + ' reaberta', 'comanda:' + cm.id, m.email); } catch (e) { Logger.log('estoque: ' + e.message); }
@@ -1145,7 +1232,10 @@ function bancada_reabrirComanda(d, m) {
         if (it.atendimentoId) {
           var a = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
           if (a) {
-            if (!it.pago) atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
+            if (it.pacote && /^Feito na comanda/.test(String(a.obs || ''))) {
+              criadosNaComanda[a.id] = 1;
+              atualizarLinha('Atendimentos', a._linha, { status: 'cancelado', pagamento: 'no_dia', credito_id: '', atualizado_em: agoraTexto() });
+            } else if (!it.pago) atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
             cancelarComissao(String(a.id));
             aplicarConsumo(a.servico_id, 'atend:' + a.id, a.nome, false, m.email);
           }
@@ -1156,7 +1246,12 @@ function bancada_reabrirComanda(d, m) {
       }
     });
     // itens de vale voltam sem código (um novo nasce ao fechar de novo)
-    var itens = cm.itens.map(function (it) { var x = Object.assign({}, it); delete x.valeCodigo; return x; });
+    var itens = cm.itens.map(function (it) {
+      var x = Object.assign({}, it);
+      delete x.valeCodigo;
+      if (criadosNaComanda[x.atendimentoId]) x.atendimentoId = '';
+      return x;
+    });
     atualizarLinha('Comandas', c._linha, { status: 'aberta', fechada_em: '', fechada_por: '', pagamentos: '', itens: JSON.stringify(itens),
       historico: anotarComanda(c, m.email, 'reabriu para corrigir: ' + motivo) });
     SpreadsheetApp.flush();
@@ -1231,6 +1326,24 @@ function bancada_fecharComanda(d, m) {
         }
         return;
       }
+      if (it.pacote) {
+        // sessão do pacote: o atendimento (da agenda ou criado agora, para contar a sessão) leva o crédito; comissão pela regra do pacote
+        if (!a) {
+          var agora = Utilities.formatDate(new Date(), AJUSTES.fuso, 'HH:mm');
+          var sv = listarServicos(true).filter(function (s) { return s.id === it.id; })[0] || {};
+          var nova = { id: novoId('A'), data: hoje, hora: agora, duracao_min: sv.duracao ? duracaoServico(sv, it.profissional) : 60, servico_id: it.id, servico: it.nome,
+            categoria: sv.categoria || '', profissional: it.profissional, cpf: cm.cpf, nome: cm.nome, whatsapp: cm.whatsapp, status: 'atendido', pagamento: 'pacote', valor: 0,
+            credito_id: it.pacote, obs: 'Feito na comanda (sessão do pacote)', criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto(), comanda: cm.id };
+          adicionarLinha('Atendimentos', nova);
+          it.atendimentoId = nova.id;
+        } else {
+          atualizarLinha('Atendimentos', a._linha, { status: 'atendido', pagamento: 'pacote', credito_id: it.pacote, valor: 0, order_nsu: '', comanda: cm.id, atualizado_em: agoraTexto() });
+        }
+        var ap = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
+        comissaoDoAtendimento(ap, true);
+        aplicarConsumo(ap.servico_id, 'atend:' + ap.id, ap.nome, true, m.email);
+        return;
+      }
       var valorLinha = it.total;
       var valeUsado = it.vale ? it.valeUsado * it.qtd : 0;
       var valeCod = it.vale || '';
@@ -1280,7 +1393,7 @@ function bancada_fecharComanda(d, m) {
       }
     });
     atualizarLinha('Comandas', c._linha, { status: 'fechada', fechada_em: agoraTexto(), fechada_por: m.email, pagamentos: JSON.stringify(pags), itens: JSON.stringify(calc),
-      total: total, subtotal: dinheiro(calc.reduce(function (s, i) { return s + (i.pago ? 0 : i.preco * i.qtd); }, 0)),
+      total: total, subtotal: dinheiro(calc.reduce(function (s, i) { return s + (i.pago || i.pacote ? 0 : i.preco * i.qtd); }, 0)),
       desconto: dinheiro(calc.reduce(function (s, i) { return s + i.desconto; }, 0)),
       historico: anotarComanda(c, m.email, 'fechou · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + ')) });
     SpreadsheetApp.flush();

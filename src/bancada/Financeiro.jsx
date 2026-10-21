@@ -37,7 +37,12 @@ function Mes({ mes, irPara }) {
         <div className="b-kpi"><span className="b-kpi__rotulo">Entradas</span><strong className="b-kpi__valor">{realCurto(f.entradas)}</strong>
           <span className="b-kpi__detalhe">{varia == null ? 'sem mês anterior' : `${varia >= 0 ? '▲' : '▼'} ${String(Math.abs(varia)).replace('.', ',')}% vs mês anterior`}</span></div>
         <div className="b-kpi"><span className="b-kpi__rotulo">Saídas pagas</span><strong className="b-kpi__valor">{realCurto(f.saidas)}</strong><span className="b-kpi__detalhe">mês anterior {realCurto(f.saidasAnterior)}</span></div>
-        <div className={`b-kpi b-kpi--destaque${f.resultado < 0 ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Resultado</span><strong className="b-kpi__valor">{realCurto(f.resultado)}</strong><span className="b-kpi__detalhe">entradas − saídas pagas</span></div>
+        {f.taxasConfiguradas ? (
+          <div className={`b-kpi b-kpi--destaque${f.liquido < 0 ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Resultado líquido</span><strong className="b-kpi__valor">{realCurto(f.liquido)}</strong>
+            <span className="b-kpi__detalhe">entradas − taxas da maquininha ({realCurto(f.taxas)}) − saídas</span></div>
+        ) : (
+          <div className={`b-kpi b-kpi--destaque${f.resultado < 0 ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Resultado</span><strong className="b-kpi__valor">{realCurto(f.resultado)}</strong><span className="b-kpi__detalhe">entradas − saídas pagas</span></div>
+        )}
         <div className={`b-kpi${f.aPagar + f.comissoesAPagar > 0 ? ' b-kpi--aviso' : ''}`}><span className="b-kpi__rotulo">Ainda a pagar</span><strong className="b-kpi__valor">{realCurto(f.aPagar + f.comissoesAPagar)}</strong>
           <span className="b-kpi__detalhe">{plural(f.aPagarQtd, 'conta', 'contas')} · comissões {realCurto(f.comissoesAPagar)}</span></div>
       </section>
@@ -56,7 +61,13 @@ function Mes({ mes, irPara }) {
       </div>
       <div className="b-duas">
         <section className="b-cartao b-grafico"><header className="b-cartao__topo"><h2 className="b-cartao__titulo">Formas de pagamento</h2></header>
-          <BarrasH itens={f.porForma} formato={realCurto} /></section>
+          <BarrasH itens={f.porForma} formato={realCurto} />
+          {f.taxasConfiguradas ? (
+            <p className="b-suave fn-taxas">Taxas estimadas da maquininha: <strong>{real(f.taxas)}</strong>{f.taxasPorForma.length > 0 && ` (${f.taxasPorForma.map((x) => `${x.nome} ${real(x.valor)}`).join(' · ')})`}.</p>
+          ) : (
+            <p className="b-suave fn-taxas">Para ver o resultado líquido, cadastre as taxas em Ajustes → Taxas da maquininha.</p>
+          )}
+        </section>
         <section className="b-cartao">
           <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Contas dos próximos dias</h2><button type="button" className="link-acao" onClick={() => irPara('despesas')}>Ver despesas</button></header>
           {f.vencendo.length === 0 ? <p className="b-suave">Nada vencendo nos próximos 7 dias.</p> : (

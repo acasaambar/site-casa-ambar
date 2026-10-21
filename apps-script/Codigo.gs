@@ -69,6 +69,8 @@ var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHora
 AJUSTES.valeValidadeDias = 365;
 AJUSTES.lembreteServicos = true; // e-mail na véspera para quem tem serviço agendado
 AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
+// taxas da maquininha e do link (% de cada venda), para o resultado líquido no Financeiro (Ajustes)
+AJUSTES.taxas = { pix: 0, debito: 0, credito1: 0, credito2a6: 0, credito7a12: 0, link: 0 };
 var _ajustesAplicados = false;
 function aplicarAjustesSalvos() {
   if (_ajustesAplicados) return;
@@ -83,12 +85,15 @@ function aplicarAjustesSalvos() {
   if (j.wellhubPendentePodeReservar != null) AJUSTES.wellhub.pendentePodeReservar = !!j.wellhubPendentePodeReservar;
   if (j.lembreteServicos != null) AJUSTES.lembreteServicos = !!j.lembreteServicos;
   if (j.lembreteAulas != null) AJUSTES.lembreteAulas = !!j.lembreteAulas;
+  if (j.taxas && typeof j.taxas === 'object') Object.keys(AJUSTES.taxas).forEach(function (k) { if (j.taxas[k] != null) AJUSTES.taxas[k] = Number(j.taxas[k]) || 0; });
 }
 
 var ABAS = {
   Grade: ['ativo', 'modalidade', 'dia_semana', 'hora', 'professor', 'capacidade'],
   Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'origem_cadastro',
-    'nascimento', 'marketing', 'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'como_conheceu'],
+    'nascimento', 'marketing', 'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'como_conheceu',
+    // alerta fixo escrito pela equipe (ex.: "alergia a látex"): aparece na agenda, nas aulas e na comanda
+    'alerta'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms', 'lembrete'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -115,7 +120,9 @@ var ABAS = {
     // origem 'vendido' e a comanda da venda (vazio = vale antigo, gerado antes da venda pela comanda)
     'origem', 'comanda'],
   // ---- serviços (estética, fisioterapia...) agendados pela bancada ----
-  Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo'],
+  Servicos: ['id', 'ativo', 'categoria', 'nome', 'duracao_min', 'preco', 'descricao', 'sem_juros_ate', 'comissao', 'consumo',
+    // dias até o retorno sugerido (vazio = sem retorno)
+    'retorno_dias'],
   Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate'],
   Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos', 'horarios', 'especiais'],
   Professoras: ['nome', 'ativo', 'pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde', 'atualizado_em'],
@@ -124,7 +131,9 @@ var ABAS = {
   Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',
     'pagamento', 'valor', 'credito_id', 'order_nsu', 'obs', 'criado_por', 'criado_em', 'atualizado_em', 'lembrete', 'comanda',
     // substituição: quem era a titular e de quem é a regra de comissão (vazio = de quem atende)
-    'titular', 'comissao_de'],
+    'titular', 'comissao_de',
+    // retorno sugerido ("avisado 2026-10-21" / "dispensado …") e resposta da cliente pelo link de confirmação
+    'retorno', 'resposta', 'resposta_em'],
   // ---- gestão (Gestao.gs) ----
   Produtos: ['id', 'ativo', 'nome', 'categoria', 'marca', 'unidade', 'preco', 'custo', 'estoque', 'minimo', 'vende', 'obs'],
   MovEstoque: ['quando', 'produto_id', 'produto', 'tipo', 'qtd', 'custo_unit', 'valor', 'motivo', 'ref', 'quem'],
@@ -134,7 +143,9 @@ var ABAS = {
     'historico'],
   Comissoes: ['id', 'data', 'profissional', 'origem', 'ref', 'item', 'base', 'pct', 'valor', 'status', 'pago_em', 'pago_por', 'despesa_id', 'criado_em'],
   Despesas: ['id', 'data', 'descricao', 'categoria', 'valor', 'forma', 'status', 'pago_em', 'recorrente', 'fornecedor', 'obs', 'ref', 'criado_por', 'criado_em'],
-  Caixa: ['data', 'status', 'abertura', 'aberto_por', 'aberto_em', 'movimentos', 'dinheiro_vendas', 'esperado', 'contado', 'diferenca', 'fechado_por', 'fechado_em', 'obs'],
+  Caixa: ['data', 'status', 'abertura', 'aberto_por', 'aberto_em', 'movimentos', 'dinheiro_vendas', 'esperado', 'contado', 'diferenca', 'fechado_por', 'fechado_em', 'obs',
+    // conferência com o extrato da maquininha (JSON: [{ forma, sistema, informado, diferenca }])
+    'conferencia'],
   Folgas: ['id', 'profissional', 'data', 'inicio', 'fim', 'motivo', 'criado_por', 'criado_em'],
   // ---- marketing e clientes (Marketing.gs, Clientes.gs) ----
   Promocoes: ['id', 'ativo', 'nome', 'descricao', 'tipo', 'valor', 'itens', 'categorias', 'dias', 'de', 'ate', 'onde', 'criado_por', 'criado_em'],
@@ -142,6 +153,9 @@ var ABAS = {
   FichasEstetica: ['cpf', 'nome', 'atualizada_em', 'atualizada_por', 'queixa', 'objetivo', 'alergias', 'medicamentos', 'condicoes', 'acidos', 'procedimentos',
     'exposicao_solar', 'fototipo', 'tipo_pele', 'obs', 'consentimento_fotos'],
   Evolucoes: ['id', 'cpf', 'nome', 'data', 'profissional', 'atendimento_id', 'servico', 'anotacao', 'fotos', 'criado_por', 'criado_em'],
+  // ---- lista de espera (Espera.gs): aula lotada ou serviço sem horário ----
+  Espera: ['id', 'criado_em', 'tipo', 'aula_id', 'servico_id', 'servico', 'profissional', 'data', 'periodo', 'cpf', 'nome', 'whatsapp', 'obs', 'status',
+    'avisado_em', 'resolvido_em', 'criado_por', 'origem'],
   // ---- substituições (Substituicoes.gs) ----
   Substituicoes: ['id', 'tipo', 'ref', 'data', 'hora', 'titulo', 'titular', 'substituto', 'regra', 'status', 'motivo', 'resposta',
     'pedido_por', 'pedido_em', 'feito_por', 'feito_em'],
@@ -325,6 +339,12 @@ function doPost(e) {
       resgatarVale: resgatarVale,
       // descadastro dos e-mails de campanha
       sairLista: sairLista,
+      // lista de espera de aula lotada
+      entrarEspera: entrarEspera,
+      sairEspera: sairEspera,
+      // confirmação do horário pelo link do lembrete
+      verConfirmacao: verConfirmacao,
+      responderConfirmacao: responderConfirmacao,
       // bancada (login da equipe)
       b_entrar: bancadaEntrar,
       b_esqueci: bancadaEsqueci,
@@ -586,20 +606,30 @@ function montarAula(aula, reservas, cpf) {
 function listarAulas(d) {
   var aluno = alunoDaSessao(d.token);
   var reservas = reservasAtivas();
-  return gerarAulas().map(function (a) { return montarAula(a, reservas, normCpf(aluno.cpf)); });
+  var espera = esperasDoAluno(aluno.cpf);
+  return gerarAulas().map(function (a) { var x = montarAula(a, reservas, normCpf(aluno.cpf)); x.naEspera = !!espera[a.id]; return x; });
 }
 
 function detalharAula(d) {
   var aluno = alunoDaSessao(d.token);
   var aula = gerarAulas().filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada.');
-  return montarAula(aula, reservasAtivas(), normCpf(aluno.cpf));
+  var x = montarAula(aula, reservasAtivas(), normCpf(aluno.cpf));
+  x.naEspera = !!esperasDoAluno(aluno.cpf)[aula.id];
+  return x;
 }
 
 // ============================================================
 //  5) RESERVAS (com trava: dois alunos nunca ficam com o mesmo tapete)
 // ============================================================
+// quem estava na lista de espera e conseguiu reservar sai da lista
 function reservar(d) {
+  var r = reservarAula(d);
+  if (r && r.status === 'reservado') esperaResolvida('aula', r.aulaId, normCpf(alunoDaSessao(d.token).cpf));
+  return r;
+}
+
+function reservarAula(d) {
   var aluno = alunoDaSessao(d.token);
   var aula = gerarAulas().filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada.');
@@ -700,6 +730,8 @@ function cancelar(d) {
   var s = aba('Reservas');
   s.getRange(r._linha, coluna('Reservas', 'status')).setValue('cancelado');
   s.getRange(r._linha, coluna('Reservas', 'cancelada_em')).setValue(agoraTexto());
+  SpreadsheetApp.flush();
+  avisarVagaAula(r.aula_id);
   return true;
 }
 
@@ -788,6 +820,7 @@ function salvarAnamnese(d) {
   try {
     var s = aba('Anamneses');
     esquecerListaClientes();
+    esquecerAlertas();
     var existente = linhaAnamnese(cpf);
     linha = linhaSegura(linha);
     if (existente) s.getRange(existente, 1, 1, linha.length).setValues([linha]);
@@ -1423,6 +1456,7 @@ function novaExecucao() {
   _itensVenda = null;
   _ajustesAplicados = false;
   _cabecalhoOk = null;
+  _alertas = null;
 }
 
 // Pega a trava (uma ação por vez) e esquece o que foi lido antes:
@@ -1505,7 +1539,7 @@ function abaSemDescartar(nome) {
 
 var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
   Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Professoras: 'A:B', AnamnesesProf: 'A:B', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
-  Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G', Substituicoes: 'A:E' };
+  Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G', Substituicoes: 'A:E', Espera: 'A:J' };
 
 // Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem.
 // A conferência fica guardada por 6 h (muda sozinha quando o código ganha colunas novas).
@@ -1543,6 +1577,7 @@ function linhaSegura(arr) {
 // Acrescenta uma linha a partir de um objeto { coluna: valor }
 function adicionarLinha(nomeAba, obj) {
   if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
+  if (ABAS_DOS_ALERTAS[nomeAba]) esquecerAlertas();
   var s = aba(nomeAba);
   s.appendRow(linhaSegura(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; })));
   return s.getLastRow();
@@ -1566,6 +1601,7 @@ function novoNsu(prefixo) {
 function adicionarLinhas(nomeAba, objs) {
   if (!objs || !objs.length) return;
   if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
+  if (ABAS_DOS_ALERTAS[nomeAba]) esquecerAlertas();
   var s = aba(nomeAba);
   var cols = ABAS[nomeAba];
   var vals = objs.map(function (o) { return linhaSegura(cols.map(function (c) { return o[c] == null ? '' : o[c]; })); });
@@ -1576,6 +1612,7 @@ function adicionarLinhas(nomeAba, objs) {
 // Colunas vizinhas vão juntas numa gravação só (bem mais rápido que uma por uma).
 function atualizarLinha(nomeAba, linha, obj) {
   if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
+  if (ABAS_DOS_ALERTAS[nomeAba]) esquecerAlertas();
   var s = aba(nomeAba);
   var cols = [];
   Object.keys(obj).forEach(function (c) {

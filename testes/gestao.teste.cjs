@@ -2,7 +2,7 @@ const { criar } = require('./simulador.cjs');
 // endereço de exemplo (o cadastro do site exige endereço completo)
 const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
 const R = require('path').join(__dirname, '..', 'apps-script');
-const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs']);
+const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs', R + '/Espera.gs']);
 const { ctx, chamar, emails } = m;
 let falhas = 0;
 const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 500) : ''); } else console.log('  ✓', msg); };
@@ -277,7 +277,9 @@ ok(mara && mara.servicos.length === 3 && mara.servicos[1].comissao === 30 && mar
 ok(mara && mara.categorias.join() === 'Estética facial', 'áreas saem dos serviços marcados', mara && mara.categorias);
 r = chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Mara Facial', nomeOriginal: 'Mara Facial', dias: [1], servicos: [] } });
 ok(!r.ok && /pelo menos um serviço/.test(r.erro), 'sem nenhum serviço marcado é recusado', r);
-const diaMara = proxDiaUtil(hoje, 3);
+// dia útil de segunda a sexta (no sábado a casa fecha ao meio-dia e o horário das 17h não existe)
+let diaMara = proxDiaUtil(hoje, 3);
+if (new Date(diaMara + 'T12:00:00Z').getUTCDay() === 6) diaMara = proxDiaUtil(diaMara, 2);
 r = chamar('b_horarios', { token: rec, servicoId: 'drenagem', profissional: 'Mara Facial', data: diaMara });
 ok(r.ok && r.dados.horarios.length === 0 && /não faz/.test(r.dados.motivo), 'serviço que ela não faz não tem horário', r.dados);
 r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Mara Facial', data: diaMara, hora: '09:00', cliente: { nome: 'Teste Mara', whatsapp: '85991234567' } });
