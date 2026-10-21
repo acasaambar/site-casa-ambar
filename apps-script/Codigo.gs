@@ -110,7 +110,9 @@ var ABAS = {
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
   // ---- bancada interna ----
   Equipe: ['email', 'nome', 'papel', 'professor_nome', 'senha_hash', 'sal', 'ativo', 'criado_em', 'ultimo_acesso'],
-  SessoesEquipe: ['token', 'email', 'criada_em', 'expira_em'],
+  SessoesEquipe: ['token', 'email', 'criada_em', 'expira_em',
+    // último uso guardado (ISO), no máximo a cada 30 min: conta as 3 h sem uso mesmo se o cache do Google falhar
+    'uso_em'],
   Redefinicoes: ['token_hash', 'tipo', 'id', 'email', 'criado_em', 'expira_ms', 'usado_em', 'motivo'],
   Registro: ['quando', 'quem', 'acao', 'detalhe'],
   Cupons: ['codigo', 'ativo', 'tipo', 'valor', 'modalidade', 'tipo_plano', 'inicio', 'fim', 'limite_total', 'limite_por_aluno', 'primeira_compra', 'descricao', 'criado_por', 'criado_em'],
@@ -503,7 +505,7 @@ function sessaoValida(linha, maxMs) {
   var exp = ehData(linha[3]) ? linha[3] : momentoDe(linha[3]); // expira_em é gravado em ISO (instante exato)
   if (isNaN(exp.getTime()) || exp <= new Date()) return false;
   var criada = momentoDe(linha[2]);
-  return !isNaN(criada.getTime()) && Date.now() - criada.getTime() < maxMs;
+  return isNaN(criada.getTime()) || Date.now() - criada.getTime() < maxMs;
 }
 
 function alunoDaSessao(token) {

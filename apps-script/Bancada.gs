@@ -177,8 +177,8 @@ function bancadaEntrar(d) {
   // o login da bancada vale até a meia-noite de hoje (Fortaleza), no máximo 14 h, e cai depois de 3 h sem uso
   var meiaNoite = new Date(somarDias(hojeTexto(), 1) + 'T00:00:00-03:00').getTime();
   var expira = new Date(Math.min(Date.now() + SESSAO_EQUIPE_MAX_MS, meiaNoite));
-  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: expira.toISOString() });
-  try { CacheService.getScriptCache().put('u_' + hashToken(token), '1', SESSAO_EQUIPE_PARADA_S); } catch (e) { /* sem cache: vale o prazo da planilha */ }
+  adicionarLinha('SessoesEquipe', { token: hashToken(token), email: email, criada_em: agoraTexto(), expira_em: expira.toISOString(), uso_em: new Date().toISOString() });
+  try { CacheService.getScriptCache().put('u_' + hashToken(token), String(Date.now()), SESSAO_EQUIPE_PARADA_S); } catch (e) { /* sem cache: vale a planilha */ }
   limparSessoesVencidas('SessoesEquipe');
   return { token: token, membro: membroPublico(m), expira: expira.toISOString(), paradaMin: SESSAO_EQUIPE_PARADA_S / 60 };
 }
@@ -205,34 +205,55 @@ function bancadaEsqueci(d) {
 var SESSAO_EQUIPE_MAX_MS = 14 * 3600000; // no máximo 14 h (e nunca passa da meia-noite)
 var SESSAO_EQUIPE_PARADA_S = 3 * 3600;   // 3 h sem usar a bancada: entra de novo
 
+// linha da sessão na planilha, se ainda vale: no prazo (até a meia-noite, no máximo 14 h) e criada hoje
+function linhaDaSessaoEquipe(h) {
+  var linhas = valoresAba('SessoesEquipe');
+  var hoje = hojeTexto();
+  for (var i = 1; i < linhas.length; i++) {
+    if (linhas[i][0] !== h) continue;
+    var criada = momentoDe(linhas[i][2]);
+    var doDia = isNaN(criada.getTime()) || Utilities.formatDate(criada, AJUSTES.fuso, 'yyyy-MM-dd') === hoje;
+    if (!sessaoValida(linhas[i], SESSAO_EQUIPE_MAX_MS) || !doDia) return null;
+    return { n: i + 1, v: linhas[i], email: String(linhas[i][1]).toLowerCase() };
+  }
+  return null;
+}
+
 function membroDaSessao(token) {
   if (!token || String(token).charAt(0) !== 'E' || String(token).length < 30) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
   var cache = CacheService.getScriptCache();
   var h = hashToken(token);
   var c = cache.getAll(['m_' + h, 'u_' + h]);
-  // parada há mais de 3 h (a marca de uso venceu no cache): entra de novo
-  if (!c['u_' + h]) {
-    try { cache.remove('m_' + h); cache.remove('e_' + h); } catch (e) { /* ignora */ }
-    throw erroCod('Sua sessão da bancada expirou por falta de uso. Entre novamente.', 'SESSAO_EQUIPE');
+  var agora = Date.now();
+  var usoGravado = Number(c['u_' + h] || 0); // quando o uso foi gravado na planilha pela última vez
+  var email = '';
+  // sem a marca recente no cache (o cache do Google pode falhar entre execuções): confere na planilha
+  // e grava o uso lá (no máximo a cada 30 min por pessoa)
+  if (!usoGravado || agora - usoGravado > 30 * 60000) {
+    var linha = linhaDaSessaoEquipe(h);
+    if (!linha) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
+    var ultimo = Math.max(momentoDe(linha.v[2]).getTime() || 0, new Date(linha.v[4] || 0).getTime() || 0);
+    if (agora - ultimo > SESSAO_EQUIPE_PARADA_S * 1000) {
+      try { cache.remove('m_' + h); cache.remove('e_' + h); cache.remove('u_' + h); } catch (e) { /* ignora */ }
+      throw erroCod('Sua sessão da bancada expirou por falta de uso. Entre novamente.', 'SESSAO_EQUIPE');
+    }
+    atualizarLinha('SessoesEquipe', linha.n, { uso_em: new Date(agora).toISOString() });
+    cache.put('u_' + h, String(agora), SESSAO_EQUIPE_PARADA_S);
+    email = linha.email;
   }
-  cache.put('u_' + h, '1', SESSAO_EQUIPE_PARADA_S);
   // sessão conferida há pouco: a pessoa vem do cache (sem ler a planilha). Sai do cache se ela for
   // desativada, mudar de papel, trocar a senha ou sair.
   var guardado = c['m_' + h];
-  if (guardado) {
+  if (guardado && !email) {
     try { return JSON.parse(guardado); } catch (e) { /* refaz abaixo */ }
   }
-  var email = cache.get('e_' + h);
+  if (!email) email = cache.get('e_' + h) || '';
   if (!email) {
-    var linhas = valoresAba('SessoesEquipe');
-    var hoje = hojeTexto();
-    for (var i = 1; i < linhas.length; i++) {
-      if (linhas[i][0] === h && sessaoValida(linhas[i], SESSAO_EQUIPE_MAX_MS)
-        && Utilities.formatDate(momentoDe(linhas[i][2]), AJUSTES.fuso, 'yyyy-MM-dd') === hoje) { email = String(linhas[i][1]).toLowerCase(); break; }
-    }
-    if (!email) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
-    cache.put('e_' + h, email, 600);
+    var achada = linhaDaSessaoEquipe(h);
+    if (!achada) throw erroCod('Sua sessão da bancada expirou. Entre novamente.', 'SESSAO_EQUIPE');
+    email = achada.email;
   }
+  cache.put('e_' + h, email, 600);
   var m = buscarMembro(email);
   if (!m || String(m.ativo).toUpperCase() === 'NÃO') throw erroCod('Seu acesso à bancada foi desativado.', 'SESSAO_EQUIPE');
   var pessoa = { email: String(m.email).toLowerCase(), nome: String(m.nome || ''), papel: String(m.papel), professor_nome: String(m.professor_nome || '') };

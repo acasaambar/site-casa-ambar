@@ -9,7 +9,8 @@ const CHAVE = 'ambar_bancada';
 // o login da bancada vale só no dia (até a meia-noite) e cai depois de 3 h sem uso (o servidor confere o mesmo)
 const PARADA_MS = 3 * 3600e3;
 
-const venceu = (s) => !s || s.dia !== hojeIso() || Date.now() - (s.usoEm || 0) > PARADA_MS || (s.expira && Date.now() > new Date(s.expira).getTime());
+// (o prazo exato fica com o servidor: relógio errado no aparelho não derruba o login)
+const venceu = (s) => !s || s.dia !== hojeIso() || Date.now() - (s.usoEm || 0) > PARADA_MS;
 
 function ler() {
   try {

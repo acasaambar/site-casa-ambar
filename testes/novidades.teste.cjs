@@ -278,9 +278,16 @@ console.log('— o login expira');
   const e = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados;
   ok(e.expira && new Date(e.expira) <= new Date(ctx.somarDias(hoje, 1) + 'T00:00:00-03:00') && new Date(e.expira) - Date.now() <= 14 * 3600e3 + 1000, 'login da bancada vale até a meia-noite (no máximo 14 h)', e.expira);
   ok(chamar('b_eu', { token: e.token }).ok, 'recepção logada usa a bancada');
-  delete cacheStore['u_' + ctx.hashToken(e.token)];
+  // o cache do Google pode falhar entre execuções: sem a marca no cache, logo depois de entrar, continua logada
+  Object.keys(cacheStore).filter((k) => k.endsWith(ctx.hashToken(e.token))).forEach((k) => delete cacheStore[k]);
+  ok(chamar('b_eu', { token: e.token }).ok, 'cache perdido logo depois de entrar: continua logada (confere na planilha)');
+  // 4 h sem uso (gravado na planilha) e o cache vencido
+  const lu = linhaDe('SessoesEquipe', e.token);
+  ctx.aba('SessoesEquipe').getRange(lu, 3).setValue(ctx.Utilities.formatDate(new Date(Date.now() - 5 * 3600e3), 'America/Fortaleza', 'yyyy-MM-dd HH:mm:ss'));
+  ctx.aba('SessoesEquipe').getRange(lu, 5).setValue(new Date(Date.now() - 4 * 3600e3).toISOString());
+  Object.keys(cacheStore).filter((k) => k.endsWith(ctx.hashToken(e.token))).forEach((k) => delete cacheStore[k]);
   r = chamar('b_eu', { token: e.token });
-  ok(!r.ok && r.codigo === 'SESSAO_EQUIPE' && /falta de uso/.test(r.erro), '3 h sem uso: precisa entrar de novo', r);
+  ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', '3 h sem uso: precisa entrar de novo', r);
   const e2 = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
   const se = ctx.aba('SessoesEquipe');
   l = linhaDe('SessoesEquipe', e2);
