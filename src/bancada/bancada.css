@@ -442,9 +442,11 @@
 .g-ocup__barra[data-cheia='sim'] { background: var(--terracota); }
 
 /* ---------- impressão do vale ---------- */
+/* só quando o vale está na tela (antes valia para qualquer impressão e a agenda do dia saía em branco) */
 @media print {
-  body * { visibility: hidden !important; }
-  #vale-impressao, #vale-impressao * { visibility: visible !important; }
+  body:has(#vale-impressao) * { visibility: hidden !important; }
+  html:has(#vale-impressao), body:has(#vale-impressao) { height: 100% !important; overflow: hidden !important; }
+  body:has(#vale-impressao) #vale-impressao, body:has(#vale-impressao) #vale-impressao * { visibility: visible !important; }
   #vale-impressao { position: fixed; left: 50%; top: 40px; transform: translateX(-50%); width: 15cm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body::after { display: none; }
 }
@@ -1991,7 +1993,9 @@
 /* impressão da agenda do dia (só aparece no papel) */
 .ag-impressao { display: none; }
 @media print {
-  body > *:not(.ag-impressao) { display: none !important; }
+  body:has(.ag-impressao) > *:not(.ag-impressao) { display: none !important; }
+  body:has(.ag-impressao)::after { display: none !important; }
+  .ag-impressao, .ag-impressao * { visibility: visible !important; }
   body { background: #fff !important; }
   .ag-impressao { display: block; color: #000; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 11pt; line-height: 1.35; }
   .ag-impressao header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding-bottom: 6pt; margin-bottom: 10pt; border-bottom: 1.5pt solid #000; }
@@ -2002,7 +2006,7 @@
   .ag-impressao h2 small { font-weight: 400; font-size: 10pt; color: #444; }
   .ag-impressao table { width: 100%; border-collapse: collapse; }
   .ag-impressao td { padding: 4pt 6pt 4pt 0; border-bottom: 0.5pt solid #bbb; vertical-align: top; }
-  .ag-impressao__hora { width: 82pt; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ag-impressao__hora { width: 96pt; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .ag-impressao__marca { width: 16pt; text-align: right; font-size: 12pt; }
   .ag-impressao em { font-style: normal; color: #333; }
   .ag-impressao__alerta { display: block; font-weight: 700; }

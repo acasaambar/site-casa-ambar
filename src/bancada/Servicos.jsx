@@ -577,7 +577,7 @@ function ImpressaoDia({ dia, colunas, lista, aulas, folgas }) {
                     {i.extra && <em> · {i.extra}</em>}
                     {i.alertas.length > 0 && <b className="ag-impressao__alerta"> ! {i.alertas.join(' · ')}</b>}
                   </td>
-                  <td className="ag-impressao__marca" aria-hidden="true">☐</td>
+                  <td className="ag-impressao__marca" aria-hidden="true">{i.k[0] === 'f' ? '' : '☐'}</td>
                 </tr>
               ))}
             </tbody>
