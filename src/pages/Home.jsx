@@ -26,6 +26,17 @@ function useRevelar() {
   }, []);
 }
 
+// Nossa equipe: foto = nome do arquivo em public/img/equipe (sem foto, aparece a inicial)
+const EQUIPE = [
+  { nome: 'Ana Paula', funcao: 'Yoga', quando: 'seg, qua e sex · manhãs e sáb', foto: 'ana-paula', forma: 'equilibrio', cor: 'var(--oliva)' },
+  { nome: 'Hanna', funcao: 'Yoga', quando: 'seg e qua · 18h30', forma: 'sutileza', cor: 'var(--oliva)' },
+  { nome: 'Kalliny', funcao: 'Pilates', quando: 'seg a sex · 6h às 10h', forma: 'presenca', cor: 'var(--terracota)' },
+  { nome: 'Sara', funcao: 'Pilates', quando: 'seg a sex · 16h às 20h', forma: 'equilibrio', cor: 'var(--terracota)' },
+  { nome: 'Marylia', funcao: 'Estética', foto: 'marylia', forma: 'sutileza', cor: 'var(--caramelo-escuro)' },
+  { nome: 'Sarah', funcao: 'Recepção', foto: 'sarah', forma: 'presenca', cor: 'var(--verde)' },
+  { nome: 'Jainara', funcao: 'Recepção', foto: 'jainara', forma: 'equilibrio', cor: 'var(--verde)' },
+];
+
 export default function Home() {
   useRevelar();
   useEffect(() => {
@@ -203,24 +214,24 @@ export default function Home() {
       <section className="secao secao--papel equipe">
         <div className="largura">
           <div className="equipe__cabeca revelar">
-            <span className="rotulo-espacado cor-terracota">Quem conduz</span>
-            <h2 className="display-m">Nossas professoras</h2>
+            <span className="rotulo-espacado cor-terracota">Quem cuida de você</span>
+            <h2 className="display-m">Nossa equipe</h2>
           </div>
           <ul className="equipe__lista">
-            {[
-              ['Ana Paula', 'Yoga', 'seg, qua e sex · manhãs e sáb', 'equilibrio', 'var(--oliva)'],
-              ['Hanna', 'Yoga', 'seg e qua · 18h30', 'sutileza', 'var(--oliva)'],
-              ['Kalliny', 'Pilates', 'seg a sex · 6h às 10h', 'presenca', 'var(--terracota)'],
-              ['Sara', 'Pilates', 'seg a sex · 16h às 20h', 'equilibrio', 'var(--terracota)'],
-            ].map(([nome, mod, quando, forma, cor], i) => (
-              <li key={nome} className="prof revelar" style={{ transitionDelay: `${i * 100}ms` }}>
-                <div className="prof__selo" style={{ '--cor': cor }}>
-                  <span className="prof__inicial">{nome[0]}</span>
+            {EQUIPE.map(({ nome, funcao, quando, foto, forma, cor }, i) => (
+              <li key={nome} className="prof revelar" style={{ transitionDelay: `${(i % 4) * 100}ms` }}>
+                <div className={'prof__selo' + (foto ? ' prof__selo--foto' : '')} style={{ '--cor': cor }}>
+                  {foto ? (
+                    <img src={img(`equipe/${foto}.jpg`)} srcSet={`${img(`equipe/${foto}-360.jpg`)} 360w, ${img(`equipe/${foto}.jpg`)} 600w`}
+                      sizes="(max-width: 700px) 45vw, 25vw" width="600" height="800" alt={`${nome}, ${funcao}`} loading="lazy" decoding="async" />
+                  ) : (
+                    <span className="prof__inicial">{nome[0]}</span>
+                  )}
                   <Forma nome={forma} tamanho={34} cor="var(--creme)" className="prof__forma" />
                 </div>
                 <strong className="display-p">{nome}</strong>
-                <span className="rotulo" style={{ color: cor }}>{mod}</span>
-                <span className="prof__quando">{quando}</span>
+                <span className="rotulo" style={{ color: cor }}>{funcao}</span>
+                {quando && <span className="prof__quando">{quando}</span>}
               </li>
             ))}
           </ul>

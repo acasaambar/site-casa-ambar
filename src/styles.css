@@ -917,8 +917,12 @@ a.rodape__item:hover > svg { color: var(--creme); }
 .prof__inicial { font-family: var(--display); font-size: clamp(90px, 10vw, 140px); line-height: 1; color: var(--creme); }
 .prof__forma { position: absolute; bottom: 22px; right: 22px; opacity: 0.85; }
 .prof__quando { font-size: 12px; color: var(--tinta-suave); }
+.prof__selo--foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; filter: saturate(0.92) sepia(0.06); }
+.prof__selo--foto::after { background: linear-gradient(to top, rgba(47, 56, 33, 0.35), transparent 32%); }
+.prof__selo--foto .prof__forma { z-index: 1; }
+@media (max-width: 700px) { .prof__selo--foto .prof__forma { display: none; } }
 @media (max-width: 900px) { .equipe__lista { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 18px; } }
-/* tablet: as 4 professoras numa linha só (em 2 colunas os cartões ficavam enormes) */
+/* tablet: 4 pessoas por linha (em 2 colunas os cartões ficavam enormes) */
 @media (min-width: 700px) and (max-width: 900px) { .equipe__lista { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; } }
 
 /* ============================================================
