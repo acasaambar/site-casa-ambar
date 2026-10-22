@@ -32,8 +32,10 @@ function lerSessao() {
 export function AuthProvider({ children }) {
   const [sessao, setSessao] = useState(lerSessao);
 
-  // regras definidas na bancada (check-in, cancelamento...)
+  // regras definidas na bancada (check-in, cancelamento...): só o site e a área do aluno usam
+  // (a bancada pedia a cada F5, uma ida ao Google à toa)
   useEffect(() => {
+    if (/^#\/bancada/.test(window.location.hash)) return;
     api.regras().then((r) => {
       ['checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis'].forEach((k) => {
         if (r && r[k] != null) CONFIG[k] = r[k];

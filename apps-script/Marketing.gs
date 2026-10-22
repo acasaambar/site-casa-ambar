@@ -417,11 +417,13 @@ function bancada_marcarLembrete(d, m) {
 // a bancada chama ao abrir (no máximo a cada 2 horas): envia os lembretes de amanhã que faltam
 function bancada_lembretesAuto(d, m) {
   if (AJUSTES.lembreteServicos === false && !AJUSTES.lembreteAulas) return { pulado: true };
-  var cache = CacheService.getScriptCache();
-  if (cache.get('lembretes_auto')) return { pulado: true };
-  cache.put('lembretes_auto', '1', 7200);
+  // no máximo a cada 2 h. A marca fica nas Propriedades: o cache do Google é apagado antes da hora
+  // quando enche (guarda as cópias das abas) e os lembretes rodavam de novo a cada abertura da tela Hoje
+  var props = PropertiesService.getScriptProperties();
+  var ultimo = momentoDe(props.getProperty('LEMBRETES_ULTIMO') || '');
+  if (ultimo && Date.now() - ultimo.getTime() < 2 * 3600000) return { pulado: true };
+  props.setProperty('LEMBRETES_ULTIMO', agoraTexto());
   var n = enviarLembretes(somarDias(hojeTexto(), 1));
-  PropertiesService.getScriptProperties().setProperty('LEMBRETES_ULTIMO', agoraTexto());
   if (n) registrar(m, 'lembretes automáticos', n + ' e-mails');
   return { enviados: n };
 }

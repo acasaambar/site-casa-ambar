@@ -9,7 +9,7 @@
 
 const dados = new Map();
 const emAndamento = new Map();
-const frescos = new Set(); // vieram do servidor nesta página (o resto veio do que estava guardado)
+const frescos = new Map(); // vieram do servidor nesta página → quando chegaram (o resto veio do que estava guardado)
 const ouvintes = new Set();
 let ativos = 0;
 
@@ -70,6 +70,18 @@ export const lembrar = (chave) => dados.get(chave);
 export const temNaMemoria = (chave) => dados.has(chave);
 // veio do servidor nesta página (o que voltou do navegador depois do F5 ainda precisa ser conferido)
 export const estaFresco = (chave) => frescos.has(chave);
+// Velocidade (out/2026): cada ida ao Google custa ~1,6 s só de caminho. O que mal muda não é buscado de novo
+// a cada tela aberta: catálogo e planos valem 10 min; agenda, clientes e comandas, alguns segundos
+// (abrir e voltar de uma tela não repete o pedido). Depois de salvar, recarregar() busca sempre.
+const VALIDADE = { catalogoServicos: 600, planos: 600, ajustes: 600, produtos: 300, equipe: 300, grade: 300, cupons: 120, promocoes: 120, campanhas: 120,
+  retornos: 120, agendaSemana: 45, agenda: 30, alunos: 60, comandas: 30, espera: 60, resumo: 30, caixa: 20, pagamentos: 30, minhasClientes: 60, bloqueios: 60,
+  substituicoes: 60, vales: 60, despesas: 60 };
+export function aindaVale(chave) {
+  const quando = frescos.get(chave);
+  if (!quando) return false;
+  const acao = chave.split('|')[1] || '';
+  return Date.now() - quando < (VALIDADE[acao] || 0) * 1000;
+}
 export const guardarNaMemoria = (chave, valor) => {
   dados.set(chave, valor);
   guardarNoNavegador(chave, valor);
@@ -98,7 +110,7 @@ export function buscar(chave, pedir, novo = false, silencioso = false) {
   // aqui só passam leituras: resposta trocada (de outro pedido) é descartada e pedida de novo, uma vez
   const p = pedir()
     .catch((e) => (e && e.codigo === 'RESPOSTA_TROCADA' ? pedir() : Promise.reject(e)))
-    .then((d) => { guardarNaMemoria(chave, d); frescos.add(chave); return d; })
+    .then((d) => { guardarNaMemoria(chave, d); frescos.set(chave, Date.now()); return d; })
     .finally(() => {
       if (emAndamento.get(chave) === p) emAndamento.delete(chave);
       ativos -= conta;

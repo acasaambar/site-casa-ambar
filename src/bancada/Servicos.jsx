@@ -52,7 +52,8 @@ const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filte
 // slot: lugar na barra da Agenda onde ficam os botões (agendar, bloquear, lista de espera…).
 // aplicar(atendimento): mostra na hora o que foi salvo e atualiza a semana por trás.
 export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, aoNaoVem, aulas = [], aoAbrirAula, abrirNovo, abrirEspera }) {
-  const { membro } = useBancada();
+  const { membro, chamar } = useBancada();
+  const [erroAberto, setErroAberto] = useState('');
   const balcao = pode(membro, 'admin', 'recepcao');
   const [gruposRef, maisGrupos] = useMaisADireita();
   const { dados: catalogo } = useDados('catalogoServicos', {});
@@ -391,7 +392,15 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
       {balcao && lista.some(podeMover) && <p className="ag-dica">Para remarcar, arraste o atendimento até o novo horário (no celular e no iPad, toque, segure e arraste).</p>}
 
       {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={(r) => { setNovo(null); aplicar(r); }} />}
-      {aberto && <DetalheAtendimento a={aberto} aoFechar={() => setAberto(null)} aoMudar={(r) => { setAberto(null); aplicar(r); }}
+      {aberto && <DetalheAtendimento a={aberto} erroInicial={erroAberto} aoFechar={() => { setAberto(null); setErroAberto(''); }} aoMudar={(r) => { setAberto(null); aplicar(r); }}
+        // confirmou, faltou, atendido sem cobrança: aparece na hora e o servidor confere por trás;
+        // se ele recusar, volta como estava e a ficha reabre com o motivo
+        aoMudarRapido={(a, status) => {
+          setAberto(null);
+          setErroAberto('');
+          aplicar({ ...a, status }, true);
+          chamar('atualizarAtendimento', { id: a.id, status }).then((r) => aplicar(r)).catch((e) => { aplicar(a, true); setErroAberto(e.message); setAberto(a); });
+        }}
         aoReagendar={(a) => { setAberto(null); setNovo({ data: a.data, profissional: a.profissional, servicoId: a.servicoId, reagendar: a }); }}
         aoComanda={async (a) => { setAberto(null); setComanda({ carregando: true, a }); }}
         aoProntuario={(a) => { setAberto(null); setProntuario(a); }}
@@ -933,15 +942,16 @@ function DetalheFolga({ f, aoFechar, aoMudar }) {
   );
 }
 
-function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoProntuario, aoTrocar, aoPedir }) {
+function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRapido, aoReagendar, aoComanda, aoProntuario, aoTrocar, aoPedir }) {
   const { membro, chamar } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [pg, setPg] = useState(PAGAMENTO_INICIAL);
   const [semCombo, setSemCombo] = useState(false); // combo escolhido no agendamento: desmarcar = cobra só a sessão
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useState(erroInicial);
   const st = STATUS[a.status] || [a.status, 'neutro'];
   const mudar = async (status, extra = {}) => {
     setErro('');
+    if (aoMudarRapido && !extra.metodo) { aoMudarRapido(a, status); return; }
     try { aoMudar(await chamar('atualizarAtendimento', { id: a.id, status, ...extra })); } catch (e) { setErro(e.message); }
   };
   const dataTexto = `${DIAS_LONGOS[diaSemana(a.data)]}, ${Number(a.data.slice(8))} de ${MESES[Number(a.data.slice(5, 7)) - 1]}`;

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { useBancada } from './sessao.jsx';
 import { mascaraCPF } from '../lib/util.js';
-import { lembrar, temNaMemoria, estaFresco, guardarNaMemoria, buscar, acompanhar } from './memoria.js';
+import { lembrar, temNaMemoria, estaFresco, aindaVale, guardarNaMemoria, buscar, acompanhar } from './memoria.js';
 
 // ---------- bandeira do cartão (para conferir com o extrato da maquininha) ----------
 export const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
@@ -204,6 +204,8 @@ export function useDados(acao, params, ativo = true, formato) {
   useEffect(() => {
     if (!ativo) return undefined;
     let vivo = true;
+    // acabou de chegar do servidor (outra tela pediu há pouco): usa o que tem, sem nova ida ao Google
+    if (versao === 0 && aindaVale(id)) { setEstado({ dados: lembrar(id), erro: '', carregando: false, id }); return undefined; }
     setEstado((e) => (temNaMemoria(id) ? { dados: lembrar(id), erro: '', carregando: true, id } : { ...e, carregando: true, erro: '' }));
     buscar(id, () => chamar(acao, JSON.parse(chave)), versao > 0)
       .then((d) => { if (vivo) setEstado({ dados: d, erro: '', carregando: false, id }); })

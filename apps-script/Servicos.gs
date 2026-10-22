@@ -614,7 +614,8 @@ function bancada_atualizarAtendimento(d, m) {
   }
   if (d.obs != null && !prof) mud.obs = String(d.obs).slice(0, 500);
   atualizarLinha('Atendimentos', a._linha, mud);
-  var novo = lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0];
+  // o atendimento como ficou, sem reler a aba (a maior da planilha) só para isso
+  var novo = Object.assign({}, a, mud);
   // comissão e baixa dos produtos usados acompanham o "atendido"
   if (st === 'atendido' || a.status === 'atendido') {
     comissaoDoAtendimento(novo, st === 'atendido');

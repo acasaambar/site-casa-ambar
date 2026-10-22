@@ -94,7 +94,8 @@ export default function Agenda() {
   };
 
   // atendimento novo, remarcado ou mudado: aparece na hora e a semana se atualiza por trás
-  const aplicar = (a) => {
+  // semRecarregar: mudança mostrada antes da resposta do servidor (buscar a semana agora traria a versão velha)
+  const aplicar = (a, semRecarregar) => {
     if (a?.id) {
       setDados((s) => {
         if (!s) return s;
@@ -104,7 +105,7 @@ export default function Agenda() {
         return { ...s, atendimentos: lista.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora)) };
       });
     }
-    recarregar();
+    if (semRecarregar !== true) recarregar();
   };
 
   useEffect(() => {

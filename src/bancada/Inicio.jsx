@@ -110,6 +110,8 @@ export default function Inicio() {
   useEffect(() => {
     if (lembretesPedidos || !pode(membro, 'admin', 'recepcao')) return;
     lembretesPedidos = true;
+    // no máximo a cada 2 h por aparelho (o servidor também confere): antes ia a cada abertura da bancada
+    try { if (Date.now() - Number(localStorage.getItem('ambar_lembretes') || 0) < 2 * 3600e3) return; localStorage.setItem('ambar_lembretes', String(Date.now())); } catch { /* sem armazenamento */ }
     chamar('lembretesAuto', {}).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const agora = useAgora();

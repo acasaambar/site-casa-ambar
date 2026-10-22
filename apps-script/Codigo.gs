@@ -1707,13 +1707,42 @@ function linhaSegura(arr) {
   return arr.map(seguro);
 }
 
+// Texto que o Google transformaria em data/hora ("2026-10-27", "2026-10-27 09:00:00", "09:00").
+// Velocidade (out/2026): gravado já como texto (formato "@" na célula). Antes virava data, e o próximo
+// pedido que lia a aba relia a aba inteira duas vezes para desfazer (datasParaTexto): agendar, marcar
+// atendido e fechar comanda faziam o dobro de leituras.
+var RE_TEXTO_DATA = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$|^\d{2}:\d{2}$/;
+function pareceData(v) { return typeof v === 'string' && RE_TEXTO_DATA.test(v); }
+
 // Acrescenta uma linha a partir de um objeto { coluna: valor }
 function adicionarLinha(nomeAba, obj) {
   if (ABAS_DA_LISTA_CLIENTES[nomeAba]) esquecerListaClientes();
   if (ABAS_DOS_ALERTAS[nomeAba]) esquecerAlertas();
   var s = aba(nomeAba);
-  s.appendRow(linhaSegura(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; })));
-  return s.getLastRow();
+  var vals = linhaSegura(ABAS[nomeAba].map(function (c) { return obj[c] == null ? '' : obj[c]; }));
+  s.appendRow(vals);
+  var n = s.getLastRow();
+  // o Registro quase nunca é lido: não vale a leitura extra a cada ação
+  if (nomeAba !== 'Registro') textoNasDatasDaLinha(s, n, vals);
+  return n;
+}
+
+// O appendRow do Google ignora o formato de texto: as células de data/hora da linha nova são regravadas
+// como texto. Confere antes que a última linha é mesmo a nossa (outro pedido pode ter acrescentado
+// uma linha ao mesmo tempo); se não for, fica para o datasParaTexto.
+function textoNasDatasDaLinha(s, n, vals) {
+  var datas = [];
+  vals.forEach(function (v, i) { if (pareceData(v)) datas.push(i); });
+  if (!datas.length || n < 2) return;
+  try {
+    var lida = s.getRange(n, 1, 1, vals.length).getValues()[0];
+    for (var i = 0; i < vals.length; i++) {
+      var v = vals[i];
+      if (typeof v !== 'string' || v === '' || pareceData(v) || /^-?\d+([.,]\d+)?$/.test(v)) continue;
+      if (String(lida[i]).replace(/^'/, '') !== v.replace(/^'/, '')) return;
+    }
+    datas.forEach(function (i) { s.getRange(n, i + 1).setNumberFormat('@').setValue(vals[i]); });
+  } catch (e) { Logger.log('datas da linha: ' + e.message); }
 }
 
 // Código único de pagamento. Compara sem a letra da frente porque o crédito
@@ -1738,7 +1767,10 @@ function adicionarLinhas(nomeAba, objs) {
   var s = aba(nomeAba);
   var cols = ABAS[nomeAba];
   var vals = objs.map(function (o) { return linhaSegura(cols.map(function (c) { return o[c] == null ? '' : o[c]; })); });
-  s.getRange(s.getLastRow() + 1, 1, vals.length, cols.length).setValues(vals);
+  var ini = s.getLastRow() + 1;
+  // colunas com data/hora: formato de texto antes de gravar (senão o Google transforma em data)
+  cols.forEach(function (c, j) { if (vals.some(function (l) { return pareceData(l[j]); })) s.getRange(ini, j + 1, vals.length, 1).setNumberFormat('@'); });
+  s.getRange(ini, 1, vals.length, cols.length).setValues(vals);
 }
 
 // Atualiza só as colunas informadas de uma linha.
@@ -1754,6 +1786,8 @@ function atualizarLinha(nomeAba, linha, obj) {
   });
   cols.sort(function (a, b) { return a[0] - b[0]; });
   if (!cols.length) return;
+  // data/hora vai como texto (formato "@" na célula), senão o Google transforma em data
+  cols.forEach(function (x) { if (pareceData(x[1])) s.getRange(linha, x[0]).setNumberFormat('@'); });
   // várias colunas espalhadas dentro da trava (ninguém grava ao mesmo tempo): lê a faixa uma vez e grava
   // tudo de uma vez (fechar comanda gravava a mesma linha em 5 ou 6 idas ao Google)
   var grupos = 1;

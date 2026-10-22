@@ -80,5 +80,20 @@ console.log('— agenda da semana numa ida só');
   ok(!chamar('b_agendaSemana', { de: seg }).ok, 'sem login: recusado');
 }
 
+console.log('— velocidade: data/hora gravada já como texto (sem reler a aba no fim do pedido)');
+{
+  const r2 = chamar('b_agendarServico', { token: adm, servicoId: 'drenagem', profissional: 'Cintia', data: dia, hora: '16:45', cliente: { nome: 'Texto Data Teste', whatsapp: '85977770000' } });
+  if (!r2.ok) console.log('   erro:', r2.erro);
+  const l = r2.ok && linhaDe(r2.dados.id);
+  const sh = ss.sheets.Atendimentos;
+  const col = (c) => ctx.ABAS.Atendimentos.indexOf(c);
+  ok(l && !(l[col('data')] instanceof Date) && !(l[col('hora')] instanceof Date) && !(l[col('criado_em')] instanceof Date), 'linha nova: dia, hora e criado_em ficam como texto', l && [l[col('data')], l[col('hora')], l[col('criado_em')]]);
+  chamar('b_atualizarAtendimento', { token: adm, id: r2.dados.id, status: 'confirmado' });
+  const l2 = linhaDe(r2.dados.id);
+  ok(!(l2[col('atualizado_em')] instanceof Date), 'atualizado_em também fica como texto', l2[col('atualizado_em')]);
+  // nenhuma célula de data sobrando na aba = o próximo pedido não precisa reler a aba inteira
+  ok(!sh.rows.slice(1).some((x) => x.some((v) => v instanceof Date)), 'nenhuma data sobrando na aba Atendimentos');
+}
+
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
 process.exit(falhas ? 1 : 0);
