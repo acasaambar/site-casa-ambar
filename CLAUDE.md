@@ -138,7 +138,7 @@ Nada abaixo de 12 px (textos de ajuda com 13 px); rótulos em maiúsculas espaç
 
 - Fábio: criar e verificar o **Perfil da Empresa no Google** (business.google.com), pedir avaliações e cadastrar o site no **Search Console** (o `index.html` tem o lugar comentado para a tag de verificação). SEO do site: título, descrição, dados estruturados (JSON-LD) e texto de reserva no `index.html`, `robots.txt` e `sitemap.xml` em `public/`. CEP (60150-140) e horário no JSON-LD: conferir.
 - Fábio: preencher as **taxas da maquininha** (Ajustes) e o **retorno sugerido** dos serviços (Catálogo).
-- Fábio: criar a conta **Cloudflare da Casa Âmbar** (Turnstile + Web Analytics), mandar as duas chaves públicas para `src/externos.js` e, depois de publicadas, criar a propriedade `TURNSTILE_SECRET` no Apps Script. Manual da bancada: página privada no Notion (workspace do IFVET), falta inserir os prints (dados do simulador).
+- Fábio: criar a propriedade `TURNSTILE_SECRET` no Apps Script (as chaves públicas da Cloudflare da Casa Âmbar já estão em `src/externos.js`). Manual da bancada: página privada no Notion (workspace do IFVET), falta inserir os prints (dados do simulador).
 - Fábio/equipe: cadastrar a % de comissão de cada profissional (Catálogo → Profissionais), os produtos e o consumo de cada serviço, as despesas fixas, e importar os clientes do Avec (CSV).
 - Usar a bancada junto com o Avec por 2 a 4 semanas antes de cancelar o Avec.
 - Conferir que a planilha e as pastas do Drive (anamneses e fotos) estão com acesso **Restrito**.

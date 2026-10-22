@@ -45,7 +45,7 @@ const emMoldura = (() => { try { return window.top !== window.self; } catch { re
   const rota = window.location.hash.replace(/^#/, '').split('?')[0] || '/';
   if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar)/.test(rota)) return;
   const s = document.createElement('script');
-  s.defer = true;
+  s.type = 'module'; // igual ao código oficial da Cloudflare (módulo já carrega sem atrasar a página)
   s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
   s.dataset.cfBeacon = JSON.stringify({ token: EXTERNOS.analyticsToken, spa: true });
   document.head.appendChild(s);

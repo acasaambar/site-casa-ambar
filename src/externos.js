@@ -6,7 +6,7 @@
 // ============================================================
 export const EXTERNOS = {
   // "Não sou robô" no cadastro e no "Esqueci minha senha" (Turnstile → Site Key)
-  turnstileSiteKey: '',
+  turnstileSiteKey: '0x4AAAAAAFgB4HUNFOPGxh0y',
   // Visitas do site (Web Analytics → token do site)
-  analyticsToken: '',
+  analyticsToken: '84dfaf4e4b924504948c2a5707347ce8',
 };
