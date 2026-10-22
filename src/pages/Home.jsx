@@ -28,10 +28,10 @@ function useRevelar() {
 
 // Nossa equipe: foto = nome do arquivo em public/img/equipe (sem foto, aparece a inicial)
 const EQUIPE = [
-  { nome: 'Ana Paula', funcao: 'Yoga', quando: 'seg, qua e sex · manhãs e sáb', foto: 'ana-paula', forma: 'equilibrio', cor: 'var(--oliva)' },
-  { nome: 'Hanna', funcao: 'Yoga', quando: 'seg e qua · 18h30', forma: 'sutileza', cor: 'var(--oliva)' },
-  { nome: 'Kalliny', funcao: 'Pilates', quando: 'seg a sex · 6h às 10h', forma: 'presenca', cor: 'var(--terracota)' },
-  { nome: 'Sara', funcao: 'Pilates', quando: 'seg a sex · 16h às 20h', forma: 'equilibrio', cor: 'var(--terracota)' },
+  { nome: 'Ana Paula', funcao: 'Yoga', foto: 'ana-paula', forma: 'equilibrio', cor: 'var(--oliva)' },
+  { nome: 'Hanna', funcao: 'Yoga', forma: 'sutileza', cor: 'var(--oliva)' },
+  { nome: 'Kalliny', funcao: 'Pilates', forma: 'presenca', cor: 'var(--terracota)' },
+  { nome: 'Sara', funcao: 'Pilates', forma: 'equilibrio', cor: 'var(--terracota)' },
   { nome: 'Marylia', funcao: 'Estética', foto: 'marylia', forma: 'sutileza', cor: 'var(--caramelo-escuro)' },
   { nome: 'Sarah', funcao: 'Recepção', foto: 'sarah', forma: 'presenca', cor: 'var(--verde)' },
   { nome: 'Jainara', funcao: 'Recepção', foto: 'jainara', forma: 'equilibrio', cor: 'var(--verde)' },
@@ -211,14 +211,14 @@ export default function Home() {
       </section>
 
       {/* ---------- EQUIPE ---------- */}
-      <section className="secao secao--papel equipe">
+      <section id="equipe" className="secao secao--papel equipe">
         <div className="largura">
           <div className="equipe__cabeca revelar">
             <span className="rotulo-espacado cor-terracota">Quem cuida de você</span>
             <h2 className="display-m">Nossa equipe</h2>
           </div>
           <ul className="equipe__lista">
-            {EQUIPE.map(({ nome, funcao, quando, foto, forma, cor }, i) => (
+            {EQUIPE.map(({ nome, funcao, foto, forma, cor }, i) => (
               <li key={nome} className="prof revelar" style={{ transitionDelay: `${(i % 4) * 100}ms` }}>
                 <div className={'prof__selo' + (foto ? ' prof__selo--foto' : '')} style={{ '--cor': cor }}>
                   {foto ? (
@@ -231,7 +231,6 @@ export default function Home() {
                 </div>
                 <strong className="display-p">{nome}</strong>
                 <span className="rotulo" style={{ color: cor }}>{funcao}</span>
-                {quando && <span className="prof__quando">{quando}</span>}
               </li>
             ))}
           </ul>

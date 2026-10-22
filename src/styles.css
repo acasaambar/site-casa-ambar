@@ -175,7 +175,7 @@ strong { font-weight: 500; }
   align-items: center;
   gap: 24px;
 }
-.topo__logo { display: flex; }
+.topo__logo { display: flex; flex-shrink: 0; }
 .topo__nav { display: flex; gap: 28px; margin-left: auto; }
 .topo__nav a {
   text-decoration: none;
@@ -192,6 +192,8 @@ strong { font-weight: 500; }
 .topo__acoes .botao { white-space: nowrap; }
 /* com a conta aberta, os atalhos da área do aluno já estão na barra da própria área: no topo só aparecem no menu do celular */
 @media (min-width: 881px) { .topo__nav-area { display: none; } }
+/* telas médias: 5 links + botão cabem sem apertar o logo */
+@media (min-width: 881px) and (max-width: 1100px) { .topo__nav { gap: 18px; } .topo__nav a { letter-spacing: 0.14em; } }
 .topo--transparente .botao--pequeno { border-color: rgba(233, 221, 197, 0.6); color: var(--creme); }
 .topo--transparente .botao--pequeno:hover { background: var(--creme); color: var(--verde); }
 .topo__menu {
@@ -916,7 +918,6 @@ a.rodape__item:hover > svg { color: var(--creme); }
 .prof:hover .prof__selo { transform: translateY(-6px); }
 .prof__inicial { font-family: var(--display); font-size: clamp(90px, 10vw, 140px); line-height: 1; color: var(--creme); }
 .prof__forma { position: absolute; bottom: 22px; right: 22px; opacity: 0.85; }
-.prof__quando { font-size: 12px; color: var(--tinta-suave); }
 .prof__selo--foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; filter: saturate(0.92) sepia(0.06); }
 .prof__selo--foto::after { background: linear-gradient(to top, rgba(47, 56, 33, 0.35), transparent 32%); }
 .prof__selo--foto .prof__forma { z-index: 1; }

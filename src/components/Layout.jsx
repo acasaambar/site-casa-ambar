@@ -38,6 +38,7 @@ export function Header() {
         <nav className={`topo__nav ${aberto ? 'aberto' : ''}`} aria-label="Principal">
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'conceito')}>A Casa</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'movimento')}>Yoga & Pilates</a>
+          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'equipe')}>Nossa equipe</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'cuidados')}>Cuidados</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'contato')}>Contato</a>
           {/* atalhos da área: só no menu do celular (no computador já estão na barra da área do aluno) */}
