@@ -671,6 +671,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const [simulado, setSimulado] = useState(null);
   const [valor, setValor] = useState('');
   const [inicio, setInicio] = useState(hojeIso());
+  const [dataVenda, setDataVenda] = useState(hojeIso()); // dia passado: entra no caixa daquele dia
   const [obs, setObs] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -694,7 +695,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, bandeira, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : numBR(valor), inicio, obs });
+      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, bandeira, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : numBR(valor), inicio, dataVenda, obs });
       aoVender();
     } catch (e) {
       setErro(e.message);
@@ -760,7 +761,15 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
             {simulado && <p className="aviso">{simulado.mensagem}</p>}
           </>
         )}
-        <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
+        <div className="b-linha2">
+          <label className="b-campo">
+            <span className="rotulo">Data da venda</span>
+            <input type="date" value={dataVenda} min={somarDias(hojeIso(), -120)} max={hojeIso()}
+              onChange={(e) => { const v = e.target.value; if (!v) return; setDataVenda(v); if (inicio === dataVenda) setInicio(v); }} />
+          </label>
+          <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
+        </div>
+        {dataVenda < hojeIso() && <p className="aviso">Venda de {dataBR(dataVenda)}: entra no caixa daquele dia, não no de hoje.</p>}
         {plano && (
           <div className="b-total">
             <span>Total</span>

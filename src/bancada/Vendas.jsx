@@ -98,7 +98,7 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
   const { membro } = useBancada();
   const navegar = useNavigate();
   const admin = pode(membro, 'admin');
-  const deHoje = String(p.pagoEm || p.criadoEm).slice(0, 10) === hojeIso();
+  const deHoje = String(p.criadoEm).slice(0, 10) === hojeIso(); // lançada hoje (mesmo com data de venda passada)
   const doBalcao = p.origem === 'balcão' && !p.comanda;
   const podeMexer = p.status === 'pago' && doBalcao && (admin || deHoje);
   const comVale = p.metodo === 'Vale-presente';
@@ -125,7 +125,7 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
         <Estorno p={p} aoEstornar={aoMudar} />
       ) : (
         <>
-          {!podeMexer && <p className="aviso">A recepção corrige ou exclui só as vendas de hoje. Para esta, peça à administração.</p>}
+          {!podeMexer && <p className="aviso">A recepção corrige ou exclui só as vendas lançadas hoje. Para esta, peça à administração.</p>}
           {podeMexer && <Segmento rotulo="O que fazer" atual={vista} aoMudar={setVista} itens={opcoes} />}
           {vista === 'corrigir' && podeMexer && <CorrigirVenda p={p} aoSalvar={aoMudar} />}
           {vista === 'excluir' && podeMexer && <ExcluirVenda p={p} aoExcluir={aoMudar} />}
@@ -142,6 +142,7 @@ function CorrigirVenda({ p, aoSalvar }) {
   const [bandeira, setBandeira] = useState(p.bandeira || '');
   const [parcelas, setParcelas] = useState(Number(p.parcelas) || 1);
   const [valor, setValor] = useState(String(p.valor).replace('.', ','));
+  const [dataVenda, setDataVenda] = useState(String(p.pagoEm || p.criadoEm).slice(0, 10));
   const [obs, setObs] = useState(p.observacao.replace(/^(EXCLUÍDA|ESTORNADO)[^.]*\.\s*/, '').split(' · Corrigida em ')[0]);
   const [motivo, setMotivo] = useState('');
   const [erro, setErro] = useState('');
@@ -160,10 +161,14 @@ function CorrigirVenda({ p, aoSalvar }) {
             <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
         )}
       </div>
-      {!cortesia && (
-        <label className="b-campo"><span className="rotulo">Valor recebido (R$)</span>
-          <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} aria-invalid={valorRuim} /></label>
-      )}
+      <div className="vd-linha">
+        {!cortesia && (
+          <label className="b-campo"><span className="rotulo">Valor recebido (R$)</span>
+            <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} aria-invalid={valorRuim} /></label>
+        )}
+        <label className="b-campo"><span className="rotulo">Data da venda</span>
+          <input type="date" value={dataVenda} min={somarDias(hojeIso(), -120)} max={hojeIso()} onChange={(e) => e.target.value && setDataVenda(e.target.value)} /></label>
+      </div>
       <label className="b-campo"><span className="rotulo">Observação (opcional)</span>
         <input value={obs} onChange={(e) => setObs(e.target.value)} maxLength={250} /></label>
       <label className="b-campo"><span className="rotulo">Motivo da correção</span>
@@ -172,7 +177,7 @@ function CorrigirVenda({ p, aoSalvar }) {
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio" disabled={valorRuim || motivo.trim().length < 3 || (ehCartao(metodo) && faltaBandeira(metodo, bandeira))} acao={async () => {
         setErro('');
-        try { await chamar('corrigirVenda', { orderNsu: p.orderNsu, metodo, bandeira: ehCartao(metodo) || metodo === 'Link InfinitePay' ? bandeira : '', parcelas: parcela ? parcelas : 1, valor: valorNum, obs, motivo }); aoSalvar(); } catch (e) { setErro(e.message); }
+        try { await chamar('corrigirVenda', { orderNsu: p.orderNsu, metodo, bandeira: ehCartao(metodo) || metodo === 'Link InfinitePay' ? bandeira : '', parcelas: parcela ? parcelas : 1, valor: valorNum, dataVenda, obs, motivo }); aoSalvar(); } catch (e) { setErro(e.message); }
       }}>Salvar correção</BotaoAcao>
     </div>
   );

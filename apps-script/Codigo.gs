@@ -136,7 +136,9 @@ var ABAS = {
     // substituição: quem era a titular e de quem é a regra de comissão (vazio = de quem atende)
     'titular', 'comissao_de',
     // retorno sugerido ("avisado 2026-10-21" / "dispensado …") e resposta da cliente pelo link de confirmação
-    'retorno', 'resposta', 'resposta_em'],
+    'retorno', 'resposta', 'resposta_em',
+    // combo (pacote) que a cliente escolheu levar ao marcar "paga no dia": entra sozinho na comanda
+    'combo'],
   // ---- gestão (Gestao.gs) ----
   Produtos: ['id', 'ativo', 'nome', 'categoria', 'marca', 'unidade', 'preco', 'custo', 'estoque', 'minimo', 'vende', 'obs'],
   MovEstoque: ['quando', 'produto_id', 'produto', 'tipo', 'qtd', 'custo_unit', 'valor', 'motivo', 'ref', 'quem'],
@@ -1389,7 +1391,7 @@ function concluirPagamento(pg, info) {
     }
   }
   atualizarLinha('Pagamentos', pg._linha, {
-    status: 'pago', pago_em: agoraTexto(), metodo: info.metodo || '', parcelas: info.parcelas || 1,
+    status: 'pago', pago_em: info.pagoEm || agoraTexto(), metodo: info.metodo || '', parcelas: info.parcelas || 1,
     valor_pago: info.valor_pago != null ? info.valor_pago : numero(pg.valor), transaction_nsu: info.transaction_nsu || '', slug: info.slug || '',
     observacao: obs.filter(String).join(' ') || pg.observacao || '',
   });

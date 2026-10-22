@@ -945,6 +945,19 @@ function pagamentoPublico(p) {
     registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado) };
 }
 
+// Data da venda escolhida no balcão (migração do Avec, venda esquecida): vazio ou hoje = agora.
+// Dia passado (até 120 dias) entra no caixa daquele dia, ao meio-dia.
+var DIAS_VENDA_PASSADA = 120;
+function momentoDaVenda(data) {
+  data = String(data || '');
+  var hoje = hojeTexto();
+  if (!data || data === hoje) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) throw new Error('Data da venda inválida.');
+  if (data > hoje) throw new Error('A data da venda não pode ser depois de hoje.');
+  if (data < somarDias(hoje, -DIAS_VENDA_PASSADA)) throw new Error('A data da venda pode voltar no máximo ' + DIAS_VENDA_PASSADA + ' dias.');
+  return data + ' 12:00:00';
+}
+
 // Venda registrada pela recepção (já recebida: Pix, dinheiro, cartão na maquininha...)
 function registrarVenda(aluno, plano, o, membro) {
   var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay'];
@@ -972,6 +985,7 @@ function registrarVenda(aluno, plano, o, membro) {
     if (valor !== calc.valorFinal) promocao = '';
   }
   if (metodo === 'Cortesia') { desconto = plano.preco; valor = 0; }
+  var pagoEm = momentoDaVenda(o.dataVenda);
   var nsu = novoNsu('B');
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: valor, status: 'pendente',
     criado_em: agoraTexto(), valor_original: plano.preco, desconto: desconto, cupom: calc.cupom, vale: calc.vale, vale_usado: calc.valeUsado,
@@ -980,7 +994,7 @@ function registrarVenda(aluno, plano, o, membro) {
   SpreadsheetApp.flush();
   var inicioC = /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto();
   var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: Number(o.parcelas) || 1, valor_pago: valor, inicio: inicioC,
-    origemCredito: 'balcão', observacao: String(o.obs || '').slice(0, 300) });
+    origemCredito: 'balcão', observacao: String(o.obs || '').slice(0, 300), pagoEm: pagoEm });
   // valeUsado: parte paga com vale-presente (conta na comissão do atendimento, como na comanda)
   return { orderNsu: nsu, creditoId: creditoId, valor: valor, metodo: metodo, valeUsado: numero(calc.valeUsado) };
 }
@@ -1057,10 +1071,10 @@ function vendaQueDaParaMexer(d, m) {
   if (pg.comanda) throw new Error('Esta venda é de uma comanda: a administração corrige em Comandas → Fechadas → "Reabrir para corrigir".');
   if (String(pg.origem) !== 'balcão') throw new Error('Venda feita pelo site: se precisar desfazer, registre o estorno.');
   if (m.papel !== 'admin') {
-    var dia = String(pg.pago_em || pg.criado_em).slice(0, 10);
-    if (dia !== hojeTexto()) throw new Error('A recepção corrige só as vendas de hoje. Para dias anteriores, peça à administração.');
-    var cx = caixaDoDia(dia);
-    if (cx && String(cx.status) === 'fechado') throw new Error('O caixa de hoje já foi fechado. Peça à administração para corrigir.');
+    // vale o dia em que foi lançada (venda com data passada lançada hoje também pode ser corrigida hoje)
+    if (String(pg.criado_em).slice(0, 10) !== hojeTexto()) throw new Error('A recepção corrige só as vendas lançadas hoje. Para as outras, peça à administração.');
+    var cx = caixaDoDia(String(pg.pago_em || pg.criado_em).slice(0, 10));
+    if (cx && String(cx.status) === 'fechado') throw new Error('O caixa do dia desta venda já foi fechado. Peça à administração para corrigir.');
   }
   return pg;
 }
@@ -1086,6 +1100,11 @@ function bancada_corrigirVenda(d, m) {
     var parcelas = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(12, Math.max(1, Math.round(Number(d.parcelas) || 1))) : 1;
     var antes = textoDaVenda(pg);
     mud = { metodo: metodo, bandeira: bandeiraDe(metodo, d.bandeira, true), parcelas: parcelas, valor: valor, valor_pago: valor };
+    var diaAntes = String(pg.pago_em).slice(0, 10);
+    if (d.dataVenda && d.dataVenda !== diaAntes) {
+      mud.pago_em = momentoDaVenda(d.dataVenda) || hojeTexto() + String(pg.pago_em).slice(10);
+      antes += ' · ' + diaAntes.split('-').reverse().join('/');
+    }
     if (valor !== dinheiro(numero(pg.valor))) {
       mud.desconto = Math.max(0, dinheiro(numero(pg.valor_original) - valor - numero(pg.vale_usado)));
       mud.promocao = '';

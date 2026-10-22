@@ -259,13 +259,19 @@ function bancada_horarios(d) {
 }
 
 // ---------------- agenda de serviços ----------------
+function comboPublico(a) {
+  if (!a.combo || a.pagamento !== 'no_dia') return null;
+  var c = buscarItemVenda(a.combo);
+  return c && c.tipo === 'pacote' ? { id: c.id, nome: c.nome, sessoes: numero(c.aulas_total), preco: numero(c.preco) } : null;
+}
+
 function atendimentoPublico(a, m) {
   var esconder = m && m.papel === 'professora';
   return { id: String(a.id), data: dataTexto(a.data), hora: horaTexto(a.hora), duracao: numero(a.duracao_min) || 60, servicoId: String(a.servico_id), servico: String(a.servico),
     categoria: String(a.categoria), profissional: String(a.profissional), cpf: esconder ? '' : (a.cpf ? normCpf(a.cpf) : ''), nome: String(a.nome),
     whatsapp: esconder ? '' : String(a.whatsapp || ''), status: String(a.status), pagamento: String(a.pagamento), valor: numero(a.valor), obs: String(a.obs || ''),
     creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || ''), titular: String(a.titular || ''), alertas: alertasDe(a.cpf),
-    resposta: String(a.resposta || ''), respostaEm: String(a.resposta_em || ''),
+    resposta: String(a.resposta || ''), respostaEm: String(a.resposta_em || ''), combo: comboPublico(a),
     // link "confirmo / preciso remarcar" para o lembrete pelo WhatsApp (só para o balcão)
     linkConfirmar: m && m.papel !== 'professora' ? linkConfirmacao(a.id, dataTexto(a.data), horaTexto(a.hora)) : '' };
 }
@@ -373,6 +379,13 @@ function bancada_agendarServico(d, m) {
   if (!fazServico(profissionalPorNome(prof), serv)) throw new Error(prof + ' não faz ' + serv.nome + '. Confira em Catálogo → Profissionais.');
   var dur = Math.min(Math.max(Number(d.duracao) || duracaoServico(serv, prof), 10), 480);
   if (d.reagendarId) return reagendarServico(d, m, serv, prof, dur);
+  // dia que já passou (migração do Avec, atendimento esquecido): entra como atendido, com comissão;
+  // "já pagou" vai para o caixa daquele dia. Não confere o turno (o Avec pode ter horário fora dele), só o choque.
+  var passado = String(d.data) < hojeTexto();
+  if (passado) {
+    if (String(d.data) < somarDias(hojeTexto(), -DIAS_VENDA_PASSADA)) throw new Error('Dá para lançar atendimentos de até ' + DIAS_VENDA_PASSADA + ' dias atrás.');
+    if (d.repetir && Number(d.repetir.vezes) > 1) throw new Error('Série só para dias que ainda vão chegar.');
+  }
   var cliente;
   if (d.cpf) {
     var al = buscarAluno(d.cpf);
@@ -390,7 +403,7 @@ function bancada_agendarServico(d, m) {
   try {
     if (cliente.novo) {
       // confere o horário antes de criar o cadastro (não deixa cadastro solto se o horário falhar)
-      conferirHorarioLivre(d.data, d.hora, dur, prof);
+      conferirHorarioLivre(d.data, d.hora, dur, prof, '', passado);
       // mesmo WhatsApp de outra pessoa: pergunta antes (mãe e filha) em vez de juntar sem aviso
       var outro = d.outraPessoa ? null : outroComMesmoWhats(cliente.nome, cliente.whatsapp);
       if (outro) throw erroCod('Este WhatsApp já é de ' + outro.nome + '.', 'WHATSAPP_DE_OUTRA');
@@ -410,7 +423,7 @@ function bancada_agendarServico(d, m) {
       serie = { criados: [{ id: linha.id, data: d.data, pagamento: linha.pagamento }], pulados: [] };
       for (var k = 1; k < vezes; k++) {
         var dt = somarDias(d.data, k * cada);
-        var fk = forma === 'pacote' ? (creditoDeServico(cliente.cpf, serv.id, dt) ? 'pacote' : 'no_dia') : forma === 'cortesia' ? 'cortesia' : 'no_dia';
+        var fk = linha.pagamento === 'pacote' ? (creditoDeServico(cliente.cpf, serv.id, dt) ? 'pacote' : 'no_dia') : forma === 'cortesia' ? 'cortesia' : 'no_dia';
         try {
           var lk = criarAtendimento(d, m, serv, prof, duracaoServico(serv, prof), cliente, dt, fk);
           serie.criados.push({ id: lk.id, data: dt, pagamento: lk.pagamento });
@@ -419,21 +432,29 @@ function bancada_agendarServico(d, m) {
         }
       }
     }
+    if (passado) comissaoDoAtendimento(linha, true);
   } finally {
     soltarTrava(trava);
   }
   // fora da trava (não segura a fila dos outros): lista de espera, registro e a resposta montada com o que foi gravado
-  esperaResolvida('servico', serv.id, cliente.cpf);
-  registrar(m, 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof + (serie ? ' · série de ' + serie.criados.length : ''));
+  if (!passado) esperaResolvida('servico', serv.id, cliente.cpf);
+  registrar(m, passado ? 'lançou atendimento passado' : 'agendou serviço', cliente.nome + ' · ' + serv.nome + ' · ' + d.data + ' ' + d.hora + ' · ' + prof + (serie ? ' · série de ' + serie.criados.length : ''));
   var saida = atendimentoPublico(linha, m);
   if (serie) saida.serie = serie;
   return saida;
 }
 
+// pacote (combo) à venda deste serviço
+function comboDoServico(id, serv) {
+  var c = buscarItemVenda(id);
+  if (!c || c.tipo !== 'pacote' || String(c.servico_id) !== String(serv.id)) throw new Error('Este combo não é de ' + serv.nome + '. Escolha de novo.');
+  return c;
+}
+
 // horário dentro do turno e sem choque (atendimento, folga, aula da profissional, casa fechada)
-function conferirHorarioLivre(data, hora, dur, prof, ignorarId) {
+function conferirHorarioLivre(data, hora, dur, prof, ignorarId, semTurno) {
   var ini = minutos(hora);
-  var cabe = turnosDe(prof, data).some(function (t) { return ini >= t[0] && ini + dur <= t[1]; });
+  var cabe = semTurno || turnosDe(prof, data).some(function (t) { return ini >= t[0] && ini + dur <= t[1]; });
   if (!cabe) throw new Error('Fora do horário de atendimento de ' + prof + ' neste dia.');
   var c = conflito(data, hora, dur, prof, ignorarId);
   if (c && c.folga) throw new Error('Horário bloqueado para ' + prof + ' (' + c.motivo + '). Escolha outro horário.');
@@ -442,19 +463,30 @@ function conferirHorarioLivre(data, hora, dur, prof, ignorarId) {
 
 // cria um atendimento (dentro da trava): confere o horário e registra o pagamento escolhido
 function criarAtendimento(d, m, serv, prof, dur, cliente, data, forma) {
-  conferirHorarioLivre(data, d.hora, dur, prof);
+  var passado = data < hojeTexto();
+  conferirHorarioLivre(data, d.hora, dur, prof, '', passado);
   var linha = { id: novoId('A'),
     data: data, hora: d.hora, duracao_min: dur, servico_id: serv.id, servico: serv.nome, categoria: serv.categoria, profissional: prof,
-    cpf: cliente.cpf, nome: cliente.nome, whatsapp: cliente.whatsapp, status: 'agendado', pagamento: forma, valor: serv.preco,
+    cpf: cliente.cpf, nome: cliente.nome, whatsapp: cliente.whatsapp, status: passado ? 'atendido' : 'agendado', pagamento: forma, valor: serv.preco,
     obs: String(d.obs || '').slice(0, 500), criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto() };
-  if (forma === 'pacote') {
+  // combo escolhido no agendamento (só na 1ª da série): "já pagou" vende o combo agora e a sessão sai dele;
+  // "paga no dia" guarda a escolha e a comanda já abre com o combo
+  var combo = d.combo && data === d.data && (forma === 'pago' || forma === 'no_dia') ? comboDoServico(d.combo, serv) : null;
+  if (combo && forma === 'pago') {
+    var vc = registrarVenda(cliente, combo, { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, codigo: d.codigo, resto: d.resto, inicio: data,
+      obs: 'combo · ' + serv.nome, dataVenda: passado ? data : '' }, m);
+    linha.pagamento = 'pacote';
+    linha.credito_id = vc.creditoId;
+    linha.valor = 0;
+  } else if (forma === 'pacote') {
     if (!cliente.cpf) throw new Error('Pacote só para cliente com cadastro.');
     var cred = creditoDeServico(cliente.cpf, serv.id, data);
     if (!cred) throw erroCod(primeiroNome(cliente.nome) + ' não tem pacote de ' + serv.nome + ' com sessões disponíveis.', 'SEM_PACOTE');
     linha.credito_id = cred.id;
     linha.valor = 0;
   } else if (forma === 'pago') {
-    var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: data, obs: 'serviço ' + serv.nome }, m);
+    var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: data,
+      obs: 'serviço ' + serv.nome, dataVenda: passado ? data : '' }, m);
     linha.order_nsu = venda.orderNsu;
     linha.credito_id = venda.creditoId || '';
     linha.valor = dinheiro(venda.valor + venda.valeUsado);
@@ -462,6 +494,7 @@ function criarAtendimento(d, m, serv, prof, dur, cliente, data, forma) {
     linha.valor = 0;
   } else {
     linha.pagamento = 'no_dia';
+    if (combo) linha.combo = combo.id;
   }
   adicionarLinha('Atendimentos', linha);
   return linha;
@@ -560,12 +593,21 @@ function bancada_atualizarAtendimento(d, m) {
       })[0];
       if (naComanda) throw new Error('Este atendimento está na comanda aberta de ' + naComanda.nome + ': receba por lá (Comandas).');
       var cliente = { cpf: a.cpf ? normCpf(a.cpf) : '', nome: a.nome, whatsapp: a.whatsapp };
+      // combo escolhido no agendamento: vende o combo e a sessão de hoje sai dele ("só a sessão" = semCombo)
+      var comboA = a.combo && a.cpf && !d.semCombo ? buscarItemVenda(a.combo) : null;
+      if (comboA && comboA.tipo === 'pacote') {
+        var vc = registrarVenda(cliente, comboA, { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'combo · ' + a.servico }, m);
+        mud.pagamento = 'pacote';
+        mud.credito_id = vc.creditoId;
+        mud.valor = 0;
+      } else {
       var venda = registrarVenda(cliente, buscarItemVenda(a.servico_id) || { id: a.servico_id, nome: a.servico, modalidade: 'Serviço', tipo: 'servico', aulas_total: 1, aulas_semana: 0, validade_dias: 90, preco: numero(a.valor) },
-        { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
+        { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
       mud.pagamento = 'pago';
       mud.order_nsu = venda.orderNsu;
       mud.credito_id = venda.creditoId || '';
       mud.valor = dinheiro(venda.valor + venda.valeUsado);
+      }
     } finally {
       soltarTrava(trava);
     }

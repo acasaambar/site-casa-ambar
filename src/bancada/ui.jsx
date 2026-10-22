@@ -31,7 +31,8 @@ export function CampoBandeira({ metodo, valor, aoMudar, className = 'b-campo' })
 export const PAGAMENTO_INICIAL = { metodo: 'Pix', bandeira: '', codigo: '', resto: 'Pix' };
 export const faltaPagamento = (p) => (p.metodo === 'Vale-presente' ? !p.codigo.trim() : faltaBandeira(p.metodo, p.bandeira));
 
-export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', itemId, cpf, data }) {
+// parcelas: mostra "Parcelas" no cartão de crédito / link (combo parcelado)
+export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', itemId, cpf, data, parcelas }) {
   const { chamar } = useBancada();
   const [conferido, setConferido] = useState(null);
   const [erro, setErro] = useState('');
@@ -70,6 +71,10 @@ export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', 
           <select value={p.resto} onChange={(e) => mudar({ resto: e.target.value })}>{formasResto.map((m) => <option key={m}>{m}</option>)}</select></label>
       )}
       {!(vale && cobreTudo) && <CampoBandeira metodo={vale ? p.resto : p.metodo} valor={p.bandeira} aoMudar={(b) => mudar({ bandeira: b })} />}
+      {parcelas && !(vale && cobreTudo) && ['Cartão de crédito', 'Link InfinitePay'].includes(vale ? p.resto : p.metodo) && (
+        <label className="b-campo"><span className="rotulo">Parcelas</span>
+          <select value={p.parcelas || 1} onChange={(e) => mudar({ parcelas: Number(e.target.value) })}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
+      )}
     </div>
   );
 }

@@ -25,9 +25,9 @@ console.log('— corrigir forma, bandeira, parcelas e valor');
   ok(depois.lancamentos.some((l) => l.metodo === 'Cartão de crédito' && l.bandeira === 'Visa' && l.valor === 330 && l.nome === 'Venda Teste'), 'lançamento do caixa com a forma nova');
   // de ontem: só a administração
   const p = pg(v.orderNsu);
-  ctx.atualizarLinha('Pagamentos', p._linha, { pago_em: ctx.somarDias(hojeS, -1) + ' 10:00:00' });
+  ctx.atualizarLinha('Pagamentos', p._linha, { pago_em: ctx.somarDias(hojeS, -1) + ' 10:00:00', criado_em: ctx.somarDias(hojeS, -1) + ' 10:00:00' });
   r = chamar('b_corrigirVenda', { token: rec, orderNsu: v.orderNsu, metodo: 'Pix', valor: 350, motivo: 'teste' });
-  ok(!r.ok && /só as vendas de hoje/.test(r.erro), 'recepção não corrige venda de outro dia', r.erro);
+  ok(!r.ok && /só as vendas lançadas hoje/.test(r.erro), 'recepção não corrige venda de outro dia', r.erro);
   r = chamar('b_corrigirVenda', { token: adm, orderNsu: v.orderNsu, metodo: 'Pix', valor: 350, motivo: 'voltou ao original' });
   ok(r.ok && r.dados.metodo === 'Pix' && r.dados.bandeira === '' && Number(r.dados.parcelas) === 1, 'administração corrige venda de outro dia', r.erro);
   const lia = chamar('b_entrar', { email: 'lia@gmail.com', senha: 'liamoura2026' });

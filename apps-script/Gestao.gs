@@ -1233,12 +1233,16 @@ function bancada_comandaDoAtendimento(d, m) {
   })[0] : null;
   var item = { tipo: 'servico', id: String(a.servico_id), nome: a.servico, profissional: a.profissional, atendimentoId: a.id, data: dataTexto(a.data),
     pago: a.pagamento !== 'no_dia' };
+  var novos = [item];
+  // combo escolhido no agendamento: entra junto, e a sessão sai dele
+  var combo = a.combo && a.pagamento === 'no_dia' && a.cpf ? buscarItemVenda(a.combo) : null;
+  if (combo && combo.tipo === 'pacote') novos.push({ tipo: 'pacote', id: combo.id, nome: combo.nome, qtd: 1 });
   if (mesma) {
     var cm = comandaPublica(mesma);
-    return bancada_salvarComanda({ comanda: { id: cm.id, itens: cm.itens.concat([item]), codigo: cm.codigo, obs: cm.obs } }, m);
+    return bancada_salvarComanda({ comanda: { id: cm.id, itens: cm.itens.concat(novos), codigo: cm.codigo, obs: cm.obs } }, m);
   }
   var cli = a.cpf ? { cpf: normCpf(a.cpf) } : { cliente: { nome: a.nome, whatsapp: a.whatsapp } };
-  return bancada_salvarComanda({ comanda: Object.assign(cli, { itens: [item] }) }, m);
+  return bancada_salvarComanda({ comanda: Object.assign(cli, { itens: novos }) }, m);
 }
 
 function bancada_cancelarComanda(d, m) {

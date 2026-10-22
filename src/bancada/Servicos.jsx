@@ -617,6 +617,10 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const [enviando, setEnviando] = useState(false);
   const [repetir, setRepetir] = useState({ cadaDias: 0, vezes: 4 });
   const [serie, setSerie] = useState(null); // resultado da série: { criados, pulados }
+  const [combo, setCombo] = useState(''); // combo que a cliente vai levar ('' = só a sessão)
+  // dia que já passou: lança o atendimento feito (migração do Avec); horário digitado, sem série
+  const passado = !re && !!data && data < hojeIso();
+  const limitePassado = somarDias(hojeIso(), -120);
 
   const servicos = catalogo.servicos.filter((s) => s.ativo);
   const serv = servicos.find((s) => s.id === servicoId);
@@ -625,7 +629,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   // horários livres: na hora, com a agenda da semana que já está na tela; o servidor confere por trás
   // (a resposta dele substitui) e de novo ao salvar
   useEffect(() => {
-    if (!serv || !profissional || !data) return undefined;
+    if (!serv || !profissional || !data || passado) return undefined;
     let vivo = true;
     const params = { de: segundaDe(data) };
     const semana = lembrar(`${token}|agendaSemana|${JSON.stringify(params)}`);
@@ -637,6 +641,8 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
       .catch((e) => vivo && !local && setErro(e.message));
     return () => { vivo = false; };
   }, [servicoId, profissional, data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { setCombo(''); }, [servicoId]);
 
   useEffect(() => {
     setPacote(null);
@@ -652,10 +658,11 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
     try {
       const r = await chamar('agendarServico', {
         servicoId, profissional, data, hora: horaSel, obs, pagamento, ...pg, outraPessoa: outraPessoa === true || undefined,
+        combo: comboValido && (pagamento === 'no_dia' || pagamento === 'pago') ? combo : undefined,
         cpf: cliente?.cpf || undefined,
         cliente: cliente?.cpf ? undefined : cliente ? { nome: cliente.nome, whatsapp: cliente.whatsapp } : { ...semCadastro, whatsapp: soDigitos(semCadastro.whatsapp) },
         reagendarId: re?.id,
-        repetir: !re && repetir.cadaDias ? repetir : undefined,
+        repetir: !re && !passado && repetir.cadaDias ? repetir : undefined,
       });
       if (r?.serie) setSerie(r.serie);
       else aoSalvar(r);
@@ -677,6 +684,8 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const combosDe = (id) => (catalogo.pacotes || []).filter((p) => p.ativo && p.servicoId === id).sort((a, b) => a.sessoes - b.sessoes);
   const textoCombos = (id) => combosDe(id).map((p) => `${plural(p.sessoes, 'sessão', 'sessões')} ${real(p.preco)}`).join(' / ');
   const combos = serv ? combosDe(serv.id) : [];
+  const comboEscolhido = combos.find((p) => p.id === combo);
+  const comboValido = !!comboEscolhido && !re && !pacote;
   if (serie) {
     const nomePg = { no_dia: 'paga no dia', pacote: 'pacote', pago: 'pago', cortesia: 'cortesia' };
     return (
@@ -720,13 +729,23 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
               {profs.map((p) => <option key={p.nome}>{p.nome}</option>)}
             </select>
           </label>
-          <label className="b-campo"><span className="rotulo">Dia</span><input type="date" value={data} min={hojeIso()} onChange={(e) => { setData(e.target.value); setHoraSel(''); }} /></label>
+          <label className="b-campo"><span className="rotulo">Dia</span><input type="date" value={data} min={re ? hojeIso() : limitePassado} onChange={(e) => { setData(e.target.value); setHoraSel(''); }} /></label>
         </div>
+        {passado && (
+          <p className="aviso s-passado">
+            {data < limitePassado ? 'Dá para lançar atendimentos de até 120 dias atrás.'
+              : `Dia que já passou: o atendimento entra como atendido (com a comissão) para organizar o histórico. Se já pagou, a venda entra no caixa de ${dataBR(data)}.`}
+          </p>
+        )}
         {serv && profs.length === 0 && (
           <p className="aviso">Ninguém está marcado para fazer {serv.nome}. A administração acerta em Catálogo → Serviços → editar o serviço → "Quem faz este serviço".</p>
         )}
 
-        {serv && profissional && (
+        {serv && profissional && passado && (
+          <label className="b-campo s-hora-passada"><span className="rotulo">Horário em que foi feito</span>
+            <input type="time" step={300} value={horaSel} onChange={(e) => setHoraSel(e.target.value)} /></label>
+        )}
+        {serv && profissional && !passado && (
           <fieldset className="s-horarios">
             <legend className="rotulo">Horário · {horarios?.duracao || serv.duracao} min</legend>
             {!horarios && <span className="b-suave">Procurando horários livres…</span>}
@@ -766,6 +785,22 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
           </fieldset>
         )}
 
+        {!re && serv && combos.length > 0 && !pacote && (pagamento === 'no_dia' || pagamento === 'pago') && (
+          <fieldset className="b-opcoes b-opcoes--linha s-leva">
+            <legend className="rotulo">O que vai levar</legend>
+            <label className={!combo ? 'ativo' : ''}>
+              <input type="radio" checked={!combo} onChange={() => setCombo('')} />
+              <span><strong>Só a sessão</strong><small>{real(serv.preco)}</small></span>
+            </label>
+            {combos.map((p) => (
+              <label key={p.id} className={combo === p.id ? 'ativo' : ''}>
+                <input type="radio" checked={combo === p.id} onChange={() => setCombo(p.id)} />
+                <span><strong>{p.nome ? `${p.nome} · ` : 'Combo · '}{plural(p.sessoes, 'sessão', 'sessões')}</strong>
+                  <small>{real(p.preco)}{p.semJurosAte > 1 ? ` · até ${p.semJurosAte}x sem juros` : ''} · esta sessão sai do combo</small></span>
+              </label>
+            ))}
+          </fieldset>
+        )}
         {!re && serv && (
           <fieldset className="b-opcoes b-opcoes--linha">
             <legend className="rotulo">Pagamento</legend>
@@ -777,11 +812,11 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             )}
             <label className={pagamento === 'no_dia' ? 'ativo' : ''}>
               <input type="radio" checked={pagamento === 'no_dia'} onChange={() => setPagamento('no_dia')} />
-              <span><strong>Paga no dia</strong><small>{combos.length > 0 && !pacote ? 'no dia, na comanda: dá para vender o combo, e a sessão sai dele' : 'registra o pagamento ao marcar atendido'}</small></span>
+              <span><strong>{passado ? 'Ainda não pagou' : 'Paga no dia'}</strong><small>{passado ? 'fica a receber (na agenda ou na comanda)' : comboValido ? `na comanda, que já abre com o combo (${real(comboEscolhido.preco)})` : 'registra o pagamento ao marcar atendido'}</small></span>
             </label>
             <label className={pagamento === 'pago' ? 'ativo' : ''}>
               <input type="radio" checked={pagamento === 'pago'} onChange={() => setPagamento('pago')} />
-              <span><strong>Já pagou</strong><small>registra agora · {real(serv.preco)}</small></span>
+              <span><strong>Já pagou</strong><small>{passado ? `entra no caixa de ${dataBR(data)}` : 'registra agora'} · {real(comboValido ? comboEscolhido.preco : serv.preco)}{comboValido ? ' (combo)' : ''}</small></span>
             </label>
             <label className={pagamento === 'cortesia' ? 'ativo' : ''}>
               <input type="radio" checked={pagamento === 'cortesia'} onChange={() => setPagamento('cortesia')} />
@@ -789,8 +824,8 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             </label>
           </fieldset>
         )}
-        {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={servicoId} cpf={cliente?.cpf} data={data} />}
-        {!re && serv && (
+        {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas />}
+        {!re && serv && !passado && (
           <div className="b-linha2 sr-repetir">
             <label className="b-campo"><span className="rotulo">Repetir</span>
               <select value={repetir.cadaDias} onChange={(e) => setRepetir({ ...repetir, cadaDias: Number(e.target.value) })}>
@@ -811,8 +846,8 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
         )}
         <label className="b-campo"><span className="rotulo">Observação para quem vai atender</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaPagamento(pg))} onClick={salvar}>
-          {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : repetir.cadaDias ? `Agendar ${repetir.vezes} vezes a partir de ${dataBR(data)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
+        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaPagamento(pg)) || (passado && data < limitePassado)} onClick={salvar}>
+          {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : passado ? `Lançar atendimento de ${dataBR(data)} às ${hora(horaSel)}` : repetir.cadaDias ? `Agendar ${repetir.vezes} vezes a partir de ${dataBR(data)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
         </button>
       </div>
     </Modal>
@@ -902,6 +937,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
   const { membro, chamar } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const [pg, setPg] = useState(PAGAMENTO_INICIAL);
+  const [semCombo, setSemCombo] = useState(false); // combo escolhido no agendamento: desmarcar = cobra só a sessão
   const [erro, setErro] = useState('');
   const st = STATUS[a.status] || [a.status, 'neutro'];
   const mudar = async (status, extra = {}) => {
@@ -929,7 +965,7 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
           <dt>Cliente</dt><dd>{a.nome}{!a.cpf && balcao ? ' · sem cadastro' : ''}</dd>
           {a.whatsapp && <><dt>WhatsApp</dt><dd><a href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer">{telFmt(a.whatsapp)}</a></dd></>}
           <dt>Situação</dt><dd><Tag tom={st[1]}>{st[0]}</Tag></dd>
-          {balcao && <><dt>Pagamento</dt><dd>{PAGAMENTO[a.pagamento] || a.pagamento}{a.valor ? ` · ${real(a.valor)}` : ''}</dd></>}
+          {balcao && <><dt>Pagamento</dt><dd>{PAGAMENTO[a.pagamento] || a.pagamento}{a.combo ? ` · vai levar ${a.combo.nome} (${real(a.combo.preco)})` : a.valor ? ` · ${real(a.valor)}` : ''}</dd></>}
           {a.obs && <><dt>Observação</dt><dd>{a.obs}</dd></>}
         </dl>
       </div>
@@ -952,8 +988,15 @@ function DetalheAtendimento({ a, aoFechar, aoMudar, aoReagendar, aoComanda, aoPr
         <div className="s-acoes">
           {a.pagamento === 'no_dia' && balcao ? (
             <div className="s-receber">
-              <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} rotulo="Atendido · recebido por" itemId={a.servicoId} cpf={a.cpf} data={a.data} />
-              <BotaoAcao className="botao botao--cheio botao--p" disabled={faltaPagamento(pg)} acao={() => mudar('atendido', pg)}>Marcar atendido</BotaoAcao>
+              {a.combo && (
+                <label className="s-receber__combo">
+                  <input type="checkbox" checked={!semCombo} onChange={(e) => setSemCombo(!e.target.checked)} />
+                  <span>Vender o combo ({plural(a.combo.sessoes, 'sessão', 'sessões')} · {real(a.combo.preco)}): esta sessão sai dele</span>
+                </label>
+              )}
+              <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} rotulo="Atendido · recebido por" itemId={a.combo && !semCombo ? a.combo.id : a.servicoId} cpf={a.cpf} data={a.data} parcelas />
+              <BotaoAcao className="botao botao--cheio botao--p" disabled={faltaPagamento(pg)} acao={() => mudar('atendido', { ...pg, semCombo: a.combo ? semCombo : undefined })}>
+                Marcar atendido{a.combo ? ` · ${real(semCombo ? a.valor : a.combo.preco)}` : ''}</BotaoAcao>
             </div>
           ) : (
             <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido')}>Marcar atendido</BotaoAcao>

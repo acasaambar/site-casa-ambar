@@ -2321,3 +2321,11 @@
 @media (max-width: 560px) {
   .vd-resumo div { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* ============================================================
+   DESENHO 11 · combo escolhido no agendamento e atendimento de dia passado
+   ============================================================ */
+.s-passado { margin: 0; }
+.s-hora-passada { max-width: 220px; }
+.s-receber__combo { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid rgba(47, 56, 33, 0.18); border-radius: 10px; background: var(--b-linho, #FBF8EF); cursor: pointer; }
+.s-receber__combo input { width: 20px; height: 20px; margin-top: 1px; flex: none; accent-color: #2F3821; }
