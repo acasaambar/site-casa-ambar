@@ -128,6 +128,8 @@ var PERMISSOES = {
   // lista de espera e retornos (Espera.gs)
   b_espera: ['admin', 'recepcao'],
   b_receberAula: ['admin', 'recepcao'],
+  b_corrigirVenda: ['admin', 'recepcao'],
+  b_excluirVenda: ['admin', 'recepcao'],
   b_entrarEspera: ['admin', 'recepcao'],
   b_atualizarEspera: ['admin', 'recepcao'],
   b_retornos: ['admin', 'recepcao'],
@@ -940,7 +942,7 @@ function pagamentoPublico(p) {
     valorOriginal: numero(p.valor_original) || numero(p.valor), desconto: numero(p.desconto), cupom: String(p.cupom || ''), vale: String(p.vale || ''),
     status: p.status, criadoEm: String(p.criado_em || ''), pagoEm: String(p.pago_em || ''), metodo: String(p.metodo || ''), parcelas: p.parcelas,
     valorPago: numero(p.valor_pago), origem: String(p.origem || 'site'), observacao: String(p.observacao || ''), recibo: String(p.recibo || ''),
-    registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || '') };
+    registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado) };
 }
 
 // Venda registrada pela recepção (já recebida: Pix, dinheiro, cartão na maquininha...)
@@ -1033,13 +1035,118 @@ function bancada_estornar(d, m) {
   var mc = mapaCreditos();
   var c = mc['C' + String(pg.order_nsu).slice(1)];
   if (c) atualizarLinha('Creditos', c._linha, { ativo: 'NÃO' });
-  // vale em R$ usado neste pagamento volta a ter saldo
-  if (pg.vale) {
-    var v = acharVale(pg.vale);
-    if (v && v.tipo !== 'plano' && v.status === 'usado') atualizarLinha('Vales', v._linha, { status: 'ativo', resgatado_em: '', resgatado_cpf: '' });
-  }
+  devolverValeDoPagamento(pg);
   registrar(m, 'estorno', pg.nome + ' · ' + pg.descricao + ' · R$ ' + numero(pg.valor));
   return pagamentoPublico(linhaPagamento(pg.order_nsu));
+}
+
+// vale em R$ usado neste pagamento volta a ter saldo
+function devolverValeDoPagamento(pg) {
+  if (!pg.vale) return;
+  var v = acharVale(pg.vale);
+  if (v && v.tipo !== 'plano' && v.status === 'usado') atualizarLinha('Vales', v._linha, { status: 'ativo', resgatado_em: '', resgatado_cpf: '' });
+}
+
+// ---------- corrigir / excluir venda do balcão (tela Vendas) ----------
+// Só venda paga, do balcão e fora de comanda (comanda: "Reabrir para corrigir"; site: estorno).
+// A recepção mexe só nas vendas de hoje com o caixa aberto; a administração, em qualquer dia.
+function vendaQueDaParaMexer(d, m) {
+  var pg = linhaPagamento(String(d.orderNsu || ''));
+  if (!pg) throw new Error('Venda não encontrada.');
+  if (pg.status !== 'pago') throw new Error('Só dá para corrigir ou excluir uma venda paga.');
+  if (pg.comanda) throw new Error('Esta venda é de uma comanda: a administração corrige em Comandas → Fechadas → "Reabrir para corrigir".');
+  if (String(pg.origem) !== 'balcão') throw new Error('Venda feita pelo site: se precisar desfazer, registre o estorno.');
+  if (m.papel !== 'admin') {
+    var dia = String(pg.pago_em || pg.criado_em).slice(0, 10);
+    if (dia !== hojeTexto()) throw new Error('A recepção corrige só as vendas de hoje. Para dias anteriores, peça à administração.');
+    var cx = caixaDoDia(dia);
+    if (cx && String(cx.status) === 'fechado') throw new Error('O caixa de hoje já foi fechado. Peça à administração para corrigir.');
+  }
+  return pg;
+}
+
+function textoDaVenda(pg) {
+  return String(pg.metodo || '') + (pg.bandeira ? ' ' + pg.bandeira : '') + (Number(pg.parcelas) > 1 ? ' ' + pg.parcelas + 'x' : '') + ' · ' + brl(numero(pg.valor));
+}
+
+function bancada_corrigirVenda(d, m) {
+  var motivo = String(d.motivo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (motivo.length < 3) throw new Error('Diga o motivo da correção.');
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  var pg, mud = {};
+  try {
+    pg = vendaQueDaParaMexer(d, m);
+    var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Cortesia'];
+    var metodo = metodos.indexOf(d.metodo) >= 0 ? d.metodo : '';
+    if (!metodo) throw new Error('Escolha como foi pago.');
+    var valor = metodo === 'Cortesia' ? 0 : numero(d.valor);
+    if (isNaN(valor) || valor < 0) throw new Error('Valor inválido.');
+    valor = dinheiro(valor);
+    var parcelas = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(12, Math.max(1, Math.round(Number(d.parcelas) || 1))) : 1;
+    var antes = textoDaVenda(pg);
+    mud = { metodo: metodo, bandeira: bandeiraDe(metodo, d.bandeira, true), parcelas: parcelas, valor: valor, valor_pago: valor };
+    if (valor !== dinheiro(numero(pg.valor))) {
+      mud.desconto = Math.max(0, dinheiro(numero(pg.valor_original) - valor - numero(pg.vale_usado)));
+      mud.promocao = '';
+    }
+    var obs = d.obs != null ? String(d.obs).replace(/\s+/g, ' ').trim() : String(pg.observacao || '');
+    mud.observacao = (obs + (obs ? ' · ' : '') + 'Corrigida em ' + agoraTexto() + ' por ' + m.email + ' (antes: ' + antes + '): ' + motivo).slice(0, 500);
+    atualizarLinha('Pagamentos', pg._linha, mud);
+    // serviço pago direto na agenda: o atendimento guarda o valor (base da comissão)
+    if (mud.valor !== dinheiro(numero(pg.valor))) {
+      var at = lerAba('Atendimentos').filter(function (a) { return String(a.order_nsu) === String(pg.order_nsu); })[0];
+      if (at) {
+        atualizarLinha('Atendimentos', at._linha, { valor: dinheiro(valor + numero(pg.vale_usado)), atualizado_em: agoraTexto() });
+        if (at.status === 'atendido') comissaoDoAtendimento(lerAba('Atendimentos').filter(function (a) { return a.id === at.id; })[0], true);
+      }
+      esquecerComissoesAulas();
+    }
+  } finally {
+    soltarTrava(trava);
+  }
+  registrar(m, 'corrigiu venda', pg.nome + ' · ' + pg.descricao + ' · ' + textoDaVenda(pg) + ' → ' + textoDaVenda(mud) + ' · ' + motivo);
+  return pagamentoPublico(linhaPagamento(pg.order_nsu));
+}
+
+// Venda lançada por engano: some do caixa e das vendas (fica em "Excluídas", com o motivo).
+// O plano/pacote vendido é desativado. Aula avulsa já marcada volta a ficar "A pagar";
+// serviço pago na agenda volta a "paga no dia". Plano ou pacote já usado: recusa (cancele antes ou registre o estorno).
+function bancada_excluirVenda(d, m) {
+  var motivo = String(d.motivo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (motivo.length < 3) throw new Error('Diga o motivo da exclusão.');
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  var pg, aPagar = 0, atendimentos = 0;
+  try {
+    pg = vendaQueDaParaMexer(d, m);
+    var cid = 'C' + String(pg.order_nsu).slice(1);
+    var avulsa = /-avulsa$/.test(String(pg.plano_id));
+    var reservas = lerAba('Reservas').filter(function (r) { return String(r.credito_id) === cid && r.status !== 'cancelado'; });
+    if (reservas.length && !avulsa) {
+      throw new Error('Este plano já tem ' + (reservas.length === 1 ? '1 aula marcada ou feita' : reservas.length + ' aulas marcadas ou feitas') + '. Cancele as reservas antes ou, se a pessoa desistiu, registre o estorno.');
+    }
+    var ats = lerAba('Atendimentos').filter(function (a) { return a.status !== 'cancelado' && (String(a.order_nsu) === String(pg.order_nsu) || String(a.credito_id) === cid); });
+    var sessoes = ats.filter(function (a) { return String(a.order_nsu) !== String(pg.order_nsu); });
+    if (sessoes.length) {
+      throw new Error((sessoes.length === 1 ? '1 sessão deste pacote já foi usada ou agendada' : sessoes.length + ' sessões deste pacote já foram usadas ou agendadas') + '. Cancele os agendamentos antes ou, se a pessoa desistiu, registre o estorno.');
+    }
+    reservas.forEach(function (r) { atualizarLinha('Reservas', r._linha, { credito_id: A_PAGAR }); aPagar++; });
+    ats.forEach(function (a) {
+      atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
+      atendimentos++;
+    });
+    atualizarLinha('Pagamentos', pg._linha, { status: 'excluido',
+      observacao: ('EXCLUÍDA em ' + agoraTexto() + ' por ' + m.email + ': ' + motivo + '. ' + (pg.observacao || '')).slice(0, 500) });
+    var c = mapaCreditos()[cid];
+    if (c) atualizarLinha('Creditos', c._linha, { ativo: 'NÃO' });
+    devolverValeDoPagamento(pg);
+    esquecerComissoesAulas();
+  } finally {
+    soltarTrava(trava);
+  }
+  registrar(m, 'excluiu venda', pg.nome + ' · ' + pg.descricao + ' · ' + textoDaVenda(pg) + ' · ' + motivo);
+  return { venda: pagamentoPublico(linhaPagamento(pg.order_nsu)), aulasAPagar: aPagar, atendimentosAPagar: atendimentos };
 }
 
 function bancada_marcarDevolvido(d, m) {

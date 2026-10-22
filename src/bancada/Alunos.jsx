@@ -803,16 +803,19 @@ function AplicarVale({ aluno, aoFechar, aoAplicar }) {
   );
 }
 
-export function ListaPagamentos({ lista, acoes }) {
+// aoAbrir: clicar na linha abre a venda (tela Vendas: corrigir, excluir, estorno)
+export function ListaPagamentos({ lista, acoes, aoAbrir }) {
   if (!lista?.length) return <Vazio titulo="Nenhum pagamento">Os pagamentos do site e do balcão aparecem aqui.</Vazio>;
-  const tom = { pago: 'ok', pendente: 'aviso', estornado: 'apagado', expirado: 'apagado', descartado: 'apagado' };
+  const tom = { pago: 'ok', pendente: 'aviso', estornado: 'apagado', expirado: 'apagado', descartado: 'apagado', excluido: 'apagado' };
+  const nomeSituacao = { excluido: 'excluída' };
   return (
     <div className="b-tabela-caixa">
       <table className="b-tabela">
         <thead><tr><th>Data</th><th>Cliente</th><th>Item</th><th className="num">Valor</th><th>Forma</th><th>Situação</th>{acoes && <th />}</tr></thead>
         <tbody>
           {lista.map((p) => (
-            <tr key={p.orderNsu}>
+            <tr key={p.orderNsu} className={`${aoAbrir ? 'b-linha-abre' : ''}${p.status === 'excluido' ? ' b-linha-excluida' : ''}`}
+              onClick={aoAbrir ? (e) => { if (!e.target.closest('button, a')) aoAbrir(p); } : undefined}>
               <td data-rotulo="Data">{dataBR(p.pagoEm || p.criadoEm)}</td>
               <td data-rotulo="Cliente"><span className="b-nowrap">{p.nome}</span></td>
               <td data-rotulo="Item">
@@ -820,10 +823,10 @@ export function ListaPagamentos({ lista, acoes }) {
                 {(p.cupom || p.vale) && <span className="b-suave b-bloco">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
                 {p.observacao && <span className={`b-bloco ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
               </td>
-              <td data-rotulo="Valor" className="num">{real(p.valor)}</td>
+              <td data-rotulo="Valor" className="num"><span className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</span></td>
               <td data-rotulo="Forma">{/* "Cartão de crédito" não quebra no meio; bandeira e parcelas podem ir para a linha de baixo */}
                 {(p.metodo || '—').replace(/ /g, '\u00A0')}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
-              <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{p.status}</Tag></td>
+              <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{nomeSituacao[p.status] || p.status}</Tag></td>
               {acoes && <td>{acoes(p)}</td>}
             </tr>
           ))}

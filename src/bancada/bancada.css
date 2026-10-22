@@ -2304,3 +2304,20 @@
   .cx-lanc td { border: 0; padding: 0; }
   .cx-lanc td.cx-lanc__hora { grid-column: 1 / -1; color: var(--b-suave); font-size: 13px; }
 }
+
+/* ============================================================
+   DESENHO 10 · vendas: clicar abre a venda (corrigir, excluir, estorno)
+   ============================================================ */
+.b-linha-abre { cursor: pointer; }
+@media (hover: hover) { .b-linha-abre:hover td { background: rgba(166, 132, 94, 0.08); } }
+.b-linha-excluida td { color: var(--b-suave); }
+.b-riscado { text-decoration: line-through; }
+.vd-resumo { display: grid; gap: 8px; margin: 0 0 18px; padding: 14px 16px; background: var(--b-linho, #FBF8EF); border: 1px solid rgba(47, 56, 33, 0.12); border-radius: 12px; }
+.vd-resumo div { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
+.vd-resumo dt { color: var(--b-suave); }
+.vd-resumo dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.vd-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; }
+.vd-lista { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+@media (max-width: 560px) {
+  .vd-resumo div { grid-template-columns: 1fr; gap: 0; }
+}
