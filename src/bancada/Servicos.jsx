@@ -673,6 +673,10 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   }
 
   const porCategoria = catalogo.categorias.map((c) => [c, servicos.filter((s) => s.categoria === c)]).filter(([, l]) => l.length);
+  // combos (pacotes) de cada serviço: aparecem na lista e abaixo do serviço escolhido
+  const combosDe = (id) => (catalogo.pacotes || []).filter((p) => p.ativo && p.servicoId === id).sort((a, b) => a.sessoes - b.sessoes);
+  const textoCombos = (id) => combosDe(id).map((p) => `${plural(p.sessoes, 'sessão', 'sessões')} ${real(p.preco)}`).join(' / ');
+  const combos = serv ? combosDe(serv.id) : [];
   if (serie) {
     const nomePg = { no_dia: 'paga no dia', pacote: 'pacote', pago: 'pago', cortesia: 'cortesia' };
     return (
@@ -698,10 +702,16 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
           <select value={servicoId} onChange={(e) => setServicoId(e.target.value)} disabled={!!re}>
             <option value="">Escolha…</option>
             {porCategoria.map(([c, l]) => (
-              <optgroup key={c} label={c}>{l.map((s) => <option key={s.id} value={s.id}>{s.nome} · {s.duracao} min · {real(s.preco)}</option>)}</optgroup>
+              <optgroup key={c} label={c}>{l.map((s) => <option key={s.id} value={s.id}>{s.nome} · {s.duracao} min · {real(s.preco)}{combosDe(s.id).length ? ` · combo: ${textoCombos(s.id)}` : ''}</option>)}</optgroup>
             ))}
           </select>
         </label>
+        {serv && combos.length > 0 && (
+          <p className="s-combos">
+            Combo deste serviço: {combos.map((p, i) => <span key={p.id}>{i > 0 && ' · '}<strong>{plural(p.sessoes, 'sessão', 'sessões')} por {real(p.preco)}</strong></span>)}
+            {' '}(sessão avulsa: {real(serv.preco)})
+          </p>
+        )}
         <div className="b-linha2">
           <label className="b-campo">
             <span className="rotulo">Profissional</span>
@@ -767,7 +777,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             )}
             <label className={pagamento === 'no_dia' ? 'ativo' : ''}>
               <input type="radio" checked={pagamento === 'no_dia'} onChange={() => setPagamento('no_dia')} />
-              <span><strong>Paga no dia</strong><small>registra o pagamento ao marcar atendido</small></span>
+              <span><strong>Paga no dia</strong><small>{combos.length > 0 && !pacote ? 'no dia, na comanda: dá para vender o combo, e a sessão sai dele' : 'registra o pagamento ao marcar atendido'}</small></span>
             </label>
             <label className={pagamento === 'pago' ? 'ativo' : ''}>
               <input type="radio" checked={pagamento === 'pago'} onChange={() => setPagamento('pago')} />

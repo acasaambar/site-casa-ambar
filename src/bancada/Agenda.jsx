@@ -28,6 +28,7 @@ export default function Agenda() {
   const [filtro, setFiltro] = useState('Todas');
   const [abertas, setAbertas] = useState(() => (local.state?.abrir ? { [local.state.abrir]: true } : {}));
   const [agendar, setAgendar] = useState(null);
+  const [receber, setReceber] = useState(null); // aula reservada para pagar depois
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
   const [vistaEscolhida, setVista] = useState(local.state?.abrir || local.state?.vista === 'aulas' ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas'
@@ -290,6 +291,9 @@ export default function Agenda() {
                                 <IconeWhatsapp tamanho={15} />
                               </a>
                             )}
+                            {equipeBalcao && r.aPagar && (
+                              <button type="button" className="link-acao b-reserva__receber" onClick={() => setReceber({ reserva: r, aula: a })}>Receber</button>
+                            )}
                             {equipeBalcao && (
                               <BotaoAcao className="link-sair" acao={() => cancelar(r)} confirmar={`Cancelar a reserva de ${r.nome}?`}>cancelar</BotaoAcao>
                             )}
@@ -322,6 +326,7 @@ export default function Agenda() {
       </>)}
 
       {esperaAula && <EntrarEsperaAula aula={esperaAula} aoFechar={() => setEsperaAula(null)} aoSalvar={() => { setEsperaAula(null); recarregar(); }} />}
+      {receber && <ReceberAula {...receber} aoFechar={() => setReceber(null)} aoReceber={() => { setReceber(null); recarregar(); }} />}
       {agendar && <Agendar aula={agendar} aoFechar={() => setAgendar(null)} aoAgendar={() => { setAgendar(null); recarregar(); setAbertas((x) => ({ ...x, [agendar.id]: true })); }} />}
       {ficha && <FichaModal {...ficha} aoFechar={() => setFicha(null)} />}
       {trocar && <TrocaProfissional tipo="aula" id={trocar.id} aoFechar={() => setTrocar(null)} aoTerminar={() => { setTrocar(null); recarregar(); }} />}
@@ -343,7 +348,8 @@ function tituloSemana(dia) {
 
 const FORMAS = [
   ['credito', 'Plano do aluno', 'desconta do plano ou das aulas avulsas dele'],
-  ['avulsa', 'Vender aula avulsa', 'registra a venda e já agenda'],
+  ['pagar', 'Aula avulsa · paga depois', 'reserva a vaga; recebe na aula ou na comanda (não entra no caixa agora)'],
+  ['avulsa', 'Aula avulsa · já pagou', 'registra a venda agora e já agenda'],
   ['wellhub', 'Wellhub', 'check-in no app Wellhub ao chegar'],
   ['cortesia', 'Cortesia', 'aula grátis, sem descontar'],
 ];
@@ -404,6 +410,36 @@ function EntrarEsperaAula({ aula, aoFechar, aoSalvar }) {
   );
 }
 
+// aula reservada para pagar depois: recebe agora (a venda da aula avulsa entra no caixa de hoje)
+function ReceberAula({ reserva, aula, aoFechar, aoReceber }) {
+  const { chamar } = useBancada();
+  const [pg, setPg] = useState(PAGAMENTO_INICIAL);
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  async function confirmar() {
+    setErro('');
+    setEnviando(true);
+    try {
+      await chamar('receberAula', { reservaId: reserva.id, ...pg });
+      aoReceber();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+  return (
+    <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${reserva.nome}`} titulo="Receber a aula" aoFechar={aoFechar}>
+      <div className="b-form">
+        <p className="b-suave">Aula avulsa reservada para pagar depois. Ao receber, a venda entra em Vendas e no caixa de hoje. (Se for pagar junto com outras coisas, abra uma comanda e inclua a aula avulsa: ela quita esta reserva.)</p>
+        <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} />
+        <Erro>{erro}</Erro>
+        <button type="button" className="botao botao--cheio" disabled={enviando || faltaPagamento(pg)} onClick={confirmar}>{enviando ? 'Recebendo…' : 'Receber'}</button>
+      </div>
+    </Modal>
+  );
+}
+
 function Agendar({ aula, aoFechar, aoAgendar }) {
   const { chamar } = useBancada();
   const [aluno, setAluno] = useState(null);
@@ -432,7 +468,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
       aoAgendar();
     } catch (e) {
       setErro(e.message);
-      if (e.codigo === 'SEM_CREDITO') setForma('avulsa');
+      if (e.codigo === 'SEM_CREDITO') setForma('pagar');
     } finally {
       setEnviando(false);
     }

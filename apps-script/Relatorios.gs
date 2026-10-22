@@ -146,6 +146,7 @@ function relAulas(reservas, creditos, de, ate) {
   var forma = function (r) {
     if (String(r.credito_id) === 'WELLHUB') return 'Wellhub';
     if (String(r.credito_id) === 'CORTESIA') return 'Cortesia';
+    if (String(r.credito_id) === A_PAGAR) return 'A pagar';
     var c = creditos[String(r.credito_id)];
     if (!c) return 'Outro';
     if (/vale/.test(String(c.origem))) return 'Vale-presente';

@@ -315,7 +315,12 @@ function bancada_importarClientes(d, m) {
         if (Object.keys(mud).length) { atualizados++; if (!d.simular) atualizarLinha('Alunos', ex._linha, mud); } else repetidos++;
         return;
       }
-      var id = cpf || ('9' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmm') + ('0000' + seq++).slice(-4));
+      // lotes no mesmo minuto repetiam a sequência (out/2026): pula o código que já existe
+      var id = cpf;
+      while (!id || (!cpf && porCpf[normCpf(id)])) {
+        if (seq > 9999) throw new Error('Muitos cadastros sem CPF neste minuto. Espere 1 minuto e importe o resto.');
+        id = '9' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmm') + ('0000' + seq++).slice(-4);
+      }
       var novo = { cpf: id, nome: nome, whatsapp: w, email: email, senha_hash: '', sal: '', criado_em: agoraTexto(), ativo: 'SIM',
         obs_internas: String(x.obs || '').slice(0, 500), origem_cadastro: 'importado', nascimento: nasc, _novo: true };
       Object.keys(end).forEach(function (k) { novo[k] = end[k]; });

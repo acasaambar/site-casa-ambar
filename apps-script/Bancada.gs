@@ -127,6 +127,7 @@ var PERMISSOES = {
   b_lembretesAuto: ['admin', 'recepcao'],
   // lista de espera e retornos (Espera.gs)
   b_espera: ['admin', 'recepcao'],
+  b_receberAula: ['admin', 'recepcao'],
   b_entrarEspera: ['admin', 'recepcao'],
   b_atualizarEspera: ['admin', 'recepcao'],
   b_retornos: ['admin', 'recepcao'],
@@ -353,8 +354,12 @@ function aulasDoPeriodo(de, dias, reservas) {
   return lista.sort(function (a, b) { return (a.data + a.hora).localeCompare(b.data + b.hora); });
 }
 
+// aula reservada pela recepção para pagar depois (na aula ou na comanda): não entra no caixa até receber
+var A_PAGAR = 'A_PAGAR';
+
 function formaDaReserva(r, creditos) {
   if (r.status === 'pendente') return 'Aguardando pagamento';
+  if (String(r.credito_id) === A_PAGAR) return 'A pagar';
   if (String(r.credito_id) === 'WELLHUB') return 'Wellhub';
   if (String(r.credito_id) === 'CORTESIA') return 'Cortesia';
   var c = creditos[String(r.credito_id)];
@@ -481,6 +486,7 @@ function bancada_agenda(d, m) {
         tapete: r.tapete ? Number(r.tapete) : null, status: r.status, forma: formaDaReserva(r, creditos),
         ficha: !!f, alerta: f ? String(f.parq_algum_sim) === 'SIM' || !!String(f.lesoes || '').trim() || String(f.gestante) === 'sim' : false,
         primeiraAula: primeiras[cpf] === r.id, alertas: alertasDe(cpf),
+        aPagar: String(r.credito_id) === A_PAGAR && m.papel !== 'professora',
       };
     }).sort(function (x, y) { return (x.tapete || 99) - (y.tapete || 99) || String(x.nome).localeCompare(String(y.nome)); });
     a.reservas = lista;
@@ -541,12 +547,16 @@ function bancada_agendar(d, m) {
     var descricao = '';
     if (forma === 'credito') {
       var c = escolherCredito(cpf, aula, reservas);
-      if (!c) throw erroCod(primeiroNome(aluno.nome) + ' não tem aulas de ' + aula.modalidade + ' disponíveis. Escolha cortesia, Wellhub ou venda uma aula avulsa.', 'SEM_CREDITO');
+      if (!c) throw erroCod(primeiroNome(aluno.nome) + ' não tem aulas de ' + aula.modalidade + ' disponíveis. Escolha aula avulsa (paga depois ou já paga), cortesia ou Wellhub.', 'SEM_CREDITO');
       creditoId = c.id; descricao = c.descricao;
     } else if (forma === 'wellhub') {
       creditoId = 'WELLHUB'; descricao = 'Wellhub';
     } else if (forma === 'cortesia') {
       creditoId = 'CORTESIA'; descricao = 'Cortesia';
+    } else if (forma === 'pagar') {
+      // reserva a vaga e recebe depois (na aula, pelo botão Receber, ou na comanda): nada entra no caixa agora
+      if (!buscarPlano(aula.modalidade.toLowerCase() + '-avulsa')) throw new Error('Não há aula avulsa de ' + aula.modalidade + ' no catálogo.');
+      creditoId = A_PAGAR; descricao = 'Aula avulsa · paga depois';
     } else if (forma === 'avulsa') {
       var avulsa = buscarPlano(aula.modalidade.toLowerCase() + '-avulsa');
       if (!avulsa) throw new Error('Não há aula avulsa de ' + aula.modalidade + ' no catálogo.');
@@ -565,6 +575,48 @@ function bancada_agendar(d, m) {
   } finally {
     soltarTrava(trava);
   }
+}
+
+// Recebe a aula reservada para pagar depois: registra a venda da aula avulsa agora (entra no caixa de hoje)
+function bancada_receberAula(d, m) {
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    var r = acharReservaPorId(String(d.reservaId || ''));
+    if (r.status === 'cancelado') throw new Error('Esta reserva foi cancelada.');
+    if (String(r.credito_id) !== A_PAGAR) throw new Error('Esta aula já está paga.');
+    var aluno = buscarAluno(normCpf(r.cpf));
+    if (!aluno) throw new Error('Aluno não encontrado.');
+    var avulsa = buscarPlano(String(r.modalidade).toLowerCase() + '-avulsa');
+    if (!avulsa) throw new Error('Não há aula avulsa de ' + r.modalidade + ' no catálogo.');
+    var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: r.data, obs: 'aula ' + r.aula_id }, m);
+    atualizarLinha('Reservas', r._linha, { credito_id: venda.creditoId });
+    esquecerComissoesAulas();
+    registrar(m, 'recebeu aula', aluno.nome + ' · ' + r.aula_id + ' · ' + venda.metodo);
+    return { forma: avulsa.nome + ' · ' + venda.metodo };
+  } finally {
+    soltarTrava(trava);
+  }
+}
+
+// aula avulsa paga na comanda: liga à reserva "a pagar" mais próxima da mesma pessoa e modalidade
+function ligarAulaAPagar(cpf, planoId, creditoId, jaLigadas) {
+  var plano = buscarPlano(planoId);
+  if (!plano || plano.tipo !== 'avulsa' || !creditoId) return false;
+  var hoje = hojeTexto();
+  var cand = lerAba('Reservas').filter(function (r) {
+    return String(r.credito_id) === A_PAGAR && r.status !== 'cancelado' && normCpf(r.cpf) === normCpf(cpf) && String(r.modalidade) === String(plano.modalidade) && !jaLigadas[r.id];
+  }).map(partesAula).sort(function (a, b) {
+    // primeiro a de hoje ou a próxima; depois as que já passaram (da mais recente)
+    var fa = a.data >= hoje, fb = b.data >= hoje;
+    if (fa !== fb) return fa ? -1 : 1;
+    return fa ? (a.data + a.hora).localeCompare(b.data + b.hora) : (b.data + b.hora).localeCompare(a.data + a.hora);
+  })[0];
+  if (!cand) return false;
+  atualizarLinha('Reservas', cand._linha, { credito_id: creditoId });
+  jaLigadas[cand.id] = 1;
+  esquecerComissoesAulas();
+  return true;
 }
 
 function bancada_cancelarReserva(d, m) {

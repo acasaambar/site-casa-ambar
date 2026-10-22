@@ -212,6 +212,12 @@ ok(r.ok && r.dados.novos === 2, 'importou', r.dados);
 const fer = chamar('b_alunos', { token: adm }).dados.find((a) => a.nome === 'Fernanda Lopes');
 ok(fer && fer.semCpf && fer.whatsapp === '85997771111', 'WhatsApp com +55 normalizado', fer);
 ok(chamar('b_aluno', { token: adm, cpf: '11144477735' }).dados.email === 'paula@gmail.com', 'e-mail completado em quem já existia');
+// dois lotes sem CPF no mesmo minuto não podem repetir o código interno (bug de out/2026)
+const lote = (n, base) => Array.from({ length: n }, (_, i) => ({ nome: 'Lote ' + base + ' ' + i, whatsapp: '8591' + String(base * 1000 + i).padStart(7, '0') }));
+chamar('b_importarClientes', { token: adm, linhas: lote(30, 1) });
+chamar('b_importarClientes', { token: adm, linhas: lote(30, 2) });
+const codigos = ctx.lerAba('Alunos').filter((a) => /^Lote /.test(a.nome)).map((a) => String(a.cpf));
+ok(codigos.length === 60 && new Set(codigos).size === 60, 'dois lotes seguidos: 60 códigos internos diferentes', codigos.length + ' / ' + new Set(codigos).size);
 
 console.log('— campanhas e descadastro');
 r = chamar('b_publicoCampanha', { token: rec, filtro: { tipo: 'aniversariantes' } });

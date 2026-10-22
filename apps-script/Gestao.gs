@@ -739,6 +739,15 @@ function resumoCaixa(data) {
     fechadoPor: c ? String(c.fechado_por || '').split('@')[0] : '', fechadoEm: c ? String(c.fechado_em || '') : '', obs: c ? String(c.obs || '') : '',
     // conferir com o extrato da maquininha: o sistema por forma/bandeira e o que foi informado ao fechar
     conferir: conferirPorForma(pags), conferencia: c ? parseJson(c.conferencia, []) : [],
+    // cada venda do dia: de quem, o quê, como pagou e quem registrou
+    lancamentos: pags.slice().sort(function (a, b) { return String(a.pago_em).localeCompare(String(b.pago_em)); }).map(function (p) {
+      var obs = String(p.observacao || '');
+      return { hora: String(p.pago_em).slice(11, 16), nome: String(p.nome || ''), item: String(p.descricao || ''), metodo: String(p.metodo || ''),
+        bandeira: String(p.bandeira || ''), parcelas: Number(p.parcelas) || 1, valor: dinheiro(p.valor), origem: String(p.origem || ''),
+        comanda: String(p.comanda || ''), por: String(p.registrado_por || '').split('@')[0],
+        // comanda paga de mais de um jeito: "Pix R$ 100 + Dinheiro R$ 50"
+        divisao: p.metodo === 'Misto' && obs.indexOf(' · ') > 0 ? obs.split(' · ').slice(1).join(' · ').slice(0, 160) : '' };
+    }),
   };
 }
 
@@ -931,6 +940,16 @@ function calcularItensComanda(itens, cpf, codigo) {
   var erroCodigo = '';
   var valeAulaUsado = false;
   var usoPacote = {}; // sessões de pacote já usadas por outros itens desta comanda
+  // combo/pacote vendido nesta comanda: cobre a sessão do mesmo serviço lançada nela (a cliente paga só o pacote)
+  var pacotesNaComanda = {};
+  itens.forEach(function (x) {
+    var t = String(x.tipo || '');
+    if (t === 'vale' || t === 'produto') return;
+    var c = itemDoCatalogo(t, x.id);
+    if (!c || c.tipo !== 'pacote' || !c.servico_id) return;
+    if (!x.uid) x.uid = novoId('I');
+    (pacotesNaComanda[c.servico_id] = pacotesNaComanda[c.servico_id] || []).push({ uid: String(x.uid), nome: c.nome, restam: Number(c.aulas_total) || 0 });
+  });
   var lista = itens.map(function (x, i) {
     var tipo = String(x.tipo || '');
     if (tipo === 'vale') return itemValeVendido(x);
@@ -960,6 +979,19 @@ function calcularItensComanda(itens, cpf, codigo) {
         it.valor = 0; it.total = 0; it.desconto = 0;
         return it;
       }
+    }
+    if (tipo === 'servico') {
+      var pc = (pacotesNaComanda[cat.id] || []).filter(function (p) { return p.restam > 0; })[0];
+      if (pc && !x.semPacoteDaComanda) {
+        pc.restam--;
+        // o crédito do pacote nasce ao fechar a comanda; até lá o item guarda de qual linha ele vem
+        it.pacoteDaComanda = pc.uid;
+        it.pacote = 'comanda:' + pc.uid;
+        it.pacoteDescricao = pc.nome + ' (vendido nesta comanda)';
+        it.valor = 0; it.total = 0; it.desconto = 0;
+        return it;
+      }
+      if (pc) it.pacoteDisponivel = { daComanda: true, descricao: pc.nome + ' (vendido nesta comanda)', restantes: pc.restam };
     }
     var calc;
     var cod = codigoLimpo(codigo);
@@ -1115,7 +1147,8 @@ function bancada_salvarComanda(d, m) {
   var itens = (x.itens || []).slice(0, 40).map(function (i) {
     return { uid: i.uid, tipo: String(i.tipo || ''), id: String(i.tipo === 'vale' ? 'vale' : i.id || ''), nome: String(i.nome || ''), qtd: i.qtd, profissional: i.profissional,
       atendimentoId: i.atendimentoId, valorManual: i.valorManual, pago: !!i.pago, data: i.data, descontoTipo: i.descontoTipo, descontoValor: i.descontoValor,
-      motivoDesconto: i.motivoDesconto, obs: i.obs, vale: i.tipo === 'vale' ? i.vale || i.dadosVale : undefined, usarPacote: !!i.usarPacote };
+      motivoDesconto: i.motivoDesconto, obs: i.obs, vale: i.tipo === 'vale' ? i.vale || i.dadosVale : undefined, usarPacote: !!i.usarPacote,
+      semPacoteDaComanda: !!i.semPacoteDaComanda };
   }).filter(function (i) { return i.id; });
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
@@ -1353,8 +1386,17 @@ function bancada_fecharComanda(d, m) {
     var valesCriados = [];
     var usadosNaComanda = {};
     calc.forEach(function (i) { if (i.atendimentoId) usadosNaComanda[i.atendimentoId] = 1; });
-    calc.forEach(function (it, idx) {
+    // pacotes primeiro: a sessão do mesmo serviço vendida junto usa o crédito que o pacote acabou de criar
+    var creditosNaComanda = {};
+    var aulasLigadas = {};
+    var ordem = calc.map(function (x, i) { return i; }).sort(function (x, y) { return (calc[x].tipo === 'pacote' ? 0 : 1) - (calc[y].tipo === 'pacote' ? 0 : 1) || x - y; });
+    ordem.forEach(function (idx) {
+      var it = calc[idx];
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
+      if (it.pacoteDaComanda) {
+        it.pacote = creditosNaComanda[it.pacoteDaComanda] || '';
+        if (!it.pacote) throw new Error('O pacote de ' + it.nome + ' não foi registrado nesta comanda.');
+      }
       if (it.pago) {
         // atendimento já pago (pacote, pago antes ou cortesia): marca como atendido e (re)faz comissão e baixa,
         // que podem ter sido canceladas ao reabrir a comanda (as duas funções não duplicam)
@@ -1414,6 +1456,9 @@ function bancada_fecharComanda(d, m) {
       SpreadsheetApp.flush();
       var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: parcelas, valor_pago: valorLinha, inicio: it.data || hoje,
         origemCredito: 'comanda', observacao: obsPag, semCredito: it.tipo === 'produto' || it.tipo === 'vale' });
+      if (it.tipo === 'pacote' && creditoId) creditosNaComanda[it.uid] = creditoId;
+      // aula avulsa paga aqui: quita a aula reservada para pagar depois
+      if (it.tipo === 'plano' && creditoId) ligarAulaAPagar(cm.cpf, it.id, creditoId, aulasLigadas);
       if (it.tipo === 'vale') {
         // vale vendido: o código nasce agora; vale para quem recebe (sem CPF: qualquer pessoa com o código)
         var dv = it.dadosVale || {};

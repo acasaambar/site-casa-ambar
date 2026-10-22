@@ -120,7 +120,8 @@ export function useCatalogoComanda() {
     const itens = [];
     cat.servicos.filter((s) => s.ativo).forEach((s) => {
       itens.push({ tipo: 'servico', id: s.id, nome: s.nome, preco: s.preco, grupo: s.categoria });
-      cat.pacotes.filter((p) => p.ativo && p.servicoId === s.id).forEach((p) => itens.push({ tipo: 'pacote', id: p.id, nome: `${p.nome ? p.nome + ' · ' : ''}${s.nome} · pacote ${p.sessoes} sessões`, preco: p.preco, grupo: s.categoria }));
+      cat.pacotes.filter((p) => p.ativo && p.servicoId === s.id).forEach((p) => itens.push({ tipo: 'pacote', id: p.id, nome: `${p.nome ? p.nome + ' · ' : ''}${s.nome} · pacote ${p.sessoes} sessões`, preco: p.preco, grupo: s.categoria,
+        servicoId: s.id, sessoes: p.sessoes }));
     });
     (cat.produtos || []).filter((p) => p.vende).forEach((p) => itens.push({ tipo: 'produto', id: p.id, nome: p.nome, preco: p.preco, grupo: 'Produtos', estoque: p.estoque }));
     planos.filter((p) => p.ativo).forEach((p) => itens.push({ tipo: 'plano', id: p.id, nome: p.nome, preco: p.preco, grupo: p.modalidade }));
@@ -317,10 +318,26 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                     </span>
                   )}
                   {!fechada && balcao && tirando !== idx && it.tipo === 'servico' && !it.pago && (it.pacote || it.pacoteDisponivel) && (
-                    <button type="button" className={`cm-pacote${it.pacote ? ' cm-pacote--usando' : ''}`} disabled={salvando} onClick={() => mudarItem(idx, { usarPacote: !it.pacote })}>
+                    <button type="button" className={`cm-pacote${it.pacote ? ' cm-pacote--usando' : ''}`} disabled={salvando}
+                      // pacote vendido nesta mesma comanda: a escolha é guardada à parte (o crédito só nasce ao fechar)
+                      onClick={() => mudarItem(idx, it.pacoteDaComanda || it.pacoteDisponivel?.daComanda ? { semPacoteDaComanda: !!it.pacote, usarPacote: false } : { usarPacote: !it.pacote })}>
                       {it.pacote ? 'Cobrar avulso em vez do pacote' : `Usar sessão do pacote · ${plural(it.pacoteDisponivel.restantes, 'sessão restante', 'sessões restantes')}`}
                     </button>
                   )}
+                  {/* serviço com combo à venda: um toque inclui o combo, e a sessão de hoje sai dele */}
+                  {!fechada && balcao && tirando !== idx && it.tipo === 'servico' && !it.pago && !it.pacote && !it.pacoteDisponivel && catalogo && (() => {
+                    const combos = catalogo.itens.filter((x) => x.tipo === 'pacote' && x.servicoId === it.id);
+                    return combos.length > 0 && (
+                      <span className="cm-combos">
+                        <span className="b-suave">Vender combo:</span>
+                        {combos.map((x) => (
+                          <button key={x.id} type="button" className="cm-pacote" disabled={salvando} onClick={() => adicionar(x)}>
+                            {plural(x.sessoes, 'sessão', 'sessões')} · {real(x.preco)}
+                          </button>
+                        ))}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="cm-item__qtd">
                   {it.tipo === 'produto' && !fechada && !it.pago ? (
@@ -954,6 +971,7 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
             {cx.qtdVendas > 0 && <p className="b-suave">{passado ? 'Nesse dia' : 'Hoje já'} {cx.qtdVendas === 1 ? 'entrou' : 'entraram'} {plural(cx.qtdVendas, 'venda', 'vendas')}: {real(cx.vendas)}.</p>}
           </div>
         </section>
+        <Lancamentos lista={cx.lancamentos} doDia={doDia} />
         {anteriores}
       </>
     );
@@ -968,6 +986,7 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
         <div className="b-kpi"><span className="b-kpi__rotulo">{passado ? 'Vendas do dia' : 'Vendas de hoje'}</span><strong className="b-kpi__valor">{real(cx.vendas)}</strong><span className="b-kpi__detalhe">{plural(cx.qtdVendas, 'lançamento', 'lançamentos')}</span></div>
         <div className="b-kpi b-kpi--destaque"><span className="b-kpi__rotulo">Dinheiro na gaveta</span><strong className="b-kpi__valor">{real(cx.esperado)}</strong><span className="b-kpi__detalhe">{passado ? 'o que devia ter no fim do dia' : 'o que deve ter agora'}</span></div>
       </section>
+      <Lancamentos lista={cx.lancamentos} doDia={doDia} />
       <div className="b-duas">
         <section className="b-cartao">
           <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Entradas por forma</h2></header>
@@ -1059,6 +1078,33 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
 
 // administração: os últimos caixas antes do dia escolhido (abre o dia ao tocar)
 // fechamento: confere o total de cada forma com o extrato da maquininha, do link e do Pix (opcional)
+// cada venda do dia: hora, cliente, o quê, como pagou e quem registrou (Vendas tem o detalhe e o estorno)
+function Lancamentos({ lista, doDia }) {
+  if (!lista || lista.length === 0) return null;
+  const forma = (l) => [l.metodo === 'Misto' && l.divisao ? l.divisao : l.metodo, l.bandeira && l.metodo !== 'Misto' ? l.bandeira : '', l.parcelas > 1 ? `${l.parcelas}x` : ''].filter(Boolean).join(' · ');
+  const onde = (l) => (l.comanda ? `comanda ${l.comanda}` : l.origem === 'site' ? 'pelo site' : 'balcão') + (l.por ? ` · ${l.por}` : '');
+  return (
+    <section className="b-cartao">
+      <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Lançamentos {doDia}</h2><span className="b-suave">{plural(lista.length, 'venda', 'vendas')}</span></header>
+      <table className="cx-lanc">
+        <thead><tr><th>Hora</th><th>Cliente</th><th>O quê</th><th>Forma</th><th className="cx-lanc__valor">Valor</th></tr></thead>
+        <tbody>
+          {lista.map((l, i) => (
+            <tr key={i}>
+              <td className="cx-lanc__hora">{l.hora ? hora(l.hora) : '—'}</td>
+              <td><strong>{l.nome || 'Sem nome'}</strong><small>{onde(l)}</small></td>
+              <td>{l.item}</td>
+              <td>{forma(l)}</td>
+              <td className="cx-lanc__valor">{real(l.valor)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="b-suave">Para estornar ou ver o recibo, use Vendas.</p>
+    </section>
+  );
+}
+
 function ConferirExtrato({ conferir, valores, aoMudar }) {
   const formas = conferir.filter((f) => f.valor > 0 || valores[f.forma]);
   const resto = conferir.filter((f) => !formas.includes(f));

@@ -2280,3 +2280,27 @@
 .s-quemfaz__lista .b-check { align-items: flex-start; }
 .s-quemfaz__lista .b-check small { display: block; font-size: 13px; }
 .s-quemfaz .aviso { margin: 0 0 8px; }
+
+/* ============================================================
+   DESENHO 9 · combos e aula paga depois (out/2026)
+   ============================================================ */
+/* comanda: atalho para vender o combo do serviço */
+.cm-combos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.cm-combos .cm-pacote { margin-top: 0; }
+/* agendar serviço: lista dos combos do serviço escolhido */
+.s-combos { margin: -4px 0 0; font-size: 14px; color: var(--b-suave); }
+.s-combos strong { color: var(--b-tinta, #2F3821); font-weight: 600; }
+/* aula: reserva a pagar */
+.b-reserva__receber { font-weight: 600; }
+/* caixa do dia: lançamentos */
+.cx-lanc { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cx-lanc th { text-align: left; font-weight: 600; color: var(--b-suave); padding: 6px 8px; border-bottom: 1px solid rgba(47, 56, 33, 0.15); }
+.cx-lanc td { padding: 8px; border-bottom: 1px solid rgba(47, 56, 33, 0.08); vertical-align: top; }
+.cx-lanc td.cx-lanc__valor { text-align: right; font-weight: 600; white-space: nowrap; }
+.cx-lanc small { display: block; color: var(--b-suave); font-size: 13px; }
+@media (max-width: 640px) {
+  .cx-lanc thead { display: none; }
+  .cx-lanc tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid rgba(47, 56, 33, 0.08); }
+  .cx-lanc td { border: 0; padding: 0; }
+  .cx-lanc td.cx-lanc__hora { grid-column: 1 / -1; color: var(--b-suave); font-size: 13px; }
+}

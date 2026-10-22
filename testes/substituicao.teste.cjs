@@ -8,7 +8,7 @@ let falhas = 0;
 const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 500) : ''); } else console.log('  ✓', msg); };
 const linkDe = (e) => (e.body.match(/t=([a-f0-9]+)/) || [])[1];
 const hoje = ctx.hojeTexto();
-const proxDiaUtil = (base, n) => { let d = ctx.somarDias(base, n); while (new Date(d + 'T12:00:00Z').getUTCDay() === 0) d = ctx.somarDias(d, 1); return d; };
+const proxDiaUtil = (base, n) => { let d = ctx.somarDias(base, n); while (new Date(d + 'T12:00:00Z').getUTCDay() % 6 === 0) d = ctx.somarDias(d, 1); return d; };
 const FICHA = { emergencia_nome: 'Mãe', emergencia_telefone: '85999998888', parq_1: 'nao', parq_2: 'nao', parq_3: 'nao', parq_4: 'nao', parq_5: 'nao', parq_6: 'nao', parq_7: 'nao', declaracao: true, consentimento: true, data_nascimento: '1990-05-12' };
 const membro = (email, nome, papel, professorNome, senha) => {
   chamar('b_salvarMembro', { token: adm, membro: { email, nome, papel, professorNome } });
