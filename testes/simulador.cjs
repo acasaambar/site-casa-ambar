@@ -49,6 +49,13 @@ function criar(arquivos) {
     const corpo = opt && opt.payload ? JSON.parse(opt.payload) : {};
     chamadasIP.push({ url, corpo, headers: opt && opt.headers });
     let r = {};
+    // Turnstile: __turnstile = 'cair' (sem resposta), 'segredo-errado' ou normal (só 'humano-ok' passa)
+    if (url.includes('turnstile')) {
+      if (global.__turnstile === 'cair') throw new Error('Address unavailable');
+      const t = global.__turnstile === 'segredo-errado' ? { success: false, 'error-codes': ['invalid-input-secret'] }
+        : corpo.response === 'humano-ok' ? { success: true, hostname: 'www.acasambar.com.br' } : { success: false, 'error-codes': ['invalid-input-response'] };
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify(t) };
+    }
     if (url.endsWith('/links')) r = { url: 'https://checkout.infinitepay.io/acasaambar?lenc=' + corpo.order_nsu };
     if (url.endsWith('/payment_check')) r = { success: true, paid: !String(corpo.transaction_nsu).startsWith('falso'), amount: global.__valor || 0, paid_amount: global.__pago || global.__valor || 0, installments: global.__parc || 1, capture_method: 'pix' };
     return { getResponseCode: () => 200, getContentText: () => JSON.stringify(r) };

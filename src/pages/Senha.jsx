@@ -6,6 +6,7 @@ import { mascaraCPF, cpfValido, soDigitos } from '../lib/util.js';
 import { CONFIG } from '../config.js';
 import { problemaSenha } from './Entrar.jsx';
 import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
+import { useVerificacao } from '../components/Verificacao.jsx';
 
 function Moldura({ children }) {
   return (
@@ -31,17 +32,20 @@ export function EsqueciSenha() {
   const [erro, setErro] = useState(null);
   const [enviado, setEnviado] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const verif = useVerificacao(!enviado);
 
   async function enviar(e) {
     e.preventDefault();
     setErro(null);
     if (!cpfValido(cpf)) return setErro({ msg: 'Confira o CPF digitado.' });
+    if (verif.falta) return setErro({ msg: verif.falta });
     setEnviando(true);
     try {
-      await api.esqueciSenha(soDigitos(cpf));
+      await api.esqueciSenha(soDigitos(cpf), verif.token);
       setEnviado(true);
     } catch (err) {
       setErro({ msg: err.message, codigo: err.codigo });
+      verif.renovar(); // a confirmação de "não sou robô" vale uma vez só
     } finally {
       setEnviando(false);
     }
@@ -72,6 +76,7 @@ export function EsqueciSenha() {
               <input type="text" inputMode="numeric" autoComplete="username" placeholder="000.000.000-00" value={cpf}
                 onChange={(e) => setCpf(mascaraCPF(e.target.value))} />
             </label>
+            {verif.caixa}
             {erro && <p className="erro" role="alert">{erro.msg}</p>}
             <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Enviando…' : 'Enviar link'}</button>
           </form>

@@ -10,6 +10,7 @@ import '@fontsource/pinyon-script/400.css';
 import './styles.css';
 import App from './App.jsx';
 import ErroTela from './components/ErroTela.jsx';
+import { EXTERNOS } from './externos.js';
 
 // Volta da InfinitePay: o endereço chega com ?pagamento=...&transaction_nsu=...&slug=...
 // Guardamos os dados e abrimos a tela de confirmação do pagamento.
@@ -36,6 +37,19 @@ import ErroTela from './components/ErroTela.jsx';
 // o site não abre dentro de outra página (protege a bancada contra "clickjacking":
 // um site falso por cima, enganando a equipe para clicar sem ver)
 const emMoldura = (() => { try { return window.top !== window.self; } catch { return true; } })();
+
+// Visitas do site (Cloudflare Web Analytics: sem cookies e sem dados pessoais).
+// Só nas páginas públicas: a bancada e os links com código (nova senha, confirmação, pagamento, descadastro) ficam de fora.
+(function contarVisitas() {
+  if (!EXTERNOS.analyticsToken || emMoldura) return;
+  const rota = window.location.hash.replace(/^#/, '').split('?')[0] || '/';
+  if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar)/.test(rota)) return;
+  const s = document.createElement('script');
+  s.defer = true;
+  s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  s.dataset.cfBeacon = JSON.stringify({ token: EXTERNOS.analyticsToken, spa: true });
+  document.head.appendChild(s);
+})();
 
 if (emMoldura) {
   document.getElementById('root').textContent = 'Abra a Casa Âmbar direto em www.acasambar.com.br';

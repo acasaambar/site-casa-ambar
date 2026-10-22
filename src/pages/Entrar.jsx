@@ -7,6 +7,7 @@ import { MODO_DEMO } from '../lib/api.js';
 import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
 import { COMO_CONHECEU, ENDERECO_VAZIO, faltaNoEndereco, campoFaltandoNoEndereco } from '../lib/clientes.js';
 import { EnderecoSite } from '../components/EnderecoSite.jsx';
+import { useVerificacao } from '../components/Verificacao.jsx';
 
 export function problemaSenha(s) {
   if (String(s).length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
@@ -25,6 +26,7 @@ export default function Entrar() {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const formRef = useRef(null);
+  const verif = useVerificacao(modo === 'cadastro');
 
   const campo = (k, mascara) => ({
     name: k,
@@ -51,18 +53,21 @@ export default function Entrar() {
       const problema = problemaSenha(f.senha);
       if (problema) return falhar(problema, 'senha');
       if (f.senha !== f.senha2) return falhar('As senhas não conferem.', 'senha2');
+      if (verif.falta) return setErro(verif.falta);
     }
     setEnviando(true);
     try {
       const s =
         modo === 'entrar'
           ? await entrar(soDigitos(f.cpf), f.senha)
-          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu, endereco });
+          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu, endereco, verificacao: verif.token });
       // sem ficha de saúde: preenche antes de seguir
       if (!s.aluno.anamnese) nav('/ficha-saude', { replace: true, state: { de: destino, novo: modo === 'cadastro' } });
       else nav(destino, { replace: true });
     } catch (err) {
       setErro(err.message);
+      // a confirmação de "não sou robô" vale uma vez só
+      if (modo === 'cadastro') verif.renovar();
     } finally {
       setEnviando(false);
     }
@@ -142,6 +147,7 @@ export default function Entrar() {
               </label>
             )}
 
+            {modo === 'cadastro' && verif.caixa}
             {erro && <p className="erro" role="alert">{erro}</p>}
 
             <button type="submit" className="botao botao--cheio" disabled={enviando}>

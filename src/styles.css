@@ -1828,3 +1828,7 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
   .manifesto__foto { gap: 14px; }
   .manifesto__foto img { border-radius: 50% 50% 16px 16px / 26% 26% 16px 16px; }
 }
+
+/* "não sou robô" (Turnstile): quase sempre invisível; quando aparece, ocupa a largura do formulário */
+.verificacao:empty { display: none; }
+.verificacao { width: 100%; }

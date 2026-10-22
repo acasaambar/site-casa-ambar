@@ -413,6 +413,7 @@ function cadastrar(d) {
   if (!emailValido(d.email)) throw new Error('Informe um e-mail válido. É por ele que você recupera a senha.');
   validarSenhaNova(d.senha);
   var endereco = exigirEndereco(enderecoDe(d.endereco || {}));
+  conferirHumano(d);
   limitarPorMinutos('cadastro', 40, 10);
   // a senha é processada antes da trava (é a parte demorada; a fila anda mais rápido)
   var sal = Utilities.getUuid();

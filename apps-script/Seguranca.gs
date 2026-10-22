@@ -122,6 +122,37 @@ function limitarCodigos(chave) {
   if (Number(CacheService.getScriptCache().get('cod_' + chave) || 0) >= 15) throw new Error('Muitos códigos inválidos. Aguarde alguns minutos.');
 }
 
+// ---------------- "não sou robô" (Cloudflare Turnstile) ----------------
+// Vale no cadastro e no "Esqueci minha senha" do site. Só liga quando existe a propriedade
+// TURNSTILE_SECRET (Apps Script → Configurações do projeto → Propriedades do script); sem ela, nada muda.
+// Se a Cloudflare não responder ou a chave estiver errada, deixa passar e anota no log:
+// os limites de pedidos continuam valendo, e ninguém de verdade fica sem conseguir se cadastrar.
+function conferirHumano(d) {
+  var segredo = PropertiesService.getScriptProperties().getProperty('TURNSTILE_SECRET');
+  if (!segredo) return;
+  var token = String((d && d.verificacao) || '');
+  var recusar = function () { return erroCod('Não conseguimos confirmar que você não é um robô. Aguarde um instante e tente de novo.', 'VERIFICACAO'); };
+  if (!token || token.length > 2048) throw recusar();
+  var resp, r;
+  try {
+    resp = UrlFetchApp.fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      payload: JSON.stringify({ secret: segredo, response: token }),
+    });
+    r = JSON.parse(resp.getContentText());
+  } catch (e) {
+    Logger.log('Turnstile sem resposta (liberado): ' + e.message);
+    return;
+  }
+  if (r && r.success === true) return;
+  var codigos = (r && r['error-codes']) || [];
+  if (resp.getResponseCode() >= 500 || codigos.indexOf('invalid-input-secret') >= 0 || codigos.indexOf('missing-input-secret') >= 0 || codigos.indexOf('internal-error') >= 0) {
+    Logger.log('Turnstile com problema do nosso lado (liberado): ' + resp.getResponseCode() + ' ' + codigos.join(','));
+    return;
+  }
+  throw recusar();
+}
+
 // ---------------- links de senha (recuperação e convite) ----------------
 function sha256Hex(txt) {
   return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(txt), Utilities.Charset.UTF_8)
@@ -154,6 +185,7 @@ function acharLinkSenha(token) {
 function esqueciSenha(d) {
   var cpf = normCpf(d.cpf);
   if (!cpfValido(cpf)) throw new Error('Confira o CPF.');
+  conferirHumano(d);
   var cache = CacheService.getScriptCache();
   var chave = 'esq_' + cpf;
   var pedidos = Number(cache.get(chave) || 0);

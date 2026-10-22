@@ -1,12 +1,22 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { EXTERNOS } from './src/externos.js';
 
-// Endereço extra liberado na política de segurança (CSP) só em testes locais
+// Política de segurança (CSP) do index.html:
+//  - endereço da API de testes, só em testes locais;
+//  - Cloudflare (Turnstile e Web Analytics), só quando a chave correspondente está em src/externos.js.
 const cspTeste = {
   name: 'csp-teste',
   transformIndexHtml(html) {
     const extra = process.env.VITE_API_URL ? new URL(process.env.VITE_API_URL).origin : '';
-    return html.replace(' %CSP_TESTE%', extra ? ' ' + extra : '');
+    const ts = Boolean(EXTERNOS.turnstileSiteKey);
+    const wa = Boolean(EXTERNOS.analyticsToken);
+    const lista = (l) => l.filter(Boolean).map((x) => ' ' + x).join('');
+    return html
+      .replace(' %CSP_TESTE%', extra ? ' ' + extra : '')
+      .replace('%CSP_SCRIPT%', lista([ts && 'https://challenges.cloudflare.com', wa && 'https://static.cloudflareinsights.com']))
+      .replace('%CSP_CONEXAO%', lista([ts && 'https://challenges.cloudflare.com', wa && 'https://cloudflareinsights.com']))
+      .replace('%CSP_MOLDURA%', ts ? 'https://challenges.cloudflare.com' : "'none'");
   },
 };
 

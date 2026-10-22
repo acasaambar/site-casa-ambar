@@ -80,7 +80,7 @@ export const api = {
   descartarPagamento: (token, orderNsu) => chamar('descartarPagamento', { token, orderNsu }),
   validarCodigo: (token, planoId, codigo) => chamar('validarCodigo', { token, planoId, codigo }),
   resgatarVale: (token, codigo) => chamar('resgatarVale', { token, codigo }),
-  esqueciSenha: (cpf) => chamar('esqueciSenha', { cpf }),
+  esqueciSenha: (cpf, verificacao = '') => chamar('esqueciSenha', { cpf, verificacao }),
   verLinkSenha: (t) => chamar('verLinkSenha', { t }),
   novaSenha: (t, senha) => chamar('novaSenha', { t, senha }),
   salvarEmail: (token, email) => chamar('salvarEmail', { token, email }),
