@@ -231,6 +231,11 @@ export default function Home() {
       <section className="secao secao--caramelo manifesto">
         <Sol tamanho={40} className="cor-creme" />
         <p className="display manifesto__texto revelar">Cuidado que<br />permanece</p>
+        <figure className="manifesto__foto revelar">
+          <img src={img('equipe.jpg')} srcSet={`${img('equipe-900.jpg')} 900w, ${img('equipe.jpg')} 1460w`} sizes="(max-width: 1100px) 92vw, 1000px"
+            width="1460" height="1070" alt="A equipe da Casa Âmbar reunida na entrada da casa" loading="lazy" decoding="async" />
+          <figcaption className="rotulo-espacado">A equipe da Casa Âmbar</figcaption>
+        </figure>
       </section>
 
       {/* ---------- CUIDADOS ---------- */}

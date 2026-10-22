@@ -1812,3 +1812,14 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
 .confirmar__botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .confirmar textarea { width: 100%; font: inherit; }
 @media (max-width: 420px) { .confirmar__botoes { grid-template-columns: 1fr; } }
+
+/* foto da equipe na faixa "Cuidado que permanece": arco no topo, como a fachada */
+.manifesto__foto { margin: 8px 0 0; width: min(1000px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.manifesto__foto img { display: block; width: 100%; height: auto; aspect-ratio: 1460 / 1070; object-fit: cover; object-position: 50% 40%;
+  border-radius: 48% 48% var(--raio) var(--raio) / 34% 34% var(--raio) var(--raio); box-shadow: 0 30px 60px -30px rgba(47, 56, 33, 0.55);
+  filter: saturate(0.92) sepia(0.06); }
+.manifesto__foto figcaption { font-size: 12px; letter-spacing: 0.4em; color: #FFF6E4; opacity: 0.9; }
+@media (max-width: 640px) {
+  .manifesto__foto { gap: 14px; }
+  .manifesto__foto img { border-radius: 50% 50% 16px 16px / 26% 26% 16px 16px; }
+}
