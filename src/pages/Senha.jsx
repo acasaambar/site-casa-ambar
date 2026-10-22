@@ -145,6 +145,8 @@ export function NovaSenha() {
           <h1 className="display-m">Link expirado</h1>
           <p className="entrar__sub">{erroLink}</p>
           <Link className="botao botao--linha" to="/esqueci-senha">Pedir um novo link</Link>
+          {/* o link vencido não diz de quem era: a equipe pede o novo pela tela de entrada da bancada (pelo e-mail, não pelo CPF) */}
+          <Link className="link-acao" to="/bancada">É da equipe? Peça o link novo na bancada, em "Esqueci minha senha"</Link>
         </div>
       ) : !info ? (
         <p className="entrar__sub">Conferindo o link…</p>
