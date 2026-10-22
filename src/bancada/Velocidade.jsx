@@ -44,10 +44,14 @@ export function PainelVelocidade() {
   }, [medidas]);
   const geral = { total: mediana(medidas.map((x) => x.t)), servidor: mediana(medidas.map((x) => x.s)) };
   const fora = geral.total != null && geral.servidor != null ? Math.max(0, geral.total - geral.servidor) : null;
+  // respostas que chegaram trocadas (de outro pedido) e foram descartadas
+  const trocas = medidas.filter((x) => x.x);
+  const textoTrocas = trocas.length ? `Respostas trocadas descartadas: ${trocas.length} (${[...new Set(trocas.map((x) => nomeDe(x.a)))].join(', ')})` : '';
 
   const texto = () => [
     `Velocidade da bancada (${medidas.length} pedidos, ${new Date().toLocaleString('pt-BR')})`,
     `Geral: total ${seg(geral.total)} · servidor ${seg(geral.servidor)} · internet + Google ${seg(fora)}`,
+    ...(textoTrocas ? [textoTrocas] : []),
     ...linhas.map((l) => `${l.nome}: ${l.vezes}x · total ${seg(l.total)} · servidor ${seg(l.servidor)} · planilha ${l.planilha == null ? '—' : l.planilha.toFixed(1)} · cache ${l.cache == null ? '—' : l.cache.toFixed(1)}`),
   ].join('\n');
 
@@ -62,6 +66,7 @@ export function PainelVelocidade() {
           <div><span className="rotulo">No nosso servidor</span><strong>{seg(geral.servidor)}</strong></div>
           <div><span className="rotulo">Internet e Google</span><strong>{seg(fora)}</strong></div>
         </div>
+        {textoTrocas && <p className="b-suave">{textoTrocas}. A bancada descartou e buscou de novo; se o número crescer, mande o resumo para o Fábio.</p>}
         <div className="b-tabela-caixa">
           <table className="b-tabela">
             <thead><tr><th>Ação</th><th>Vezes</th><th>Total</th><th>Servidor</th><th>Abas da planilha</th><th>Abas do cache</th></tr></thead>

@@ -188,7 +188,9 @@ export function baixarCSV(nome, colunas, linhas) {
 // const { dados, erro, carregando, recarregar } = useDados('agenda', { de, dias })
 // Carrega os dados de uma tela. Se a tela já foi aberta antes, mostra na hora o que
 // estava na memória e atualiza por trás. "atual" diz se os dados são destes parâmetros.
-export function useDados(acao, params, ativo = true) {
+// formato (opcional): confere o que chegou (ex.: Array.isArray). Dado de outro formato é descartado e buscado de novo
+// (uma vez), em vez de quebrar a tela.
+export function useDados(acao, params, ativo = true, formato) {
   const { chamar, token } = useBancada();
   const chave = JSON.stringify(params || {});
   const id = `${token}|${acao}|${chave}`;
@@ -204,8 +206,16 @@ export function useDados(acao, params, ativo = true) {
     return () => { vivo = false; };
   }, [id, versao, chamar, ativo]); // eslint-disable-line react-hooks/exhaustive-deps
   const { id: idDados, ...resto } = estado;
+  const estranho = resto.dados != null && formato && !formato(resto.dados);
+  const refeitos = useRef(0);
+  useEffect(() => {
+    if (!estranho || resto.carregando || refeitos.current >= 1) return;
+    refeitos.current += 1;
+    setVersao((v) => v + 1);
+  }, [estranho, resto.carregando]);
   return {
     ...resto,
+    dados: estranho ? null : resto.dados,
     atual: idDados === id,
     recarregar: () => setVersao((v) => v + 1),
     setDados: (d) => setEstado((e) => {

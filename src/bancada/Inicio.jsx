@@ -105,7 +105,7 @@ let lembretesPedidos = false;
 
 export default function Inicio() {
   const { membro, chamar } = useBancada();
-  const { dados: r, erro, carregando } = useDados('resumo');
+  const { dados: r, erro, carregando } = useDados('resumo', undefined, true, (d) => Array.isArray(d.proximas) && Array.isArray(d.linha));
   // lembretes da véspera por e-mail: saem sozinhos quando a recepção abre a bancada
   useEffect(() => {
     if (lembretesPedidos || !pode(membro, 'admin', 'recepcao')) return;

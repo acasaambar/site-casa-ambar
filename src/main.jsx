@@ -49,6 +49,11 @@ const emMoldura = (() => { try { return window.top !== window.self; } catch { re
   s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
   s.dataset.cfBeacon = JSON.stringify({ token: EXTERNOS.analyticsToken, spa: true });
   document.head.appendChild(s);
+  // do site para a bancada (ou um link com código) na mesma aba: recarrega uma vez, e o contador fica de fora
+  window.addEventListener('hashchange', () => {
+    const nova = window.location.hash.replace(/^#/, '').split('?')[0];
+    if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar)/.test(nova)) window.location.reload();
+  });
 })();
 
 if (emMoldura) {

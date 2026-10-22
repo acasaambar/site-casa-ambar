@@ -74,8 +74,10 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
   const [mover, setMover] = useState(null); // { a, profissional, hora } para confirmar
   const [imprimindo, setImprimindo] = useState(false);
   const [espera, setEspera] = useState(!!abrirEspera);
-  const { dados: listaEspera, recarregar: recarregarEspera } = useDados('espera', { tipo: 'servico' }, balcao);
-  const esperaDoDia = (listaEspera || []).filter((x) => !x.data || x.data === dia).length;
+  const { dados: esperaDados, recarregar: recarregarEspera } = useDados('espera', { tipo: 'servico' }, balcao, Array.isArray);
+  // só uma lista conta (um dado de outro formato não pode derrubar a agenda)
+  const listaEspera = Array.isArray(esperaDados) ? esperaDados : [];
+  const esperaDoDia = listaEspera.filter((x) => !x.data || x.data === dia).length;
   const gesto = useRef(null);
   const arrastou = useRef(false);
   const fns = useRef({});
@@ -263,7 +265,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
   };
 
   // botões da agenda do dia, na barra da Agenda (ao lado das abas)
-  const nEspera = listaEspera?.length || 0;
+  const nEspera = listaEspera.length;
   const badge = nEspera ? <span className="ag-espera__n" title={`${esperaDoDia} para este dia ou qualquer dia`}>{nEspera}</span> : null;
   const acoes = balcao && slot && createPortal(
     <>
@@ -401,7 +403,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
       {folga && <DetalheFolga f={folga} aoFechar={() => setFolga(null)} aoMudar={() => { setFolga(null); recarregar(); }} />}
       {comanda && <ComandaDoAtendimento a={comanda.a} aoFechar={() => { setComanda(null); recarregar(); }} />}
       {prontuario && <ProntuarioModal alvo={{ atendimentoId: prontuario.id }} nome={prontuario.nome} aoFechar={() => setProntuario(null)} />}
-      {espera && catalogo && <EsperaServicos dia={dia} lista={listaEspera || []} catalogo={catalogo} aoFechar={() => setEspera(false)}
+      {espera && catalogo && <EsperaServicos dia={dia} lista={listaEspera} catalogo={catalogo} aoFechar={() => setEspera(false)}
         aoMudar={() => { recarregarEspera(); recarregar(); }} />}
       {mover && <MoverAtendimento m={mover} aoFechar={() => setMover(null)} aoMover={(r) => { setMover(null); aplicar(r); }} />}
       {imprimindo && <ImpressaoDia dia={dia} colunas={colunas} lista={lista} aulas={aulas} folgas={folgas} />}

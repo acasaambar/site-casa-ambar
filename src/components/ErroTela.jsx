@@ -24,18 +24,25 @@ export default class ErroTela extends Component {
         <pre style={{ whiteSpace: 'pre-wrap', textAlign: 'left', background: '#E9DDC5', padding: 16, borderRadius: 12, fontSize: 12 }}>
           {String(this.state.erro?.message || this.state.erro)}
           {'\n'}
+          {/* a tela onde aconteceu (sem o que vem depois do "?", que pode ter código de link) */}
+          {'Tela: ' + (window.location.hash.split('?')[0] || '#/')}
+          {'\n'}
           {navigator.userAgent}
         </pre>
         <button
           type="button"
           className="botao botao--cheio"
           onClick={() => {
+            const naBancada = window.location.hash.startsWith('#/bancada');
             try {
-              localStorage.removeItem('ambar_sessao');
+              // a memória das telas da bancada é refeita do zero (um dado guardado com defeito não volta a quebrar a tela)
+              Object.keys(sessionStorage).filter((k) => k.startsWith('ambar_mem|')).forEach((k) => sessionStorage.removeItem(k));
+              // no site, sai da área do aluno; na bancada, o login continua e só volta para a tela Hoje
+              if (!naBancada) localStorage.removeItem('ambar_sessao');
             } catch {
               /* ignora */
             }
-            window.location.hash = '#/';
+            window.location.hash = naBancada ? '#/bancada' : '#/';
             window.location.reload();
           }}
         >

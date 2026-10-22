@@ -296,6 +296,7 @@ function doPost(e) {
   } catch (err) {
     return responder(false, null, 'Pedido inválido.');
   }
+  _pedido = { acao: String((corpo && corpo.acao) || '').slice(0, 40), rid: String((corpo && corpo.rid) || '').replace(/[^a-z0-9]/gi, '').slice(0, 40) };
   // aviso automático da InfinitePay (pagamento aprovado)
   if (corpo && !corpo.acao && corpo.order_nsu) {
     // só códigos de pagamento do site, com a confirmação da InfinitePay (o resto nem pega a trava)
@@ -398,7 +399,7 @@ function responder(ok, dados, erro, codigo) {
   try { datasParaTexto(); } catch (e) { Logger.log('datas: ' + e.message); }
   // tempo no servidor e quantas abas vieram da planilha / do cache (para a tela Velocidade)
   var medida = { ms: _medida.inicio ? Date.now() - _medida.inicio : 0, planilha: _medida.planilha, cache: _medida.cache };
-  return ContentService.createTextOutput(JSON.stringify({ ok: ok, dados: dados, erro: erro || null, codigo: codigo || null, medida: medida }))
+  return ContentService.createTextOutput(JSON.stringify({ ok: ok, dados: dados, erro: erro || null, codigo: codigo || null, medida: medida, acao: _pedido.acao, rid: _pedido.rid }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -1496,6 +1497,7 @@ function novaExecucao() {
   _versoes = null;
   _sujas = {};
   _medida = { planilha: 0, cache: 0, inicio: Date.now() };
+  _pedido = { acao: '', rid: '' };
 }
 
 // Pega a trava (uma ação por vez) e esquece o que foi lido antes:
@@ -1553,6 +1555,8 @@ var TAM_PARTE_CACHE = 95000, PARTES_CACHE = 9; // até ~850 KB comprimidos por a
 var _versoes = null; // versões das abas lidas neste pedido (uma ida ao cache para todas)
 var _sujas = {}; // abas gravadas neste pedido, ainda não avisadas
 var _medida = { planilha: 0, cache: 0, inicio: 0 }; // vai na resposta (tela Velocidade)
+// etiqueta do pedido: volta na resposta, e a tela confere que a resposta é mesmo a do pedido que ela fez
+var _pedido = { acao: '', rid: '' };
 
 function novaVersao() { return Utilities.getUuid().replace(/-/g, '').slice(0, 10); }
 

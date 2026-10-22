@@ -95,7 +95,9 @@ export function buscar(chave, pedir, novo = false, silencioso = false) {
   const conta = silencioso ? 0 : 1;
   ativos += conta;
   avisar();
+  // aqui só passam leituras: resposta trocada (de outro pedido) é descartada e pedida de novo, uma vez
   const p = pedir()
+    .catch((e) => (e && e.codigo === 'RESPOSTA_TROCADA' ? pedir() : Promise.reject(e)))
     .then((d) => { guardarNaMemoria(chave, d); frescos.add(chave); return d; })
     .finally(() => {
       if (emAndamento.get(chave) === p) emAndamento.delete(chave);

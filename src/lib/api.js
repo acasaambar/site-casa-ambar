@@ -24,16 +24,18 @@ export function lerMedidas() {
 export function limparMedidas() {
   try { localStorage.removeItem(CHAVE_MEDIDAS); } catch { /* sem armazenamento */ }
 }
-function anotarMedida(acao, total, medida) {
+function anotarMedida(acao, total, medida, trocada = false) {
   try {
     const l = lerMedidas();
-    l.push({ a: acao, t: Math.round(total), s: medida?.ms ?? null, p: medida?.planilha ?? null, c: medida?.cache ?? null, q: Date.now() });
+    l.push({ a: acao, t: Math.round(total), s: medida?.ms ?? null, p: medida?.planilha ?? null, c: medida?.cache ?? null, q: Date.now(), ...(trocada ? { x: 1 } : {}) });
     localStorage.setItem(CHAVE_MEDIDAS, JSON.stringify(l.slice(-400)));
   } catch { /* sem armazenamento */ }
 }
 
 async function chamar(acao, dados = {}) {
   if (MODO_DEMO) return demo(acao, dados);
+  // etiqueta única do pedido: o servidor devolve a mesma, e só aceitamos a resposta que é deste pedido
+  const rid = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   let resp;
   const inicio = performance.now();
   try {
@@ -41,7 +43,7 @@ async function chamar(acao, dados = {}) {
     // Apps Script aceita sem bloqueio de CORS.
     resp = await fetch(CONFIG.API_URL, {
       method: 'POST',
-      body: JSON.stringify({ acao, ...dados }),
+      body: JSON.stringify({ acao, ...dados, rid }),
     });
   } catch {
     throw new Error('Sem conexão. Verifique sua internet e tente de novo.');
@@ -52,7 +54,10 @@ async function chamar(acao, dados = {}) {
   } catch {
     throw new Error('O sistema de reservas não respondeu. Tente de novo em instantes.');
   }
-  anotarMedida(acao, performance.now() - inicio, json.medida);
+  // resposta de outro pedido (já aconteceu na bancada: a lista de espera chegou no lugar do resumo do dia)
+  const trocada = Boolean(json && json.rid && json.rid !== rid);
+  anotarMedida(acao, performance.now() - inicio, json.medida, trocada);
+  if (trocada) throw erroApi('A resposta do servidor se perdeu no caminho. Confira se a ação foi feita e, se não foi, tente de novo.', 'RESPOSTA_TROCADA');
   if (!json.ok) throw erroApi(json.erro || 'Algo deu errado. Tente de novo.', json.codigo, json.dados);
   return json.dados;
 }
