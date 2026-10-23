@@ -5,6 +5,7 @@ import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
 import { Atualizando, preCarregar, hojeIso, segundaDe } from './ui.jsx';
 import { CampoSenha } from '../components/CampoSenha.jsx';
+import Assinatura from '../components/Assinatura.jsx';
 import Inicio from './Inicio.jsx';
 import Agenda from './Agenda.jsx';
 import { Alunos, AlunoDetalhe } from './Alunos.jsx';
@@ -137,6 +138,7 @@ function Painel() {
           </div>
           <a className="b-lateral__site" href="#/" target="_blank" rel="noreferrer">Ver site</a>
           <button type="button" className="b-lateral__sair" onClick={sair}>Sair</button>
+          <Assinatura className="assinatura--menu" />
         </div>
         <Selo tamanho={210} className="b-lateral__selo" />
       </aside>

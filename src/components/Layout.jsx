@@ -4,6 +4,7 @@ import { Logo, Selo, Sol, IconeInstagram, IconeWhatsapp, IconeEmail } from './Ma
 import { useAuth } from '../lib/auth.jsx';
 import { CONFIG } from '../config.js';
 import { MODO_DEMO } from '../lib/api.js';
+import Assinatura from './Assinatura.jsx';
 
 export function Header() {
   const { pathname } = useLocation();
@@ -186,6 +187,7 @@ export function Footer() {
         <span className="rodape__base-marca"><Sol tamanho={14} /> Casa Âmbar · desde 26</span>
         <span>Fortaleza · Ceará</span>
       </div>
+      <Assinatura className="assinatura--rodape" />
     </footer>
   );
 }

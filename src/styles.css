@@ -1832,3 +1832,18 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
 /* "não sou robô" (Turnstile): quase sempre invisível; quando aparece, ocupa a largura do formulário */
 .verificacao:empty { display: none; }
 .verificacao { width: 100%; }
+
+/* ---------- assinatura de quem fez o sistema (site e bancada) ---------- */
+.assinatura { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-transform: none; letter-spacing: 0; }
+.assinatura__selo {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid currentColor; opacity: 0.8;
+  display: grid; place-items: center; font-family: var(--display); font-size: 14px; line-height: 1; letter-spacing: -0.04em; padding-top: 1px;
+}
+.assinatura__txt { display: grid; gap: 1px; font-size: 12px; line-height: 1.35; opacity: 0.78; min-width: 0; }
+.assinatura__txt a { color: inherit; text-decoration: underline; text-decoration-color: rgba(233, 221, 197, 0.4); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.assinatura__txt a:hover { text-decoration-color: currentColor; }
+.assinatura--rodape { display: flex; justify-content: center; width: fit-content; max-width: var(--largura); margin: 18px auto 0; padding: 0 24px; color: #BDB49C; }
+.assinatura--menu { margin-top: 10px; padding-top: 12px; border-top: 1px solid rgba(233, 221, 197, 0.1); color: rgba(233, 221, 197, 0.78); }
+.assinatura--menu .assinatura__por { display: none; } /* no menu estreito: só o nome */
+.assinatura--menu .assinatura__selo { width: 26px; height: 26px; font-size: 13px; }
+@media (max-width: 900px) { .assinatura--menu a { min-height: 32px; display: inline-flex; align-items: center; } }

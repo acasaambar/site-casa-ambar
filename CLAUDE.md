@@ -12,6 +12,10 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 - Faça as mudanças você mesmo, teste, publique (commit + push) e explique **o que mudou** em poucas linhas, sem jargão.
 - Quando ele precisar fazer algo fora do código (Google, GitHub, InfinitePay), dê o passo a passo numerado.
 
+## Assinatura do Fábio
+
+O sistema leva a assinatura **"FR · Feito por Fábio Ranyeri · frnr.mv@icloud.com"** (selo, nome e e-mail clicável), pequena, no rodapé do site e no pé do menu da bancada (`src/components/Assinatura.jsx`). Descrição e código de referência em `assinatura.md`. Em projetos novos do Fábio, aplique a mesma assinatura.
+
 ## Como o projeto funciona
 
 | Parte | Onde | Observação |
