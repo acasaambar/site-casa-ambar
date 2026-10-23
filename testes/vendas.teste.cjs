@@ -98,5 +98,15 @@ console.log('— venda de comanda e do site não se mexem por aqui');
   ok(lista.find((p) => p.orderNsu === pc.order_nsu).comanda === cm.id, 'a lista traz a comanda (botão "Abrir a comanda")');
 }
 
+console.log('— estorno: motivo obrigatório, com quem estornou');
+{
+  const v = chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-avulsa', metodo: 'Pix' }).dados;
+  r = chamar('b_estornar', { token: rec, orderNsu: v.orderNsu });
+  ok(!r.ok && /motivo/i.test(r.erro), 'estorno sem motivo é recusado', r.erro);
+  r = chamar('b_estornar', { token: rec, orderNsu: v.orderNsu, motivo: 'cliente desistiu' });
+  ok(r.ok && r.dados.status === 'estornado' && /ESTORNADO em .* por bia@acasaambar\.com\.br: cliente desistiu/.test(r.dados.observacao), 'estornado com quem, quando e motivo', r.dados || r.erro);
+  ok(chamar('b_registro', { token: adm }).dados.some((x) => x.acao === 'estorno' && /cliente desistiu/.test(x.detalhe) && x.quem === 'bia@acasaambar.com.br'), 'o Registro guarda quem e o motivo');
+}
+
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
 process.exit(falhas ? 1 : 0);

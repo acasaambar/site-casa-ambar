@@ -219,10 +219,12 @@ function Estorno({ p, aoEstornar }) {
           ? 'Faça o estorno no app da InfinitePay (Vendas → esta venda → Estornar). Depois registre aqui: o plano é desativado.'
           : 'Use quando o dinheiro entrou e foi devolvido. Registre aqui: o plano é desativado.'}
       </p>
-      <label className="b-campo"><span className="rotulo">Motivo</span><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: mudou de cidade" /></label>
+      <label className="b-campo"><span className="rotulo">Motivo (obrigatório)</span><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: mudou de cidade" /></label>
+      <p className="b-suave">Fica registrado quem estornou, quando e o motivo.</p>
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio botao--perigo-cheio" acao={async () => {
-        try { await chamar('estornar', { orderNsu: p.orderNsu, motivo }); aoEstornar(); } catch (e) { setErro(e.message); }
+        try {
+          if (motivo.trim().length < 3) throw new Error('Diga o motivo do estorno.'); await chamar('estornar', { orderNsu: p.orderNsu, motivo }); aoEstornar(); } catch (e) { setErro(e.message); }
       }}>Confirmar estorno</BotaoAcao>
     </div>
   );

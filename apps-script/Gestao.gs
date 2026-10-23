@@ -1255,6 +1255,106 @@ function bancada_cancelarComanda(d, m) {
   return true;
 }
 
+// Desfaz o que o fechamento de uma comanda gravou (usado por "Reabrir para corrigir" e quando um fechamento é interrompido por falha):
+// pagamentos estornados ou excluídos, créditos e vales vendidos desativados, vale usado volta a valer, estoque devolvido (só o que saiu),
+// comissões canceladas. Recusa quando algo já foi usado ou pago depois. Devolve os itens da comanda prontos para voltar ao estado aberto.
+// limpeza = true: sobra de um fechamento que não terminou (a comanda nunca chegou a ficar fechada).
+function desfazerEfeitosDaComanda(cm, pags, obs, quem, limpeza) {
+  // o que impede: plano/pacote já usado, vale vendido já usado, comissão já paga
+  var creditos = pags.map(function (p) { return 'C' + String(p.order_nsu).slice(1); });
+  var reservas = lerAba('Reservas').filter(function (r) { return r.status !== 'cancelado' && creditos.indexOf(String(r.credito_id)) >= 0; });
+  // fechamento interrompido: a aula avulsa ligada ao crédito que vai sumir volta a ficar "a pagar"
+  if (reservas.length && limpeza) reservas.forEach(function (r) { atualizarLinha('Reservas', r._linha, { credito_id: A_PAGAR }); });
+  else if (reservas.length) throw new Error('Um plano desta comanda já foi usado em aula (' + reservas.length + '). Corrija com estorno em Vendas.');
+  var usados = lerAba('Atendimentos').filter(function (a) { return a.status !== 'cancelado' && creditos.indexOf(String(a.credito_id)) >= 0 && String(a.comanda) !== cm.id; });
+  if (usados.length) throw new Error('Um pacote desta comanda já foi usado em outro atendimento. Corrija com estorno em Vendas.');
+  // (vale cancelado numa reabertura anterior não conta: um novo nasceu ao fechar de novo)
+  var valesVendidos = lerAba('Vales').filter(function (v) { return String(v.comanda) === cm.id && String(v.origem) === 'vendido' && v.status !== 'cancelado'; });
+  var pagosAgora = pagamentosPagos();
+  valesVendidos.forEach(function (v) {
+    if (v.status !== 'ativo' || (v.tipo !== 'plano' && saldoVale(v, pagosAgora) + 0.009 < numero(v.valor))) throw new Error('O vale ' + v.codigo + ' vendido nesta comanda já foi usado.');
+  });
+  var refs = cm.itens.map(function (it, idx) { return it.atendimentoId ? String(it.atendimentoId) : cm.id + '-' + idx; });
+  var pagas = lerAba('Comissoes').filter(function (k) { return k.status === 'pago' && refs.indexOf(String(k.ref)) >= 0; });
+  if (pagas.length) throw new Error('A comissão de ' + pagas[0].profissional + ' sobre esta comanda já foi paga. Ajuste no Financeiro antes de reabrir.');
+
+  pags.forEach(function (p) {
+    atualizarLinha('Pagamentos', p._linha, { status: p.status === 'pago' && !limpeza ? 'estornado' : 'excluido', observacao: (obs + (p.observacao || '')).slice(0, 500) });
+    // vale usado para pagar volta a valer
+    if (p.vale) {
+      var v = acharVale(p.vale);
+      if (v && (v.status === 'resgatado' || v.status === 'usado')) atualizarLinha('Vales', v._linha, { status: 'ativo', resgatado_em: '', resgatado_cpf: '' });
+    }
+  });
+  var mc = mapaCreditos();
+  creditos.forEach(function (id) { if (mc[id]) atualizarLinha('Creditos', mc[id]._linha, { ativo: 'NÃO' }); });
+  valesVendidos.forEach(function (v) { atualizarLinha('Vales', v._linha, { status: 'cancelado' }); });
+  // estoque e comissões
+  var criadosNaComanda = {}; // atendimentos criados só para contar a sessão do pacote: saem junto
+  if (limpeza) {
+    // fechamento interrompido: atendimentos que ele já tinha ligado a esta comanda (o item guardado ainda não os conhecia)
+    var nsus = {};
+    pags.forEach(function (p) { nsus[String(p.order_nsu)] = 1; });
+    lerAba('Atendimentos').forEach(function (a) {
+      if (String(a.comanda) !== cm.id || a.status === 'cancelado') return;
+      if (/^Feito na comanda/.test(String(a.obs || ''))) {
+        criadosNaComanda[a.id] = 1;
+        atualizarLinha('Atendimentos', a._linha, { status: 'cancelado', pagamento: 'no_dia', credito_id: '', atualizado_em: agoraTexto() });
+        cancelarComissao(String(a.id));
+      } else if (nsus[String(a.order_nsu)] || creditos.indexOf(String(a.credito_id)) >= 0) {
+        atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
+        cancelarComissao(String(a.id));
+      }
+    });
+  }
+  cm.itens.forEach(function (it, idx) {
+    if (it.tipo === 'produto') {
+      // devolve só o que de fato saiu do estoque por esta comanda (um fechamento interrompido pode não ter chegado neste produto)
+      var devolver = -lerAba('MovEstoque').filter(function (x) { return String(x.ref) === 'comanda:' + cm.id && String(x.produto_id) === String(it.id); }).reduce(function (t, x) { return t + numero(x.qtd); }, 0);
+      if (devolver > 0) try { movimentarEstoque(it.id, devolver, 'devolução', 'Comanda ' + cm.id + ' desfeita', 'comanda:' + cm.id, quem); } catch (e) { Logger.log('estoque: ' + e.message); }
+      cancelarComissao(cm.id + '-' + idx);
+    } else if (it.tipo === 'servico') {
+      if (it.atendimentoId) {
+        var a = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
+        if (a) {
+          if (it.pacote && /^Feito na comanda/.test(String(a.obs || ''))) {
+            criadosNaComanda[a.id] = 1;
+            atualizarLinha('Atendimentos', a._linha, { status: 'cancelado', pagamento: 'no_dia', credito_id: '', atualizado_em: agoraTexto() });
+          } else if (!it.pago) atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
+          cancelarComissao(String(a.id));
+          aplicarConsumo(a.servico_id, 'atend:' + a.id, a.nome, false, quem);
+        }
+      } else {
+        cancelarComissao(cm.id + '-' + idx);
+        aplicarConsumo(it.id, 'comanda:' + cm.id + '-' + idx, cm.nome, false, quem);
+      }
+    }
+  });
+  // itens de vale voltam sem código (um novo nasce ao fechar de novo)
+  var itens = cm.itens.map(function (it) {
+    var x = Object.assign({}, it);
+    delete x.valeCodigo;
+    if (criadosNaComanda[x.atendimentoId]) x.atendimentoId = '';
+    return x;
+  });
+  return itens;
+}
+
+// Fechamento que parou no meio (erro do Google, tempo esgotado) deixa pagamentos, créditos, vales e estoque de uma comanda que continua aberta.
+// Desfaz essas sobras antes de fechar de novo, para não cobrar nem creditar duas vezes. Devolve true se havia sobra.
+function limparFechamentoInterrompido(cmId, quem, motivo) {
+  var c = acharComanda(cmId);
+  if (!c || c.status !== 'aberta') return false;
+  var cm = comandaPublica(c);
+  var sobras = lerAba('Pagamentos').filter(function (p) { return String(p.comanda) === cm.id && (p.status === 'pago' || p.status === 'pendente'); });
+  var vales = lerAba('Vales').filter(function (v) { return String(v.comanda) === cm.id && String(v.origem) === 'vendido' && v.status !== 'cancelado'; });
+  if (!sobras.length && !vales.length) return false;
+  var obs = 'Fechamento interrompido (' + motivo + ') desfeito em ' + agoraTexto() + '. ';
+  desfazerEfeitosDaComanda(cm, sobras, obs, quem, true);
+  atualizarLinha('Comandas', c._linha, { historico: anotarComanda(c, quem, 'o fechamento anterior não terminou (' + motivo + '): pagamentos e créditos lançados nele foram desfeitos') });
+  return true;
+}
+
 // Reabrir uma comanda fechada para corrigir (só administração). Desfaz o que o fechamento fez:
 // pagamentos estornados, créditos e vales vendidos desativados, vale usado volta a valer,
 // estoque devolvido, comissões canceladas. Recusa quando algo já foi usado ou pago depois.
@@ -1269,64 +1369,7 @@ function bancada_reabrirComanda(d, m) {
     if (c.status !== 'fechada') throw new Error('Só comandas fechadas podem ser reabertas.');
     var cm = comandaPublica(c);
     var pags = lerAba('Pagamentos').filter(function (p) { return String(p.comanda) === cm.id && p.status === 'pago'; });
-    // o que impede: plano/pacote já usado, vale vendido já usado, comissão já paga
-    var creditos = pags.map(function (p) { return 'C' + String(p.order_nsu).slice(1); });
-    var reservas = lerAba('Reservas').filter(function (r) { return r.status !== 'cancelado' && creditos.indexOf(String(r.credito_id)) >= 0; });
-    if (reservas.length) throw new Error('Um plano desta comanda já foi usado em aula (' + reservas.length + '). Corrija com estorno em Vendas.');
-    var usados = lerAba('Atendimentos').filter(function (a) { return a.status !== 'cancelado' && creditos.indexOf(String(a.credito_id)) >= 0 && String(a.comanda) !== cm.id; });
-    if (usados.length) throw new Error('Um pacote desta comanda já foi usado em outro atendimento. Corrija com estorno em Vendas.');
-    // (vale cancelado numa reabertura anterior não conta: um novo nasceu ao fechar de novo)
-    var valesVendidos = lerAba('Vales').filter(function (v) { return String(v.comanda) === cm.id && String(v.origem) === 'vendido' && v.status !== 'cancelado'; });
-    var pagosAgora = pagamentosPagos();
-    valesVendidos.forEach(function (v) {
-      if (v.status !== 'ativo' || (v.tipo !== 'plano' && saldoVale(v, pagosAgora) + 0.009 < numero(v.valor))) throw new Error('O vale ' + v.codigo + ' vendido nesta comanda já foi usado.');
-    });
-    var refs = cm.itens.map(function (it, idx) { return it.atendimentoId ? String(it.atendimentoId) : cm.id + '-' + idx; });
-    var pagas = lerAba('Comissoes').filter(function (k) { return k.status === 'pago' && refs.indexOf(String(k.ref)) >= 0; });
-    if (pagas.length) throw new Error('A comissão de ' + pagas[0].profissional + ' sobre esta comanda já foi paga. Ajuste no Financeiro antes de reabrir.');
-
-    var obs = 'Comanda reaberta em ' + agoraTexto() + ' por ' + m.email + ': ' + motivo + '. ';
-    pags.forEach(function (p) {
-      atualizarLinha('Pagamentos', p._linha, { status: 'estornado', observacao: (obs + (p.observacao || '')).slice(0, 500) });
-      // vale usado para pagar volta a valer
-      if (p.vale) {
-        var v = acharVale(p.vale);
-        if (v && (v.status === 'resgatado' || v.status === 'usado')) atualizarLinha('Vales', v._linha, { status: 'ativo', resgatado_em: '', resgatado_cpf: '' });
-      }
-    });
-    var mc = mapaCreditos();
-    creditos.forEach(function (id) { if (mc[id]) atualizarLinha('Creditos', mc[id]._linha, { ativo: 'NÃO' }); });
-    valesVendidos.forEach(function (v) { atualizarLinha('Vales', v._linha, { status: 'cancelado' }); });
-    // estoque e comissões
-    var criadosNaComanda = {}; // atendimentos criados só para contar a sessão do pacote: saem junto
-    cm.itens.forEach(function (it, idx) {
-      if (it.tipo === 'produto') {
-        try { movimentarEstoque(it.id, it.qtd, 'devolução', 'Comanda ' + cm.id + ' reaberta', 'comanda:' + cm.id, m.email); } catch (e) { Logger.log('estoque: ' + e.message); }
-        cancelarComissao(cm.id + '-' + idx);
-      } else if (it.tipo === 'servico') {
-        if (it.atendimentoId) {
-          var a = lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0];
-          if (a) {
-            if (it.pacote && /^Feito na comanda/.test(String(a.obs || ''))) {
-              criadosNaComanda[a.id] = 1;
-              atualizarLinha('Atendimentos', a._linha, { status: 'cancelado', pagamento: 'no_dia', credito_id: '', atualizado_em: agoraTexto() });
-            } else if (!it.pago) atualizarLinha('Atendimentos', a._linha, { pagamento: 'no_dia', order_nsu: '', credito_id: '', atualizado_em: agoraTexto() });
-            cancelarComissao(String(a.id));
-            aplicarConsumo(a.servico_id, 'atend:' + a.id, a.nome, false, m.email);
-          }
-        } else {
-          cancelarComissao(cm.id + '-' + idx);
-          aplicarConsumo(it.id, 'comanda:' + cm.id + '-' + idx, cm.nome, false, m.email);
-        }
-      }
-    });
-    // itens de vale voltam sem código (um novo nasce ao fechar de novo)
-    var itens = cm.itens.map(function (it) {
-      var x = Object.assign({}, it);
-      delete x.valeCodigo;
-      if (criadosNaComanda[x.atendimentoId]) x.atendimentoId = '';
-      return x;
-    });
+    var itens = desfazerEfeitosDaComanda(cm, pags, 'Comanda reaberta em ' + agoraTexto() + ' por ' + m.email + ': ' + motivo + '. ', m.email, false);
     atualizarLinha('Comandas', c._linha, { status: 'aberta', fechada_em: '', fechada_por: '', pagamentos: '', itens: JSON.stringify(itens),
       historico: anotarComanda(c, m.email, 'reabriu para corrigir: ' + motivo) });
     SpreadsheetApp.flush();
@@ -1345,6 +1388,8 @@ function bancada_fecharComanda(d, m) {
     var c = acharComanda(d.id);
     if (!c) throw new Error('Comanda não encontrada.');
     if (c.status !== 'aberta') throw new Error('Esta comanda já foi fechada.');
+    // um fechamento anterior que parou no meio deixou pagamentos e créditos: desfaz antes de fechar de novo (nada é cobrado duas vezes)
+    if (limparFechamentoInterrompido(c.id, m.email, 'falha no sistema')) c = acharComanda(d.id);
     var cm = comandaPublica(c);
     if (!cm.itens.length) throw new Error('A comanda está vazia.');
     var calc = calcularItensComanda(cm.itens, cm.cpf, cm.codigo);
@@ -1394,6 +1439,7 @@ function bancada_fecharComanda(d, m) {
     var creditosNaComanda = {};
     var aulasLigadas = {};
     var ordem = calc.map(function (x, i) { return i; }).sort(function (x, y) { return (calc[x].tipo === 'pacote' ? 0 : 1) - (calc[y].tipo === 'pacote' ? 0 : 1) || x - y; });
+    try {
     ordem.forEach(function (idx) {
       var it = calc[idx];
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
@@ -1496,6 +1542,11 @@ function bancada_fecharComanda(d, m) {
       total: total, subtotal: dinheiro(calc.reduce(function (s, i) { return s + (i.pago || i.pacote ? 0 : i.preco * i.qtd); }, 0)),
       desconto: dinheiro(calc.reduce(function (s, i) { return s + i.desconto; }, 0)),
       historico: anotarComanda(c, m.email, 'fechou · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + ')) });
+    } catch (falha) {
+      // parou no meio: desfaz o que já foi gravado (se nem isso der, a próxima tentativa de fechar desfaz sozinha)
+      try { limparFechamentoInterrompido(c.id, m.email, 'erro ao fechar'); } catch (e2) { Logger.log('limpeza do fechamento: ' + e2.message); }
+      throw falha;
+    }
     SpreadsheetApp.flush();
     registrar(m, 'fechou comanda', cm.nome + ' · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + '));
   } finally {

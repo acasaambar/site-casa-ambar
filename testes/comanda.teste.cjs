@@ -265,5 +265,45 @@ console.log('— vale-presente na agenda (sem abrir comanda)');
   ok(chamar('b_vales', { token: rec }).dados.find((v) => v.codigo === v50).status === 'usado', 'vale de R$ 50 usado');
 }
 
+console.log('— fechar comanda que falha no meio: nada é cobrado nem creditado duas vezes');
+{
+  const cpfM = chamar('b_novoAluno', { token: rec, nome: 'Clara Teste Falha', whatsapp: '85940005555' }).dados.cpf;
+  const doCm = (id) => ctx.lerAba('Pagamentos').filter((x) => x.comanda === id);
+  const creditosDe = (nome) => ctx.lerAba('Creditos').filter((x) => x.cpf === cpfM && x.descricao === nome && x.ativo === 'SIM').length;
+  const estoque0 = estoque();
+  const montar = () => { const x = chamar('b_salvarComanda', { token: rec, comanda: { cpf: cpfM, itens: [{ tipo: 'produto', id: protetor, nome: 'Protetor solar', qtd: 1, profissional: 'Lia Esteticista' }, { tipo: 'plano', id: 'yoga-avulsa', nome: 'Yoga avulsa' }, { tipo: 'plano', id: 'pilates-avulsa', nome: 'Pilates avulsa' }] } }); if (!x.ok) console.log('   salvar:', x.erro); return x.dados; };
+  const falharNa2a = () => { const orig = ctx.concluirPagamento; let n = 0; ctx.concluirPagamento = function () { n++; if (n === 2) throw new Error('Service Spreadsheets failed (simulado)'); return orig.apply(this, arguments); }; return () => { ctx.concluirPagamento = orig; }; };
+  // 1) o próprio fechamento desfaz o que já tinha gravado
+  let cm = montar();
+  let volta = falharNa2a();
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: cm.total }] });
+  volta();
+  ok(!r.ok, 'o fechamento com falha avisa o erro', r);
+  ok(ctx.lerAba('Comandas').find((x) => x.id === cm.id).status === 'aberta', 'a comanda continua aberta');
+  ok(doCm(cm.id).every((x) => x.status === 'excluido') && !ctx.lerAba('Pagamentos').some((x) => x.comanda === cm.id && x.status === 'estornado'), 'nenhum pagamento ficou valendo nem pendente (e não conta como estorno)', doCm(cm.id).map((x) => x.status));
+  ok(estoque() === estoque0, 'o estoque voltou', [estoque(), estoque0]);
+  ok(creditosDe('Yoga · aula avulsa') === 0 && creditosDe('Pilates · aula avulsa') === 0, 'nenhum crédito ficou ativo');
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: cm.total }] });
+  ok(r.ok, 'fechar de novo funciona', r);
+  ok(doCm(cm.id).filter((x) => x.status === 'pago').length === 3, 'três pagamentos, um por item', doCm(cm.id).map((x) => x.status));
+  ok(estoque() === estoque0 - 1 && creditosDe('Yoga · aula avulsa') === 1 && creditosDe('Pilates · aula avulsa') === 1, 'estoque baixou 1 vez e cada crédito existe uma vez');
+  ok(ctx.lerAba('Comandas').find((x) => x.id === cm.id).status === 'fechada', 'comanda fechada');
+  chamar('b_reabrirComanda', { token: adm, id: cm.id, motivo: 'teste' });
+  ok(estoque() === estoque0, 'reabrir ainda devolve o estoque', estoque());
+  chamar('b_cancelarComanda', { token: rec, id: cm.id, motivo: 'fim do teste' });
+  // 2) a execução morreu sem conseguir desfazer: a próxima tentativa limpa sozinha
+  cm = montar();
+  volta = falharNa2a();
+  const limpezaOrig = ctx.limparFechamentoInterrompido;
+  ctx.limparFechamentoInterrompido = () => false;
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: cm.total }] });
+  volta(); ctx.limparFechamentoInterrompido = limpezaOrig;
+  ok(!r.ok && doCm(cm.id).some((x) => x.status === 'pago'), 'sobra de um fechamento que morreu no meio', doCm(cm.id).map((x) => x.status));
+  r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: cm.total }] });
+  ok(r.ok && doCm(cm.id).filter((x) => x.status === 'pago').length === 3, 'a nova tentativa desfaz a sobra e fecha uma vez só', doCm(cm.id).map((x) => x.status));
+  ok(estoque() === estoque0 - 1 && creditosDe('Yoga · aula avulsa') === 1 && creditosDe('Pilates · aula avulsa') === 1, 'estoque e créditos sem duplicar');
+  ok(/não terminou/.test(JSON.stringify(ctx.lerAba('Comandas').find((x) => x.id === cm.id).historico)), 'o histórico da comanda conta o que aconteceu');
+}
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);

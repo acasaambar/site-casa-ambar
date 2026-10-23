@@ -1040,17 +1040,20 @@ function bancada_pagamentos(d) {
 
 // O estorno em si é feito na InfinitePay; aqui ele é registrado e o crédito é desativado
 function bancada_estornar(d, m) {
+  // motivo obrigatório: fica na observação da venda (com quem e quando) e no Registro
+  var motivo = String(d.motivo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (motivo.length < 3) throw new Error('Diga o motivo do estorno.');
   var pg = linhaPagamento(String(d.orderNsu));
   if (!pg) throw new Error('Pagamento não encontrado.');
   if (pg.status !== 'pago') throw new Error('Só pagamentos aprovados podem ser estornados.');
   // venda da comanda: reabrir desfaz tudo junto (vale vendido, estoque, comissão, atendimento)
   if (pg.comanda) throw new Error('Esta venda é de uma comanda: para desfazer, a administração usa "Reabrir para corrigir" na comanda (Comandas → Fechadas).');
-  atualizarLinha('Pagamentos', pg._linha, { status: 'estornado', observacao: ('ESTORNADO em ' + agoraTexto() + ' por ' + m.email + (d.motivo ? ': ' + d.motivo : '') + '. ' + (pg.observacao || '')).slice(0, 500) });
+  atualizarLinha('Pagamentos', pg._linha, { status: 'estornado', observacao: ('ESTORNADO em ' + agoraTexto() + ' por ' + m.email + ': ' + motivo + '. ' + (pg.observacao || '')).slice(0, 500) });
   var mc = mapaCreditos();
   var c = mc['C' + String(pg.order_nsu).slice(1)];
   if (c) atualizarLinha('Creditos', c._linha, { ativo: 'NÃO' });
   devolverValeDoPagamento(pg);
-  registrar(m, 'estorno', pg.nome + ' · ' + pg.descricao + ' · R$ ' + numero(pg.valor));
+  registrar(m, 'estorno', pg.nome + ' · ' + pg.descricao + ' · R$ ' + numero(pg.valor) + ' · ' + motivo);
   return pagamentoPublico(linhaPagamento(pg.order_nsu));
 }
 
