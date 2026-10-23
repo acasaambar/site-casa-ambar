@@ -1,14 +1,32 @@
-# Assinatura de Fábio Ranyeri (vibe coder)
+# Assinatura de Fábio Ranyeri (vibe coder) — guia para qualquer projeto
 
-Em todo projeto feito com o Claude, o sistema leva esta assinatura pequena e discreta, **só a marca, o nome e o e-mail**:
+Sempre que o Fábio pedir **"assinatura"** em um projeto, coloque a assinatura abaixo, **adaptada ao design e à arquitetura daquele projeto** (fontes, cores, framework, onde ficam rodapé e menu). Não copie o visual da Casa Âmbar: copie a ideia.
 
-- **Selo "FR"**: círculo com fio fino, letras FR na fonte de títulos do projeto (Italiana, se houver).
-- **Texto**: "Feito por Fábio Ranyeri" (no menu estreito da bancada, só "Fábio Ranyeri") e, embaixo, o e-mail **frnr.mv@icloud.com** como link `mailto:`.
-- **Cor**: a do rodapé onde está (`currentColor`), com ~80 % de opacidade. Tamanho do texto: 12 px.
-- **Onde**: rodapé do site (centralizada, abaixo da linha final) e pé do menu lateral da bancada/painel interno. Não vai em e-mails para clientes nem na área do aluno, salvo pedido.
-- **Nome certo**: Fábio (com acento) Ranyeri.
+## O que é fixo (sempre igual)
+- **Selo "FR"**: círculo com fio fino e as letras FR dentro.
+- **Nome**: "Fábio Ranyeri" (com acento no Fábio), no texto "Feito por Fábio Ranyeri".
+- **E-mail**: **frnr.mv@icloud.com**, como link clicável (`mailto:`).
+- **Só isso**: marca, nome e e-mail. Sem slogan, sem "vibe coder", sem redes, salvo se ele pedir.
+- **Pequena e discreta**: texto de 12 px, opacidade de ~80 %, nunca disputa atenção com o conteúdo.
 
-Implementação de referência (React): `src/components/Assinatura.jsx` + bloco "assinatura" no fim de `src/styles.css` (projeto Casa Âmbar).
+## O que se adapta ao projeto
+- **Fonte das letras FR**: a fonte de títulos/marca do projeto (serifada fina, se existir); o texto usa a fonte de texto do projeto.
+- **Cor**: herdar a cor do rodapé/menu onde está (`currentColor`), nunca uma cor nova.
+- **Onde**:
+  - Site/landing: no final do rodapé, centralizada, abaixo da linha final (copyright).
+  - Painel/área interna: no pé do menu lateral (no menu estreito, só o nome sem o "Feito por"). Sem menu lateral: rodapé do painel.
+  - App sem rodapé (ex.: jogo, ferramenta de uma tela): canto inferior, ou numa tela "Sobre".
+  - Não colocar em e-mails para clientes nem em telas de pagamento/login, salvo pedido.
+- **Tecnologia**: componente da própria stack (React: um componente `Assinatura`; HTML puro: um bloco no rodapé + CSS; Apps Script/HtmlService: bloco no template). Estilos no arquivo de estilos global do projeto.
+- **Conferir**: celular (390 px) e computador sem rolagem lateral; clique no e-mail abre o app de e-mail; contraste legível em fundo claro e escuro.
+
+## Depois de aplicar
+1. Rodar os testes/lint/build do projeto.
+2. Anotar no `CLAUDE.md` do projeto (seção "Assinatura do Fábio", 2 linhas: onde está e qual arquivo).
+3. Copiar este `assinatura.md` para o projeto, se ainda não estiver nele.
+
+## Referência (Casa Âmbar, React)
+Componente `src/components/Assinatura.jsx` e bloco "assinatura" no fim de `src/styles.css`.
 
 ```jsx
 export default function Assinatura({ className = '' }) {

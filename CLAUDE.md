@@ -14,7 +14,7 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 
 ## Assinatura do Fábio
 
-O sistema leva a assinatura **"FR · Feito por Fábio Ranyeri · frnr.mv@icloud.com"** (selo, nome e e-mail clicável), pequena, no rodapé do site e no pé do menu da bancada (`src/components/Assinatura.jsx`). Descrição e código de referência em `assinatura.md`. Em projetos novos do Fábio, aplique a mesma assinatura.
+O sistema leva a assinatura **"FR · Feito por Fábio Ranyeri · frnr.mv@icloud.com"** (selo, nome e e-mail clicável), pequena, no rodapé do site e no pé do menu da bancada (`src/components/Assinatura.jsx`). Guia geral e código de referência em `assinatura.md`. Quando o Fábio pedir "assinatura" em qualquer projeto, aplique a mesma ideia adaptada ao design e à arquitetura daquele projeto.
 
 ## Como o projeto funciona
 
