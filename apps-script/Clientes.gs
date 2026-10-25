@@ -14,7 +14,7 @@ var CONDICOES_ESTETICA = ['Hipertensão', 'Diabetes', 'Marcapasso ou implante me
   'Distúrbio de coagulação', 'Gestante ou amamentando', 'Uso de isotretinoína (Roacutan) nos últimos 6 meses'];
 var PASTA_FOTOS = 'Casa Âmbar · Fotos de clientes';
 // abas que guardam o CPF do cliente (para transferir quando o CPF é informado depois)
-var ABAS_COM_CPF = ['Atendimentos', 'Pagamentos', 'Creditos', 'Reservas', 'Vales', 'Comandas', 'Evolucoes', 'FichasEstetica', 'Anamneses', 'AnamnesesProf', 'Espera'];
+var ABAS_COM_CPF = ['Atendimentos', 'Pagamentos', 'Creditos', 'Reservas', 'Vales', 'Comandas', 'Evolucoes', 'FichasEstetica', 'Anamneses', 'AnamnesesProf', 'Espera', 'Contratos'];
 
 function temCpfReal(id) { var d = soDigitos(id); return d.length === 11 && cpfValido(d); }
 
@@ -671,7 +671,7 @@ function ultimasVisitas() {
 //  e um código interno, para o financeiro não mudar. Ficha de saúde, estética, evolução, anamneses
 //  e fotos são sempre apagadas (inclusive os arquivos no Drive).
 // ============================================================
-var ABAS_COM_HISTORICO = ['Reservas', 'Pagamentos', 'Creditos', 'Atendimentos', 'Comandas', 'Vales'];
+var ABAS_COM_HISTORICO = ['Reservas', 'Pagamentos', 'Creditos', 'Atendimentos', 'Comandas', 'Vales', 'Contratos'];
 var NOME_EXCLUIDO = 'Cliente excluído';
 
 function lixeiraDrive(id) {
@@ -697,7 +697,7 @@ function anonimizarNaAba(nomeAba, cpf, novo) {
   var v = s.getDataRange().getValues();
   if (v.length < 2) return 0;
   var k = indiceColunas(v[0]);
-  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo };
+  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo, nome_digitado: NOME_EXCLUIDO, dispositivo: '', pdf: '' };
   var cols = Object.keys(trocar).filter(function (c) { return k[c] != null; });
   var n = 0;
   for (var i = 1; i < v.length; i++) {
@@ -744,6 +744,8 @@ function bancada_excluirCliente(d, m) {
     apagarLinhasDoCpf('Anamneses', cpf, function (l) { var id = (String(l.pdf || '').match(/\/d\/([\w-]+)/) || [])[1]; lixeiraDrive(id); });
     apagarLinhasDoCpf('FichasEstetica', cpf);
     apagarLinhasDoCpf('Espera', cpf);
+    // contrato assinado: o PDF (com nome e CPF) vai para a lixeira; a linha fica anonimizada junto com as vendas
+    linhasDoCpf('Contratos', cpf).forEach(function (l) { lixeiraDrive((String(l.pdf || '').match(/\/d\/([\w-]+)/) || [])[1]); });
     apagarLinhasDoCpf('Evolucoes', cpf, function (l) { String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive); });
     apagarLinhasDoCpf('AnamnesesProf', cpf, function (l) {
       String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive);

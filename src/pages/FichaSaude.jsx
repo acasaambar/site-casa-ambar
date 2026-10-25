@@ -15,7 +15,9 @@ const ETAPAS = [
   { titulo: 'Histórico de saúde', forma: 'sutileza' },
 ];
 
-export default function FichaSaude() {
+// embutida: a ficha aparece dentro de outra tela (primeira reserva, primeiro plano). Sem cabeçalho da área do aluno e sem tela de "salva":
+// ao concluir chama aoConcluir e quem a abriu continua o que a pessoa estava fazendo. rotulo/motivo explicam por que ela aparece agora.
+export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', motivo = '', aoVoltar }) {
   const { token, aluno, atualizarAluno, expirou } = useAuth();
   const nav = useNavigate();
   const local = useLocation();
@@ -93,6 +95,7 @@ export default function FichaSaude() {
     try {
       const r = await api.salvarAnamnese(token, f);
       atualizarAluno({ anamnese: true });
+      if (embutida) { aoConcluir?.(r); return; }
       setFeito(r);
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -107,7 +110,7 @@ export default function FichaSaude() {
 
   const algumSim = PARQ.some((q) => f[q.id] === 'sim');
 
-  if (feito) {
+  if (feito && !embutida) {
     return (
       <main className="app">
         <div className="largura app__corpo">
@@ -128,23 +131,26 @@ export default function FichaSaude() {
     );
   }
 
-  return (
-    <main className="app">
-      <div className="app__topo">
-        <div className="largura">
-          <span className="rotulo-espacado cor-caramelo">{local.state?.novo ? 'Último passo do cadastro' : 'Ficha de saúde'}</span>
-          <h1 className="display-m">{anterior || carregandoFicha ? 'Sua ficha de saúde' : 'Antes de começar, queremos te conhecer'}</h1>
-          {!carregandoFicha && (
-            <p className="ficha__intro">
-              {anterior
-                ? 'Estas são as respostas que você enviou. Mudou alguma coisa? Atualize e salve de novo.'
-                : 'Leva uns 2 minutos. Assim quem dá a aula sabe como cuidar de você durante a prática.'}
-            </p>
-          )}
-        </div>
+  const topo = (
+    <div className="app__topo">
+      <div className="largura">
+        <span className="rotulo-espacado cor-caramelo">{embutida ? rotulo || 'Ficha de saúde' : 'Ficha de saúde'}</span>
+        <h1 className="display-m">{anterior || carregandoFicha ? 'Sua ficha de saúde' : embutida ? 'Ficha de saúde' : 'Antes de começar, queremos te conhecer'}</h1>
+        {!carregandoFicha && (
+          <p className="ficha__intro">
+            {anterior
+              ? 'Estas são as respostas que você enviou. Mudou alguma coisa? Atualize e salve de novo.'
+              : `${motivo ? motivo + ' ' : ''}Leva uns 2 minutos. Assim quem dá a aula sabe como cuidar de você durante a prática.`}
+          </p>
+        )}
       </div>
+    </div>
+  );
 
-      {!local.state?.novo && <AreaNav />}
+  return (
+    <Envoltorio embutida={embutida}>
+      {topo}
+      {!embutida && <AreaNav />}
       <div className="largura app__corpo ficha">
         {/* ficha já enviada: espera as respostas chegarem antes de mostrar o formulário */}
         {carregandoFicha ? <Carregando /> : (
@@ -324,17 +330,23 @@ export default function FichaSaude() {
           <div className="ficha__botoes">
             {etapa > 0 ? (
               <button type="button" className="botao botao--linha" onClick={() => { setErro(''); setEtapa(etapa - 1); }}>Voltar</button>
+            ) : aoVoltar ? (
+              <button type="button" className="botao botao--linha" onClick={aoVoltar}>Voltar</button>
             ) : (
               <span />
             )}
             <button type="submit" className="botao botao--cheio" disabled={enviando}>
-              {enviando ? 'Salvando…' : etapa < ETAPAS.length - 1 ? 'Continuar' : 'Concluir ficha'}
+              {enviando ? 'Salvando…' : etapa < ETAPAS.length - 1 ? 'Continuar' : embutida ? 'Concluir e continuar' : 'Concluir ficha'}
             </button>
           </div>
         </form>
         </>
         )}
       </div>
-    </main>
+    </Envoltorio>
   );
+}
+
+function Envoltorio({ embutida, children }) {
+  return embutida ? <div className="ficha-embutida">{children}</div> : <main className="app">{children}</main>;
 }

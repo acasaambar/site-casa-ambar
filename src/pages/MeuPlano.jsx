@@ -9,6 +9,7 @@ import { Carregando } from './Aulas.jsx';
 import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 import CampoCodigo from '../components/CampoCodigo.jsx';
+import ExigenciasPlano from '../components/ExigenciasPlano.jsx';
 import { comNumeros } from '../components/Num.jsx';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -35,6 +36,9 @@ export default function MeuPlano() {
   const [erro, setErro] = useState('');
   const [modalidade, setModalidade] = useState('Yoga');
   const [escolhido, setEscolhido] = useState(null);
+  // plano mensal/trimestral escolhido: antes de pagar vem a ficha de saúde (1ª vez) e o contrato
+  const [previo, setPrevio] = useState(null);
+  const escolher = (p) => (p.tipo === 'avulsa' ? setEscolhido(p) : setPrevio(p));
   const [indo, setIndo] = useState(false);
   const [desconto, setDesconto] = useState(null);
   const [comprado, setComprado] = useState(null);
@@ -79,8 +83,10 @@ export default function MeuPlano() {
       seguirParaPagamento(aba, pg, nav);
     } catch (e) {
       fecharAba(aba);
-      setErro(e.message);
       setIndo(false);
+      // ficha ou contrato faltando (ex.: o aceite venceu): volta para esse passo
+      if (e.codigo === 'FICHA' || e.codigo === 'CONTRATO') { setPrevio(escolhido); setEscolhido(null); return; }
+      setErro(e.message);
       setEscolhido(null);
     }
   }
@@ -169,7 +175,7 @@ export default function MeuPlano() {
                           {renovar && p && (
                             <div className="credito__renovar">
                               <span>{faltam <= 0 ? 'Vence hoje' : `Vence em ${faltam} ${faltam === 1 ? 'dia' : 'dias'}`}</span>
-                              <button type="button" className="botao botao--ambar botao--pequeno" onClick={() => setEscolhido(p)}>
+                              <button type="button" className="botao botao--ambar botao--pequeno" onClick={() => escolher(p)}>
                                 Renovar
                               </button>
                             </div>
@@ -244,12 +250,12 @@ export default function MeuPlano() {
                           <span role="rowheader" className="cardapio__item">{f}x na semana</span>
                           <span role="cell" className="cardapio__celula" data-rotulo="Mensal">
                             {m ? (
-                              <button type="button" className="preco" onClick={() => setEscolhido(m)}><Preco p={m} fmt={realCurto} /></button>
+                              <button type="button" className="preco" onClick={() => escolher(m)}><Preco p={m} fmt={realCurto} /></button>
                             ) : <span className="cardapio__traco">—</span>}
                           </span>
                           <span role="cell" className="cardapio__celula" data-rotulo="Trimestral">
                             {t ? (
-                              <button type="button" className="preco preco--destaque" onClick={() => setEscolhido(t)}>
+                              <button type="button" className="preco preco--destaque" onClick={() => escolher(t)}>
                                 <Preco p={t} fmt={(v) => realCurto(v / 3)} /><small>/mês</small>
                               </button>
                             ) : <span className="cardapio__traco">—</span>}
@@ -337,6 +343,8 @@ export default function MeuPlano() {
           </>
         )}
       </div>
+
+      {previo && <ExigenciasPlano plano={previo} aoCancelar={() => setPrevio(null)} aoPronto={() => { setEscolhido(previo); setPrevio(null); }} />}
 
       {/* ---------- CONFIRMAÇÃO ANTES DE PAGAR ---------- */}
       {escolhido && (

@@ -57,13 +57,13 @@ export default function Entrar() {
     }
     setEnviando(true);
     try {
-      const s =
+      await (
         modo === 'entrar'
           ? await entrar(soDigitos(f.cpf), f.senha)
-          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu, endereco, verificacao: verif.token });
-      // sem ficha de saúde: preenche antes de seguir
-      if (!s.aluno.anamnese) nav('/ficha-saude', { replace: true, state: { de: destino, novo: modo === 'cadastro' } });
-      else nav(destino, { replace: true });
+          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu, endereco, verificacao: verif.token })
+      );
+      // a ficha de saúde não é pedida aqui: aparece na primeira reserva e na primeira contratação de plano
+      nav(destino, { replace: true });
     } catch (err) {
       setErro(err.message);
       // a confirmação de "não sou robô" vale uma vez só
@@ -98,7 +98,7 @@ export default function Entrar() {
 
           <h1 className="display-m">{modo === 'entrar' ? 'Que bom te ver' : 'Seu primeiro passo'}</h1>
           <p className="entrar__sub">
-            {modo === 'entrar' ? 'Entre com seu CPF e senha para reservar sua aula.' : 'Crie sua conta em 2 passos: seus dados e uma ficha de saúde rápida.'}
+            {modo === 'entrar' ? 'Entre com seu CPF e senha para reservar sua aula.' : 'Crie sua conta em um minuto. A ficha de saúde só é pedida na sua primeira reserva.'}
           </p>
 
           <form ref={formRef} onSubmit={enviar} noValidate className="form">

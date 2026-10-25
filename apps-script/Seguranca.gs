@@ -301,7 +301,7 @@ function escHtml(t) {
 }
 
 // paragrafos: lista de textos; botao: { texto, url }; extra: HTML pronto (opcional)
-function enviarEmail(para, assunto, titulo, paragrafos, botao, extra, rodape) {
+function enviarEmail(para, assunto, titulo, paragrafos, botao, extra, rodape, anexos) {
   var corpoP = paragrafos.map(function (p) {
     return '<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#2F3821">' + escHtml(p) + '</p>';
   }).join('');
@@ -323,7 +323,9 @@ function enviarEmail(para, assunto, titulo, paragrafos, botao, extra, rodape) {
     '<div style="border-top:1px solid #E9DDC5;padding:16px 28px;font-family:Arial,sans-serif;font-size:11px;color:#8A8670;text-align:center;line-height:1.6">' +
     'Rua Eduardo Salgado, 448 · Aldeota · Fortaleza<br>WhatsApp (85) 99185-6528 · @acasaambar' + (rodape ? '<br><br>' + rodape : '') + '</div></div></div>';
   var texto = titulo + '\n\n' + paragrafos.join('\n\n') + (botao ? '\n\n' + botao.texto + ': ' + botao.url : '');
-  MailApp.sendEmail({ to: para, subject: assunto, htmlBody: html, body: texto, name: 'Casa Âmbar' });
+  var msg = { to: para, subject: assunto, htmlBody: html, body: texto, name: 'Casa Âmbar' };
+  if (anexos && anexos.length) msg.attachments = anexos;
+  MailApp.sendEmail(msg);
 }
 
 // ============================================================

@@ -158,6 +158,8 @@ var ABAS = {
   FichasEstetica: ['cpf', 'nome', 'atualizada_em', 'atualizada_por', 'queixa', 'objetivo', 'alergias', 'medicamentos', 'condicoes', 'acidos', 'procedimentos',
     'exposicao_solar', 'fototipo', 'tipo_pele', 'obs', 'consentimento_fotos'],
   Evolucoes: ['id', 'cpf', 'nome', 'data', 'profissional', 'atendimento_id', 'servico', 'anotacao', 'fotos', 'criado_por', 'criado_em'],
+  // ---- contrato dos planos mensal e trimestral (Contrato.gs): um aceite eletrônico por linha ----
+  Contratos: ['id', 'cpf', 'nome', 'plano_id', 'plano', 'versao', 'hash', 'assinado_em', 'nome_digitado', 'dispositivo', 'pdf', 'order_nsu'],
   // ---- lista de espera (Espera.gs): aula lotada ou serviço sem horário ----
   Espera: ['id', 'criado_em', 'tipo', 'aula_id', 'servico_id', 'servico', 'profissional', 'data', 'periodo', 'cpf', 'nome', 'whatsapp', 'obs', 'status',
     'avisado_em', 'resolvido_em', 'criado_por', 'origem'],
@@ -329,6 +331,8 @@ function doPost(e) {
       minhaFicha: minhaFicha,
       meuPlano: meuPlano,
       comprar: comprar,
+      contratoDoPlano: contratoDoPlano,
+      assinarContrato: assinarContrato,
       confirmarPagamento: confirmarPagamento,
       ativarWellhub: ativarWellhub,
       descartarPagamento: descartarPagamento,
@@ -1212,7 +1216,11 @@ function comprar(d) {
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   try {
-    return criarPagamento(aluno, plano, {}, d.codigo);
+    // plano mensal/trimestral: ficha de saúde e contrato assinado (Contrato.gs)
+    var aceite = exigirFichaEContrato(aluno, plano);
+    var pg = criarPagamento(aluno, plano, {}, d.codigo);
+    if (aceite && !aceite.order_nsu && pg.order_nsu) atualizarLinha('Contratos', aceite._linha, { order_nsu: pg.order_nsu });
+    return pg;
   } finally {
     soltarTrava(trava);
   }
@@ -1672,7 +1680,7 @@ function abaSemDescartar(nome) {
 
 var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
   Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Professoras: 'A:B', AnamnesesProf: 'A:B', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
-  Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G', Substituicoes: 'A:E', Espera: 'A:J' };
+  Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G', Substituicoes: 'A:E', Espera: 'A:J', Contratos: 'A:H' };
 
 // Acrescenta no cabeçalho as colunas novas que uma aba antiga ainda não tem.
 // A conferência fica guardada por 6 h (muda sozinha quando o código ganha colunas novas).

@@ -469,7 +469,22 @@ export function AlunoDetalhe() {
       {aba === 'pagamentos' && <ListaPagamentos lista={a.pagamentos} />}
 
       {aba === 'saude' && (
-        <section className="b-cartao">{a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">A ficha é preenchida pela área do aluno, em Ficha de saúde.</Vazio>}</section>
+        <>
+          <section className="b-cartao">{a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">A ficha é pedida na primeira reserva de aula ou na primeira contratação de plano pela área do aluno (também dá para preencher em Ficha de saúde).</Vazio>}</section>
+          {a.contratos?.length > 0 && (
+            <section className="b-cartao" aria-label="Contratos assinados">
+              <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Contratos assinados</h2></header>
+              <ul className="b-lista-simples">
+                {a.contratos.map((c) => (
+                  <li key={c.id}>
+                    <strong>{c.plano}</strong> · assinado em {dataBR(String(c.assinadoEm).slice(0, 10))} {String(c.assinadoEm).slice(11, 16)} · versão {c.versao}
+                    {c.pdf && <> · <a href={c.pdf} target="_blank" rel="noreferrer">abrir PDF</a></>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
       )}
 
       {aba === 'resumo' && pode(membro, 'admin') && (

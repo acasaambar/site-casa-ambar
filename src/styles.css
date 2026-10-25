@@ -1847,3 +1847,13 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
 .assinatura--menu .assinatura__por { display: none; } /* no menu estreito: só o nome */
 .assinatura--menu .assinatura__selo { width: 26px; height: 26px; font-size: 13px; }
 @media (max-width: 900px) { .assinatura--menu a { min-height: 32px; display: inline-flex; align-items: center; } }
+
+/* ===== Ficha na primeira reserva/plano e contrato ===== */
+.passos-previos { position: fixed; inset: 0; z-index: 70; background: var(--papel); overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 48px; animation: surgir 300ms ease both; }
+.ficha-embutida { padding-bottom: 24px; }
+.contrato__texto { background: #FBF8EF; border-radius: 20px; padding: 24px 22px; max-height: min(58vh, 520px); overflow-y: auto; font-size: 14px; line-height: 1.7; color: var(--tinta); box-shadow: inset 0 0 0 1px rgba(111, 120, 77, 0.2); }
+.contrato__texto:focus-visible { outline: 2px solid var(--caramelo-escuro); outline-offset: 2px; }
+.contrato__texto h2 { margin: 18px 0 6px; font-size: 18px; }
+.contrato__texto h2:first-child { margin-top: 0; }
+.contrato__texto p { margin: 0 0 10px; text-transform: none; letter-spacing: 0; }
+.contrato__assinatura { margin-top: 18px; }

@@ -4,7 +4,7 @@
 // e a planilha informa um fuso diferente do das datas guardadas.
 const { criar } = require('./simulador.cjs');
 const R = require('path').join(__dirname, '..', 'apps-script');
-const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs', R + '/Espera.gs']);
+const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs', R + '/Espera.gs', R + '/Contrato.gs']);
 const { ctx, chamar, emails, ss } = m;
 ss.__fuso = 'America/Fortaleza';
 ss.__appendIgnoraTexto = true;

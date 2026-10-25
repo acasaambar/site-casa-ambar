@@ -807,6 +807,7 @@ function bancada_aluno(d) {
   r.comoConheceu = String(a.como_conheceu || '');
   r.alertaFixo = String(a.alerta || '');
   r.alertas = alertasDe(cpf);
+  r.contratos = contratosPublicos(cpf);
   r.marketing = String(a.marketing).toUpperCase() !== 'NÃO';
   r.fichaEstetica = !!linhaFichaEstetica(cpf);
   r.evolucoes = evolucoesDe(cpf).length;

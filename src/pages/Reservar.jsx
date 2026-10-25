@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { abrirAbaPagamento, fecharAba, seguirParaPagamento } from '../lib/pagamento.js';
 import CampoCodigo from '../components/CampoCodigo.jsx';
@@ -8,6 +8,7 @@ import Tapete from '../components/Tapete.jsx';
 import Aparelho from '../components/Reformer.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
+import FichaSaude from './FichaSaude.jsx';
 import { SALA_YOGA, CONFIG, APARELHOS_PILATES } from '../config.js';
 import { dataExtensa, formatarHora, horaFim } from '../lib/util.js';
 import { comNumeros } from '../components/Num.jsx';
@@ -35,6 +36,8 @@ export default function Reservar() {
   const [semCredito, setSemCredito] = useState(null);
   const [pagando, setPagando] = useState(false);
   const [desconto, setDesconto] = useState(null);
+  // primeira reserva: a ficha de saúde aparece aqui (o tapete escolhido fica guardado) e, ao concluir, a reserva segue
+  const [fichaAberta, setFichaAberta] = useState(false);
 
   const carregar = useCallback(() => {
     return api.aula(token, id).then(setAula).catch((e) => {
@@ -49,12 +52,19 @@ export default function Reservar() {
     carregar();
   }, [carregar]);
 
-  if (aluno && !aluno.anamnese) return <Navigate to="/ficha-saude" replace state={{ de: `/aula/${encodeURIComponent(id)}` }} />;
-
   if (!aula) return <main className="app"><div className="largura app__corpo">{erro ? <p className="erro">{erro}</p> : <Carregando />}</div></main>;
 
   const yoga = aula.modalidade === 'Yoga';
   const livres = aula.capacidade - aula.ocupadosQtd;
+
+  if (fichaAberta) {
+    return (
+      <main className="app">
+        <FichaSaude embutida rotulo="Antes da sua primeira aula" motivo="Só na primeira reserva; depois ela fica guardada."
+          aoVoltar={() => setFichaAberta(false)} aoConcluir={() => { setFichaAberta(false); confirmar(true); }} />
+      </main>
+    );
+  }
 
   async function usarWellhub() {
     setPagando(true);
@@ -96,7 +106,8 @@ export default function Reservar() {
     }
   }
 
-  async function confirmar() {
+  async function confirmar(fichaFeita = false) {
+    if (!aluno?.anamnese && fichaFeita !== true) { setErro(''); setFichaAberta(true); window.scrollTo({ top: 0 }); return; }
     setErro('');
     setEnviando(true);
     try {
@@ -107,7 +118,7 @@ export default function Reservar() {
         setSemCredito(e.dados || {});
         return;
       }
-      if (/ficha de saúde/i.test(e.message)) return nav('/ficha-saude', { state: { de: `/aula/${encodeURIComponent(id)}` } });
+      if (/ficha de saúde/i.test(e.message)) { setFichaAberta(true); return; }
       setErro(e.message);
       setEscolhido(null);
       carregar();

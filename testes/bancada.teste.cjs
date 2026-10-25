@@ -2,7 +2,7 @@ const { criar } = require('./simulador.cjs');
 // endereço de exemplo (o cadastro do site exige endereço completo)
 const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
 const R = require('path').join(__dirname, '..', 'apps-script');
-const m = criar([R+'/Codigo.gs', R+'/Seguranca.gs', R+'/Vales.gs', R+'/Bancada.gs', R+'/Relatorios.gs', R+'/Servicos.gs', R+'/Gestao.gs', R+'/Clientes.gs', R+'/Marketing.gs', R+'/Substituicoes.gs', R+'/Espera.gs']);
+const m = criar([R+'/Codigo.gs', R+'/Seguranca.gs', R+'/Vales.gs', R+'/Bancada.gs', R+'/Relatorios.gs', R+'/Servicos.gs', R+'/Gestao.gs', R+'/Clientes.gs', R+'/Marketing.gs', R+'/Substituicoes.gs', R+'/Espera.gs', R+'/Contrato.gs']);
 const { ctx, chamar, emails, chamadasIP } = m;
 let falhas = 0;
 const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 400) : ''); } else console.log('  ✓', msg); };
@@ -40,6 +40,7 @@ r = chamar('aulas', { token: sess }); ok(!r.ok, 'sessões antigas encerradas ap�
 r = chamar('entrar', { cpf: '52998224725', senha: 'abc12345' }); ok(!r.ok, 'senha velha não entra mais');
 r = chamar('entrar', { cpf: '52998224725', senha: 'nova2026x' }); ok(r.ok, 'senha nova entra');
 const tokA = r.dados.token;
+chamar('salvarAnamnese', { token: tokA, ficha: { emergencia_nome: 'Mãe', emergencia_telefone: '85999998888', parq_1: 'nao', parq_2: 'nao', parq_3: 'nao', parq_4: 'nao', parq_5: 'nao', parq_6: 'nao', parq_7: 'nao', declaracao: true, consentimento: true, data_nascimento: '1990-05-12' } }); // plano mensal exige a ficha
 for (let i = 0; i < 9; i++) chamar('entrar', { cpf: '11144477735', senha: 'errada' + i });
 r = chamar('entrar', { cpf: '11144477735', senha: 'velha123' }); ok(!r.ok && /Muitas tentativas/.test(r.erro), 'bloqueio após muitas tentativas', r);
 

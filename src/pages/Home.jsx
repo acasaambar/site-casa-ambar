@@ -198,7 +198,7 @@ export default function Home() {
 
           <ol className="como">
             {[
-              ['Crie sua conta', 'Com CPF e senha, e uma ficha de saúde rápida para quem dá a aula te conhecer.'],
+              ['Crie sua conta', 'Com CPF e senha, em um minuto. A ficha de saúde rápida fica para a sua primeira reserva.'],
               ['Escolha aula e tapete', 'Veja horários, quem conduz a aula e as vagas livres. No Yoga, escolha o número do seu tapete.'],
               ['Faça o check-in', 'Ao chegar, confirme sua presença pelo celular. Seu tapete estará te esperando.'],
             ].map(([t, d], i) => (

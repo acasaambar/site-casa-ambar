@@ -82,6 +82,8 @@ export const api = {
   minhaFicha: (token) => chamar('minhaFicha', { token }),
   meuPlano: (token) => chamar('meuPlano', { token }),
   comprar: (token, planoId, codigo = '') => chamar('comprar', { token, planoId, codigo }),
+  contratoDoPlano: (token, planoId) => chamar('contratoDoPlano', { token, planoId }),
+  assinarContrato: (token, planoId, nome, aceito, dispositivo = '') => chamar('assinarContrato', { token, planoId, nome, aceito, dispositivo }),
   descartarPagamento: (token, orderNsu) => chamar('descartarPagamento', { token, orderNsu }),
   validarCodigo: (token, planoId, codigo) => chamar('validarCodigo', { token, planoId, codigo }),
   resgatarVale: (token, codigo) => chamar('resgatarVale', { token, codigo }),
@@ -368,6 +370,11 @@ async function demo(acao, d) {
       const whId = LS.ler('ambar_demo_wellhub', {})[a.cpf];
       return { catalogo: PLANOS_DEMO, creditos, pagamentos, wellhub: { status: whId ? 'pendente' : 'nao_informado', id: whId || '', modalidades: ['Yoga', 'Pilates'], planoMinimo: 'Gold+' } };
     }
+    // contrato dos planos: o modo demonstração não tem (só a Casa real)
+    case 'contratoDoPlano':
+      return { ficha: !!fichas[sessao(d.token).cpf], exige: false, assinado: false };
+    case 'assinarContrato':
+      return { assinado: true };
     case 'comprar': {
       const a = sessao(d.token);
       const plano = PLANOS_DEMO.find((p) => p.id === d.planoId);
