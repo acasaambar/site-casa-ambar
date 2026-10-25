@@ -29,10 +29,12 @@ function useRevelar() {
 // Nossa equipe: foto = nome do arquivo em public/img/equipe (sem foto, aparece a inicial)
 const EQUIPE = [
   { nome: 'Ana Paula', funcao: 'Yoga', foto: 'ana-paula', forma: 'equilibrio', cor: 'var(--oliva)' },
-  { nome: 'Hanna', funcao: 'Yoga', forma: 'sutileza', cor: 'var(--oliva)' },
-  { nome: 'Kalliny', funcao: 'Pilates', forma: 'presenca', cor: 'var(--terracota)' },
-  { nome: 'Sara', funcao: 'Pilates', forma: 'equilibrio', cor: 'var(--terracota)' },
+  { nome: 'Hanna', funcao: 'Yoga', foto: 'hanna', forma: 'sutileza', cor: 'var(--oliva)' },
+  { nome: 'Kalliny', funcao: 'Pilates', foto: 'kalliny', forma: 'presenca', cor: 'var(--terracota)' },
+  { nome: 'Sara', funcao: 'Pilates', foto: 'sara', forma: 'equilibrio', cor: 'var(--terracota)' },
   { nome: 'Marylia', funcao: 'Estética', foto: 'marylia', forma: 'sutileza', cor: 'var(--caramelo-escuro)' },
+  { nome: 'Cíntia', funcao: 'Fisioterapia dermatofuncional', foto: 'cintia', forma: 'presenca', cor: 'var(--caramelo-escuro)' },
+  { nome: 'Bruno', funcao: 'Fisioterapia', foto: 'bruno', forma: 'sutileza', cor: 'var(--caramelo-escuro)' },
   { nome: 'Sarah', funcao: 'Recepção', foto: 'sarah', forma: 'presenca', cor: 'var(--verde)' },
   { nome: 'Jainara', funcao: 'Recepção', foto: 'jainara', forma: 'equilibrio', cor: 'var(--verde)' },
 ];
