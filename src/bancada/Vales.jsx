@@ -1,11 +1,22 @@
 import { useMemo, useState } from 'react';
+import './css/vendas.css';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Tag, Modal, BotaoAcao, Vazio, real, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
+import { useDados, Esqueleto, Erro, Tag, Modal, BotaoAcao, Vazio, Aviso, Secao, Kpi, real, realCurto, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
 import { Sol, Forma, IconeWhatsapp, Logo } from '../components/Marca.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { ComandaModal } from './Comandas.jsx';
 
 const TOM_VALE = { ativo: 'ok', resgatado: 'apagado', usado: 'apagado', cancelado: 'alerta', vencido: 'aviso' };
+
+const NOME_VALE = { ativo: 'ativo', resgatado: 'usado', usado: 'usado', cancelado: 'cancelado', vencido: 'vencido' };
+const FILTROS_VALE = [['ativo', 'Ativos'], ['usado', 'Usados'], ['vencido', 'Vencidos'], ['cancelado', 'Cancelados'], ['todos', 'Todos']];
+const passaVale = (v, filtro) => filtro === 'todos' || v.status === filtro || (filtro === 'usado' && v.status === 'resgatado');
+
+const IconePresente = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8" /><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5" />
+  </svg>
+);
 
 export function ListaVales({ abrirNovo }) {
   const [novo, setNovo] = useState(abrirNovo);
@@ -14,14 +25,25 @@ export function ListaVales({ abrirNovo }) {
   const [busca, setBusca] = useState('');
   const { dados, erro, carregando, recarregar } = useDados('vales', {});
   const lista = useMemo(() => (dados || []).filter((v) => {
-    if (filtro !== 'todos' && v.status !== filtro && !(filtro === 'usado' && v.status === 'resgatado')) return false;
+    if (!passaVale(v, filtro)) return false;
     const q = busca.trim().toLowerCase();
     return !q || [v.codigo, v.nome, v.campanha, v.motivo, v.email].some((x) => String(x || '').toLowerCase().includes(q));
   }), [dados, filtro, busca]);
+  const contagem = useMemo(() => Object.fromEntries(FILTROS_VALE.map(([id]) => [id, (dados || []).filter((v) => passaVale(v, id)).length])), [dados]);
+  const ativos = (dados || []).filter((v) => v.status === 'ativo');
+  const aberto = ativos.reduce((s, v) => s + Number(v.saldo ?? v.valor ?? 0), 0);
+  const naoEntregues = ativos.filter((v) => !v.enviado).length;
 
   return (
     <>
-      <div className="b-barra-acoes">
+      {dados && (
+        <section className="b-kpis">
+          <Kpi rotulo="Vales ativos" valor={ativos.length} detalhe="dentro da validade" />
+          <Kpi rotulo="Valor a usar" valor={realCurto(aberto)} detalhe="saldo dos vales ativos" />
+          <Kpi rotulo="Ainda não entregues" valor={naoEntregues} tom={naoEntregues ? 'aviso' : ''} detalhe="ativos sem entrega" />
+        </section>
+      )}
+      <div className="b-barra-acoes vl-barra">
         <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, nome ou quem comprou" aria-label="Buscar vale" />
         <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={() => baixarCSV('vales-presente', [
           ['codigo', 'Código'], ['descricao', 'Presente'], ['nome', 'Para'], [(v) => cpfFmt(v.cpf), 'CPF'], ['email', 'E-mail'], ['whatsapp', 'WhatsApp'],
@@ -29,31 +51,42 @@ export function ListaVales({ abrirNovo }) {
           [(v) => dataBR(v.validade), 'Validade'], ['enviado', 'Entregue'], [(v) => dataBR(v.criadoEm), 'Criado em'], ['criadoPor', 'Criado por']], lista)}>Exportar CSV</button>
         <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Vender vale-presente</button>
       </div>
-      <div className="b-filtros">
-        {[['ativo', 'Ativos'], ['usado', 'Usados'], ['vencido', 'Vencidos'], ['cancelado', 'Cancelados'], ['todos', 'Todos']].map(([id, t]) => (
-          <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}</button>
-        ))}
+      <div className="b-barra-fixa vn-barra">
+        <div className="b-filtros vn-chips" role="group" aria-label="Filtrar vales">
+          {FILTROS_VALE.map(([id, t]) => (
+            <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}{dados && contagem[id] > 0 && <span>{contagem[id]}</span>}</button>
+          ))}
+        </div>
       </div>
       <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
-      {dados && lista.length === 0 && <Vazio titulo="Nenhum vale aqui" forma="presenca">Venda um vale-presente pela comanda: o código aparece aqui quando ela é paga.</Vazio>}
-      <ul className="b-vales">
-        {lista.map((v) => (
-          <li key={v.codigo} className={`b-vale b-vale--${v.status}`}>
-            <div className="b-vale__cod">
-              <span className="rotulo">{v.motivo || 'Vale-presente'}{v.campanha ? ' · ' + v.campanha : ''}</span>
-              <strong>{v.codigo}</strong>
-              <span>{v.descricao}{v.saldo != null && v.status === 'ativo' && v.saldo < v.valor ? ` · saldo ${real(v.saldo)}` : ''}</span>
-            </div>
-            <div className="b-vale__para">
-              <strong>{v.nome || 'Sem nome (qualquer pessoa)'}</strong>
-              <span className="b-suave">válido até {dataBR(v.validade)}{v.enviado ? ' · entregue por ' + v.enviado.split(' ')[0] : ' · ainda não entregue'}</span>
-            </div>
-            <Tag tom={TOM_VALE[v.status] || 'neutro'}>{v.status}</Tag>
-            {v.status === 'ativo' && <button type="button" className="botao botao--linha botao--p" onClick={() => setEntregar(v)}>Entregar</button>}
-          </li>
-        ))}
-      </ul>
+      {carregando && !dados && <Esqueleto linhas={4} altura={64} />}
+      {dados && lista.length === 0 && (
+        <Vazio titulo="Nenhum vale aqui" forma="presenca" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Vender vale-presente</button>}>
+          O código aparece aqui quando a comanda com o vale é paga.
+        </Vazio>
+      )}
+      {lista.length > 0 && (
+        <ul className="vl-lista">
+          {lista.map((v) => (
+            <li key={v.codigo} className={`vl-vale vl-vale--${v.status}`}>
+              <span className="b-icone-chip vl-vale__icone"><IconePresente /></span>
+              <div className="vl-vale__cod">
+                <span className="vl-vale__motivo">{v.motivo || 'Vale-presente'}{v.campanha ? ' · ' + v.campanha : ''}</span>
+                <strong>{v.codigo}</strong>
+                <span className="vl-vale__desc">{v.descricao}{v.saldo != null && v.status === 'ativo' && v.saldo < v.valor ? ` · saldo ${real(v.saldo)}` : ''}</span>
+              </div>
+              <div className="vl-vale__para">
+                <strong>{v.nome || 'Sem nome (qualquer pessoa)'}</strong>
+                <span className="b-meta"><span>válido até {dataBR(v.validade)}</span><span>{v.enviado ? 'entregue por ' + v.enviado.split(' ')[0] : 'ainda não entregue'}</span></span>
+              </div>
+              <div className="vl-vale__lado">
+                <Tag tom={TOM_VALE[v.status] || 'neutro'}>{NOME_VALE[v.status] || v.status}</Tag>
+                {v.status === 'ativo' && <button type="button" className="botao botao--linha botao--p" onClick={() => setEntregar(v)}>Entregar</button>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       {novo && <ComandaModal inicial={{ vale: true }} aoFechar={() => { setNovo(false); recarregar(); }} />}
       {entregar && <Entregar v={entregar} aoFechar={() => { setEntregar(null); recarregar(); }} />}
     </>
@@ -84,76 +117,90 @@ function Entregar({ v, aoFechar }) {
         <span className="b-vale-cartao__val">válido até {dataBR(v.validade)} · use em acasambar.com.br → Meu plano</span>
         <Forma nome="sutileza" tamanho={110} cor="rgba(233,221,197,0.08)" className="b-vale-cartao__forma" />
       </div>
-      <div className="b-entregar">
+      <div className="b-entregar vl-entregar">
         <button type="button" className="botao botao--linha botao--p" onClick={copiar}>Copiar código</button>
         <button type="button" className="botao botao--linha botao--p" onClick={() => window.print()}>Imprimir</button>
+        <BotaoAcao className="botao botao--fantasma botao--p" acao={async () => { await chamar('enviarVale', { codigo: v.codigo, canal: 'balcao' }); setAviso('Marcado como entregue no balcão.'); }}>
+          Entreguei no balcão
+        </BotaoAcao>
       </div>
-      <div className="b-linha2 b-entregar__canais">
-        <div className="b-form">
-          <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" value={whats} onChange={(e) => setWhats(mascaraTelefone(e.target.value))} /></label>
+      {aviso && <Aviso tom="ok">{aviso}</Aviso>}
+      <Erro>{erro}</Erro>
+      <div className="vl-canais b-entregar__canais">
+        <div className="vl-canal">
+          <h3 className="vl-canal__titulo">WhatsApp</h3>
+          <label className="b-campo"><span className="rotulo">Número</span><input inputMode="numeric" value={whats} onChange={(e) => setWhats(mascaraTelefone(e.target.value))} /></label>
           <a className={`botao botao--cheio botao--p com-icone${soDigitos(whats).length < 10 ? ' desativado' : ''}`} href={soDigitos(whats).length >= 10 ? linkWhats(whats, v.textoWhats) : undefined}
             target="_blank" rel="noreferrer" onClick={() => chamar('enviarVale', { codigo: v.codigo, canal: 'whatsapp' }).catch(() => {})}>
             <IconeWhatsapp tamanho={15} /> Enviar no WhatsApp
           </a>
         </div>
-        <div className="b-form">
-          <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <div className="vl-canal">
+          <h3 className="vl-canal__titulo">E-mail</h3>
+          <label className="b-campo"><span className="rotulo">Endereço</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
           <BotaoAcao className="botao botao--cheio botao--p" disabled={!email.includes('@')} acao={async () => {
             setErro(''); setAviso('');
             try { await chamar('enviarVale', { codigo: v.codigo, canal: 'email', email }); setAviso('E-mail enviado para ' + email + '.'); } catch (e) { setErro(e.message); }
           }}>Enviar por e-mail</BotaoAcao>
         </div>
       </div>
-      <BotaoAcao className="link-acao" acao={async () => { await chamar('enviarVale', { codigo: v.codigo, canal: 'balcao' }); setAviso('Marcado como entregue no balcão.'); }}>
-        Entreguei no balcão
-      </BotaoAcao>
-      {aviso && <p className="aviso">{aviso}</p>}
-      <Erro>{erro}</Erro>
       <div className="b-separador" />
-      <BotaoAcao className="link-sair" confirmar="Cancelar este vale? O código deixa de funcionar." acao={async () => { await chamar('cancelarVale', { codigo: v.codigo }); aoFechar(); }}>
-        cancelar este vale
+      <BotaoAcao className="botao botao--fantasma botao--p vl-cancelar" confirmar="Cancelar este vale? O código deixa de funcionar." acao={async () => { await chamar('cancelarVale', { codigo: v.codigo }); aoFechar(); }}>
+        Cancelar este vale
       </BotaoAcao>
     </Modal>
   );
 }
 
+const DESCONTO_CUPOM = (c) => (c.tipo === 'percentual' ? `${String(c.valor).replace('.', ',')}%` : real(c.valor));
+
 export function Cupons({ podeEditar }) {
   const { dados, erro, carregando, recarregar } = useDados('cupons', {});
   const [editar, setEditar] = useState(null);
+  const novo = () => setEditar({});
   return (
     <>
-      <div className="b-barra-acoes">
-        <p className="b-suave">O aluno digita o cupom no pagamento do site; a recepção também pode aplicar na venda do balcão.</p>
-        {podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({})}>Novo cupom</button>}
-      </div>
-      <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
-      {dados && dados.length === 0 && <Vazio titulo="Nenhum cupom ainda" forma="equilibrio">Crie um cupom para campanhas, parcerias ou primeira aula.</Vazio>}
-      {dados && dados.length > 0 && (
-        <div className="b-tabela-caixa">
-          <table className="b-tabela">
-            <thead><tr><th>Cupom</th><th>Desconto</th><th>Vale para</th><th>Período</th><th className="num">Usos</th><th className="num">Desconto dado</th><th /></tr></thead>
-            <tbody>
-              {dados.map((c) => (
-                <tr key={c.codigo}>
-                  <td data-rotulo="Cupom"><code className="b-cupom">{c.codigo}</code>{c.descricao && <span className="b-suave b-bloco">{c.descricao}</span>}</td>
-                  <td data-rotulo="Desconto">{c.tipo === 'percentual' ? `${c.valor}%` : real(c.valor)}</td>
-                  <td data-rotulo="Vale para">{c.modalidade === 'Todas' ? 'Tudo' : c.modalidade === 'Serviço' ? 'Serviços' : c.modalidade} · {c.tipoPlano === 'todos' ? 'todos os planos' : c.tipoPlano}{c.primeiraCompra ? ' · 1ª compra' : ''}</td>
-                  <td data-rotulo="Período">{c.inicio || c.fim ? `${c.inicio ? dataBR(c.inicio) : '…'} a ${c.fim ? dataBR(c.fim) : '…'}` : 'sem prazo'}</td>
-                  <td data-rotulo="Usos" className="num">{c.usos}{c.limiteTotal ? `/${c.limiteTotal}` : ''}</td>
-                  <td data-rotulo="Desconto dado" className="num">{real(c.descontoTotal)}</td>
-                  <td>
-                    <span className="b-reserva__tags">
-                      <Tag tom={!c.ativo ? 'apagado' : c.vencido ? 'aviso' : 'ok'}>{!c.ativo ? 'pausado' : c.vencido ? 'vencido' : 'ativo'}</Tag>
-                      {podeEditar && <button type="button" className="link-acao" onClick={() => setEditar(c)}>editar</button>}
+      <Secao titulo="Cupons de desconto" ajuda="O aluno digita o cupom no pagamento do site; a recepção também pode aplicar na venda do balcão." acoes={podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={novo}>Novo cupom</button>}>
+        <Erro>{erro}</Erro>
+        {carregando && !dados && <Esqueleto linhas={3} altura={64} />}
+        {dados && dados.length === 0 && (
+          <Vazio titulo="Nenhum cupom ainda" forma="equilibrio" acao={podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={novo}>Novo cupom</button>}>
+            Crie um cupom para campanhas, parcerias ou primeira aula.
+          </Vazio>
+        )}
+        {dados && dados.length > 0 && (
+          <ul className="vl-lista">
+            {dados.map((c) => {
+              const estado = !c.ativo ? 'pausado' : c.vencido ? 'vencido' : 'ativo';
+              return (
+                <li key={c.codigo} className={`cq-cupom${estado === 'ativo' ? '' : ' cq-cupom--apagado'}`}>
+                  <div className="cq-cupom__cod">
+                    <code className="b-cupom">{c.codigo}</code>
+                    {c.descricao && <span className="b-suave">{c.descricao}</span>}
+                  </div>
+                  <div className="cq-cupom__desconto"><strong>{DESCONTO_CUPOM(c)}</strong><small>de desconto</small></div>
+                  <div className="cq-cupom__regras">
+                    <span className="cq-etiquetas">
+                      <Tag>{c.modalidade === 'Todas' ? 'Tudo' : c.modalidade === 'Serviço' ? 'Serviços' : c.modalidade}</Tag>
+                      <Tag>{c.tipoPlano === 'todos' ? 'todos os planos' : c.tipoPlano}</Tag>
+                      {c.primeiraCompra && <Tag tom="aviso">1ª compra</Tag>}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    <span className="b-meta"><span>{c.inicio || c.fim ? `${c.inicio ? dataBR(c.inicio) : '…'} a ${c.fim ? dataBR(c.fim) : '…'}` : 'sem prazo'}</span></span>
+                  </div>
+                  <div className="cq-cupom__uso">
+                    <span><strong>{c.usos}{c.limiteTotal ? `/${c.limiteTotal}` : ''}</strong> {Number(c.usos) === 1 && !c.limiteTotal ? 'uso' : 'usos'}</span>
+                    <small>{real(c.descontoTotal)} em descontos</small>
+                  </div>
+                  <div className="vl-vale__lado">
+                    <Tag tom={estado === 'ativo' ? 'ok' : estado === 'vencido' ? 'aviso' : 'apagado'}>{estado}</Tag>
+                    {podeEditar && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(c)}>Editar</button>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Secao>
       {editar && <EditarCupom c={editar} aoFechar={() => setEditar(null)} aoSalvar={() => { setEditar(null); recarregar(); }} />}
     </>
   );

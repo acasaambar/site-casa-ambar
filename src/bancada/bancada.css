@@ -351,18 +351,6 @@
 .b-creditos .b-botoes { grid-column: 1 / -1; }
 
 /* ---------- vales ---------- */
-.b-vales { display: grid; gap: 10px; }
-.b-vale { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 14px 18px; border-radius: 18px; background: var(--branco); border: 1px solid rgba(47, 56, 33, 0.1); }
-.b-vale__cod { display: grid; gap: 2px; min-width: 0; }
-.b-vale__cod .rotulo { font-size: 10px; color: var(--terracota); }
-.b-vale__cod strong { font-family: var(--mono); font-weight: 500; font-size: 16px; letter-spacing: 0.08em; }
-.b-vale__cod > span:last-child { font-size: 13.5px; color: var(--tinta-suave); }
-.b-vale__para { display: grid; gap: 2px; min-width: 0; }
-.b-vale__para strong { font-weight: 500; font-size: 13px; }
-.b-vale--resgatado, .b-vale--usado, .b-vale--cancelado, .b-vale--vencido { opacity: 0.7; }
-@media (max-width: 720px) { .b-vale { grid-template-columns: minmax(0, 1fr) auto; } .b-vale__para { grid-column: 1 / -1; grid-row: 2; } }
-.b-codigos { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 280px; overflow-y: auto; }
-.b-codigos code { display: block; padding: 8px 10px; border-radius: 10px; background: var(--branco); font-size: 13px; letter-spacing: 0.06em; }
 .b-cupom { font-family: var(--mono); font-weight: 500; padding: 3px 8px; border-radius: 8px; background: #EEEAD9; letter-spacing: 0.06em; }
 
 .b-vale-cartao {
@@ -821,29 +809,6 @@
 .cx__abrir .b-cartao__titulo { margin: 0; }
 @media (max-width: 560px) { .cx--fechada { grid-template-columns: 1fr; } .cx__gaveta { height: 80px; } }
 
-/* ---------- estoque ---------- */
-.est-lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--b-linha); border-radius: 22px; background: var(--b-linho); }
-.est { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(170px, 1fr) auto; gap: 18px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--b-linha); }
-.est:last-child { border-bottom: 0; }
-.est.inativo { opacity: 0.5; }
-.est__nome { font: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; display: grid; gap: 3px; color: var(--b-tinta); min-width: 0; }
-.est__nome strong { font-weight: 500; font-size: 14px; }
-.est__nome:hover strong { text-decoration: underline; text-underline-offset: 3px; }
-.est__nivel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
-.est__barra { position: relative; height: 8px; border-radius: 99px; background: rgba(47, 56, 33, 0.08); }
-.est__barra i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--b-oliva); }
-.est__barra b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--b-terracota); border-radius: 2px; }
-.est--falta .est__barra i { background: var(--b-terracota); }
-.est__qtd { font-size: 13px; color: var(--b-suave); white-space: nowrap; }
-.est__qtd strong { font-family: var(--display); font-weight: 400; font-size: 24px; color: var(--b-tinta); }
-.est .b-botoes { gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
-.est-hist__mais { color: #4B5A2C; }
-.est-hist__menos { color: var(--b-terracota); }
-@media (max-width: 760px) {
-  .est { grid-template-columns: 1fr; gap: 10px; }
-  .est .b-botoes { justify-content: flex-start; }
-}
-
 /* ---------- financeiro ---------- */
 .fluxo { position: relative; }
 .fluxo svg { display: block; max-width: 100%; }
@@ -877,69 +842,6 @@
 .k-pagar span { flex: 1 1 auto; font-size: 13px; }
 .k-pagar select { min-height: 40px; width: auto; }
 .k-pagar .botao--cheio { background: var(--b-caramelo); border-color: var(--b-caramelo); color: var(--b-tinta); }
-
-/* ---------- marketing: promoções como selos ---------- */
-.pr-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
-.pr { position: relative; display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 22px; align-items: center; padding: 20px 22px; border-radius: 22px; background: var(--b-linho); border: 1px solid var(--b-linha); }
-.pr__selo {
-  width: 108px; height: 108px; border-radius: 50%; display: grid; place-content: center; text-align: center; color: #FBF3E2; transform: rotate(-8deg);
-  background: radial-gradient(circle at 35% 30%, #9A4A26 0%, #7E3717 55%, #66290F 100%);
-  box-shadow: inset 0 0 0 6px rgba(251, 243, 226, 0.08), inset 0 0 0 7px rgba(251, 243, 226, 0.35), 0 10px 20px -12px rgba(102, 41, 15, 0.8);
-}
-.pr__selo strong { font-family: var(--display); font-weight: 400; font-size: 34px; line-height: 1; }
-.pr__selo span { font-size: 10.5px; margin-top: 4px; opacity: 0.9; }
-.pr--pausada .pr__selo, .pr--encerrada .pr__selo { filter: grayscale(0.9); opacity: 0.55; }
-.pr--agendada .pr__selo { background: radial-gradient(circle at 35% 30%, #B9946A 0%, #A6845E 60%, #8C6D4B 100%); }
-.pr__corpo { display: grid; gap: 6px; min-width: 0; }
-.pr__topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.pr__topo h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 26px; }
-.pr__desc { margin: 0; font-size: 13px; }
-.pr__corpo .b-suave { margin: 0; }
-.pr__pe { display: flex; gap: 8px 16px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
-.pr__dias { display: inline-flex; gap: 3px; }
-.pr__dias b { width: 24px; height: 24px; display: grid; place-content: center; border-radius: 50%; font-size: 13px; font-weight: 500; color: rgba(47, 56, 33, 0.55); }
-.pr__dias b.sim { background: var(--b-tinta); color: var(--b-areia); }
-.pr__editar { align-self: start; }
-@media (max-width: 640px) {
-  .pr { grid-template-columns: 76px minmax(0, 1fr); gap: 14px; padding: 16px; }
-  .pr__selo { width: 72px; height: 72px; }
-  .pr__selo strong { font-size: 22px; }
-  .pr__selo span { font-size: 9px; }
-  .pr__editar { grid-column: 2; }
-}
-
-/* campanhas */
-.cp { display: grid; gap: 4px; }
-.cp__passo { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-top: 1px solid var(--b-linha); }
-.cp__num { width: 34px; height: 34px; border-radius: 50%; display: grid; place-content: center; font-family: var(--display); font-size: 20px; background: var(--b-tinta); color: var(--b-areia); }
-.cp__conteudo { display: grid; gap: 12px; min-width: 0; }
-.cp__conteudo > strong { font-weight: 500; padding-top: 6px; }
-.cp-publicos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-.cp-publico { font: inherit; text-align: left; cursor: pointer; display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--b-linha); background: #FFFDF6; color: var(--b-tinta); }
-.cp-publico strong { font-weight: 500; font-size: 13px; }
-.cp-publico span { font-size: 11.5px; color: var(--b-suave); line-height: 1.35; }
-.cp-publico--ativo { border-color: var(--b-tinta); box-shadow: inset 0 0 0 1px var(--b-tinta); background: var(--b-linho); }
-.cp__contagem { margin: 0; font-size: 13px; }
-.cp__contagem strong { font-family: var(--display); font-weight: 400; font-size: 28px; margin-right: 4px; }
-.cp__previa { display: grid; gap: 6px; padding: 16px 18px; border-radius: 4px 18px 18px 18px; background: #E7EDDC; max-width: 520px; }
-.cp__previa p { margin: 0; white-space: pre-wrap; font-size: 13px; line-height: 1.55; }
-.cp-fila { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
-.cp-fila li { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 14px; background: #FFFDF6; border: 1px solid var(--b-linha); }
-.cp-fila li span { display: grid; min-width: 0; }
-.cp-fila li strong { font-weight: 500; font-size: 13px; }
-.cp-fila li small { font-size: 11.5px; color: var(--b-suave); }
-.cp-fila li.feito { opacity: 0.55; }
-.cp-fila li.feito strong::after { content: ' ✓'; color: var(--b-oliva); }
-
-/* lembretes */
-.lb-lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--b-linha); border-radius: 20px; background: var(--b-linho); }
-.lb { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--b-linha); }
-.lb:last-child { border-bottom: 0; }
-.lb__hora { font-family: var(--display); font-size: 24px; }
-.lb__quem { display: grid; min-width: 0; }
-.lb__quem strong { font-weight: 500; font-size: 13.5px; }
-.lb__quem small { font-size: 13px; color: var(--b-suave); }
-@media (max-width: 560px) { .lb { grid-template-columns: 52px minmax(0, 1fr); } .lb__status, .lb > a { grid-column: 2; } }
 
 /* ---------- ficha de estética e evolução ---------- */
 .pt { display: grid; gap: 22px; }
@@ -2234,15 +2136,7 @@
 @media (hover: hover) { .b-linha-abre:hover td { background: rgba(166, 132, 94, 0.08); } }
 .b-linha-excluida td { color: var(--b-suave); }
 .b-riscado { text-decoration: line-through; }
-.vd-resumo { display: grid; gap: 8px; margin: 0 0 18px; padding: 14px 16px; background: var(--b-linho, #FBF8EF); border: 1px solid rgba(47, 56, 33, 0.12); border-radius: 12px; }
-.vd-resumo div { display: grid; grid-template-columns: 110px 1fr; gap: 10px; }
-.vd-resumo dt { color: var(--b-suave); }
-.vd-resumo dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
 .vd-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; }
-.vd-lista { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
-@media (max-width: 560px) {
-  .vd-resumo div { grid-template-columns: 1fr; gap: 0; }
-}
 
 /* ============================================================
    DESENHO 11 · combo escolhido no agendamento e atendimento de dia passado

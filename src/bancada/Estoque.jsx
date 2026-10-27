@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import './css/vendas.css';
 import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, real, dataBR, hora, numBR, baixarCSV, METODOS } from './ui.jsx';
+import { useDados, Carregando, Esqueleto, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Vazio, Tag, Aviso, real, dataBR, hora, numBR, baixarCSV, METODOS } from './ui.jsx';
 
 const TIPOS = { entrada: 'Entrada (compra)', perda: 'Perda ou vencido', uso: 'Uso na cabine', ajuste: 'Contagem (ajustar o saldo)' };
+const FILTROS_ESTOQUE = [['todos', 'Todos'], ['revenda', 'Revenda'], ['insumos', 'Insumos'], ['falta', 'Em falta'], ['inativos', 'Desativados']];
 const qtdFmt = (n) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
 export default function Estoque() {
@@ -27,6 +29,11 @@ export default function Estoque() {
     return !q || (p.nome + ' ' + p.marca + ' ' + p.categoria).toLowerCase().includes(q);
   }).sort((a, b) => a.nome.localeCompare(b.nome)), [dados, filtro, busca]);
 
+  const contagem = useMemo(() => {
+    const todos = dados?.produtos || [];
+    return { todos: todos.filter((p) => p.ativo).length, revenda: todos.filter((p) => p.ativo && p.vende).length, insumos: todos.filter((p) => p.ativo && !p.vende).length,
+      falta: todos.filter((p) => p.ativo && p.minimo > 0 && p.estoque <= p.minimo).length, inativos: todos.filter((p) => !p.ativo).length };
+  }, [dados]);
   const valorEstoque = (dados?.produtos || []).filter((p) => p.ativo && p.estoque > 0).reduce((s, p) => s + p.estoque * p.custo, 0);
 
   return (
@@ -38,52 +45,74 @@ export default function Estoque() {
             [(p) => String(p.minimo).replace('.', ','), 'Mínimo'], [(p) => String(p.custo).replace('.', ','), 'Custo'], [(p) => String(p.preco).replace('.', ','), 'Preço de venda']], lista)}>Exportar CSV</button>
           {admin && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ ativo: true, vende: true, categoria: 'Revenda (home care)', unidade: 'un' })}>Novo produto</button>}
         </>
-      }>
-        Produtos de revenda (home care) e insumos de cabine. A venda na comanda e o uso em cada serviço baixam o saldo sozinhos.
+      } ajuda="A venda na comanda e o uso em cada serviço baixam o saldo sozinhos. Use “Entrada” quando chegar mercadoria, “Contar” para acertar o saldo e “Baixa” para perda ou vencido.">
+        Revenda (home care) e insumos de cabine
       </Cabecalho>
       {dados && (
         <section className="b-kpis">
-          <div className="b-kpi"><span className="b-kpi__rotulo">Produtos ativos</span><strong className="b-kpi__valor">{dados.produtos.filter((p) => p.ativo).length}</strong></div>
-          <div className={`b-kpi${dados.baixo ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Em falta ou acabando</span><strong className="b-kpi__valor">{dados.baixo}</strong><span className="b-kpi__detalhe">no mínimo ou abaixo</span></div>
-          <div className="b-kpi"><span className="b-kpi__rotulo">Valor em estoque</span><strong className="b-kpi__valor">{real(valorEstoque)}</strong><span className="b-kpi__detalhe">pelo custo</span></div>
+          <Kpi rotulo="Produtos ativos" valor={dados.produtos.filter((p) => p.ativo).length} />
+          <Kpi rotulo="Em falta ou acabando" valor={dados.baixo} tom={dados.baixo ? 'alerta' : ''} detalhe="no mínimo ou abaixo" />
+          <Kpi rotulo="Valor em estoque" valor={real(valorEstoque)} detalhe="pelo custo" />
         </section>
       )}
-      <div className="b-barra-busca"><input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto ou marca" aria-label="Buscar produto" /></div>
-      <div className="b-filtros">
-        {[['todos', 'Todos'], ['revenda', 'Revenda'], ['insumos', 'Insumos'], ['falta', 'Em falta'], ['inativos', 'Desativados']].map(([id, t]) => (
-          <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}</button>
-        ))}
+      <div className="b-barra-fixa es-filtros">
+        <div className="b-barra-busca"><input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto ou marca" aria-label="Buscar produto" /></div>
+        <div className="b-filtros vn-chips" role="group" aria-label="Filtrar produtos">
+          {FILTROS_ESTOQUE.map(([id, t]) => (
+            <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}{dados && contagem[id] > 0 && <span>{contagem[id]}</span>}</button>
+          ))}
+        </div>
       </div>
       <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
+      {carregando && !dados && <Esqueleto linhas={5} altura={64} />}
       {dados && dados.produtos.length === 0 && (
-        <Vazio titulo="Nenhum produto cadastrado" forma="presenca">{admin ? 'Cadastre os produtos de revenda e os insumos usados na cabine.' : 'Peça à administração para cadastrar os produtos.'}</Vazio>
+        <Vazio titulo="Nenhum produto cadastrado" forma="presenca"
+          acao={admin && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ ativo: true, vende: true, categoria: 'Revenda (home care)', unidade: 'un' })}>Novo produto</button>}>
+          {admin ? 'Cadastre os produtos de revenda e os insumos usados na cabine.' : 'Peça à administração para cadastrar os produtos.'}
+        </Vazio>
       )}
-      <ul className="est-lista">
-        {lista.map((p) => {
-          const falta = p.minimo > 0 && p.estoque <= p.minimo;
-          const cheio = Math.max(p.minimo * 3, p.estoque, 1);
-          return (
-            <li key={p.id} className={`est${falta ? ' est--falta' : ''}${p.ativo ? '' : ' inativo'}`}>
-              <button type="button" className="est__nome" onClick={() => setHistorico(p)}>
-                <strong>{p.nome}</strong>
-                <span className="b-suave">{[p.marca, p.categoria].filter(Boolean).join(' · ')}{p.vende ? ` · vende por ${real(p.preco)}` : ''}</span>
-              </button>
-              <div className="est__nivel" aria-label={`Saldo ${qtdFmt(p.estoque)} ${p.unidade}, mínimo ${qtdFmt(p.minimo)}`}>
-                <span className="est__barra"><i style={{ width: `${Math.max(0, Math.min(100, (p.estoque / cheio) * 100))}%` }} />{p.minimo > 0 && <b style={{ left: `${(p.minimo / cheio) * 100}%` }} />}</span>
-                <span className="est__qtd"><strong>{qtdFmt(p.estoque)}</strong> {p.unidade}</span>
-              </div>
-              <span className="est__aviso">{falta && <Tag tom="alerta">repor</Tag>}</span>
-              <div className="b-botoes">
-                <button type="button" className="link-acao" onClick={() => setMover({ p, tipo: 'entrada' })}>entrada</button>
-                <button type="button" className="link-acao" onClick={() => setMover({ p, tipo: 'ajuste' })}>contar</button>
-                <button type="button" className="link-acao" onClick={() => setMover({ p, tipo: 'perda' })}>baixa</button>
-                {admin && <button type="button" className="link-acao" onClick={() => setEditar(p)}>editar</button>}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      {dados && dados.produtos.length > 0 && lista.length === 0 && (
+        <Vazio titulo="Nada com esse filtro" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => { setFiltro('todos'); setBusca(''); }}>Limpar filtros</button>}>
+          Troque o filtro ou a busca para ver outros produtos.
+        </Vazio>
+      )}
+      {lista.length > 0 && (
+        <ul className="es-lista">
+          {lista.map((p) => {
+            const falta = p.minimo > 0 && p.estoque <= p.minimo;
+            const zerado = p.estoque <= 0;
+            const cheio = Math.max(p.minimo * 3, p.estoque, 1);
+            return (
+              <li key={p.id} className={`es-item${falta ? ' es-item--falta' : ''}${zerado ? ' es-item--zero' : ''}${p.ativo ? '' : ' es-item--inativo'}`}>
+                <button type="button" className="es-item__nome" onClick={() => setHistorico(p)} title="Ver o histórico de movimentos">
+                  <span className="es-item__titulo"><strong>{p.nome}</strong>
+                    {!p.ativo && <Tag tom="apagado">desativado</Tag>}
+                    {zerado && p.ativo ? <Tag tom="alerta">zerado</Tag> : falta && <Tag tom="alerta">repor</Tag>}
+                  </span>
+                  <span className="b-meta">
+                    {p.marca && <span>{p.marca}</span>}
+                    {p.categoria && <span>{p.categoria}</span>}
+                    {p.vende && <span>vende por {real(p.preco)}</span>}
+                  </span>
+                </button>
+                <div className="es-nivel" role="img" aria-label={`Saldo ${qtdFmt(p.estoque)} ${p.unidade}, mínimo ${qtdFmt(p.minimo)}`}>
+                  <span className="es-nivel__linha">
+                    <span className="es-nivel__qtd"><strong>{qtdFmt(p.estoque)}</strong> {p.unidade}</span>
+                    {p.minimo > 0 && <small>mínimo {qtdFmt(p.minimo)}</small>}
+                  </span>
+                  <span className="es-barra"><i style={{ width: `${Math.max(0, Math.min(100, (p.estoque / cheio) * 100))}%` }} />{p.minimo > 0 && <b style={{ left: `${(p.minimo / cheio) * 100}%` }} />}</span>
+                </div>
+                <div className="es-acoes">
+                  <button type="button" className="botao botao--linha botao--p" onClick={() => setMover({ p, tipo: 'entrada' })}>Entrada</button>
+                  <button type="button" className="botao botao--fantasma botao--p" onClick={() => setMover({ p, tipo: 'ajuste' })}>Contar</button>
+                  <button type="button" className="botao botao--fantasma botao--p" onClick={() => setMover({ p, tipo: 'perda' })}>Baixa</button>
+                  {admin && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(p)}>Editar</button>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {editar && dados && <EditarProduto p={editar} categorias={dados.categorias} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
       {mover && <Movimentar p={mover.p} tipoInicial={mover.tipo} admin={admin} aoFechar={() => setMover(null)} aoSalvar={(d) => { setDados(d); setMover(null); }} />}
       {historico && <Historico p={historico} aoFechar={() => setHistorico(null)} />}
@@ -158,7 +187,7 @@ function Movimentar({ p, tipoInicial, admin, aoFechar, aoSalvar }) {
             <input inputMode="decimal" value={qtd} onChange={(e) => setQtd(e.target.value.replace(/[^\d,.]/g, ''))} autoFocus /></label>
           {tipo === 'entrada' && <label className="b-campo"><span className="rotulo">Custo por {p.unidade} (R$)</span><input inputMode="decimal" value={custo} onChange={(e) => setCusto(e.target.value.replace(/[^\d,.]/g, ''))} /></label>}
         </div>
-        {qtd !== '' && <p className="b-suave">Saldo depois: <strong>{qtdFmt(novoSaldo)} {p.unidade}</strong></p>}
+        {qtd !== '' && <Aviso tom={novoSaldo < 0 ? 'alerta' : 'info'}>Saldo depois: <strong>{qtdFmt(novoSaldo)} {p.unidade}</strong> (agora {qtdFmt(p.estoque)})</Aviso>}
         <label className="b-campo"><span className="rotulo">Motivo ou fornecedor</span><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Opcional" /></label>
         {tipo === 'entrada' && admin && numBR(custo) > 0 && (
           <>
@@ -190,12 +219,15 @@ function Historico({ p, aoFechar }) {
     <Modal titulo={p.nome} rotulo="Movimentos do estoque" aoFechar={aoFechar}>
       <Erro>{erro}</Erro>
       {carregando && !dados && <Carregando />}
-      {dados && dados.length === 0 && <p className="b-suave">Sem movimentos ainda.</p>}
-      <ul className="b-lista-simples est-hist">
+      {dados && dados.length === 0 && <Vazio titulo="Sem movimentos ainda" forma="presenca">Entradas, baixas e vendas deste produto aparecem aqui.</Vazio>}
+      <ul className="es-hist">
         {(dados || []).map((x, i) => (
           <li key={i}>
-            <strong className={x.qtd >= 0 ? 'est-hist__mais' : 'est-hist__menos'}>{x.qtd >= 0 ? '+' : '−'}{qtdFmt(Math.abs(x.qtd))} {p.unidade} · {ROT[x.tipo] || x.tipo}</strong>
-            <span>{dataBR(x.quando)} {hora(x.quando.slice(11, 16))} · {x.motivo || '—'} · {x.quem}</span>
+            <span className={`es-hist__qtd ${x.qtd >= 0 ? 'es-hist__qtd--mais' : 'es-hist__qtd--menos'}`}>{x.qtd >= 0 ? '+' : '−'}{qtdFmt(Math.abs(x.qtd))}<small>{p.unidade}</small></span>
+            <span className="es-hist__corpo">
+              <strong>{ROT[x.tipo] || x.tipo}</strong>
+              <span className="b-meta"><span>{dataBR(x.quando)} {hora(x.quando.slice(11, 16))}</span><span>{x.motivo || '—'}</span><span>{x.quem}</span></span>
+            </span>
           </li>
         ))}
       </ul>
