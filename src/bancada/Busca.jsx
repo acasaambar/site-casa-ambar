@@ -27,6 +27,7 @@ const ATALHOS = [
   ['Relatórios', '/bancada/relatorios', null, ['admin']],
   ['Equipe e acessos', '/bancada/equipe', null, ['admin']],
   ['Ajustes e taxas da maquininha', '/bancada/ajustes', null, ['admin']],
+  ['Calculadora de taxas da InfinitePay', '/bancada/ajustes', { aba: 'calculadora' }, ['admin']],
   ['Minhas clientes', '/bancada/clientes', null, ['professora']],
   ['Velocidade deste computador', '/bancada/velocidade', null, ['admin', 'recepcao', 'professora']],
   ['Meus ganhos', '/bancada/ganhos', null, ['professora']],

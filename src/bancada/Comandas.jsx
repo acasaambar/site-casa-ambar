@@ -1140,7 +1140,7 @@ function ConferirExtrato({ conferir, valores, aoMudar }) {
           const d = v === '' ? null : Math.round((numBR(v) - f.valor) * 100) / 100;
           return (
             <li key={f.forma}>
-              <span className="cx-conf__forma">{f.forma}{f.bandeiras.length > 0 && <small>{f.bandeiras.map((b) => `${b.nome} ${real(b.valor)}`).join(' · ')}</small>}</span>
+              <span className="cx-conf__forma">{f.forma}{f.bandeiras.length > 0 && <small>{f.bandeiras.map((b) => `${b.nome} ${real(b.valor)}`).join(' · ')}</small>}{f.taxa > 0 && <small>taxa estimada {real(f.taxa)} · deve cair {real(f.liquido)}</small>}</span>
               <span className="num cx-conf__sistema"><small>no sistema</small>{real(f.valor)}</span>
               <input className="cx-conf__campo" inputMode="decimal" value={v} placeholder="extrato" aria-label={`Total de ${f.forma} no extrato`}
                 onChange={(e) => aoMudar({ ...valores, [f.forma]: e.target.value.replace(/[^\d,.]/g, '') })} />

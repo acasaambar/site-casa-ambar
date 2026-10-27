@@ -63,10 +63,14 @@ function Mes({ mes, irPara }) {
       <div className="b-duas">
         <section className="b-cartao b-grafico"><header className="b-cartao__topo"><h2 className="b-cartao__titulo">Formas de pagamento</h2></header>
           <BarrasH itens={f.porForma} formato={realCurto} />
-          {f.taxasConfiguradas ? (
-            <p className="b-suave fn-taxas">Taxas estimadas da maquininha: <strong>{real(f.taxas)}</strong>{f.taxasPorForma.length > 0 && ` (${f.taxasPorForma.map((x) => `${x.nome} ${real(x.valor)}`).join(' · ')})`}.</p>
+          {f.taxas > 0 ? (
+            <div className="fn-taxas">
+              <p className="b-suave">Taxas da InfinitePay neste mês (estimativa): <strong>{real(f.taxas)}</strong></p>
+              {f.taxasPorBandeira?.length > 0 && <ul className="fn-taxas__lista">{f.taxasPorBandeira.map((x) => <li key={x.nome}><span>{x.nome}</span><strong>{real(x.valor)}</strong></li>)}</ul>}
+              {f.semTaxa > 0 && <p className="aviso">{plural(f.semTaxa, 'venda parcelada está', 'vendas parceladas estão')} sem taxa cadastrada para as parcelas; usamos a última informada. Complete em Ajustes → Taxas da maquininha.</p>}
+            </div>
           ) : (
-            <p className="b-suave fn-taxas">Para ver o resultado líquido, cadastre as taxas em Ajustes → Taxas da maquininha.</p>
+            <p className="b-suave fn-taxas">Sem taxas no mês (ou ainda não cadastradas em Ajustes → Taxas da maquininha).</p>
           )}
         </section>
         <section className="b-cartao">

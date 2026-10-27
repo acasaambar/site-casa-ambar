@@ -1519,14 +1519,25 @@ function bancada_salvarAjustes(d, m) {
     if (isNaN(n) || n < limites[k][0] || n > limites[k][1]) throw new Error('Valor fora do limite em ' + k + ' (' + limites[k][0] + ' a ' + limites[k][1] + ').');
     salvar[k] = n;
   });
-  // taxas da maquininha (% de 0 a 20, com até 2 casas)
+  // taxas da maquininha e do link: % de 0 a 30, com até 2 casas; cada coluna de crédito/link tem as parcelas 1x a 12x (vazio = ainda não informada)
   if (a.taxas && typeof a.taxas === 'object') {
-    salvar.taxas = {};
-    Object.keys(AJUSTES.taxas).forEach(function (k) {
-      var n = Math.round(numero(a.taxas[k]) * 100) / 100;
-      if (isNaN(n) || n < 0 || n > 20) throw new Error('Taxa fora do limite (0 a 20%).');
-      salvar.taxas[k] = n;
+    var conferirTaxa = function (v, vazioOk) {
+      if (v === null || v === undefined || v === '') { if (vazioOk) return null; return 0; }
+      var n = Number(String(v).replace(',', '.'));
+      if (isNaN(n) || n < 0 || n > 30) throw new Error('Taxa fora do limite (0 a 30%).');
+      return Math.round(n * 100) / 100;
+    };
+    var coluna = function (v) {
+      if (!Array.isArray(v) || v.length > 12) throw new Error('A tabela de parcelas vai de 1x a 12x.');
+      var c = []; for (var i = 0; i < 12; i++) c.push(conferirTaxa(v[i], true));
+      return c;
+    };
+    var ta = a.taxas, nova = { pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: coluna(ta.link) };
+    GRUPOS_TAXA.forEach(function (g) {
+      nova.debito[g] = conferirTaxa((ta.debito || {})[g], true);
+      nova.credito[g] = coluna((ta.credito || {})[g]);
     });
+    salvar.taxas = nova;
   }
   var props = PropertiesService.getScriptProperties();
   var atual = {};

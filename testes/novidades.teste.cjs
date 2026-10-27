@@ -216,17 +216,20 @@ console.log('— caixa: conferir com o extrato e taxas da maquininha');
     'fechamento guarda a conferência: crédito bateu, Pix com R$ 10 a menos', conf);
   r = chamar('b_reabrirCaixa', { token: adm });
   ok(r.ok && r.dados.conferencia.length === 0, 'reabrir limpa a conferência');
-  // taxas
-  ok(!chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: { pix: 25 } } }).ok, 'taxa acima de 20% é recusada');
-  r = chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: { pix: 0.5, debito: 1.5, credito1: 3, credito2a6: 4, credito7a12: 6, link: 5 } } });
-  ok(r.ok && r.dados.taxas.credito2a6 === 4, 'taxas salvas em Ajustes');
-  ok(!chamar('b_salvarAjustes', { token: rec, ajustes: { taxas: { pix: 1 } } }).ok, 'recepção não muda as taxas');
+  // taxas (tabela por bandeira e parcela)
+  const col = (v1, outros) => Array.from({ length: 12 }, (_, i) => (i === 0 ? v1 : outros(i + 1)));
+  const tabela = { pix: 0.5, debito: { vm: 1.5, elo: 2.5, amex: null },
+    credito: { vm: col(3, (n) => (n === 3 ? 4 : null)), elo: col(5, () => null), amex: col(5, () => null) }, link: col(4.2, () => null) };
+  ok(!chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: { ...tabela, pix: 31 } } }).ok, 'taxa acima de 30% é recusada');
+  r = chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: tabela } });
+  ok(r.ok && r.dados.taxas.credito.vm[2] === 4 && r.dados.taxas.debito.elo === 2.5, 'taxas salvas em Ajustes');
+  ok(!chamar('b_salvarAjustes', { token: rec, ajustes: { taxas: tabela } }).ok, 'recepção não muda as taxas');
   r = chamar('b_financeiro', { token: adm, mes: hoje.slice(0, 7) });
-  const esperado = Math.round((300 * 0.04 + 100 * 0.015 + 50 * 0.005) * 100) / 100;
+  const esperado = Math.round((300 * 0.04 + 100 * 0.025 + 50 * 0.005) * 100) / 100;
   ok(r.ok && r.dados.taxasConfiguradas && r.dados.taxas >= esperado && r.dados.liquido === Math.round((r.dados.entradas - r.dados.taxas - r.dados.saidas) * 100) / 100,
-    'Financeiro: taxas estimadas (crédito 3x a 4%, débito 1,5%, Pix 0,5%) e resultado líquido', [r.dados.taxas, esperado, r.dados.taxasPorForma]);
+    'Financeiro: taxas estimadas (crédito 3x Visa a 4%, débito Elo 2,5%, Pix 0,5%) e resultado líquido', [r.dados.taxas, esperado, r.dados.taxasPorForma]);
   chamar('b_salvarAjustes', { token: adm, ajustes: { regrasQualquer: 1, checkinAbreMinAntes: 30 } });
-  ok(chamar('b_ajustes', { token: adm }).dados.taxas.credito2a6 === 4, 'salvar as regras não apaga as taxas');
+  ok(chamar('b_ajustes', { token: adm }).dados.taxas.credito.vm[2] === 4, 'salvar as regras não apaga as taxas');
 }
 
 console.log('— sessão do pacote direto na comanda');

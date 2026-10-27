@@ -70,7 +70,46 @@ AJUSTES.valeValidadeDias = 365;
 AJUSTES.lembreteServicos = true; // e-mail na véspera para quem tem serviço agendado
 AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
 // taxas da maquininha e do link (% de cada venda), para o resultado líquido no Financeiro (Ajustes)
-AJUSTES.taxas = { pix: 0, debito: 0, credito1: 0, credito2a6: 0, credito7a12: 0, link: 0 };
+// Tabela da InfinitePay da Casa (maquininha e link). Cada coluna de crédito/link tem 12 posições: 1x a 12x (null = ainda não informada).
+//   debito: por grupo de bandeira (vm = Visa e Mastercard, elo, amex) · credito: por grupo e por parcela · link: por parcela (vale para qualquer bandeira)
+// Os valores de partida são os que a Casa já usava (débito, crédito à vista e link); as parcelas de 2x a 12x ficam para conferir no app da InfinitePay.
+var GRUPOS_TAXA = ['vm', 'elo', 'amex'];
+function colunaTaxa(primeira) { var c = []; for (var i = 0; i < 12; i++) c.push(i === 0 ? primeira : null); return c; }
+function taxasPadrao() {
+  return { pix: 0, debito: { vm: 1.37, elo: 2.58, amex: null },
+    credito: { vm: colunaTaxa(3.15), elo: colunaTaxa(4.91), amex: colunaTaxa(4.91) }, link: colunaTaxa(4.2) };
+}
+function numeroTaxa(v) {
+  if (v === null || v === undefined || v === '') return null;
+  var n = Number(String(v).replace(',', '.'));
+  return isNaN(n) ? null : Math.round(n * 100) / 100;
+}
+function colunaDe(v, padrao) {
+  var c = [];
+  for (var i = 0; i < 12; i++) c.push(v && v.length > i ? numeroTaxa(v[i]) : (padrao ? padrao[i] : null));
+  return c;
+}
+// aceita o formato novo e o antigo (pix, debito, credito1, credito2a6, credito7a12, link: um número cada)
+function normalizarTaxas(j) {
+  var t = taxasPadrao();
+  if (!j || typeof j !== 'object') return t;
+  if (j.pix != null) t.pix = numeroTaxa(j.pix) || 0;
+  if (typeof j.debito === 'number' || typeof j.debito === 'string') {
+    var d = numeroTaxa(j.debito); t.debito = { vm: d, elo: d, amex: null };
+  } else if (j.debito && typeof j.debito === 'object') {
+    GRUPOS_TAXA.forEach(function (g) { if (j.debito[g] !== undefined) t.debito[g] = numeroTaxa(j.debito[g]); });
+  }
+  if (j.credito && typeof j.credito === 'object' && !Array.isArray(j.credito)) {
+    GRUPOS_TAXA.forEach(function (g) { if (j.credito[g]) t.credito[g] = colunaDe(j.credito[g], t.credito[g]); });
+  } else if (j.credito1 != null || j.credito2a6 != null || j.credito7a12 != null) {
+    var col = []; for (var i = 1; i <= 12; i++) col.push(numeroTaxa(i === 1 ? j.credito1 : i <= 6 ? j.credito2a6 : j.credito7a12));
+    GRUPOS_TAXA.forEach(function (g) { t.credito[g] = col.slice(); });
+  }
+  if (Array.isArray(j.link)) t.link = colunaDe(j.link, t.link);
+  else if (typeof j.link === 'number' || typeof j.link === 'string') { var l = numeroTaxa(j.link); t.link = colunaTaxa(l).map(function (_, i) { return l; }); }
+  return t;
+}
+AJUSTES.taxas = taxasPadrao();
 var _ajustesAplicados = false;
 function aplicarAjustesSalvos() {
   if (_ajustesAplicados) return;
@@ -85,7 +124,7 @@ function aplicarAjustesSalvos() {
   if (j.wellhubPendentePodeReservar != null) AJUSTES.wellhub.pendentePodeReservar = !!j.wellhubPendentePodeReservar;
   if (j.lembreteServicos != null) AJUSTES.lembreteServicos = !!j.lembreteServicos;
   if (j.lembreteAulas != null) AJUSTES.lembreteAulas = !!j.lembreteAulas;
-  if (j.taxas && typeof j.taxas === 'object') Object.keys(AJUSTES.taxas).forEach(function (k) { if (j.taxas[k] != null) AJUSTES.taxas[k] = Number(j.taxas[k]) || 0; });
+  if (j.taxas && typeof j.taxas === 'object') AJUSTES.taxas = normalizarTaxas(j.taxas);
 }
 
 var ABAS = {

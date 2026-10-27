@@ -748,29 +748,57 @@ function partesRecebidas(pags) {
   return partes;
 }
 
-// taxa estimada da maquininha/link sobre um pedaço recebido (Ajustes → Taxas)
-function taxaDaParte(x) {
-  var t = AJUSTES.taxas || {};
-  var pct = x.metodo === 'Pix' ? t.pix : x.metodo === 'Cartão de débito' ? t.debito : x.metodo === 'Link InfinitePay' ? t.link
-    : x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão' ? (x.parcelas > 6 ? t.credito7a12 : x.parcelas > 1 ? t.credito2a6 : t.credito1) : 0;
-  return dinheiro(x.valor * (numero(pct) || 0) / 100);
+// grupo de bandeira da tabela de taxas: vm (Visa e Mastercard, também para as bandeiras sem linha própria), elo ou amex
+function grupoDaBandeira(bandeira) {
+  var b = semAcento(String(bandeira || ''));
+  if (b.indexOf('elo') === 0) return 'elo';
+  if (b.indexOf('american') === 0 || b.indexOf('amex') === 0) return 'amex';
+  return 'vm';
 }
+
+// a taxa (%) de uma coluna de 12 parcelas; parcela sem taxa informada usa a última informada antes dela
+function taxaDaColuna(col, parcelas) {
+  var n = Math.max(1, Math.min(12, Number(parcelas) || 1));
+  if (!col) return { pct: 0, falta: true };
+  if (col[n - 1] != null) return { pct: numero(col[n - 1]), falta: false };
+  for (var i = n - 2; i >= 0; i--) if (col[i] != null) return { pct: numero(col[i]), falta: n > 1 };
+  return { pct: 0, falta: true };
+}
+
+// taxa (%) estimada da maquininha/link para um pedaço recebido (Ajustes → Taxas da maquininha); falta = a tabela não tem esse valor
+function taxaPctDaParte(x) {
+  var t = AJUSTES.taxas || {};
+  var g = grupoDaBandeira(x.bandeira);
+  if (x.metodo === 'Pix') return { pct: numero(t.pix), falta: false };
+  if (x.metodo === 'Cartão de débito') {
+    var d = t.debito && t.debito[g] != null ? t.debito[g] : (t.debito ? t.debito.vm : null);
+    return d == null ? { pct: 0, falta: true } : { pct: numero(d), falta: false };
+  }
+  if (x.metodo === 'Link InfinitePay') return taxaDaColuna(t.link, x.parcelas);
+  if (x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão') {
+    return taxaDaColuna(t.credito && t.credito[g], x.parcelas);
+  }
+  return { pct: 0, falta: false };
+}
+
+function taxaDaParte(x) { return dinheiro(numero(x.valor) * taxaPctDaParte(x).pct / 100); }
 
 var FORMAS_MAQUININHA = ['Pix', 'Cartão de débito', 'Cartão de crédito', 'Link InfinitePay'];
 
 // o que conferir com o extrato (maquininha, link e Pix): total por forma e por bandeira
 function conferirPorForma(pags) {
   var r = {};
-  FORMAS_MAQUININHA.forEach(function (f) { r[f] = { forma: f, valor: 0, bandeiras: {} }; });
+  FORMAS_MAQUININHA.forEach(function (f) { r[f] = { forma: f, valor: 0, taxa: 0, bandeiras: {} }; });
   partesRecebidas(pags).forEach(function (x) {
     var f = x.metodo === 'Cartão' ? 'Cartão de crédito' : x.metodo;
     if (!r[f]) return;
     r[f].valor = dinheiro(r[f].valor + x.valor);
+    r[f].taxa = dinheiro(r[f].taxa + taxaDaParte({ metodo: f, bandeira: x.bandeira, parcelas: x.parcelas, valor: x.valor }));
     if (x.bandeira) r[f].bandeiras[x.bandeira] = dinheiro((r[f].bandeiras[x.bandeira] || 0) + x.valor);
   });
   return FORMAS_MAQUININHA.map(function (f) {
     var b = r[f].bandeiras;
-    return { forma: f, valor: r[f].valor, bandeiras: Object.keys(b).map(function (k) { return { nome: k, valor: b[k] }; }).sort(function (x, y) { return y.valor - x.valor; }) };
+    return { forma: f, valor: r[f].valor, taxa: r[f].taxa, liquido: dinheiro(r[f].valor - r[f].taxa), bandeiras: Object.keys(b).map(function (k) { return { nome: k, valor: b[k] }; }).sort(function (x, y) { return y.valor - x.valor; }) };
   });
 }
 
@@ -822,18 +850,24 @@ function bancada_financeiro(d) {
     serie.push({ chave: k, entradas: soma(vendas.filter(function (p) { return dia(p) === k; }), function (p) { return numero(p.valor); }),
       saidas: soma(saidas.filter(function (x) { return pagoNo(x) === k; }), function (x) { return x.valor; }) });
   }
-  // taxas estimadas da maquininha e do link (Ajustes → Taxas)
+  // taxas estimadas da maquininha e do link (Ajustes → Taxas da maquininha), por forma e por bandeira
   var taxasPorForma = {};
+  var taxasPorBandeira = {};
   var taxas = 0;
+  var semTaxa = 0;
   partesRecebidas(vendas).forEach(function (x) {
-    var t = taxaDaParte(x);
+    var r = taxaPctDaParte(x);
+    if (r.falta && x.metodo !== 'Pix') semTaxa++;
+    var t = dinheiro(numero(x.valor) * r.pct / 100);
     if (!t) return;
     taxas = dinheiro(taxas + t);
     taxasPorForma[x.metodo] = dinheiro((taxasPorForma[x.metodo] || 0) + t);
+    var rotulo = (x.metodo === 'Link InfinitePay' ? 'Link' : x.metodo === 'Cartão de débito' ? 'Débito' : 'Crédito') + (x.bandeira ? ' ' + x.bandeira : '');
+    taxasPorBandeira[rotulo] = dinheiro((taxasPorBandeira[rotulo] || 0) + t);
   });
-  var taxasConfiguradas = Object.keys(AJUSTES.taxas || {}).some(function (k) { return numero(AJUSTES.taxas[k]) > 0; });
+  var taxasConfiguradas = true;
   return {
-    taxas: taxas, taxasPorForma: lista(taxasPorForma), taxasConfiguradas: taxasConfiguradas, liquido: dinheiro(entradas - taxas - totalSaidas),
+    taxas: taxas, taxasPorForma: lista(taxasPorForma), taxasPorBandeira: lista(taxasPorBandeira), semTaxa: semTaxa, taxasConfiguradas: taxasConfiguradas, liquido: dinheiro(entradas - taxas - totalSaidas),
     mes: mes, entradas: entradas, saidas: totalSaidas, resultado: dinheiro(entradas - totalSaidas),
     entradasAnterior: soma(vendasAnt, function (p) { return numero(p.valor); }), saidasAnterior: soma(saidasAnt, function (x) { return x.valor; }),
     aPagar: soma(aPagar, function (x) { return x.valor; }), aPagarQtd: aPagar.length,
@@ -890,6 +924,8 @@ function resumoCaixa(data) {
 function bancada_caixa(d, m) {
   var data = dataValida(d.data, hojeTexto());
   var r = resumoCaixa(data);
+  // taxa e líquido da maquininha são da administração
+  if (m.papel !== 'admin') r.conferir = (r.conferir || []).map(function (f) { return { forma: f.forma, valor: f.valor, bandeiras: f.bandeiras }; });
   if (m.papel === 'admin') {
     // os 10 dias mais recentes (um caixa aberto depois para uma data antiga não empurra os recentes)
     r.anteriores = lerAba('Caixa').filter(function (c) { return dataTexto(c.data) < data; })
