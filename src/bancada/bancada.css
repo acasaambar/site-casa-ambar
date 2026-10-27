@@ -2349,3 +2349,9 @@
 .sv-resumo .sr-nao { color: var(--b-terracota, #7E3717); }
 .vd-extra--um { grid-template-columns: minmax(0, 1fr) minmax(0, 150px); }
 @media (max-width: 560px) { .vd-extra--um { grid-template-columns: 1fr; } .vd-extra--um .vd-extra__valor { grid-row: auto; } }
+
+/* ===== Profissionais: serviços e aulas no mesmo cadastro ===== */
+.pf-tipos, .pf-aulas { border: 1px solid var(--b-linha); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.pf-tipos-resumo { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.pa-wellhub-linha { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.pa-wellhub-linha .b-campo { margin: 0; }

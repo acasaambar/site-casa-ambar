@@ -107,7 +107,7 @@ function candidatosDaTroca(it, m) {
       if (semAcento(n) === semAcento(it.atual) || semAcento(n) === semAcento(it.titular)) return;
       var p = profs[semAcento(n)];
       var semValor = valorDeAulaTexto(p, it.titulo) === 'sem valor cadastrado';
-      lista.push({ nome: n, ocupada: ocupacao(n, it), aviso: semValor ? 'sem valor de aula cadastrado (Catálogo → Profissionais de aula)' : '',
+      lista.push({ nome: n, ocupada: ocupacao(n, it), aviso: semValor ? 'sem valor de aula cadastrado (Catálogo → Profissionais)' : '',
         comissao: admin ? valorDeAulaTexto(p, it.titulo) : null });
     });
   } else {
@@ -239,7 +239,7 @@ function bancada_substituir(d, m) {
       if (t) atualizarLinha('Substituicoes', t._linha, linha);
       else adicionarLinha('Substituicoes', Object.assign({ id: novoId('T'), tipo: tipo, ref: it.ref, data: it.data, hora: it.hora, titulo: it.titulo, titular: it.titular,
         motivo: motivo }, linha));
-      if (cand.aviso && tipo === 'aula' && regra === 'substituta') alertas.push(nome + ' não tem valor de aula cadastrado: a comissão desta aula fica zerada até cadastrar em Catálogo → Profissionais de aula.');
+      if (cand.aviso && tipo === 'aula' && regra === 'substituta') alertas.push(nome + ' não tem valor de aula cadastrado: a comissão desta aula fica zerada até cadastrar em Catálogo → Profissionais.');
     }
     registrar(m, voltou ? 'desfez substituição' : 'substituição', it.titulo + ' · ' + it.data + ' ' + it.hora + ' · ' + it.titular + (voltou ? '' : ' → ' + nome + ' (regra ' + (regra === 'titular' ? 'da titular' : 'de quem substitui') + ')'));
   } finally {

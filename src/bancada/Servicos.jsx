@@ -96,7 +96,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
     Object.entries(prof).forEach(([nome, mods]) => {
       const m = [...mods];
       const ja = cols.find((c) => c.nome === nome);
-      if (ja) { ja.aulas = true; return; }
+      if (ja) { ja.aulas = true; ja.detalhe = `${ja.detalhe} · aulas de ${m.join(' e ')}`; return; } // atende serviços e dá aula: tudo na mesma coluna
       cols.push({ nome, tipo: 'aula', grupo: m.includes('Pilates') ? 'pilates' : 'yoga', detalhe: m.join(' e '), turnos: null, aulas: true });
     });
     const ordem = GRUPOS.map(([g]) => g);
@@ -805,7 +805,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
               const fim = antes.reduce((m, y) => Math.max(m, minDe(y.hora) + (y.dur || 0)), 0);
               const outros = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.filter((y) => y.chave !== x.chave).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
               return (
-                <ServicoExtra key={x.chave} n={i + 2} item={x} catalogo={catalogo} data={data} outros={outros} depoisDe={fim} profPadrao={profissional}
+                <ServicoExtra key={x.chave} n={i + 2} item={x} catalogo={catalogo} data={data} outros={outros} depoisDe={fim}
                   aoMudar={(mud) => setExtras((l) => l.map((y) => (y.chave === x.chave ? { ...y, ...mud } : y)))} aoTirar={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))} />
               );
             })}
@@ -920,7 +920,7 @@ const minDe = (h) => { const [a, b] = String(h).split(':'); return Number(a) * 6
 
 // Outro serviço da mesma visita: serviço, profissional e horário. Os horários que batem com os outros serviços
 // desta visita (a pessoa não pode estar em dois lugares) ficam de fora; sugere o primeiro horário depois do serviço anterior.
-function ServicoExtra({ n, item, catalogo, data, outros, depoisDe, profPadrao, aoMudar, aoTirar }) {
+function ServicoExtra({ n, item, catalogo, data, outros, depoisDe, aoMudar, aoTirar }) {
   const { chamar, token } = useBancada();
   const servicos = catalogo.servicos.filter((s) => s.ativo);
   const serv = servicos.find((s) => s.id === item.servicoId);
@@ -1329,38 +1329,105 @@ function EditarPacote({ p, servicos, aoFechar, aoSalvar }) {
   );
 }
 
+// Uma pessoa, um cadastro: quem atende serviços (estética e fisioterapia), quem dá aula (Pilates e Yoga) ou as duas coisas.
+// Os dois lados se juntam pelo NOME (igual, sem contar acento): é o mesmo nome que a agenda usa para pôr tudo na mesma coluna.
 export function Profissionais() {
+  const { chamar } = useBancada();
   const { dados, erro, carregando, setDados } = useDados('catalogoServicos', {});
+  const { dados: aulas, recarregar: recarregarAulas } = useDados('pagamentoAulas', {});
   const [editar, setEditar] = useState(null);
+  const [wellhub, setWellhub] = useState(null);
+  const [wellhubSalvo, setWellhubSalvo] = useState(false);
+  const [erroW, setErroW] = useState('');
+  const pessoas = useMemo(() => {
+    if (!dados) return [];
+    const mapa = new Map();
+    dados.profissionais.forEach((p) => mapa.set(semAcentoJs(p.nome), { nome: p.nome, servico: p, aula: null }));
+    (aulas?.professoras || []).forEach((a) => {
+      const k = semAcentoJs(a.nome);
+      if (mapa.has(k)) mapa.get(k).aula = a;
+      else mapa.set(k, { nome: a.nome, servico: null, aula: a });
+    });
+    return [...mapa.values()].sort((x, y) => x.nome.localeCompare(y.nome));
+  }, [dados, aulas]);
+  // nomes parecidos (mesmo primeiro nome) em cadastros separados: provavelmente a mesma pessoa com o nome escrito diferente
+  const parecidos = useMemo(() => {
+    const out = [];
+    pessoas.filter((x) => x.servico && !x.aula).forEach((sv) => pessoas.filter((x) => x.aula && !x.servico && x.aula.modalidades.length).forEach((au) => {
+      if (semAcentoJs(sv.nome).split(' ')[0] === semAcentoJs(au.nome).split(' ')[0]) out.push({ sv, au });
+    }));
+    return out;
+  }, [pessoas]);
   if (carregando && !dados) return <Carregando />;
   if (!dados) return <Erro>{erro}</Erro>;
+  const temPilates = (aulas?.professoras || []).some((x) => x.modalidades.includes('Pilates'));
+  const wellhubAtual = wellhub ?? (aulas?.wellhubValor ? String(aulas.wellhubValor).replace('.', ',') : '');
   return (
     <>
       <div className="b-barra-acoes">
-        <p className="b-suave">Quem atende os serviços de estética e fisioterapia, as áreas de cada pessoa e o horário. Para ver a própria agenda, a pessoa precisa de um acesso em Equipe com o mesmo nome.</p>
-        <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true })}>Cadastrar profissional</button>
+        <p className="b-suave">
+          Todas as pessoas da equipe num lugar só: quem atende serviços, quem dá aula ou as duas coisas. Quem faz as duas aparece na agenda numa coluna só, com serviços e aulas juntos
+          (o nome precisa ser igual nos dois lados). Para a pessoa ver a própria agenda, ela precisa de um acesso em Equipe com o mesmo nome.
+        </p>
+        <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ p: { categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: null })}>Cadastrar profissional</button>
       </div>
-      {dados.profissionais.length === 0 && <Vazio titulo="Equipe ainda vazia" forma="presenca">Cadastre a equipe de estética e fisioterapia para começar a agendar serviços.</Vazio>}
+      {parecidos.map(({ sv, au }) => (
+        <p key={sv.nome + au.nome} className="aviso">
+          <strong>{sv.nome}</strong> (serviços) e <strong>{au.nome}</strong> (aulas) parecem ser a mesma pessoa, mas estão com nomes diferentes. Para aparecerem na mesma coluna da agenda, use o mesmo nome.{' '}
+          <button type="button" className="link-acao" onClick={() => setEditar({ p: { ...sv.servico, nomeOriginal: sv.servico.nome, nome: au.nome }, aula: au })}>Usar o nome “{au.nome}” em {sv.nome}</button>
+        </p>
+      ))}
+      {temPilates && (
+        <div className="pa-wellhub-linha">
+          <label className="b-campo pa-wellhub">
+            <span className="rotulo">A Casa recebe por check-in Wellhub (R$)</span>
+            <input inputMode="decimal" value={wellhubAtual} placeholder="Ex.: 30" onChange={(e) => { setWellhubSalvo(false); setWellhub(e.target.value.replace(/[^\d,.]/g, '')); }} />
+          </label>
+          <BotaoAcao className="botao botao--linha botao--p" disabled={wellhub === null} acao={async () => {
+            setErroW('');
+            try { await chamar('salvarPagamentoAulas', { wellhubValor: wellhub, professoras: [] }); setWellhubSalvo(true); setWellhub(null); recarregarAulas(); } catch (e) { setErroW(e.message); }
+          }}>Salvar valor</BotaoAcao>
+          {wellhubSalvo && <span className="b-ok" role="status">Salvo.</span>}
+        </div>
+      )}
+      <Erro>{erroW}</Erro>
+      {pessoas.length === 0 && <Vazio titulo="Equipe ainda vazia" forma="presenca">Cadastre a equipe para começar a agendar serviços. Quem dá aula aparece aqui sozinho, assim que entra na Grade de aulas.</Vazio>}
       <ul className="b-equipe">
-        {dados.profissionais.map((p) => (
-          <li key={p.nome} className={p.ativo ? '' : 'inativo'}>
-            <div className="b-equipe__ini" aria-hidden="true">{p.nome.slice(0, 1)}</div>
-            <div><strong>{p.nome}</strong><span className="b-suave">{p.servicos?.length ? `${p.servicos.length} serviço${p.servicos.length === 1 ? '' : 's'} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'todas as áreas'}</span></div>
-            <span className="b-suave">{resumoHorario(p)}{Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}</span>
-            <span className="b-suave">{p.comissao ? `comissão padrão ${p.comissao}%` : 'sem comissão padrão'}</span>
-            <button type="button" className="link-acao" onClick={() => setEditar({ ...p, nomeOriginal: p.nome })}>editar</button>
-          </li>
-        ))}
+        {pessoas.map(({ nome, servico: p, aula: a }) => {
+          const inativo = p ? !p.ativo && !a : false;
+          return (
+            <li key={nome} className={inativo ? 'inativo' : ''}>
+              <div className="b-equipe__ini" aria-hidden="true">{nome.slice(0, 1)}</div>
+              <div>
+                <strong>{nome}</strong>
+                <span className="b-suave pf-tipos-resumo">
+                  {p && <Tag tom={p.ativo ? 'neutro' : 'apagado'}>{p.servicos?.length ? `${plural(p.servicos.length, 'serviço', 'serviços')} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'Serviços'}</Tag>}
+                  {a && <Tag tom="ambar">{a.modalidades.length ? `Aulas de ${a.modalidades.join(' e ')}` : 'Aulas (fora da grade)'}</Tag>}
+                </span>
+              </div>
+              <span className="b-suave">{p ? `${resumoHorario(p)}${Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}` : 'horários na Grade de aulas'}</span>
+              <span className="b-suave">
+                {[p && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean).join(' · ')}
+              </span>
+              <button type="button" className="link-acao" onClick={() => setEditar({ p: p ? { ...p, nomeOriginal: p.nome } : { nome, categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: a, soAula: !p })}>editar</button>
+            </li>
+          );
+        })}
       </ul>
-      {editar && <EditarProfissional p={editar} categorias={dados.categorias} servicos={dados.servicos} casa={dados.horarioCasa} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
+      {editar && (
+        <EditarProfissional p={editar.p} aula={editar.aula} soAula={editar.soAula} wellhubValor={aulas?.wellhubValor || 0} categorias={dados.categorias} servicos={dados.servicos} casa={dados.horarioCasa}
+          aoFechar={() => setEditar(null)} aoSalvar={(d) => { if (d) setDados(d); recarregarAulas(); setEditar(null); }} />
+      )}
     </>
   );
 }
 
+const semAcentoJs = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+
 // faz o serviço? Com lista de serviços (como no Avec), vale a lista; senão, a área
 const fazServico = (p, serv) => (p.servicos?.length ? p.servicos.some((c) => c.id === serv.id) : !p.categorias.length || p.categorias.includes(serv.categoria));
 
-function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar }) {
+function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servicos, casa, aoFechar, aoSalvar }) {
   const { chamar } = useBancada();
   const [f, setF] = useState(() => {
     // serviços que ela faz: { id: { comissao, duracao } } (vazio = vale o padrão)
@@ -1371,6 +1438,16 @@ function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar 
       comissao: p.comissao ? String(p.comissao) : '', comissaoProduto: p.comissaoProduto ? String(p.comissaoProduto) : '', servicos: marcados };
   });
   const [erro, setErro] = useState('');
+  // o que esta pessoa faz: atende serviços e/ou dá aula (a aula entra pela Grade de aulas; aqui fica o valor de cada aula)
+  const temServico = !!p.nomeOriginal;
+  const [atende, setAtende] = useState(!soAula);
+  const [daAula, setDaAula] = useState(!!aula);
+  const txt = (v) => (v == null || v === 0 ? '' : String(v).replace('.', ','));
+  const [au, setAu] = useState({ pilatesPct: txt(aula?.pilatesPct), wellhubPct: txt(aula?.wellhubPct), yogaPorAula: txt(aula?.yogaPorAula), desde: aula?.desde || hojeIso() });
+  const mods = aula?.modalidades || [];
+  const pilates = mods.includes('Pilates') || !mods.length;
+  const yoga = mods.includes('Yoga') || !mods.length;
+  const nomeAula = aula?.nome || '';
   const marcar = (lista, sim) => setF((x) => {
     const m = { ...x.servicos };
     lista.forEach((s) => { if (sim) m[s.id] = m[s.id] || { comissao: '', duracao: '' }; else delete m[s.id]; });
@@ -1383,18 +1460,37 @@ function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar 
 
   async function salvar() {
     setErro('');
-    if (!qtd) { setErro('Marque pelo menos um serviço que esta pessoa faz.'); return; }
-    if (!Object.keys(f.horarios).length) { setErro('Marque pelo menos um dia de atendimento.'); return; }
+    if (!atende && !daAula) { setErro('Marque o que esta pessoa faz: serviços, aulas ou os dois.'); return; }
+    if (atende) {
+      if (!qtd) { setErro('Marque pelo menos um serviço que esta pessoa faz.'); return; }
+      if (!Object.keys(f.horarios).length) { setErro('Marque pelo menos um dia de atendimento.'); return; }
+    }
     const lista = Object.entries(f.servicos).map(([id, c]) => ({ id, comissao: c.comissao === '' ? '' : num(c.comissao), duracao: c.duracao === '' ? '' : num(c.duracao) }));
     try {
-      aoSalvar(await chamar('salvarProfissional', { profissional: { ...f, servicos: lista, comissao: num(f.comissao), comissaoProduto: num(f.comissaoProduto) } }));
+      let catalogo = null;
+      // serviços: salva quando atende; se deixou de atender (e tinha cadastro), fica "não atendendo" sem perder o resto
+      if (atende || temServico) catalogo = await chamar('salvarProfissional', { profissional: { ...f, ativo: atende ? f.ativo : false, servicos: lista, comissao: num(f.comissao), comissaoProduto: num(f.comissaoProduto) } });
+      if (daAula) {
+        await chamar('salvarPagamentoAulas', { wellhubValor: wellhubValor || 0, professoras: [{ nome: nomeAula || f.nome.trim(), ...au, ativo: true }] });
+      }
+      aoSalvar(catalogo);
     } catch (e) { setErro(e.message); }
   }
 
   return (
     <Modal rotulo="Profissional" titulo={p.nome || 'Cadastrar profissional'} aoFechar={aoFechar} largo>
       <div className="b-form">
+        <fieldset className="pf-tipos">
+          <legend className="rotulo">O que esta pessoa faz</legend>
+          <label className="b-check"><input type="checkbox" checked={atende} onChange={(e) => setAtende(e.target.checked)} /> Atende serviços (estética e fisioterapia)</label>
+          <label className="b-check"><input type="checkbox" checked={daAula} onChange={(e) => setDaAula(e.target.checked)} /> Dá aula (Pilates ou Yoga)</label>
+          {atende && daAula && <p className="b-suave">Na agenda, serviços e aulas ficam na mesma coluna, e a pessoa vê tudo com um só acesso.</p>}
+        </fieldset>
         <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
+        {atende && daAula && nomeAula && semAcentoJs(nomeAula) !== semAcentoJs(f.nome) && (
+          <p className="aviso">Nas aulas (Grade de aulas) o nome é “{nomeAula}”. Para serviços e aulas aparecerem juntos na agenda, os dois nomes precisam ser iguais.</p>
+        )}
+        {atende && (<>
         <HorarioSemanal valor={f.horarios} aoMudar={(h) => setF((x) => ({ ...x, horarios: h }))} />
         <DiasEspeciais valor={f.especiais} aoMudar={(e) => setF((x) => ({ ...x, especiais: e }))} />
         <div className="b-linha2">
@@ -1441,6 +1537,25 @@ function EditarProfissional({ p, categorias, servicos, casa, aoFechar, aoSalvar 
         </fieldset>
 
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Atendendo</label>
+        </>)}
+
+        {daAula && (
+          <fieldset className="pf-aulas">
+            <legend className="rotulo">Aulas · {mods.length ? mods.join(' e ') : 'fora da grade'}</legend>
+            {!mods.length && <p className="b-suave">Esta pessoa ainda não está na Grade de aulas. Ponha o nome dela como professor(a) nas aulas (Catálogo → Grade de aulas) para as aulas aparecerem na agenda.</p>}
+            <p className="b-suave">Pilates: comissão sobre o valor de cada aluno na aula (o plano dividido pelas aulas dele). Yoga: valor fixo por aula dada. Contam as aulas que já terminaram, a partir da data abaixo.</p>
+            <div className="pa-campos">
+              {pilates && <label className="b-campo"><span className="rotulo">Pilates · % por aluno</span>
+                <input inputMode="decimal" value={au.pilatesPct} placeholder="Ex.: 40" onChange={(e) => setAu({ ...au, pilatesPct: e.target.value.replace(/[^\d,.]/g, '') })} /></label>}
+              {pilates && <label className="b-campo"><span className="rotulo">Aluno Wellhub · %</span>
+                <input inputMode="decimal" value={au.wellhubPct} placeholder={au.pilatesPct ? `${au.pilatesPct} (igual)` : 'Ex.: 40'} onChange={(e) => setAu({ ...au, wellhubPct: e.target.value.replace(/[^\d,.]/g, '') })} /></label>}
+              {yoga && <label className="b-campo"><span className="rotulo">Yoga · R$ por aula</span>
+                <input inputMode="decimal" value={au.yogaPorAula} placeholder="Ex.: 60" onChange={(e) => setAu({ ...au, yogaPorAula: e.target.value.replace(/[^\d,.]/g, '') })} /></label>}
+              <label className="b-campo"><span className="rotulo">Contar aulas a partir de</span>
+                <input type="date" value={au.desde} onChange={(e) => setAu({ ...au, desde: e.target.value })} /></label>
+            </div>
+          </fieldset>
+        )}
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={salvar}>Salvar</BotaoAcao>
       </div>
