@@ -7,9 +7,12 @@
 // ============================================================
 import { useEffect, useMemo, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Modal, BotaoAcao, Tag, hora, hojeIso, somarDias, diaSemana, dataCurta, linkWhats, telFmt, primeiro, plural, ehDela,
+import { useDados, Carregando, Esqueleto, Aviso, Ajuda, Secao, Erro, Modal, BotaoAcao, Tag, hora, hojeIso, somarDias, diaSemana, dataCurta, linkWhats, telFmt, primeiro, plural, ehDela,
   DIAS } from './ui.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import { Passo } from './AgendaPecas.jsx';
+import { iniciais } from './agendaUtil.js';
+import './css/agenda.css';
 
 const MOTIVOS_TROCA = ['Faltou', 'Atestado/saúde', 'Troca combinada', 'Curso/evento', 'Outro'];
 
@@ -35,15 +38,17 @@ function situacao(c) {
 export function AvisarClientes({ avisos = [] }) {
   const [feitos, setFeitos] = useState({});
   const [copiado, setCopiado] = useState('');
-  if (!avisos.length) return <p className="b-suave tr-nota">Ninguém marcado neste horário: não há cliente para avisar.</p>;
+  if (!avisos.length) return <Aviso tom="info">Ninguém marcado neste horário: não há cliente para avisar.</Aviso>;
   const copiar = async (p, i) => {
     try { await navigator.clipboard.writeText(p.texto); setCopiado(i); } catch { window.prompt('Copie a mensagem:', p.texto); }
     setFeitos((x) => ({ ...x, [i]: true }));
   };
   return (
-    <div className="tr-avisar">
-      <p className="tr-avisar__titulo"><strong>Avisar {avisos.length === 1 ? 'quem está marcado' : `as ${avisos.length} pessoas marcadas`}</strong>
-        <span>O sistema não avisa sozinho. Abra o WhatsApp de cada pessoa com a mensagem pronta.</span></p>
+    <section className="tr-avisar">
+      <header className="tr-avisar__topo">
+        <h3 className="tr-avisar__titulo">Avisar {avisos.length === 1 ? 'quem está marcado' : `as ${avisos.length} pessoas marcadas`}</h3>
+        <Ajuda titulo="Avisos" alinhar="direita">O sistema não avisa sozinho. Abra o WhatsApp de cada pessoa com a mensagem pronta.</Ajuda>
+      </header>
       <ul className="tr-avisar__lista">
         {avisos.map((p, i) => (
           <li key={i} className={feitos[i] ? 'feito' : ''}>
@@ -53,12 +58,12 @@ export function AvisarClientes({ avisos = [] }) {
                 <a className="botao botao--linha botao--p com-icone" href={linkWhats(p.whatsapp, p.texto)} target="_blank" rel="noreferrer"
                   onClick={() => setFeitos((x) => ({ ...x, [i]: true }))}><IconeWhatsapp tamanho={14} /> {feitos[i] ? 'Abrir de novo' : 'WhatsApp'}</a>
               ) : <Tag tom="aviso">sem WhatsApp</Tag>}
-              <button type="button" className="link-acao" onClick={() => copiar(p, i)}>{copiado === i ? 'Copiada' : 'Copiar mensagem'}</button>
+              <button type="button" className="botao botao--fantasma botao--p" onClick={() => copiar(p, i)}>{copiado === i ? 'Copiada' : 'Copiar mensagem'}</button>
             </span>
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }
 
@@ -66,14 +71,13 @@ export function AvisarClientes({ avisos = [] }) {
 function Resultado({ r, titular, aoDesfazer }) {
   return (
     <div className="b-form">
-      <div className={`tr-feito${r.desfeita ? ' tr-feito--volta' : ''}`}>
-        <strong>{r.desfeita ? 'Troca desfeita' : 'Troca feita'}</strong>
-        <span>{r.desfeita ? `O horário voltou para ${r.profissional}.` : `Agora com ${r.profissional}. O horário já aparece na agenda de ${primeiro(r.profissional)}.`}</span>
-      </div>
-      {(r.alertas || []).map((a) => <p key={a} className="aviso">{a}</p>)}
+      <Aviso tom={r.desfeita ? 'info' : 'ok'} titulo={r.desfeita ? 'Troca desfeita' : 'Troca feita'}>
+        {r.desfeita ? `O horário voltou para ${r.profissional}.` : `Agora com ${r.profissional}. O horário já aparece na agenda de ${primeiro(r.profissional)}.`}
+      </Aviso>
+      {(r.alertas || []).map((a) => <Aviso key={a} tom="aviso">{a}</Aviso>)}
       <AvisarClientes avisos={r.avisos} />
       {!r.desfeita && aoDesfazer && titular && (
-        <BotaoAcao className="link-sair tr-desfazer" confirmar={`Desfazer a troca? O horário volta para ${titular}.`} acao={aoDesfazer}>Desfazer (voltar para {titular})</BotaoAcao>
+        <BotaoAcao className="botao botao--fantasma botao--p ag-perigo tr-desfazer" confirmar={`Desfazer a troca? O horário volta para ${titular}.`} acao={aoDesfazer}>Desfazer (voltar para {titular})</BotaoAcao>
       )}
     </div>
   );
@@ -142,76 +146,83 @@ export function TrocaProfissional({ tipo, id, aoFechar, aoTerminar }) {
 
   return (
     <Modal titulo={titulo} rotulo={rotulo} aoFechar={fechar} largo>
-      {!d && !erroCarga && <Carregando texto="Vendo quem pode cobrir" />}
+      {!d && !erroCarga && <Esqueleto linhas={5} altura={52} />}
       <Erro>{erroCarga}</Erro>
       {d && resultado && <Resultado r={resultado} titular={d.titular} aoDesfazer={() => enviar(d.titular, { motivo: '' })} />}
       {d && resultado && <button type="button" className="botao botao--cheio tr-concluir" onClick={fechar}>Concluir</button>}
       {d && !resultado && (
         <div className="b-form">
           <div className="tr-agora">
-            <span className="tr-agora__rotulo">{ehAula ? 'Dá a aula agora' : 'Atende agora'}</span>
-            <strong>{d.atual}</strong>
-            {trocada && <span className="tr-agora__titular">no lugar de {d.titular} (titular){admin && d.regra === 'titular' ? ` · comissão pela regra de ${primeiro(d.titular)}` : ''}</span>}
+            <span className="tr-agora__ini" aria-hidden="true">{iniciais(d.atual)}</span>
+            <span className="tr-agora__txt">
+              <span className="tr-agora__rotulo">{ehAula ? 'Dá a aula agora' : 'Atende agora'}</span>
+              <strong>{d.atual}</strong>
+              {trocada && <span className="tr-agora__titular">no lugar de {d.titular} (titular){admin && d.regra === 'titular' ? ` · comissão pela regra de ${primeiro(d.titular)}` : ''}</span>}
+            </span>
           </div>
           {d.pedido && (
-            <p className="tr-pedido"><strong>Pedido de {d.pedido.titular || d.titular}:</strong> {d.pedido.motivo}</p>
+            <Aviso tom="aviso" titulo={`Pedido de ${d.pedido.titular || d.titular}`}>{d.pedido.motivo}</Aviso>
           )}
 
-          <fieldset className="b-opcoes tr-cand">
-            <legend className="rotulo">Quem vai {ehAula ? 'dar a aula' : 'atender'}</legend>
-            {candidatos.length === 0 && (
-              <p className="b-suave">{ehAula ? 'Não há outra pessoa que dê aula cadastrada.' : 'Ninguém mais faz este serviço. Confira em Catálogo → Profissionais.'}</p>
-            )}
-            {candidatos.map((x) => {
-              const [tag, tom, det] = situacao(x);
-              return (
-                <label key={x.nome + (x.agora ? '·agora' : '')} className={escolha === x.nome ? 'ativo' : ''}>
-                  <input type="radio" name="troca-quem" checked={escolha === x.nome} onChange={() => { setEscolha(x.nome); setConfirmar(null); setErro(''); if (x.agora) setRegra(d.regra === 'titular' ? 'substituta' : 'titular'); }} />
-                  <span className="tr-cand__info">
-                    <strong>{x.nome}</strong>
-                    {det && <small>{det}</small>}
-                    {admin && x.comissao && !(x.aviso && /^sem valor/.test(x.comissao)) && <small className="tr-cand__comissao">Comissão: {x.comissao}</small>}
-                  </span>
-                  <Tag tom={tom}>{tag}</Tag>
-                </label>
-              );
-            })}
-          </fieldset>
+          <Passo n={1} titulo={`Quem vai ${ehAula ? 'dar a aula' : 'atender'}`}>
+            <fieldset className="b-opcoes tr-cand">
+              <legend className="ag-vh">Quem vai {ehAula ? 'dar a aula' : 'atender'}</legend>
+              {candidatos.length === 0 && (
+                <p className="b-suave">{ehAula ? 'Não há outra pessoa que dê aula cadastrada.' : 'Ninguém mais faz este serviço. Confira em Catálogo → Profissionais.'}</p>
+              )}
+              {candidatos.map((x) => {
+                const [tag, tom, det] = situacao(x);
+                return (
+                  <label key={x.nome + (x.agora ? '·agora' : '')} className={escolha === x.nome ? 'ativo' : ''}>
+                    <input type="radio" name="troca-quem" checked={escolha === x.nome} onChange={() => { setEscolha(x.nome); setConfirmar(null); setErro(''); if (x.agora) setRegra(d.regra === 'titular' ? 'substituta' : 'titular'); }} />
+                    <span className="tr-cand__ini" aria-hidden="true">{iniciais(x.nome)}</span>
+                    <span className="tr-cand__info">
+                      <strong>{x.nome}</strong>
+                      {det && <small>{det}</small>}
+                      {admin && x.comissao && !(x.aviso && /^sem valor/.test(x.comissao)) && <small className="tr-cand__comissao">Comissão: {x.comissao}</small>}
+                    </span>
+                    <Tag tom={tom}>{tag}</Tag>
+                  </label>
+                );
+              })}
+            </fieldset>
+          </Passo>
 
           {c && !volta && (
-            <fieldset className="b-opcoes tr-regra">
-              <legend className="rotulo">Comissão deste horário</legend>
-              <label className={regra === 'substituta' ? 'ativo' : ''}>
-                <input type="radio" name="troca-regra" checked={regra === 'substituta'} onChange={() => setRegra('substituta')} />
-                <span><strong>Regra de quem substitui{admin && c.comissao ? ` · ${c.comissao}` : ''}</strong><small>{c.nome} recebe pelo que tem cadastrado</small></span>
-              </label>
-              <label className={regra === 'titular' ? 'ativo' : ''}>
-                <input type="radio" name="troca-regra" checked={regra === 'titular'} onChange={() => setRegra('titular')} />
-                <span><strong>Regra de {d.titular} (titular){admin && d.comissaoTitular ? ` · ${d.comissaoTitular}` : ''}</strong><small>{c.nome} recebe pelos valores de {primeiro(d.titular)}</small></span>
-              </label>
-            </fieldset>
+            <Passo n={2} titulo="Comissão deste horário">
+              <fieldset className="b-opcoes tr-regra">
+                <legend className="ag-vh">Comissão deste horário</legend>
+                <label className={regra === 'substituta' ? 'ativo' : ''}>
+                  <input type="radio" name="troca-regra" checked={regra === 'substituta'} onChange={() => setRegra('substituta')} />
+                  <span><strong>Regra de quem substitui{admin && c.comissao ? ` · ${c.comissao}` : ''}</strong><small>{c.nome} recebe pelo que tem cadastrado</small></span>
+                </label>
+                <label className={regra === 'titular' ? 'ativo' : ''}>
+                  <input type="radio" name="troca-regra" checked={regra === 'titular'} onChange={() => setRegra('titular')} />
+                  <span><strong>Regra de {d.titular} (titular){admin && d.comissaoTitular ? ` · ${d.comissaoTitular}` : ''}</strong><small>{c.nome} recebe pelos valores de {primeiro(d.titular)}</small></span>
+                </label>
+              </fieldset>
+            </Passo>
           )}
 
           {c && !volta && !c.agora && (
-            <div className="b-linha2">
-              <label className="b-campo"><span className="rotulo">Motivo{d.pedido ? ' (opcional)' : ''}</span>
-                <select value={motivo} onChange={(e) => setMotivo(e.target.value)}>
-                  <option value="">{d.pedido ? 'Manter o do pedido' : 'Escolha…'}</option>
-                  {MOTIVOS_TROCA.map((m) => <option key={m}>{m}</option>)}
-                </select></label>
-              <label className="b-campo"><span className="rotulo">Detalhe (opcional)</span>
-                <input value={detalhe} onChange={(e) => setDetalhe(e.target.value)} maxLength={80} placeholder="Ex.: consulta médica" /></label>
-            </div>
+            <Passo n={3} titulo="Motivo">
+              <div className="b-linha2">
+                <label className="b-campo"><span className="rotulo">Motivo{d.pedido ? ' (opcional)' : ''}</span>
+                  <select value={motivo} onChange={(e) => setMotivo(e.target.value)}>
+                    <option value="">{d.pedido ? 'Manter o do pedido' : 'Escolha…'}</option>
+                    {MOTIVOS_TROCA.map((m) => <option key={m}>{m}</option>)}
+                  </select></label>
+                <label className="b-campo"><span className="rotulo">Detalhe (opcional)</span>
+                  <input value={detalhe} onChange={(e) => setDetalhe(e.target.value)} maxLength={80} placeholder="Ex.: consulta médica" /></label>
+              </div>
+            </Passo>
           )}
 
           {confirmar && (
-            <div className="aviso tr-confirmar" role="alert">
-              <p>{confirmar.texto}</p>
-              <div className="b-botoes">
-                <BotaoAcao className="botao botao--cheio botao--p" acao={() => enviar(escolha, { forcar: true })}>Trocar mesmo assim</BotaoAcao>
-                <button type="button" className="link-acao" onClick={() => { setConfirmar(null); setEscolha(''); }}>Escolher outra pessoa</button>
-              </div>
-            </div>
+            <Aviso tom="aviso" acao={<>
+              <BotaoAcao className="botao botao--cheio botao--p" acao={() => enviar(escolha, { forcar: true })}>Trocar mesmo assim</BotaoAcao>
+              <button type="button" className="botao botao--fantasma botao--p" onClick={() => { setConfirmar(null); setEscolha(''); }}>Escolher outra pessoa</button>
+            </>}>{confirmar.texto}</Aviso>
           )}
           <Erro>{erro}</Erro>
           {!confirmar && (
@@ -314,25 +325,31 @@ export function AlguemNaoVem({ dia, aoFechar, aoTerminar }) {
       <div className="b-form">
         {lista ? (
           <div className="tr-ausencia__resumo">
-            <span><strong>{lista.profissional}</strong> não vem · {quando(f.data)}{f.dias > 1 ? ` e mais ${plural(f.dias - 1, 'dia', 'dias')}` : ''} · {motivoTexto(f.motivo, f.detalhe)}</span>
-            <button type="button" className="link-acao" onClick={() => setLista(null)}>Mudar</button>
+            <span className="tr-ausencia__ini" aria-hidden="true">{iniciais(lista.profissional)}</span>
+            <span className="tr-ausencia__txt"><span><strong>{lista.profissional}</strong> não vem</span>
+              <small>{quando(f.data)}{f.dias > 1 ? ` e mais ${plural(f.dias - 1, 'dia', 'dias')}` : ''} · {motivoTexto(f.motivo, f.detalhe)}</small></span>
+            <button type="button" className="botao botao--fantasma botao--p" onClick={() => setLista(null)}>Mudar</button>
           </div>
         ) : (<>
-        <div className="tr-ausencia__form">
-          <label className="b-campo tr-ausencia__quem"><span className="rotulo">Quem não vem</span>
-            <select {...campo('profissional')}>
-              <option value="">{nomes.length ? 'Escolha…' : 'Carregando a equipe…'}</option>
-              {nomes.map((n) => <option key={n}>{n}</option>)}
-            </select></label>
-          <label className="b-campo"><span className="rotulo">A partir de</span><input type="date" min={hojeIso()} {...campo('data')} /></label>
-          <label className="b-campo"><span className="rotulo">Por quantos dias</span>
-            <select {...campo('dias', true)}>{[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{plural(n, 'dia', 'dias')}</option>)}</select></label>
-        </div>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Motivo</span>
-            <select {...campo('motivo')}>{MOTIVOS_TROCA.map((m) => <option key={m}>{m}</option>)}</select></label>
-          <label className="b-campo"><span className="rotulo">Detalhe (opcional)</span><input {...campo('detalhe')} maxLength={80} placeholder="Ex.: gripe" /></label>
-        </div>
+        <Passo n={1} titulo="Quem não vem">
+          <div className="tr-ausencia__form">
+            <label className="b-campo tr-ausencia__quem"><span className="rotulo">Pessoa</span>
+              <select {...campo('profissional')}>
+                <option value="">{nomes.length ? 'Escolha…' : 'Carregando a equipe…'}</option>
+                {nomes.map((n) => <option key={n}>{n}</option>)}
+              </select></label>
+            <label className="b-campo"><span className="rotulo">A partir de</span><input type="date" min={hojeIso()} {...campo('data')} /></label>
+            <label className="b-campo"><span className="rotulo">Por quantos dias</span>
+              <select {...campo('dias', true)}>{[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{plural(n, 'dia', 'dias')}</option>)}</select></label>
+          </div>
+        </Passo>
+        <Passo n={2} titulo="Motivo">
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Motivo</span>
+              <select {...campo('motivo')}>{MOTIVOS_TROCA.map((m) => <option key={m}>{m}</option>)}</select></label>
+            <label className="b-campo"><span className="rotulo">Detalhe (opcional)</span><input {...campo('detalhe')} maxLength={80} placeholder="Ex.: gripe" /></label>
+          </div>
+        </Passo>
         {!lista && (
           <BotaoAcao className="botao botao--cheio" disabled={!f.profissional || buscando} acao={() => ver()}>
             {f.profissional ? `Ver os horários de ${primeiro(f.profissional)}` : 'Escolha quem não vem'}
@@ -344,9 +361,9 @@ export function AlguemNaoVem({ dia, aoFechar, aoTerminar }) {
         {lista && (
           <>
             <div className="tr-ausencia__topo">
-              <strong>{lista.itens.length === 0 ? `${lista.profissional} não tem aula nem atendimento ${f.dias === 1 ? 'neste dia' : 'nesses dias'}.`
-                : `${plural(lista.itens.length, 'horário', 'horários')} de ${lista.profissional}${pendentes && pendentes < lista.itens.length ? ` · ${pendentes} sem troca` : ''}`}</strong>
-              <button type="button" className="link-acao" onClick={() => ver()}>Atualizar</button>
+              <h3>{lista.itens.length === 0 ? `${lista.profissional} não tem aula nem atendimento ${f.dias === 1 ? 'neste dia' : 'nesses dias'}.`
+                : <>{plural(lista.itens.length, 'horário', 'horários')} de {lista.profissional}{pendentes && pendentes < lista.itens.length ? <Tag tom="aviso">{pendentes} sem troca</Tag> : null}</>}</h3>
+              <button type="button" className="botao botao--fantasma botao--p" onClick={() => ver()}>Atualizar</button>
             </div>
             <ul className="tr-itens">
               {lista.itens.map((it) => {
@@ -366,20 +383,17 @@ export function AlguemNaoVem({ dia, aoFechar, aoTerminar }) {
                             {it.candidatos.filter((c, i, todos) => c.titular || !todos.some((y) => y.titular && y.nome === c.nome)).map((c) => { const [t, , det] = situacao(c); return <option key={c.nome} value={c.nome}>{c.nome} · {det && t !== 'Livre' ? det.replace(/\s*\(.*\)$/, '') : t.toLowerCase()}</option>; })}
                           </select></label>
                         <BotaoAcao className="botao botao--cheio botao--p" disabled={!escolhas[it.ref] || !!confirmar[it.ref]} acao={() => trocar(it)}>Trocar</BotaoAcao>
-                        <button type="button" className="link-acao" onClick={() => setDetalhe(it)}>Mais opções</button>
+                        <button type="button" className="botao botao--fantasma botao--p" onClick={() => setDetalhe(it)}>Mais opções</button>
                       </div>
                     )}
                     {confirmar[it.ref] && (
-                      <div className="aviso tr-confirmar" role="alert">
-                        <p>{confirmar[it.ref]}</p>
-                        <div className="b-botoes">
-                          <BotaoAcao className="botao botao--cheio botao--p" acao={() => trocar(it, true)}>Trocar mesmo assim</BotaoAcao>
-                          <button type="button" className="link-acao" onClick={() => setConfirmar((x) => ({ ...x, [it.ref]: '' }))}>Escolher outra pessoa</button>
-                        </div>
-                      </div>
+                      <Aviso tom="aviso" acao={<>
+                        <BotaoAcao className="botao botao--cheio botao--p" acao={() => trocar(it, true)}>Trocar mesmo assim</BotaoAcao>
+                        <button type="button" className="botao botao--fantasma botao--p" onClick={() => setConfirmar((x) => ({ ...x, [it.ref]: '' }))}>Escolher outra pessoa</button>
+                      </>}>{confirmar[it.ref]}</Aviso>
                     )}
                     <Erro>{erros[it.ref]}</Erro>
-                    {r && (r.alertas || []).map((a) => <p key={a} className="aviso">{a}</p>)}
+                    {r && (r.alertas || []).map((a) => <Aviso key={a} tom="aviso">{a}</Aviso>)}
                     {r && <AvisarClientes avisos={r.avisos} />}
                   </li>
                 );
@@ -387,10 +401,10 @@ export function AlguemNaoVem({ dia, aoFechar, aoTerminar }) {
             </ul>
             {lista.servicos && (
               <div className="tr-bloquear">
-                {bloqueio ? <p className="tr-feito"><strong>Pronto</strong><span>{bloqueio}</span></p> : (
+                {bloqueio ? <Aviso tom="ok" titulo="Pronto">{bloqueio}</Aviso> : (
                   <>
                     <p><strong>Bloquear a agenda de {primeiro(lista.profissional)}</strong>
-                      <span>{f.dias === 1 ? 'O dia todo, para ninguém marcar horário neste dia.' : `O dia todo, nos ${f.dias} dias, para ninguém marcar horário.`}</span></p>
+                      <span>{f.dias === 1 ? 'O dia todo, para ninguém marcar horário.' : `O dia todo, nos ${f.dias} dias, para ninguém marcar horário.`}</span></p>
                     <BotaoAcao className="botao botao--linha botao--p" acao={bloquear}>Bloquear {f.dias === 1 ? 'o dia' : `os ${f.dias} dias`}</BotaoAcao>
                   </>
                 )}
@@ -431,20 +445,19 @@ export function PedirSubstituicao({ dia, item, aoFechar, aoEnviar }) {
     return (
       <Modal titulo="Pedido enviado" aoFechar={aoEnviar}>
         <div className="b-form">
-          <div className="tr-feito">
-            <strong>Pedido enviado para a recepção ({plural(enviado.pedidos, 'horário', 'horários')})</strong>
-            <span>A recepção escolhe quem cobre e avisa os clientes. Acompanhe a resposta em Agenda → Trocas.</span>
-          </div>
+          <Aviso tom="ok" titulo={`Pedido enviado para a recepção (${plural(enviado.pedidos, 'horário', 'horários')})`}>
+            A recepção escolhe quem cobre e avisa os clientes. Acompanhe a resposta em Agenda → Trocas.
+          </Aviso>
           <button type="button" className="botao botao--cheio" onClick={aoEnviar}>Ok</button>
         </div>
       </Modal>
     );
   }
   return (
-    <Modal titulo="Pedir substituição" rotulo={item ? `${item.titulo} · ${quando(item.data, item.hora)}` : 'A recepção escolhe quem cobre seus horários'} aoFechar={aoFechar}>
+    <Modal titulo="Pedir substituição" rotulo={item ? `${item.titulo} · ${quando(item.data, item.hora)}` : 'A recepção escolhe quem cobre'} aoFechar={aoFechar}>
       <div className="b-form">
         {!item && (
-          <>
+          <Passo n={1} titulo="Quando">
             <div className="b-linha2">
               <label className="b-campo"><span className="rotulo">A partir de</span><input type="date" min={hojeIso()} {...campo('data')} /></label>
               <label className="b-campo"><span className="rotulo">Por quantos dias</span>
@@ -457,11 +470,13 @@ export function PedirSubstituicao({ dia, item, aoFechar, aoEnviar }) {
                 <label className="b-campo"><span className="rotulo">Até</span><input type="time" step={900} {...campo('ate')} /></label>
               </div>
             )}
-          </>
+          </Passo>
         )}
-        <label className="b-campo"><span className="rotulo">Motivo</span>
-          <input {...campo('motivo')} maxLength={120} placeholder="Ex.: consulta médica, viagem, curso" required aria-invalid={!f.motivo.trim()} /></label>
-        <p className="b-suave tr-nota">Seus horários continuam com você até a recepção confirmar a troca.</p>
+        <Passo n={item ? 1 : 2} titulo="Motivo">
+          <label className="b-campo"><span className="ag-vh">Motivo</span>
+            <input {...campo('motivo')} maxLength={120} placeholder="Ex.: consulta médica, viagem, curso" required aria-invalid={!f.motivo.trim()} aria-label="Motivo" /></label>
+        </Passo>
+        <Aviso tom="info">Seus horários continuam com você até a recepção confirmar a troca.</Aviso>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" disabled={!f.motivo.trim()} acao={enviar}>{f.motivo.trim() ? 'Enviar pedido' : 'Conte o motivo'}</BotaoAcao>
       </div>
@@ -499,23 +514,20 @@ export function PainelTrocas({ dia, aoMudar }) {
   return (
     <div className="tr-painel">
       <Erro>{erro}</Erro>
-      {aviso && <p className="aviso" role="status">{aviso}</p>}
+      {aviso && <Aviso tom="alerta">{aviso}</Aviso>}
       {!balcao && (
-        <div className="tr-painel__barra">
-          <p className="b-suave">Não vai poder atender ou dar aula? Peça aqui: a recepção escolhe quem cobre e avisa os clientes.</p>
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setPedir(true)}>Pedir substituição</button>
-        </div>
+        <Aviso tom="info" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => setPedir(true)}>Pedir substituição</button>}>
+          Não vai poder atender ou dar aula? A recepção escolhe quem cobre e avisa os clientes.
+        </Aviso>
       )}
 
-      <section className="b-cartao">
-        <header className="b-cartao__topo">
-          <h2 className="b-cartao__titulo">{balcao ? 'Pedidos de troca' : 'Meus pedidos em aberto'}</h2>
-          {dados.pedidos.length > 0 && <Tag tom="aviso">{plural(dados.pedidos.length, 'em aberto', 'em aberto')}</Tag>}
-        </header>
+      <Secao titulo={balcao ? 'Pedidos de troca' : 'Meus pedidos em aberto'} className="tr-secao"
+        ajuda={balcao ? 'Quando alguém da equipe pedir substituição, o pedido aparece aqui para você resolver ou recusar.' : null}
+        acoes={dados.pedidos.length > 0 ? <Tag tom="aviso">{plural(dados.pedidos.length, 'em aberto', 'em aberto')}</Tag> : null}>
         {dados.pedidos.length === 0 ? (
-          <p className="b-suave">{balcao ? 'Nenhum pedido em aberto. Quando alguém da equipe pedir substituição, aparece aqui.' : 'Nenhum pedido em aberto.'}</p>
+          <p className="tr-vazio">Nenhum pedido em aberto.</p>
         ) : (
-          <ul className="tr-pedidos">
+          <ul className="tr-pedidos tr-lista">
             {dados.pedidos.map((p) => (
               <li key={p.id} className="tr-ped">
                 <span className="tr-item__hora">{hora(p.hora)}</span>
@@ -528,10 +540,10 @@ export function PainelTrocas({ dia, aoMudar }) {
                   {balcao ? (
                     <>
                       <button type="button" className="botao botao--cheio botao--p" onClick={() => setResolver(p)}>Resolver</button>
-                      <button type="button" className="link-sair" onClick={() => setRecusar({ id: p.id, resposta: '' })}>Recusar</button>
+                      <button type="button" className="botao botao--fantasma botao--p ag-perigo" onClick={() => setRecusar({ id: p.id, resposta: '' })}>Recusar</button>
                     </>
                   ) : (
-                    <BotaoAcao className="link-sair" confirmar="Cancelar este pedido? O horário continua com você." acao={async () => {
+                    <BotaoAcao className="botao botao--fantasma botao--p ag-perigo" confirmar="Cancelar este pedido? O horário continua com você." acao={async () => {
                       setAviso('');
                       try { await chamar('cancelarPedido', { id: p.id }); atualizar(); } catch (e) { setAviso(e.message); }
                     }}>Cancelar pedido</BotaoAcao>
@@ -546,7 +558,7 @@ export function PainelTrocas({ dia, aoMudar }) {
                         setAviso('');
                         try { await chamar('cancelarPedido', { id: p.id, resposta: recusar.resposta }); setRecusar(null); atualizar(); } catch (e) { setAviso(e.message); }
                       }}>Recusar pedido</BotaoAcao>
-                      <button type="button" className="link-acao" onClick={() => setRecusar(null)}>Voltar</button>
+                      <button type="button" className="botao botao--fantasma botao--p" onClick={() => setRecusar(null)}>Voltar</button>
                     </div>
                   </div>
                 )}
@@ -554,12 +566,11 @@ export function PainelTrocas({ dia, aoMudar }) {
             ))}
           </ul>
         )}
-      </section>
+      </Secao>
 
       {!balcao && cubro.length > 0 && (
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Horários que você cobre</h2></header>
-          <ul className="tr-hist">
+        <Secao titulo="Horários que você cobre" className="tr-secao">
+          <ul className="tr-hist tr-lista">
             {cubro.map((s) => (
               <li key={s.id} className="tr-hist__item">
                 <span className="tr-hist__quando"><strong>{hora(s.hora)}</strong><small>{quando(s.data)}</small></span>
@@ -568,18 +579,12 @@ export function PainelTrocas({ dia, aoMudar }) {
               </li>
             ))}
           </ul>
-        </section>
+        </Secao>
       )}
 
-      <section className="b-cartao">
-        <header className="b-cartao__topo">
-          <div>
-            <h2 className="b-cartao__titulo">Histórico</h2>
-            <p className="b-suave">Últimos 30 dias e próximos 60.</p>
-          </div>
-        </header>
-        {historico.length === 0 ? <p className="b-suave">Nenhuma troca neste período.</p> : (
-          <ul className="tr-hist">
+      <Secao titulo="Histórico" className="tr-secao" ajuda="Últimos 30 dias e próximos 60.">
+        {historico.length === 0 ? <p className="tr-vazio">Nenhuma troca neste período.</p> : (
+          <ul className="tr-hist tr-lista">
             {historico.map((s) => {
               const st = STATUS_TROCA[s.status] || [s.status, 'neutro'];
               const quem = s.status === 'feita' || s.status === 'desfeita'
@@ -600,20 +605,25 @@ export function PainelTrocas({ dia, aoMudar }) {
             })}
           </ul>
         )}
-      </section>
+      </Secao>
 
       {balcao && dados.resumo.length > 0 && (
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Por pessoa</h2></header>
+        <Secao titulo="Por pessoa" className="tr-secao">
           <ul className="tr-resumo">
             {dados.resumo.map((p) => (
               <li key={p.nome}>
-                <strong>{p.nome}</strong>
-                <span>{p.substituida ? `${plural(p.substituida, 'horário passou', 'horários passaram')} para outra pessoa` : ''}{p.substituida && p.cobriu ? ' · ' : ''}{p.cobriu ? `cobriu ${plural(p.cobriu, 'horário', 'horários')}` : ''}</span>
+                <span className="tr-resumo__ini" aria-hidden="true">{iniciais(p.nome)}</span>
+                <span className="tr-resumo__txt">
+                  <strong>{p.nome}</strong>
+                  <span className="b-meta">
+                    {p.substituida > 0 && <span>{plural(p.substituida, 'horário passou', 'horários passaram')} para outra pessoa</span>}
+                    {p.cobriu > 0 && <span>cobriu {plural(p.cobriu, 'horário', 'horários')}</span>}
+                  </span>
+                </span>
               </li>
             ))}
           </ul>
-        </section>
+        </Secao>
       )}
 
       {resolver && <TrocaProfissional tipo={resolver.tipo} id={resolver.ref} aoFechar={() => setResolver(null)} aoTerminar={() => { setResolver(null); atualizar(); }} />}

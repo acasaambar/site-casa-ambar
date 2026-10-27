@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import './css/agenda.css';
+import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Esqueleto, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, Aviso, Ajuda, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
-import { Ocupacao } from './Graficos.jsx';
+import { Lugares, Passo, ClienteEscolhido } from './AgendaPecas.jsx';
+import { iniciais } from './agendaUtil.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { comNumeros } from '../components/Num.jsx';
 import { AgendaServicos, AgendaSemana } from './Servicos.jsx';
@@ -77,20 +79,19 @@ export default function Agenda() {
     if (pronto) semana.atendimentos.forEach((a) => { if (a.status !== 'cancelado') c[a.data] = (c[a.data] || 0) + 1; });
     return c;
   }, [pronto, semana]);
+  // "7 atendimentos · 8 aulas · 19 alunos": cada número em destaque
+  const n_ = (n, um, varios) => <span key={um}><strong>{n}</strong> {Number(n) === 1 ? um : varios}</span>;
   const resumo = () => {
-    if (!pronto) return 'Carregando…';
+    if (!pronto) return <span>Carregando…</span>;
     if (vista === 'semana') {
       const n = Object.values(porDia).reduce((a, b) => a + b, 0);
-      return `${plural(n, 'atendimento', 'atendimentos')} e ${plural(semana.aulas.length, 'aula', 'aulas')} na semana`;
+      return [n_(n, 'atendimento', 'atendimentos'), n_(semana.aulas.length, 'aula', 'aulas'), <span key="s" className="ag-resumo__alunos">na semana</span>];
     }
     const n = porDia[dia] || 0;
     const alunos = dados.reduce((t, a) => t + a.ocupadosQtd, 0);
     // quem só dá aula não vê "0 atendimentos"
-    if (fazServicos === false) return `${plural(dados.length, 'aula', 'aulas')}${dados.length ? ` com ${plural(dados.reduce((t, a) => t + a.ocupadosQtd, 0), 'aluno', 'alunos')}` : ''}`;
-    return (<>
-      {plural(n, 'atendimento', 'atendimentos')} · {plural(dados.length, 'aula', 'aulas')}
-      {dados.length > 0 && <span className="ag-resumo__alunos"> com {plural(alunos, 'aluno', 'alunos')}</span>}
-    </>);
+    if (fazServicos === false) return [n_(dados.length, 'aula', 'aulas'), dados.length > 0 && n_(alunos, 'aluno', 'alunos')];
+    return [n_(n, 'atendimento', 'atendimentos'), n_(dados.length, 'aula', 'aulas'), dados.length > 0 && <span key="al" className="ag-resumo__alunos"><strong>{alunos}</strong> {alunos === 1 ? 'aluno' : 'alunos'}</span>];
   };
 
   // atendimento novo, remarcado ou mudado: aparece na hora e a semana se atualiza por trás
@@ -162,7 +163,7 @@ export default function Agenda() {
   return (
     <>
       {vista === 'trocas' ? (
-        <Cabecalho titulo="Trocas de profissional">{equipeBalcao ? 'Pedidos da equipe, trocas feitas e quem cobriu quem.' : 'Seus pedidos de substituição e os horários que você cobre.'}</Cabecalho>
+        <Cabecalho titulo="Trocas de profissional">{equipeBalcao ? 'Pedidos, trocas feitas e quem cobriu quem' : 'Seus pedidos e os horários que você cobre'}</Cabecalho>
       ) : (<>
       <Cabecalho titulo={comNumeros(vista === 'semana' ? tituloSemana(dia) : `${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`)}
         acoes={
@@ -172,7 +173,7 @@ export default function Agenda() {
             <button type="button" className="botao botao--linha botao--p" onClick={() => setDia(somarDias(dia, anda))} aria-label={vista === 'semana' ? 'Próxima semana' : 'Próximo dia'}>›</button>
             <input type="date" value={dia} onChange={(e) => e.target.value && setDia(e.target.value)} aria-label="Escolher data" className="b-data" />
           </div>
-        }><span className={`ag-resumo${pronto ? '' : ' ag-resumo--carregando'}`}>{resumo()}</span></Cabecalho>
+        }><span className={`ag-resumo b-meta${pronto ? '' : ' ag-resumo--carregando'}`}>{resumo()}</span></Cabecalho>
 
       {vista !== 'semana' && <div className="b-tira ag-tira" role="tablist" aria-label="Dias da semana">
         {tira.map((d) => (
@@ -222,49 +223,55 @@ export default function Agenda() {
       {vista === 'aulas' && (<>
 
       <Erro>{erro || aviso}</Erro>
-      {!dados && !erro && <Carregando texto="Carregando as aulas" />}
+      {!dados && !erro && <Esqueleto linhas={5} altura={64} />}
       {dados && aulas.length === 0 && (
-        <Vazio titulo="Sem aulas neste dia">{equipeBalcao ? 'Domingo, feriado ou dia bloqueado. Confira em Catálogo → Grade de aulas.' : 'Você não tem aula neste dia.'}</Vazio>
+        <Vazio titulo="Sem aulas neste dia" acao={equipeBalcao ? <Link className="botao botao--linha botao--p" to="/bancada/grade">Ver a grade de aulas</Link> : null}>
+          {equipeBalcao ? 'Domingo, feriado ou dia bloqueado.' : 'Você não tem aula neste dia.'}
+        </Vazio>
       )}
 
-      <div className="b-aulas">
+      <div className="ag-aulas">
         {aulas.map((a) => {
           const aberta = !!abertas[a.id];
           const presentes = a.reservas.filter((r) => r.status === 'check-in').length;
+          const lotada = a.ocupadosQtd >= a.capacidade;
+          const livres = Math.max(0, a.capacidade - a.ocupadosQtd);
           return (
-            <article key={a.id} id={'aula-' + a.id} className={`b-aula b-aula--${a.modalidade.toLowerCase()}${aberta ? ' b-aula--aberta' : ''}`}>
-              <button type="button" className="b-aula__topo" aria-expanded={aberta} onClick={() => setAbertas((x) => ({ ...x, [a.id]: !aberta }))}>
-                <strong className="b-aula__hora">{hora(a.hora)}</strong>
-                <span className="b-aula__info">
-                  <span className="b-aula__mod">{a.modalidade} <em>com {a.professor}</em>{a.titular && <small className="tr-nolugar">no lugar de {a.titular}</small>}</span>
-                  <Ocupacao valor={a.ocupadosQtd} total={a.capacidade} />
+            <article key={a.id} id={'aula-' + a.id} className={`ag-aula ag-aula--${a.modalidade.toLowerCase()}${aberta ? ' ag-aula--aberta' : ''}${a.passada ? ' ag-aula--passada' : ''}`}>
+              <button type="button" className="ag-aula__topo" aria-expanded={aberta} onClick={() => setAbertas((x) => ({ ...x, [a.id]: !aberta }))}>
+                <strong className="ag-aula__hora">{hora(a.hora)}</strong>
+                <span className="ag-aula__info">
+                  <span className="ag-aula__mod"><i aria-hidden="true" />{a.modalidade}<em>com {a.professor}</em></span>
+                  {a.titular && <small className="ag-aula__troca">no lugar de {a.titular}</small>}
+                  <Lugares total={a.capacidade} ocupados={a.ocupadosQtd} />
                 </span>
-                <span className="b-aula__num">
-                  <strong>{a.ocupadosQtd}/{a.capacidade}</strong>
-                  <small>{a.passada ? plural(presentes, 'presente', 'presentes') : a.ocupadosQtd >= a.capacidade ? 'lotada' : plural(a.capacidade - a.ocupadosQtd, 'livre', 'livres')}</small>
-                  {!a.passada && a.espera?.length > 0 && <small className="b-aula__espera">{plural(a.espera.length, 'na espera', 'na espera')}</small>}
+                <span className="ag-aula__num">
+                  <strong>{a.ocupadosQtd}<small>/{a.capacidade}</small></strong>
+                  {a.passada ? <Tag tom={presentes ? 'ok' : 'neutro'}>{plural(presentes, 'presente', 'presentes')}</Tag>
+                    : lotada ? <Tag tom="aviso">Lotada</Tag> : <Tag tom="ok">{plural(livres, 'livre', 'livres')}</Tag>}
+                  {!a.passada && a.espera?.length > 0 && <Tag tom="ambar">{plural(a.espera.length, 'na espera', 'na espera')}</Tag>}
                 </span>
-                <span className="b-aula__seta" aria-hidden="true">{aberta ? '−' : '+'}</span>
+                <span className="ag-aula__seta" aria-hidden="true" />
               </button>
 
               {aberta && (
-                <div className="b-aula__corpo">
-                  {a.reservas.length === 0 && <p className="b-suave">Ninguém reservou ainda.</p>}
-                  <ul className="b-reservas">
+                <div className="ag-aula__corpo">
+                  {a.reservas.length === 0 && <p className="ag-aula__vazio">Ninguém reservou ainda.</p>}
+                  <ul className="ag-res">
                     {a.reservas.map((r) => {
                       const st = STATUS_RESERVA[r.status] || [r.status, 'neutro'];
                       return (
-                        <li key={r.id} className={`b-reserva b-reserva--${r.status}`}>
+                        <li key={r.id} className={`ag-res__item ag-res--${r.status}`}>
                           {a.modalidade === 'Yoga' ? (
-                            <span className="b-reserva__tapete" title="Tapete">{r.tapete || '–'}</span>
+                            <span className="ag-res__tapete" title="Tapete">{r.tapete || '–'}</span>
                           ) : (
                             // Pilates não tem tapete: o quadrado só marca presença (✓) ou falta (×)
-                            <span className="b-reserva__tapete b-reserva__tapete--sem" aria-hidden="true">{r.status === 'check-in' ? '✓' : r.status === 'falta' ? '×' : ''}</span>
+                            <span className="ag-res__tapete ag-res__tapete--sem" aria-hidden="true">{r.status === 'check-in' ? '✓' : r.status === 'falta' ? '×' : iniciais(r.nome)}</span>
                           )}
-                          <div className="b-reserva__quem">
+                          <div className="ag-res__quem">
                             {/* recepção abre o cadastro pelo nome (profissional não recebe o CPF) */}
-                            <strong>{equipeBalcao && r.cpf ? <Link to={`/bancada/alunos/${r.cpf}`} className="b-reserva__nome">{r.nome}</Link> : r.nome}</strong>
-                            <span className="b-reserva__tags">
+                            <strong>{equipeBalcao && r.cpf ? <Link to={`/bancada/alunos/${r.cpf}`} className="ag-res__nome">{r.nome}</Link> : r.nome}</strong>
+                            <span className="ag-res__tags">
                               {r.primeiraAula && <Tag tom="ambar">1ª aula</Tag>}
                               {r.alerta && <Tag tom="alerta" title="A ficha de saúde tem pontos de atenção">saúde: atenção</Tag>}
                               {!r.ficha && <Tag tom="aviso">sem ficha</Tag>}
@@ -274,29 +281,29 @@ export default function Agenda() {
                             <Alertas lista={r.alertas} compacto />
                           </div>
                           {r.status !== 'pendente' && (
-                            <div className="b-reserva__acoes">
-                              <button type="button" className={`b-presenca${r.status === 'check-in' ? ' b-presenca--sim' : ''}`}
+                            <div className="ag-pres" role="group" aria-label={`Presença de ${r.nome}`}>
+                              <button type="button" className={`ag-pres__botao${r.status === 'check-in' ? ' ag-pres__botao--sim' : ''}`}
                                 onClick={() => presenca(r, r.status === 'check-in' ? 'reservado' : 'check-in')} aria-pressed={r.status === 'check-in'}>
-                                ✓ <span>Presente</span>
+                                <span aria-hidden="true">✓</span> Presente
                               </button>
-                              <button type="button" className={`b-presenca b-presenca--falta${r.status === 'falta' ? ' b-presenca--sim' : ''}`}
+                              <button type="button" className={`ag-pres__botao ag-pres__botao--falta${r.status === 'falta' ? ' ag-pres__botao--sim' : ''}`}
                                 onClick={() => presenca(r, r.status === 'falta' ? 'reservado' : 'falta')} aria-pressed={r.status === 'falta'}>
-                                × <span>Faltou</span>
+                                <span aria-hidden="true">×</span> Faltou
                               </button>
                             </div>
                           )}
-                          <div className="b-reserva__mais">
-                            <button type="button" className="link-acao" onClick={() => setFicha({ reservaId: r.id, nome: r.nome })}>ficha</button>
+                          <div className="ag-res__mais">
+                            {equipeBalcao && r.aPagar && (
+                              <button type="button" className="botao botao--cheio botao--p" onClick={() => setReceber({ reserva: r, aula: a })}>Receber</button>
+                            )}
+                            <button type="button" className="botao botao--fantasma botao--p" onClick={() => setFicha({ reservaId: r.id, nome: r.nome })}>Ficha</button>
                             {r.whatsapp && (
-                              <a className="link-acao" href={linkWhats(r.whatsapp, `Olá, ${primeiro(r.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${r.nome}`}>
-                                <IconeWhatsapp tamanho={15} />
+                              <a className="ag-icone" href={linkWhats(r.whatsapp, `Olá, ${primeiro(r.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${r.nome}`} title="WhatsApp">
+                                <IconeWhatsapp tamanho={18} />
                               </a>
                             )}
-                            {equipeBalcao && r.aPagar && (
-                              <button type="button" className="link-acao b-reserva__receber" onClick={() => setReceber({ reserva: r, aula: a })}>Receber</button>
-                            )}
                             {equipeBalcao && (
-                              <BotaoAcao className="link-sair" acao={() => cancelar(r)} confirmar={`Cancelar a reserva de ${r.nome}?`}>cancelar</BotaoAcao>
+                              <BotaoAcao className="botao botao--fantasma botao--p ag-perigo" acao={() => cancelar(r)} confirmar={`Cancelar a reserva de ${r.nome}?`}>Cancelar</BotaoAcao>
                             )}
                           </div>
                         </li>
@@ -307,14 +314,14 @@ export default function Agenda() {
                     <EsperaDaAula aula={a} aoAgendar={(x) => setAgendar({ ...a, alunoInicial: x })} aoPor={() => setEsperaAula(a)} aoMudar={recarregar} />
                   )}
                   {equipeBalcao && (
-                    <div className="b-botoes b-aula__rodape">
-                      <button type="button" className="botao botao--cheio botao--p b-aula__agendar" onClick={() => setAgendar(a)}>Agendar aluno</button>
+                    <div className="ag-aula__rodape">
+                      <button type="button" className="botao botao--cheio botao--p" onClick={() => setAgendar(a)}>Agendar aluno</button>
                       <button type="button" className="botao botao--linha botao--p" onClick={() => setTrocar(a)}>Trocar quem dá a aula</button>
                     </div>
                   )}
                   {!equipeBalcao && !a.passada && !a.titular && (
-                    <div className="b-botoes b-aula__rodape">
-                      <button type="button" className="link-acao" onClick={() => setPedir({ item: { tipo: 'aula', ref: a.id, titulo: a.modalidade, data: a.data, hora: a.hora } })}>Pedir substituição desta aula</button>
+                    <div className="ag-aula__rodape">
+                      <button type="button" className="botao botao--linha botao--p" onClick={() => setPedir({ item: { tipo: 'aula', ref: a.id, titulo: a.modalidade, data: a.data, hora: a.hora } })}>Pedir substituição desta aula</button>
                     </div>
                   )}
                 </div>
@@ -348,10 +355,10 @@ function tituloSemana(dia) {
 }
 
 const FORMAS = [
-  ['credito', 'Plano do aluno', 'desconta do plano ou das aulas avulsas dele'],
-  ['pagar', 'Aula avulsa · paga depois', 'reserva a vaga; recebe na aula ou na comanda (não entra no caixa agora)'],
-  ['avulsa', 'Aula avulsa · já pagou', 'registra a venda agora e já agenda'],
-  ['wellhub', 'Wellhub', 'check-in no app Wellhub ao chegar'],
+  ['credito', 'Plano do aluno', 'desconta do plano ou das aulas avulsas'],
+  ['pagar', 'Aula avulsa · paga depois', 'reserva a vaga; recebe na aula ou na comanda'],
+  ['avulsa', 'Aula avulsa · já pagou', 'registra a venda agora'],
+  ['wellhub', 'Wellhub', 'check-in no app ao chegar'],
   ['cortesia', 'Cortesia', 'aula grátis, sem descontar'],
 ];
 const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito'];
@@ -364,32 +371,33 @@ function EsperaDaAula({ aula, aoAgendar, aoPor, aoMudar }) {
   const quando = `${DIAS_LONGOS[diaSemana(aula.data)].toLowerCase()}, ${aula.data.slice(8)}/${aula.data.slice(5, 7)}`;
   const mudar = async (x, status) => { await chamar('atualizarEspera', { id: x.id, status }); aoMudar(); };
   return (
-    <div className="esp-aula">
-      <div className="esp-aula__topo">
-        <span className="rotulo">Lista de espera{lista.length ? ` · ${lista.length}` : ''}</span>
-        <button type="button" className="link-acao" onClick={aoPor}>+ pôr na lista</button>
-      </div>
-      {lista.length === 0 && <p className="b-suave">Ninguém esperando. Quem entrar recebe e-mail quando abrir uma vaga.</p>}
-      {lista.length > 0 && temVaga && <p className="esp-aula__vaga">Abriu vaga: avise quem está esperando (por ordem de chegada).</p>}
+    <section className="ag-espera">
+      <header className="ag-espera__topo">
+        <h3 className="ag-espera__titulo">Lista de espera{lista.length > 0 && <span className="ag-contador">{lista.length}</span>}
+          <Ajuda titulo="Lista de espera">Quem entra na lista recebe e-mail quando abrir uma vaga. Aqui a recepção também pode avisar pelo WhatsApp.</Ajuda></h3>
+        <button type="button" className="botao botao--fantasma botao--p" onClick={aoPor}>+ Pôr na lista</button>
+      </header>
+      {lista.length === 0 && <p className="ag-aula__vazio">Ninguém esperando.</p>}
+      {lista.length > 0 && temVaga && <Aviso tom="ok">Abriu vaga: avise quem espera, por ordem de chegada.</Aviso>}
       {lista.length > 0 && (
-        <ol className="esp-lista">
+        <ol className="ag-esp">
           {lista.map((x) => (
             <li key={x.id}>
-              <span className="esp-lista__quem"><strong>{x.nome}</strong>
+              <span className="ag-esp__quem"><strong>{x.nome}</strong>
                 <small>{x.origem === 'site' ? 'pelo site' : 'pela recepção'}{x.status === 'avisado' ? ' · aviso enviado' : ''}</small></span>
-              <span className="esp-lista__acoes">
+              <span className="ag-esp__acoes">
                 {x.whatsapp && (
-                  <a className="link-acao com-icone" href={linkWhats(x.whatsapp, `Olá, ${primeiro(x.nome)}! Abriu uma vaga na aula de ${aula.modalidade} de ${quando} às ${hora(aula.hora)}, com ${aula.professor}. Quer que a gente reserve para você?`)}
-                    target="_blank" rel="noreferrer" onClick={() => x.status !== 'avisado' && mudar(x, 'avisado').catch(() => {})}><IconeWhatsapp tamanho={14} /> Avisar</a>
+                  <a className="botao botao--linha botao--p com-icone" href={linkWhats(x.whatsapp, `Olá, ${primeiro(x.nome)}! Abriu uma vaga na aula de ${aula.modalidade} de ${quando} às ${hora(aula.hora)}, com ${aula.professor}. Quer que a gente reserve para você?`)}
+                    target="_blank" rel="noreferrer" onClick={() => x.status !== 'avisado' && mudar(x, 'avisado').catch(() => {})}><IconeWhatsapp tamanho={15} /> Avisar</a>
                 )}
-                {temVaga && <button type="button" className="link-acao" onClick={() => aoAgendar(x)}>Agendar</button>}
-                <BotaoAcao className="link-sair" confirmar={`Tirar ${x.nome} da lista de espera?`} acao={() => mudar(x, 'desistiu')}>tirar</BotaoAcao>
+                {temVaga && <button type="button" className="botao botao--cheio botao--p" onClick={() => aoAgendar(x)}>Agendar</button>}
+                <BotaoAcao className="botao botao--fantasma botao--p ag-perigo" confirmar={`Tirar ${x.nome} da lista de espera?`} acao={() => mudar(x, 'desistiu')}>Tirar</BotaoAcao>
               </span>
             </li>
           ))}
         </ol>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -400,11 +408,12 @@ function EntrarEsperaAula({ aula, aoFechar, aoSalvar }) {
   return (
     <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${aula.professor}`} titulo="Lista de espera" aoFechar={aoFechar}>
       <div className="b-form">
-        <p className="b-suave">Quando alguém cancelar, quem está na lista recebe e-mail na hora, e a vaga aparece aqui para a recepção avisar pelo WhatsApp.</p>
-        <BuscaAluno autoFocus excluir={excluir} motivoExcluir="já está na aula ou na lista" aoEscolher={async (a) => {
-          setErro('');
-          try { await chamar('entrarEspera', { tipo: 'aula', aulaId: aula.id, cpf: a.cpf }); aoSalvar(); } catch (e) { setErro(e.message); }
-        }} />
+        <Passo titulo="Quem entra na lista" ajuda="Quando alguém cancelar, quem está na lista recebe e-mail na hora, e a vaga aparece na aula para a recepção avisar pelo WhatsApp.">
+          <BuscaAluno autoFocus excluir={excluir} motivoExcluir="já está na aula ou na lista" aoEscolher={async (a) => {
+            setErro('');
+            try { await chamar('entrarEspera', { tipo: 'aula', aulaId: aula.id, cpf: a.cpf }); aoSalvar(); } catch (e) { setErro(e.message); }
+          }} />
+        </Passo>
         <Erro>{erro}</Erro>
       </div>
     </Modal>
@@ -432,7 +441,9 @@ function ReceberAula({ reserva, aula, aoFechar, aoReceber }) {
   return (
     <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${reserva.nome}`} titulo="Receber a aula" aoFechar={aoFechar}>
       <div className="b-form">
-        <p className="b-suave">Aula avulsa reservada para pagar depois. Ao receber, a venda entra em Vendas e no caixa de hoje. (Se for pagar junto com outras coisas, abra uma comanda e inclua a aula avulsa: ela quita esta reserva.)</p>
+        <Aviso acao={<Ajuda titulo="Receber a aula">Aula avulsa reservada para pagar depois. Se for pagar junto com outras coisas, abra uma comanda e inclua a aula avulsa: ela quita esta reserva.</Ajuda>}>
+          A venda entra em Vendas e no caixa de hoje.
+        </Aviso>
         <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} />
         <Erro>{erro}</Erro>
         <button type="button" className="botao botao--cheio" disabled={enviando || faltaPagamento(pg)} onClick={confirmar}>{enviando ? 'Recebendo…' : 'Receber'}</button>
@@ -478,44 +489,41 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
   return (
     <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${aula.professor}`} titulo="Agendar aluno" aoFechar={aoFechar}>
       {!aluno ? (
-        <>
+        <Passo titulo="Quem vai" acao={<Ajuda titulo="Sem cadastro?">Cadastre em Clientes → Novo cliente e volte aqui.</Ajuda>}>
           <BuscaAluno aoEscolher={setAluno} autoFocus excluir={aula.reservas.map((r) => r.cpf).filter(Boolean)} />
-          <p className="b-suave b-nota">Ainda sem cadastro? Cadastre em <strong>Clientes → Novo cliente</strong> e volte aqui.</p>
-        </>
+        </Passo>
       ) : (
         <div className="b-form">
-          <div className="b-escolhido">
-            <div>
-              <strong>{aluno.nome}</strong>
-              <span>{aluno.plano || 'sem plano ativo'}{!aluno.ficha ? ' · sem ficha de saúde' : ''}</span>
-            </div>
-            <button type="button" className="link-sair" onClick={() => setAluno(null)}>trocar</button>
-          </div>
+          <ClienteEscolhido nome={aluno.nome} detalhe={`${aluno.plano || 'sem plano ativo'}${!aluno.ficha ? ' · sem ficha de saúde' : ''}`} aoTrocar={() => setAluno(null)} />
 
           {yoga && (
-            <fieldset className="b-tapetes">
-              <legend className="rotulo">Tapete</legend>
-              <div className="b-tapetes__sala">
-                {/* encaixe em aula lotada: tapetes extras depois da capacidade */}
-                {Array.from({ length: aula.capacidade + (lotada && encaixe ? 3 : 0) }, (_, i) => i + 1).map((n) => (
-                  <button key={n} type="button" disabled={ocupados.includes(n)} aria-pressed={tapete === n} onClick={() => setTapete(n)}
-                    title={n > aula.capacidade ? 'Tapete extra (encaixe)' : undefined}>{n}</button>
-                ))}
-              </div>
-              <span className="b-suave">frente da sala</span>
-            </fieldset>
+            <Passo titulo="Tapete">
+              <fieldset className="b-tapetes">
+                <legend className="ag-vh">Tapete</legend>
+                <div className="b-tapetes__sala">
+                  {/* encaixe em aula lotada: tapetes extras depois da capacidade */}
+                  {Array.from({ length: aula.capacidade + (lotada && encaixe ? 3 : 0) }, (_, i) => i + 1).map((n) => (
+                    <button key={n} type="button" disabled={ocupados.includes(n)} aria-pressed={tapete === n} onClick={() => setTapete(n)}
+                      title={n > aula.capacidade ? 'Tapete extra (encaixe)' : undefined}>{n}</button>
+                  ))}
+                </div>
+                <span className="b-suave">frente da sala</span>
+              </fieldset>
+            </Passo>
           )}
 
-          <fieldset className="b-opcoes">
-            <legend className="rotulo">Como esta aula será paga</legend>
-            {FORMAS.map(([id, t, d]) => (
-              <label key={id} className={forma === id ? 'ativo' : ''}>
-                <input type="radio" name="forma" checked={forma === id} onChange={() => setForma(id)} />
-                <span><strong>{t}</strong><small>{d}</small></span>
-              </label>
-            ))}
-          </fieldset>
-          {forma === 'avulsa' && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} />}
+          <Passo titulo="Como será paga">
+            <fieldset className="b-opcoes">
+              <legend className="ag-vh">Como esta aula será paga</legend>
+              {FORMAS.map(([id, t, d]) => (
+                <label key={id} className={forma === id ? 'ativo' : ''}>
+                  <input type="radio" name="forma" checked={forma === id} onChange={() => setForma(id)} />
+                  <span><strong>{t}</strong><small>{d}</small></span>
+                </label>
+              ))}
+            </fieldset>
+            {forma === 'avulsa' && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} />}
+          </Passo>
           {lotada && (
             <label className="b-check">
               <input type="checkbox" checked={encaixe} onChange={(e) => setEncaixe(e.target.checked)} /> Aula lotada: fazer encaixe mesmo assim
