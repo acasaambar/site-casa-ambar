@@ -915,7 +915,8 @@ export function ListaPagamentos({ lista, acoes, aoAbrir }) {
                 {(p.cupom || p.vale) && <span className="b-suave b-bloco">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
                 {p.observacao && <span className={`b-bloco ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
               </td>
-              <td data-rotulo="Valor" className="num"><span className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</span></td>
+              <td data-rotulo="Valor" className="num"><span className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</span>
+                {p.taxa > 0 && <span className="b-suave b-bloco vd-liquido" title={`Taxa estimada da maquininha: ${real(p.taxa)} (${String(p.taxaPct).replace('.', ',')}%)`}>líquido {real(p.liquido)}</span>}</td>
               <td data-rotulo="Forma">{/* "Cartão de crédito" não quebra no meio; bandeira e parcelas podem ir para a linha de baixo */}
                 {(p.metodo || '—').replace(/ /g, '\u00A0')}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
               <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{nomeSituacao[p.status] || p.status}</Tag></td>

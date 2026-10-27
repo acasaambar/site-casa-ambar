@@ -128,6 +128,23 @@ ok(r.ok && aCair > 0 && Math.abs(aCair - caixaHoje) < 0.05, 'Financeiro lista o 
 const cx = chamar('b_caixa', { token: adm }).dados.conferir.find((f) => f.forma === 'Cartão de crédito');
 ok(cx && cx.cai >= hoje, 'o caixa mostra o dia previsto para cair', cx);
 
+console.log('— líquido em cada venda');
+r = chamar('b_pagamentos', { token: adm, de: ontem, ate: hoje });
+const vendasP = r.ok ? r.dados : [];
+const vVisa = vendasP.find((x) => x.orderNsu === pgBal.dados.orderNsu);
+ok(vVisa && vVisa.taxaPct === 6.13 && Math.abs(vVisa.taxa - Math.round(vVisa.valor * 0.0613 * 100) / 100) < 0.011 && Math.abs(vVisa.liquido - (vVisa.valor - vVisa.taxa)) < 0.011, 'Vendas (administração): venda no crédito 3x Visa mostra taxa de 6,13% (tabela do teste) e o líquido', vVisa);
+const vPix = vendasP.find((x) => x.metodo === 'Pix' && x.status === 'pago');
+ok(!vPix || (vPix.taxa === 0 && vPix.liquido === vPix.valor), 'Vendas: Pix sem taxa, líquido = valor', vPix);
+const naComanda = vendasP.find((x) => x.comanda && x.metodo === 'Cartão de crédito');
+ok(!naComanda || (naComanda.taxa > 0 && naComanda.liquido < naComanda.valor), 'Vendas: venda de comanda no crédito também mostra o líquido', naComanda);
+r = chamar('b_pagamentos', { token: rec, de: ontem, ate: hoje });
+ok(r.ok && r.dados.every((x) => x.taxa === undefined && x.liquido === undefined), 'Vendas (recepção): não vê taxa nem líquido');
+r = chamar('b_caixa', { token: adm });
+const lancCredito = r.dados.lancamentos.filter((l) => l.metodo === 'Cartão de crédito');
+ok(lancCredito.length > 0 && lancCredito.every((l) => l.taxa > 0 && l.liquido < l.valor), 'Caixa do dia (administração): cada lançamento no crédito traz taxa e líquido', lancCredito[0]);
+r = chamar('b_caixa', { token: rec });
+ok(r.ok && r.dados.lancamentos.every((l) => l.taxa === undefined && l.liquido === undefined), 'Caixa do dia (recepção): lançamentos sem taxa nem líquido');
+
 console.log('— a calculadora da tela dá a mesma taxa que o servidor');
 import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'src', 'bancada', 'taxas.js')).href).then((tela) => {
   const tab = ctx.AJUSTES.taxas;

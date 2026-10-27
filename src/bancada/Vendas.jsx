@@ -45,6 +45,8 @@ function ListaVendas({ abas }) {
   }), [dados, filtro]);
   const pagos = (dados || []).filter((p) => p.status === 'pago');
   const total = pagos.reduce((s, p) => s + p.valor, 0);
+  const verLiquido = pagos.some((p) => p.liquido != null); // só a administração recebe a taxa e o líquido
+  const taxas = pagos.reduce((s, p) => s + (p.taxa || 0), 0);
   const devolver = (dados || []).filter((p) => /^DEVOLVER/.test(p.observacao));
 
   return (
@@ -54,7 +56,7 @@ function ListaVendas({ abas }) {
           <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={() => baixarCSV(`vendas-${de}-a-${ate}`, [
             [(p) => dataBR(p.pagoEm || p.criadoEm), 'Data'], ['nome', 'Cliente'], [(p) => cpfFmt(p.cpf), 'CPF'], ['descricao', 'Item'],
             [(p) => String(p.valorOriginal).replace('.', ','), 'Preço'], [(p) => String(p.desconto).replace('.', ','), 'Desconto'], [(p) => p.cupom || p.vale, 'Cupom/vale'],
-            [(p) => String(p.valor).replace('.', ','), 'Valor cobrado'], ['metodo', 'Forma'], ['bandeira', 'Bandeira'], ['parcelas', 'Parcelas'], ['origem', 'Origem'], ['status', 'Situação'],
+            [(p) => String(p.valor).replace('.', ','), 'Valor cobrado'], ...(verLiquido ? [[(p) => (p.taxa == null ? '' : String(p.taxa).replace('.', ',')), 'Taxa estimada'], [(p) => (p.liquido == null ? '' : String(p.liquido).replace('.', ',')), 'Líquido']] : []), ['metodo', 'Forma'], ['bandeira', 'Bandeira'], ['parcelas', 'Parcelas'], ['origem', 'Origem'], ['status', 'Situação'],
             ['observacao', 'Observação'], ['orderNsu', 'Código']], lista)}>Exportar CSV</button>
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>Registrar venda</button>
         </>
@@ -66,6 +68,7 @@ function ListaVendas({ abas }) {
       </div>
       <section className="b-kpis">
         <Kpi rotulo="Recebido no período" valor={realCurto(total)} detalhe={plural(pagos.filter((p) => p.valor > 0).length, 'venda', 'vendas')} />
+        {verLiquido && <Kpi rotulo="Líquido no período" valor={realCurto(total - taxas)} detalhe={taxas > 0 ? `${real(taxas)} de taxa da maquininha` : 'sem taxas no período'} />}
         <Kpi rotulo="Aguardando pagamento" valor={(dados || []).filter((p) => p.status === 'pendente').length} detalhe="links gerados e não pagos" />
         <Kpi rotulo="Juros a devolver" valor={devolver.length} tom={devolver.length ? 'alerta' : ''} detalhe="parcelou dentro do sem juros" />
       </section>
@@ -111,6 +114,9 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
         <div><dt>Item</dt><dd>{p.descricao}</dd></div>
         <div><dt>Valor</dt><dd>{real(p.valor)}{p.valeUsado > 0 && <span className="b-suave"> + {real(p.valeUsado)} em vale-presente</span>}</dd></div>
         <div><dt>Forma</dt><dd>{forma}<span className="b-suave"> · {p.origem}</span></dd></div>
+        {p.liquido != null && p.status === 'pago' && (
+          <div><dt>Líquido</dt><dd><strong>{real(p.liquido)}</strong>{p.taxa > 0 ? <span className="b-suave"> · taxa estimada {real(p.taxa)} ({String(p.taxaPct).replace('.', ',')}%)</span> : <span className="b-suave"> · sem taxa</span>}</dd></div>
+        )}
         {p.registradoPor && <div><dt>Lançada por</dt><dd>{p.registradoPor.split('@')[0]}{p.pagoEm ? ` · ${p.pagoEm.slice(11, 16)}` : ''}</dd></div>}
         {p.observacao && <div><dt>Observação</dt><dd>{p.observacao}</dd></div>}
       </dl>

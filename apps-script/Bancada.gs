@@ -1065,10 +1065,11 @@ function bancada_vender(d, m) {
   return Object.assign({}, primeira, { valor: feitas.reduce(function (t, f) { return t + numero(f.v.valor); }, 0), vendas: feitas.map(function (f) { return { nome: f.nome, orderNsu: f.v.orderNsu, valor: f.v.valor }; }) });
 }
 
-function bancada_pagamentos(d) {
+function bancada_pagamentos(d, m) {
   var de = String(d.de || somarDias(hojeTexto(), -30));
   var ate = String(d.ate || hojeTexto());
   var limite = Date.now() - PENDENTE_VALE_HORAS * 3600000;
+  var memoTaxas = {};
   return lerAba('Pagamentos').map(function (p) {
     // link de pagamento antigo e não pago: aparece como expirado
     if (p.status === 'pendente' && new Date(String(p.criado_em).replace(' ', 'T') + '-03:00').getTime() < limite) p.status = 'expirado';
@@ -1078,7 +1079,12 @@ function bancada_pagamentos(d) {
     if (dia < de || dia > ate) return false;
     if (d.status && p.status !== d.status) return false;
     return true;
-  }).map(pagamentoPublico).reverse();
+  }).map(function (p) {
+    var o = pagamentoPublico(p);
+    // taxa estimada e líquido: só a administração (a recepção não vê o custo da maquininha)
+    if (m && m.papel === 'admin' && p.status === 'pago') { var t = taxaDoPagamento(p, memoTaxas); o.taxa = t.taxa; o.liquido = t.liquido; o.taxaPct = t.taxaPct; }
+    return o;
+  }).reverse();
 }
 
 // O estorno em si é feito na InfinitePay; aqui ele é registrado e o crédito é desativado

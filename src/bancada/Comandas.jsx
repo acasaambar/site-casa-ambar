@@ -1099,13 +1099,14 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
 // cada venda do dia: hora, cliente, o quê, como pagou e quem registrou (Vendas tem o detalhe e o estorno)
 function Lancamentos({ lista, doDia }) {
   if (!lista || lista.length === 0) return null;
+  const comLiquido = lista.some((l) => l.liquido != null); // só a administração recebe a taxa e o líquido
   const forma = (l) => [l.metodo === 'Misto' && l.divisao ? l.divisao : l.metodo, l.bandeira && l.metodo !== 'Misto' ? l.bandeira : '', l.parcelas > 1 ? `${l.parcelas}x` : ''].filter(Boolean).join(' · ');
   const onde = (l) => (l.comanda ? `comanda ${l.comanda}` : l.origem === 'site' ? 'pelo site' : 'balcão') + (l.por ? ` · ${l.por}` : '');
   return (
     <section className="b-cartao">
       <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Lançamentos {doDia}</h2><span className="b-suave">{plural(lista.length, 'venda', 'vendas')}</span></header>
       <table className="cx-lanc">
-        <thead><tr><th>Hora</th><th>Cliente</th><th>O quê</th><th>Forma</th><th className="cx-lanc__valor">Valor</th></tr></thead>
+        <thead><tr><th>Hora</th><th>Cliente</th><th>O quê</th><th>Forma</th><th className="cx-lanc__valor">Valor</th>{comLiquido && <th className="cx-lanc__valor">Líquido</th>}</tr></thead>
         <tbody>
           {lista.map((l, i) => (
             <tr key={i}>
@@ -1114,6 +1115,7 @@ function Lancamentos({ lista, doDia }) {
               <td>{l.item}</td>
               <td>{forma(l)}</td>
               <td className="cx-lanc__valor">{real(l.valor)}</td>
+              {comLiquido && <td className="cx-lanc__valor">{l.taxa > 0 ? <>{real(l.liquido)}<small>taxa {real(l.taxa)}</small></> : <span className="b-suave">{real(l.liquido)}</span>}</td>}
             </tr>
           ))}
         </tbody>

@@ -819,6 +819,25 @@ function fatorDoPagamento(p, memo) {
   return fatorDePartes(partesRecebidas([p]), numero(p.valor) + numero(p.vale_usado));
 }
 
+// taxa estimada e valor líquido de UMA venda (linha de Pagamentos): a taxa efetiva é a média das partes pagas no cartão/link/Pix da venda
+// (venda de comanda: a média da comanda inteira; vale-presente e dinheiro não têm taxa). `memo` evita reler a comanda a cada linha.
+function taxaDoPagamento(p, memo) {
+  var valor = numero(p.valor);
+  if (!p || p.status !== 'pago' || !(valor > 0)) return { taxa: 0, liquido: dinheiro(valor), taxaPct: 0 };
+  var chave = p.comanda ? 'c' + p.comanda : '';
+  var pct;
+  if (chave && memo && memo[chave] != null) pct = memo[chave];
+  else {
+    var partes = partesRecebidas([p]);
+    var bruto = 0, tx = 0;
+    partes.forEach(function (x) { bruto += numero(x.valor); tx += numero(x.valor) * taxaPctDaParte(x).pct / 100; });
+    pct = bruto > 0 ? tx / bruto * 100 : 0;
+    if (chave && memo) memo[chave] = pct;
+  }
+  var taxa = dinheiro(valor * pct / 100);
+  return { taxa: taxa, liquido: dinheiro(valor - taxa), taxaPct: Math.round(pct * 100) / 100 };
+}
+
 // ---- prazo de recebimento ----
 // dias úteis (segunda a sexta; feriados não entram na conta) depois de uma data AAAA-MM-DD
 function somarDiasUteis(dataISO, n) {
@@ -960,6 +979,7 @@ function caixaDoDia(data) {
 }
 
 function resumoCaixa(data) {
+  var memoTaxas = {};
   var c = caixaDoDia(data);
   var movs = c ? parseJson(c.movimentos, []) : [];
   var pags = lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && String(p.pago_em).slice(0, 10) === data && numero(p.valor) > 0; });
@@ -987,7 +1007,8 @@ function resumoCaixa(data) {
     // cada venda do dia: de quem, o quê, como pagou e quem registrou
     lancamentos: pags.slice().sort(function (a, b) { return String(a.pago_em).localeCompare(String(b.pago_em)); }).map(function (p) {
       var obs = String(p.observacao || '');
-      return { hora: String(p.pago_em).slice(11, 16), nome: String(p.nome || ''), item: String(p.descricao || ''), metodo: String(p.metodo || ''),
+      var tl = taxaDoPagamento(p, memoTaxas);
+      return { taxa: tl.taxa, liquido: tl.liquido, hora: String(p.pago_em).slice(11, 16), nome: String(p.nome || ''), item: String(p.descricao || ''), metodo: String(p.metodo || ''),
         bandeira: String(p.bandeira || ''), parcelas: Number(p.parcelas) || 1, valor: dinheiro(p.valor), origem: String(p.origem || ''),
         comanda: String(p.comanda || ''), por: String(p.registrado_por || '').split('@')[0],
         // comanda paga de mais de um jeito: "Pix R$ 100 + Dinheiro R$ 50"
@@ -1000,7 +1021,10 @@ function bancada_caixa(d, m) {
   var data = dataValida(d.data, hojeTexto());
   var r = resumoCaixa(data);
   // taxa e líquido da maquininha são da administração
-  if (m.papel !== 'admin') r.conferir = (r.conferir || []).map(function (f) { return { forma: f.forma, valor: f.valor, bandeiras: f.bandeiras }; });
+  if (m.papel !== 'admin') {
+    r.conferir = (r.conferir || []).map(function (f) { return { forma: f.forma, valor: f.valor, bandeiras: f.bandeiras }; });
+    r.lancamentos = (r.lancamentos || []).map(function (l) { var c = Object.assign({}, l); delete c.taxa; delete c.liquido; return c; });
+  }
   if (m.papel === 'admin') {
     // os 10 dias mais recentes (um caixa aberto depois para uma data antiga não empurra os recentes)
     r.anteriores = lerAba('Caixa').filter(function (c) { return dataTexto(c.data) < data; })

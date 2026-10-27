@@ -2594,3 +2594,5 @@
 .fn-cair strong { font-weight: 600; font-variant-numeric: tabular-nums; }
 .fn-cair__total { border-bottom: 0 !important; border-top: 2px solid var(--b-tinta); margin-top: 4px; font-weight: 600; }
 @media print { .rel-base { color: #1F2616; } }
+.vd-liquido { font-weight: 500; white-space: nowrap; }
+.cx-lanc__valor small { display: block; font-size: 13px; color: var(--b-suave); font-weight: 400; }
