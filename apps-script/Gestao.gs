@@ -1762,12 +1762,17 @@ function bancada_fecharComanda(d, m) {
       if (saldoVale(v) + 0.009 < vales[0].valor) throw new Error('O vale tem só ' + brl(saldoVale(v)) + ' de saldo.');
       vale = { codigo: codigoLimpo(v.codigo), resta: vales[0].valor };
     }
+    // venda igual hoje (mesmo item, mesmo valor, mesma pessoa), lançada em Vendas, na agenda ou em outra comanda? Pede confirmação antes de cobrar de novo
+    var repetidaComanda = conferirVendaRepetida(cm.cpf, calc.filter(function (i) {
+      return !i.pago && !i.pacote && (i.tipo === 'servico' || i.tipo === 'plano' || i.tipo === 'pacote');
+    }).map(function (i) { return { id: i.id, nome: i.nome, total: dinheiro(i.total + (i.vale ? numero(i.valeUsado) * i.qtd : 0)) }; }), hojeTexto(), m, { nsus: {}, comanda: String(cm.id) });
     var reais = pags.filter(function (p) { return p.metodo !== 'Vale-presente'; });
     var metodosDistintos = reais.map(function (p) { return p.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
     var metodo = metodosDistintos.length === 1 ? metodosDistintos[0] : metodosDistintos.length ? 'Misto' : vale ? 'Vale-presente' : 'Cortesia';
     var parcelas = Math.max.apply(null, [1].concat(reais.map(function (p) { return p.parcelas; })));
     var bandeiras = reais.map(function (p) { return p.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
     var obsPag = 'Comanda ' + cm.id + (pags.length > 1 ? ' · ' + pags.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '');
+    if (repetidaComanda) obsPag += ' · venda repetida de propósito: ' + repetidaComanda;
     var hoje = hojeTexto();
     var valesCriados = [];
     var usadosNaComanda = {};

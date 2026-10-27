@@ -147,6 +147,7 @@ function executarBancada(d) {
   if (!papeis || typeof fn !== 'function') throw new Error('Ação desconhecida.');
   var membro = membroDaSessao(d.token);
   if (papeis.indexOf(membro.papel) < 0) throw new Error('Seu acesso não permite esta ação.');
+  guardarConfirmacaoRepetida(d);
   return fn(d, membro);
 }
 
@@ -990,6 +991,66 @@ function momentoDaVenda(data) {
   return data + ' 12:00:00';
 }
 
+// ============================================================
+//  PROTEÇÃO CONTRA VENDA DUPLICADA (out/2026)
+//  Mesmo cliente + mesmo item (serviço, plano ou pacote) + mesmo valor cobrado + mesmo dia = provável lançamento em dobro
+//  (clique repetido, duas pessoas lançando, venda em Vendas e de novo na comanda ou na agenda).
+//  Vale para todas as portas: Vender, aula avulsa, "Já pagou"/"Marcar atendido" na agenda, Receber aula, fechar comanda,
+//  e as vendas do site (que aparecem para quem lança no balcão). Produto e vale-presente ficam de fora (repetir é normal).
+//  Não é bloqueio cego: a recusa traz a venda que já existe (VENDA_DUPLICADA) e a equipe pode confirmar, com motivo.
+//  A confirmação vale para as vendas que a pessoa viu (lista de order_nsu), nunca em branco. Pagamento estornado,
+//  excluído, descartado ou pendente não conta. A conferência roda dentro da trava, depois de ler a planilha de novo.
+// ============================================================
+var MOTIVOS_VENDA_REPETIDA = ['Outra sessão ou outro dia', 'Outro item igual a pedido da pessoa', 'A venda anterior estava errada', 'Outro motivo'];
+var _confirmaRepetida = { nsus: [], motivo: '' };
+
+// guarda o que a tela confirmou (chamado em executarBancada; vale só para este pedido)
+function guardarConfirmacaoRepetida(d) {
+  var nsus = Array.isArray(d.confirmarRepetida) ? d.confirmarRepetida.slice(0, 50).map(function (x) { return String(x).slice(0, 40); }) : [];
+  _confirmaRepetida = { nsus: nsus, motivo: String(d.motivoRepetida || '').replace(/\s+/g, ' ').trim().slice(0, 120) };
+}
+
+function totalCobradoDaVenda(p) { return dinheiro(numero(p.valor) + numero(p.vale_usado)); }
+
+// vendas pagas do mesmo cliente, mesmo item e mesmo valor no dia (dia = AAAA-MM-DD do recebimento)
+function vendasIguaisNoDia(cpf, itemId, total, dia, ignorar) {
+  return linhasDoCpf('Pagamentos', cpf).filter(function (p) {
+    if (p.status !== 'pago' || String(p.plano_id) !== String(itemId)) return false;
+    var t = String(p.tipo_item || '');
+    if (t === 'produto' || t === 'vale') return false;
+    if (ignorar && (ignorar.nsus[String(p.order_nsu)] || (ignorar.comanda && String(p.comanda) === ignorar.comanda))) return false;
+    if (String(p.pago_em || p.criado_em).slice(0, 10) !== dia) return false;
+    return Math.abs(totalCobradoDaVenda(p) - total) < 0.01;
+  });
+}
+
+// itens = [{ id, nome, total }]. Devolve o motivo confirmado ('' se não havia venda igual) ou recusa com VENDA_DUPLICADA.
+// ignorar = { nsus: { nsu: 1 }, comanda: 'id' }: vendas que fazem parte deste mesmo pedido (itens de uma venda com vários itens, a própria comanda)
+function conferirVendaRepetida(cpf, itens, dia, membro, ignorar) {
+  if (!cpf || !itens.length) return '';
+  var achadas = [];
+  itens.forEach(function (it) {
+    vendasIguaisNoDia(cpf, it.id, it.total, dia, ignorar).forEach(function (p) {
+      if (achadas.some(function (a) { return a.nsu === String(p.order_nsu); })) return;
+      var quando = String(p.pago_em || p.criado_em);
+      achadas.push({ nsu: String(p.order_nsu), item: String(it.nome), valor: totalCobradoDaVenda(p), dia: quando.slice(0, 10), hora: quando.slice(11, 16),
+        por: String(p.registrado_por || ''), porNome: String((buscarMembro(p.registrado_por) || {}).nome || '').split(' ')[0], origem: p.comanda ? 'comanda' : p.origem === 'site' ? 'site' : 'balcão', comanda: String(p.comanda || ''), metodo: String(p.metodo || '') });
+    });
+  });
+  if (!achadas.length) return '';
+  var faltam = achadas.filter(function (a) { return _confirmaRepetida.nsus.indexOf(a.nsu) < 0; });
+  if (!faltam.length) {
+    if (_confirmaRepetida.motivo.length < 3) throw erroCod('Diga o motivo de repetir esta venda (fica registrado).', 'VENDA_DUPLICADA', { repetidas: achadas, motivos: MOTIVOS_VENDA_REPETIDA });
+    registrar(membro, 'venda repetida confirmada', achadas.map(function (a) { return a.item + ' ' + brl(a.valor) + ' (' + a.nsu + ')'; }).join(' · ') + ' · motivo: ' + _confirmaRepetida.motivo);
+    return _confirmaRepetida.motivo;
+  }
+  var a0 = faltam[0];
+  var onde = a0.origem === 'comanda' ? 'na comanda' : a0.origem === 'site' ? 'pelo site' : 'no balcão';
+  var msg = 'Já existe uma venda igual hoje: ' + a0.item + ', ' + brl(a0.valor) + (a0.hora ? ', às ' + a0.hora : '') + ' (' + onde + ')'
+    + (faltam.length > 1 ? ' e mais ' + (faltam.length - 1) : '') + '. Confira antes de lançar de novo.';
+  throw erroCod(msg, 'VENDA_DUPLICADA', { repetidas: faltam, motivos: MOTIVOS_VENDA_REPETIDA });
+}
+
 // Venda registrada pela recepção (já recebida: Pix, dinheiro, cartão na maquininha...)
 function registrarVenda(aluno, plano, o, membro) {
   var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay'];
@@ -1026,15 +1087,20 @@ function registrarVenda(aluno, plano, o, membro) {
     metodo = divisao.metodo; bandeira = divisao.bandeira; parcelasVenda = divisao.parcelas;
   }
   var pagoEm = momentoDaVenda(o.dataVenda);
+  // venda igual no mesmo dia? (recusa e mostra a que já existe; a equipe pode confirmar com motivo)
+  var repetida = conferirVendaRepetida(cpf, [{ id: plano.id, nome: plano.nome, total: dinheiro(valor + numero(calc.valeUsado)) }],
+    pagoEm ? pagoEm.slice(0, 10) : hojeTexto(), membro, { nsus: o.nsusDoPedido || {} });
+  if (o.soConferir) return null;
+  var obsVenda = ((repetida ? 'Repetida de propósito (' + repetida + '). ' : '') + String(o.obs || '')).slice(0, 300);
   var nsu = novoNsu('B');
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: valor, status: 'pendente',
     criado_em: agoraTexto(), valor_original: plano.preco, desconto: desconto, cupom: calc.cupom, vale: calc.vale, vale_usado: calc.valeUsado,
-    origem: 'balcão', registrado_por: membro.email, observacao: String(o.obs || '').slice(0, 300), promocao: promocao, tipo_item: plano.tipo === 'servico' || plano.tipo === 'pacote' ? plano.tipo : 'plano',
+    origem: 'balcão', registrado_por: membro.email, observacao: obsVenda, promocao: promocao, tipo_item: plano.tipo === 'servico' || plano.tipo === 'pacote' ? plano.tipo : 'plano',
     bandeira: bandeira, formas: divisao && divisao.formas.length ? JSON.stringify(divisao.formas) : '' });
   SpreadsheetApp.flush();
   var inicioC = /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto();
   var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: parcelasVenda, valor_pago: valor, inicio: inicioC,
-    origemCredito: 'balcão', observacao: String(o.obs || '').slice(0, 300), pagoEm: pagoEm });
+    origemCredito: 'balcão', observacao: obsVenda, pagoEm: pagoEm });
   // valeUsado: parte paga com vale-presente (conta na comissão do atendimento, como na comanda)
   return { orderNsu: nsu, creditoId: creditoId, valor: valor, metodo: metodo, valeUsado: numero(calc.valeUsado) };
 }
@@ -1066,10 +1132,18 @@ function bancada_vender(d, m) {
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   var feitas = [];
+  var nsusDoPedido = {};
   try {
+    // com vários itens, confere todos antes de lançar o primeiro (venda igual no mesmo dia pede confirmação, sem deixar metade lançada)
+    if (itens.length > 1) {
+      itens.forEach(function (it) {
+        registrarVenda(aluno, it.plano, Object.assign({}, d, { valor: it.valor, soConferir: true }), m);
+      });
+    }
     itens.forEach(function (it) {
-      var o = Object.assign({}, d, { valor: it.valor, obs: (resumo ? resumo + ' ' : '') + String(d.obs || '') });
+      var o = Object.assign({}, d, { valor: it.valor, obs: (resumo ? resumo + ' ' : '') + String(d.obs || ''), nsusDoPedido: nsusDoPedido });
       var v = registrarVenda(aluno, it.plano, o, m);
+      nsusDoPedido[v.orderNsu] = 1;
       feitas.push({ nome: it.plano.nome, v: v });
     });
   } catch (falha) {

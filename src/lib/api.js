@@ -62,10 +62,29 @@ async function chamar(acao, dados = {}) {
   return json.dados;
 }
 
+// Proteção contra venda duplicada: o servidor recusa com VENDA_DUPLICADA e mostra a venda que já existe.
+// A janela (VendaRepetida.jsx) pergunta à equipe; se confirmar, o mesmo pedido segue com as vendas vistas e o motivo.
+let perguntarVendaRepetida = null;
+export function registrarPerguntaDeVendaRepetida(fn) {
+  perguntarVendaRepetida = fn;
+  return () => { if (perguntarVendaRepetida === fn) perguntarVendaRepetida = null; };
+}
+
 // Bancada interna: api.b('agenda', { token, de, dias })
-export const bancada = (acao, dados = {}) => {
-  if (MODO_DEMO) return Promise.reject(new Error('A bancada funciona só com o sistema real (planilha). Ela não tem modo demonstração.'));
-  return chamar('b_' + acao, dados);
+export const bancada = async (acao, dados = {}) => {
+  if (MODO_DEMO) throw new Error('A bancada funciona só com o sistema real (planilha). Ela não tem modo demonstração.');
+  let envio = dados;
+  for (let volta = 0; ; volta++) {
+    try {
+      return await chamar('b_' + acao, envio);
+    } catch (e) {
+      const repetidas = e.codigo === 'VENDA_DUPLICADA' ? e.dados?.repetidas : null;
+      if (!repetidas?.length || !perguntarVendaRepetida || volta >= 4) throw e;
+      const r = await perguntarVendaRepetida(e.dados, e.message);
+      if (!r) throw erroApi('Lançamento cancelado: a venda igual já estava registrada.', 'VENDA_CANCELADA');
+      envio = { ...envio, confirmarRepetida: [...new Set([...(envio.confirmarRepetida || []), ...repetidas.map((x) => x.nsu)])], motivoRepetida: r.motivo };
+    }
+  }
 };
 
 export const api = {

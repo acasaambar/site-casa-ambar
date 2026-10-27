@@ -25,6 +25,7 @@ import Ajustes from './Ajustes.jsx';
 import Velocidade from './Velocidade.jsx';
 import { MinhasClientes, ClienteProfissional } from './Anamnese.jsx';
 import { Busca, BotaoBusca, useAtalhoBusca } from './Busca.jsx';
+import VendaRepetida from './VendaRepetida.jsx';
 import '@fontsource/ibm-plex-sans/400.css';
 import '@fontsource/ibm-plex-sans/500.css';
 import '@fontsource/ibm-plex-sans/600.css';
@@ -187,6 +188,8 @@ function Painel() {
           </Routes>
         </main>
       </div>
+      {/* por último: a pergunta de venda repetida abre por cima da folha de venda ou da comanda */}
+      <VendaRepetida />
     </div>
   );
 }

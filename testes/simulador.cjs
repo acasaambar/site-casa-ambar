@@ -99,11 +99,21 @@ function criar(arquivos) {
   // o cache das abas é esquecido, como no botão "Ler a planilha de novo" dos Ajustes
   const digital = () => JSON.stringify(Object.values(ss.sheets).map((sh) => sh.rows));
   let ultima = null;
-  const chamar = (acao, d) => {
+  const enviar = (acao, d) => {
     const agora = digital();
     if (ultima !== null && agora !== ultima && !ss.__semLimparCache) Object.keys(cacheStore).forEach((k) => { if (k.startsWith('v_')) delete cacheStore[k]; });
     const r = JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ acao, ...d }) } }));
     ultima = digital();
+    return r;
+  };
+  // como a tela: se o servidor pergunta "é venda repetida mesmo?" (VENDA_DUPLICADA), confirma com os order_nsu vistos e um motivo.
+  // Os testes da própria proteção ligam `ss.__semConfirmarSozinho` para ver a recusa de verdade.
+  const chamar = (acao, d) => {
+    let r = enviar(acao, d);
+    for (let volta = 0; !ss.__semConfirmarSozinho && volta < 4 && !r.ok && r.codigo === 'VENDA_DUPLICADA' && r.dados && r.dados.repetidas; volta++) {
+      d = { ...d, confirmarRepetida: [...(d.confirmarRepetida || []), ...r.dados.repetidas.map((x) => x.nsu)], motivoRepetida: 'teste' };
+      r = enviar(acao, d);
+    }
     return r;
   };
   return { ctx, chamar, ss, emails, props, chamadasIP, cacheStore };

@@ -1296,6 +1296,14 @@ function comprar(d) {
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   try {
+    // plano mensal/trimestral já pago hoje, mesmo valor (clique repetido ou venda feita pela recepção): não cobra de novo
+    if (planoExigeContrato(plano)) {
+      var cpfC = normCpf(aluno.cpf);
+      var cc = calcularPreco(plano, cpfC, d.codigo, { canal: 'site' });
+      if (vendasIguaisNoDia(cpfC, plano.id, dinheiro(cc.valorFinal + numero(cc.valeUsado)), hojeTexto(), null).length) {
+        throw erroCod('Este plano já foi pago hoje. Confira em "Meu plano". Se você precisa de outro, fale com a Casa.', 'JA_COMPROU');
+      }
+    }
     // plano mensal/trimestral: ficha de saúde e contrato assinado (Contrato.gs)
     var aceite = exigirFichaEContrato(aluno, plano);
     var pg = criarPagamento(aluno, plano, {}, d.codigo);

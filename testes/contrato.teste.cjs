@@ -79,6 +79,12 @@ ok(ctx.lerAba('Contratos')[0].enviado_em, 'o envio fica marcado no registro');
 pagar(nsu, 350);
 ok(emails.length === antesPago + 1, 'pagamento confirmado de novo (link e tela): o e-mail não sai em dobro');
 r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' });
+ok(!r.ok && r.codigo === 'JA_COMPROU', 'plano pago hoje: o site não cobra o mesmo plano de novo no mesmo dia', r);
+// no dia seguinte a contratação é nova e pede o contrato de novo
+const ontem = ctx.somarDias(ctx.hojeTexto(), -1);
+ctx.atualizarLinha('Pagamentos', ctx.linhaPagamento(nsu)._linha, { pago_em: ontem + ' 10:00:00' });
+ctx.atualizarLinha('Contratos', ctx.lerAba('Contratos')[0]._linha, { assinado_em: ontem + ' 09:00:00' });
+r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' });
 ok(!r.ok && r.codigo === 'CONTRATO', 'depois de pago, a próxima contratação pede assinar de novo', r);
 
 console.log('— versão nova do contrato e modo "uma vez só"');
