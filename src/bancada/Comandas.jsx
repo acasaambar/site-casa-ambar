@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, Alertas, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
-  telFmt, numBR, plural, METODOS, useEsquecerPedidoDaRota } from './ui.jsx';
+  telFmt, numBR, plural, METODOS, useEsquecerPedidoDaRota, Aviso, Secao, Ajuda, Esqueleto, MenuMais, Kpi } from './ui.jsx';
+import './css/comandas.css';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 
@@ -24,8 +25,9 @@ export default function Comandas() {
   const [versao, setVersao] = useState(0);
   return (
     <>
-      <Cabecalho titulo="Comandas" acoes={<button type="button" className="botao botao--cheio botao--p" onClick={() => setAberta({ nova: true })}>Nova comanda</button>}>
-        A conta de cada visita: serviços, produtos e planos, com uma ou mais formas de pagamento.
+      <Cabecalho titulo="Comandas" ajuda="Serviços, produtos e planos da visita, com uma ou mais formas de pagamento. Abra pela agenda (no atendimento) ou em Nova comanda. Para corrigir uma comanda fechada, abra-a e use Reabrir para corrigir (administração)."
+        acoes={<button type="button" className="botao botao--cheio botao--p" onClick={() => setAberta({ nova: true })}>Nova comanda</button>}>
+        A conta de cada visita e o caixa do dia
       </Cabecalho>
       <Segmento rotulo="O que mostrar" atual={vista} aoMudar={setVista} itens={[['abertas', 'Abertas'], ['fechadas', 'Fechadas'], ['caixa', 'Caixa do dia']]} />
       {vista === 'abertas' && <Abertas key={versao} aoAbrir={setAberta} />}
@@ -36,74 +38,141 @@ export default function Comandas() {
   );
 }
 
-function tempoDesde(texto) {
+function minutosDesde(texto) {
   const t = new Date(String(texto).replace(' ', 'T') + '-03:00').getTime();
-  const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+  return Math.max(0, Math.round((Date.now() - t) / 60000));
+}
+
+function tempoDesde(texto) {
+  const min = minutosDesde(texto);
   if (min < 2) return 'agora';
   if (min < 60) return `há ${min} min`;
   if (min < 24 * 60) return `há ${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
   return `desde ${dataBR(texto)}`;
 }
 
+const MAX_ITENS_NOTA = 3;
+
 function Abertas({ aoAbrir }) {
   const { dados, erro, carregando } = useDados('comandas', { status: 'aberta' });
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={5} altura={26} />;
+  const total = (dados || []).reduce((s, c) => s + c.total, 0);
   return (
     <>
       <Erro>{erro}</Erro>
-      {dados && dados.length === 0 && <Vazio titulo="Nenhuma comanda aberta" forma="presenca">Abra pela agenda (no atendimento) ou em “Nova comanda”.</Vazio>}
+      {dados && dados.length === 0 && (
+        <Vazio titulo="Nenhuma comanda aberta" forma="presenca"
+          acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => aoAbrir({ nova: true })}>Nova comanda</button>}>
+          Elas aparecem aqui quando abertas pela agenda ou por aqui.
+        </Vazio>
+      )}
+      {dados && dados.length > 0 && (
+        <p className="cm-resumo b-meta">
+          <strong>{plural(dados.length, 'comanda aberta', 'comandas abertas')}</strong>
+          <span>{real(total)} a receber</span>
+        </p>
+      )}
       <ul className="cm-notas">
-        {(dados || []).map((c) => (
-          <li key={c.id}>
-            <button type="button" className="cm-nota" onClick={() => aoAbrir({ id: c.id })}>
-              <span className="cm-nota__quem">{c.nome}</span>
-              <span className="cm-nota__itens">{c.itens.map((i) => i.nome).join(' · ') || 'sem itens'}</span>
-              <span className="cm-nota__pe">
-                <span className="b-suave">{tempoDesde(c.abertaEm)} · {c.abertaPor}</span>
-                <strong>{real(c.total)}</strong>
-              </span>
-            </button>
-          </li>
-        ))}
+        {(dados || []).map((c) => {
+          const velha = minutosDesde(c.abertaEm) >= 180;
+          const resto = c.itens.length - MAX_ITENS_NOTA;
+          return (
+            <li key={c.id}>
+              <button type="button" className="cm-nota" onClick={() => aoAbrir({ id: c.id })}>
+                <span className="cm-nota__topo">
+                  <span className="cm-nota__quem">{c.nome}</span>
+                  <span className={`cm-nota__tempo${velha ? ' cm-nota__tempo--velha' : ''}`} title={velha ? 'Aberta há bastante tempo' : undefined}>{tempoDesde(c.abertaEm)}</span>
+                </span>
+                {c.itens.length === 0 ? <span className="cm-nota__vazio">sem itens</span> : (
+                  <span className="cm-nota__itens">
+                    {c.itens.slice(0, MAX_ITENS_NOTA).map((i, k) => <span key={k} className="cm-nota__item">{i.nome}{i.qtd > 1 ? ` × ${i.qtd}` : ''}</span>)}
+                    {resto > 0 && <span className="cm-nota__mais">+ {plural(resto, 'item', 'itens')}</span>}
+                  </span>
+                )}
+                <span className="cm-nota__pe">
+                  <span className="b-suave">por {c.abertaPor}</span>
+                  <strong>{real(c.total)}</strong>
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </>
   );
 }
 
 function Fechadas({ aoAbrir }) {
-  const { membro } = useBancada();
-  const [de, setDe] = useState(hojeIso());
-  const [ate, setAte] = useState(hojeIso());
+  const hoje = hojeIso();
+  const [de, setDe] = useState(hoje);
+  const [ate, setAte] = useState(hoje);
+  const [q, setQ] = useState('');
+  const [forma, setForma] = useState('');
   const { dados, erro, carregando } = useDados('comandas', { status: 'fechada', de, ate });
-  const total = (dados || []).reduce((s, c) => s + c.total, 0);
+  const formas = useMemo(() => {
+    const m = new Map();
+    (dados || []).forEach((c) => new Set(c.pagamentos.map((p) => p.metodo)).forEach((f) => m.set(f, (m.get(f) || 0) + 1)));
+    return [...m.entries()];
+  }, [dados]);
+  const lista = useMemo(() => {
+    const t = semAcento(q.trim());
+    return (dados || []).filter((c) => (!forma || c.pagamentos.some((p) => p.metodo === forma))
+      && (!t || semAcento(`${c.nome} ${c.itens.map((i) => i.nome).join(' ')}`).includes(t)));
+  }, [dados, q, forma]);
+  const total = lista.reduce((s, c) => s + c.total, 0);
+  const atalhos = [['Hoje', hoje, hoje], ['Ontem', somarDias(hoje, -1), somarDias(hoje, -1)], ['7 dias', somarDias(hoje, -6), hoje], ['Este mês', hoje.slice(0, 8) + '01', hoje]];
+  const filtrando = !!q.trim() || !!forma;
   return (
     <>
-      <div className="b-periodo">
-        <label className="b-campo"><span className="rotulo">De</span><input type="date" value={de} onChange={(e) => e.target.value && setDe(e.target.value)} /></label>
-        <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>
-        {dados && <p className="b-suave">{plural(dados.length, 'comanda', 'comandas')} · {real(total)}</p>}
-      </div>
-      {pode(membro, 'admin') && dados?.length > 0 && <p className="b-suave cm-dica">Para corrigir uma comanda fechada, abra-a e use “Reabrir para corrigir”.</p>}
-      <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
-      {dados && dados.length === 0 && <Vazio titulo="Nenhuma comanda fechada no período" />}
-      {dados && dados.length > 0 && (
-        <div className="b-tabela-caixa">
-          <table className="b-tabela b-tabela--clicavel">
-            <thead><tr><th>Fechada</th><th>Cliente</th><th>Itens</th><th>Pagamento</th><th className="num">Total</th></tr></thead>
-            <tbody>
-              {dados.map((c) => (
-                <tr key={c.id} onClick={() => aoAbrir({ id: c.id })} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && aoAbrir({ id: c.id })}>
-                  <td data-rotulo="Fechada">{dataBR(c.fechadaEm)} {hora(c.fechadaEm.slice(11, 16))}</td>
-                  <td data-rotulo="Cliente">{c.nome}</td>
-                  <td data-rotulo="Itens">{c.itens.map((i) => i.nome + (i.qtd > 1 ? ` × ${i.qtd}` : '')).join(' · ')}</td>
-                  <td data-rotulo="Pagamento">{c.pagamentos.map((p) => `${p.metodo}${p.bandeira ? ` ${p.bandeira}` : ''}`).join(' + ') || '—'}</td>
-                  <td data-rotulo="Total" className="num">{real(c.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="cm-filtros">
+        <div className="cm-filtros__datas">
+          <label className="b-campo"><span className="rotulo">De</span><input type="date" value={de} max={ate} onChange={(e) => e.target.value && setDe(e.target.value)} /></label>
+          <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} min={de} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>
+          <div className="cm-filtros__atalhos" role="group" aria-label="Períodos">
+            {atalhos.map(([t, a, b]) => {
+              const ativo = de === a && ate === b;
+              return <button key={t} type="button" className={`b-chip${ativo ? ' b-chip--ativo' : ''}`} aria-pressed={ativo} onClick={() => { setDe(a); setAte(b); }}>{t}</button>;
+            })}
+          </div>
         </div>
+        <label className="b-campo cm-filtros__busca"><span className="rotulo">Buscar</span><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente ou item" /></label>
+      </div>
+      {formas.length > 1 && (
+        <div className="cm-filtros__formas" role="group" aria-label="Forma de pagamento">
+          <button type="button" className={`b-chip${!forma ? ' b-chip--ativo' : ''}`} aria-pressed={!forma} onClick={() => setForma('')}>Todas</button>
+          {formas.map(([f, n]) => <button key={f} type="button" className={`b-chip${forma === f ? ' b-chip--ativo' : ''}`} aria-pressed={forma === f} onClick={() => setForma(forma === f ? '' : f)}>{f} <span>{n}</span></button>)}
+        </div>
+      )}
+      <Erro>{erro}</Erro>
+      {carregando && !dados && <Esqueleto linhas={5} altura={26} />}
+      {dados && dados.length > 0 && (
+        <div className="b-kpis cm-kpis">
+          <Kpi rotulo="Comandas" valor={lista.length} detalhe={filtrando ? `de ${dados.length} no período` : 'no período'} />
+          <Kpi rotulo="Total" valor={real(total)} detalhe={lista.length ? `média ${real(total / lista.length)}` : undefined} tom="destaque" />
+        </div>
+      )}
+      {dados && dados.length === 0 && <Vazio titulo="Nenhuma comanda fechada no período" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => { setDe(somarDias(hoje, -6)); setAte(hoje); }}>Ver os últimos 7 dias</button>} />}
+      {dados && dados.length > 0 && lista.length === 0 && <Vazio titulo="Nenhuma comanda com esse filtro" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => { setQ(''); setForma(''); }}>Limpar filtros</button>} />}
+      {lista.length > 0 && (
+        <ul className="b-itens cm-fechadas">
+          {lista.map((c) => (
+            <li key={c.id}>
+              <button type="button" className="b-item cm-fechada" onClick={() => aoAbrir({ id: c.id })}>
+                <span className="cm-fechada__quando"><strong>{hora(c.fechadaEm.slice(11, 16))}</strong><small>{dataBR(c.fechadaEm).slice(0, 5)}</small></span>
+                <span className="b-item__corpo">
+                  <span className="b-item__titulo">{c.nome}</span>
+                  <span className="cm-fechada__itens">{c.itens.map((i) => i.nome + (i.qtd > 1 ? ` × ${i.qtd}` : '')).join(' · ')}</span>
+                </span>
+                <span className="b-item__lado cm-fechada__lado">
+                  <span className="cm-fechada__formas">
+                    {c.pagamentos.length === 0 ? <Tag tom="apagado">sem cobrança</Tag> : c.pagamentos.map((p, k) => <Tag key={k}>{p.metodo}{p.bandeira ? ` ${p.bandeira}` : ''}</Tag>)}
+                  </span>
+                  <strong className="cm-fechada__total">{real(c.total)}</strong>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </>
   );
@@ -139,7 +208,7 @@ function profissionaisDoItem(catalogo, tipo, id) {
   return { fazem: catalogo.profs.filter(faz).map((p) => p.nome), outras: catalogo.profs.filter((p) => !faz(p)).map((p) => p.nome) };
 }
 
-function EscolherItem({ catalogo, aoEscolher, filtro, placeholder = 'Adicionar serviço, produto ou plano', autoFocus }) {
+function EscolherItem({ catalogo, aoEscolher, filtro, placeholder = 'Buscar serviço, produto, plano', autoFocus }) {
   const [q, setQ] = useState('');
   const [aberto, setAberto] = useState(!!autoFocus);
   const caixa = useRef(null);
@@ -270,15 +339,18 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   if (id && !c) return <Modal titulo="Comanda" aoFechar={aoFechar}>{erro ? <Erro>{erro}</Erro> : <Carregando />}</Modal>;
   const nomeCliente = c?.nome || cliente?.nome || semCadastro?.nome;
   const titulo = !c ? 'Nova comanda' : c.status === 'cancelada' ? 'Comanda cancelada' : fechada ? 'Comanda fechada' : 'Comanda';
+  const estado = !c ? null : c.status === 'cancelada' ? ['alerta', 'cancelada'] : fechada ? ['ok', 'fechada'] : ['aviso', 'aberta'];
+  // com o rodapé na tela (aberta ou recebendo), o total fica nele; no papel só entra quando não há rodapé
+  const rodapeNaTela = !!c && !fechada && !cancelando;
 
   return (
-    <Modal titulo={titulo} rotulo={c ? `${c.nome} · aberta ${dataBR(c.abertaEm)} por ${c.abertaPor}` : querVale ? 'Venda de vale-presente: escolha quem compra' : 'Escolha quem vai pagar e adicione os itens'} aoFechar={aoFechar} largo>
-      <div className="cm">
+    <Modal titulo={titulo} rotulo={c ? `Aberta em ${dataBR(c.abertaEm)} por ${c.abertaPor}` : querVale ? 'Venda de vale-presente: escolha quem compra' : 'Escolha quem vai pagar e adicione os itens'} aoFechar={aoFechar} largo>
+      <div className={`cm${rodapeNaTela ? ' cm--com-rodape' : ''}`}>
         {!c && (
-          <fieldset className="b-opcoes">
+          <fieldset className="b-opcoes cm-quem">
             <legend className="rotulo">{querVale ? 'Quem compra o vale' : 'Cliente'}</legend>
             {cliente ? (
-              <div className="b-escolhido"><div><strong>{cliente.nome}</strong><span>com cadastro</span></div><button type="button" className="link-sair" onClick={() => setCliente(null)}>trocar</button></div>
+              <div className="b-escolhido"><div><strong>{cliente.nome}</strong><span>com cadastro</span></div><button type="button" className="botao botao--fantasma botao--p" onClick={() => setCliente(null)}>Trocar</button></div>
             ) : semCadastro ? (
               <div className="b-linha2">
                 <label className="b-campo"><span className="rotulo">Nome</span><input value={semCadastro.nome} onChange={(e) => setSemCadastro({ ...semCadastro, nome: e.target.value })} placeholder="Opcional" /></label>
@@ -286,23 +358,26 @@ export function ComandaModal({ id, inicial, aoFechar }) {
               </div>
             ) : (
               <>
-                <BuscaAluno placeholder="Buscar cliente por nome, CPF ou WhatsApp" aoEscolher={(a) => setCliente({ cpf: a.cpf, nome: a.nome })} />
-                <button type="button" className="link-acao" onClick={() => setSemCadastro({ nome: '', whatsapp: '' })}>Sem cadastro (venda rápida no balcão)</button>
+                <BuscaAluno placeholder="Nome, CPF ou WhatsApp" aoEscolher={(a) => setCliente({ cpf: a.cpf, nome: a.nome })} />
+                <button type="button" className="botao botao--fantasma botao--p cm-quem__rapida" onClick={() => setSemCadastro({ nome: '', whatsapp: '' })}>Sem cadastro (venda rápida no balcão)</button>
               </>
             )}
           </fieldset>
         )}
 
-        {aviso && <p className="aviso">{aviso}</p>}
+        {aviso && <Aviso tom="ok">{aviso}</Aviso>}
 
         <div className="cm-papel">
           <div className="cm-papel__topo">
             <span className="cm-papel__casa">Casa Âmbar</span>
-            <span className="b-suave">{c ? `nº ${c.id.slice(-5)}` : 'nova'}</span>
+            <span className="cm-papel__ident">
+              {estado && <Tag tom={estado[0]}>{estado[1]}</Tag>}
+              <span className="b-suave">{c ? `nº ${c.id.slice(-5)}` : 'nova'}</span>
+            </span>
           </div>
-          {nomeCliente && <p className="cm-papel__cliente">{balcao && (c?.cpf || cliente?.cpf) ? <Link to={`/bancada/alunos/${c?.cpf || cliente.cpf}`} title="Abrir o cadastro">{nomeCliente}</Link> : nomeCliente}</p>}
+          {nomeCliente && c && <p className="cm-papel__cliente">{balcao && (c?.cpf || cliente?.cpf) ? <Link to={`/bancada/alunos/${c?.cpf || cliente.cpf}`} title="Abrir o cadastro">{nomeCliente}</Link> : nomeCliente}</p>}
           <Alertas lista={c?.alertas} compacto />
-          {itens.length === 0 && pendentes.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda.</p>}
+          {itens.length === 0 && pendentes.length === 0 && <p className="b-suave cm-papel__vazio">Nenhum item ainda. Busque abaixo um serviço, produto ou plano.</p>}
           <ul className="cm-itens">
             {itens.map((it, idx) => (
               <li key={it.uid || idx} className={`cm-item${it.pago ? ' cm-item--pago' : ''}${tirando === idx ? ' cm-item--saindo' : ''}`}>
@@ -312,10 +387,10 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                   <NotasItem it={it} />
                   {!fechada && balcao && tirando !== idx && (
                     <span className="cm-item__acoes">
-                      <button type="button" className="link-acao" onClick={() => (it.tipo === 'vale' ? setVale({ idx }) : setEditando(idx))} disabled={salvando || (it.tipo !== 'vale' && !catalogo)}>
+                      <button type="button" className="cm-mini" onClick={() => (it.tipo === 'vale' ? setVale({ idx }) : setEditando(idx))} disabled={salvando || (it.tipo !== 'vale' && !catalogo)}>
                         Editar
                       </button>
-                      {it.tipo === 'servico' && !it.profissional && <button type="button" className="link-acao cm-item__falta" onClick={() => setEditando(idx)} disabled={!catalogo}>escolher profissional</button>}
+                      {it.tipo === 'servico' && !it.profissional && <button type="button" className="cm-mini cm-mini--alerta" onClick={() => setEditando(idx)} disabled={!catalogo}>Escolher profissional</button>}
                     </span>
                   )}
                   {!fechada && balcao && tirando !== idx && it.tipo === 'servico' && !it.pago && (it.pacote || it.pacoteDisponivel) && (
@@ -371,7 +446,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                         const r = await salvar({ itens: itens.filter((_, k) => k !== idx), motivo: motivoTirar.trim() || undefined });
                         if (r) setTirando(null);
                       }}>Tirar da comanda</BotaoAcao>
-                      <button type="button" className="link-acao" onClick={() => setTirando(null)}>Voltar</button>
+                      <button type="button" className="botao botao--fantasma botao--p" onClick={() => setTirando(null)}>Voltar</button>
                     </div>
                   </div>
                 )}
@@ -396,48 +471,44 @@ export function ComandaModal({ id, inicial, aoFechar }) {
               </button>
             </div>
           )}
-          <div className="cm-totais">
-            {c && c.desconto > 0.009 && <><span>Subtotal</span><span>{real(c.subtotal)}</span><span>Descontos</span><span>− {real(c.desconto)}</span></>}
-            <span className="cm-totais__rot">Total</span>
-            <strong className="cm-totais__valor">{salvando ? '…' : real(c?.total || 0)}</strong>
-          </div>
-          {fechada && c.pagamentos.length > 0 && (
-            <p className="cm-papel__pago">Pago com {c.pagamentos.map((p) => `${p.metodo}${p.bandeira ? ` ${p.bandeira}` : ''}${p.parcelas > 1 ? ` ${p.parcelas}x` : ''} ${real(p.valor)}`).join(' + ')} · {dataBR(c.fechadaEm)} por {c.fechadaPor}</p>
+          {((c && c.desconto > 0.009) || (c && !rodapeNaTela)) && (
+            <div className="cm-totais">
+              {c && c.desconto > 0.009 && <><span>Subtotal</span><span>{real(c.subtotal)}</span><span>Descontos</span><span className="cm-totais__desc">− {real(c.desconto)}</span></>}
+              {!rodapeNaTela && <><span className="cm-totais__rot">Total</span><strong className="cm-totais__valor">{salvando ? '…' : real(c?.total || 0)}</strong></>}
+            </div>
           )}
-          {c?.status === 'fechada' && balcao && c.pagamentos.some((p) => p.metodo !== 'Vale-presente') && !corrigindoForma && (
-            <button type="button" className="link-acao cm-corrigir-forma" onClick={() => setCorrigindoForma(true)}>Corrigir a forma de pagamento (ex.: dividir em duas formas)</button>
+          {fechada && c.pagamentos.length > 0 && (
+            <div className="cm-pagos">
+              <span className="cm-pagos__titulo">Pagamento</span>
+              <ul>
+                {c.pagamentos.map((p, i) => (
+                  <li key={i}>
+                    <span>{p.metodo}{p.bandeira ? ` · ${p.bandeira}` : ''}{p.parcelas > 1 ? ` · ${p.parcelas}x` : ''}</span>
+                    <strong>{real(p.valor)}</strong>
+                  </li>
+                ))}
+              </ul>
+              {c.fechadaEm && <span className="b-suave cm-pagos__quando">Fechada em {dataBR(c.fechadaEm)} às {hora(c.fechadaEm.slice(11, 16))} por {c.fechadaPor}</span>}
+            </div>
           )}
         </div>
 
         {!fechada && c && (
-          <div className="b-linha2 cm-codigo">
-            <label className="b-campo">
-              <span className="rotulo">Cupom ou vale de serviço (opcional)</span>
-              <span className="codigo__linha">
-                <input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="Código" />
-                <button type="button" className="botao botao--linha botao--p" disabled={salvando || codigo === c.codigo} onClick={() => salvar({ codigo })}>{codigo || !c.codigo ? 'Aplicar' : 'Tirar'}</button>
-              </span>
-            </label>
-            <label className="b-campo"><span className="rotulo">Observação da comanda</span>
-              <input key={c.obs} defaultValue={c.obs} onBlur={(e) => e.target.value !== c.obs && salvar({ obs: e.target.value })} placeholder="Opcional" /></label>
-          </div>
+          <section className="cm-detalhes" aria-label="Cupom e observação">
+            <div className="b-linha2 cm-codigo">
+              <label className="b-campo">
+                <span className="rotulo">Cupom ou vale de serviço</span>
+                <span className="codigo__linha">
+                  <input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="Código (opcional)" />
+                  <button type="button" className="botao botao--linha botao--p" disabled={salvando || codigo === c.codigo} onClick={() => salvar({ codigo })}>{codigo || !c.codigo ? 'Aplicar' : 'Tirar'}</button>
+                </span>
+              </label>
+              <label className="b-campo"><span className="rotulo">Observação da comanda</span>
+                <input key={c.obs} defaultValue={c.obs} onBlur={(e) => e.target.value !== c.obs && salvar({ obs: e.target.value })} placeholder="Opcional" /></label>
+            </div>
+          </section>
         )}
         <Erro>{erro}</Erro>
-
-        {!fechada && c && !pagar && !cancelando && (
-          <div className="cm-acoes">
-            {c.total > 0 || salvando ? (
-              <button type="button" className="botao botao--cheio" disabled={salvando || !itens.length} onClick={() => setPagar(true)}>Receber {real(c.total)}</button>
-            ) : (
-              <BotaoAcao className="botao botao--cheio" disabled={!itens.length} acao={async () => {
-                setErro('');
-                try { terminou(await chamar('fecharComanda', { id: c.id, pagamentos: [] })); } catch (e) { setErro(e.message); }
-              }}>Concluir (nada a cobrar)</BotaoAcao>
-            )}
-            <button type="button" className="botao botao--linha" onClick={aoFechar}>Deixar aberta</button>
-            <button type="button" className="link-sair" onClick={() => { setCancelando(true); setMotivoCancelar(''); }}>Cancelar comanda</button>
-          </div>
-        )}
 
         {cancelando && c && !fechada && (
           <section className="cm-painel cm-painel--perigo" aria-label="Cancelar comanda">
@@ -450,45 +521,77 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                 setErro('');
                 try { await chamar('cancelarComanda', { id: c.id, motivo: motivoCancelar.trim() }); aoFechar(); } catch (e) { setErro(e.message); }
               }}>Cancelar comanda</BotaoAcao>
-              <button type="button" className="link-acao" onClick={() => setCancelando(false)}>Voltar</button>
+              <button type="button" className="botao botao--fantasma botao--p" onClick={() => setCancelando(false)}>Voltar</button>
             </div>
           </section>
         )}
 
+        {c?.historico?.length > 0 && (pagar || corrigindoForma) && <HistoricoComanda itens={c.historico} />}
         {corrigindoForma && c?.status === 'fechada' && <CorrigirFormas c={c} aoCancelar={() => setCorrigindoForma(false)} aoCorrigir={(r) => { setC(r); setCorrigindoForma(false); setAviso('Forma de pagamento corrigida. O caixa e os relatórios já acompanham.'); }} />}
         {pagar && c && !fechada && <Pagamento c={c} semVale={temVale} aoVoltar={() => setPagar(false)} aoFechar={terminou} />}
         {valesCriados.length > 0 && <ValesCriados lista={valesCriados} />}
         {fechada && c.status === 'fechada' && <Recibo c={c} />}
 
-        {fechada && c.status === 'fechada' && admin && (
+        {fechada && c.status === 'fechada' && !corrigindoForma && (
           reabrindo ? (
-            <section className="cm-painel" aria-label="Reabrir para corrigir">
-              <h3 className="cm-painel__titulo">Reabrir para corrigir</h3>
-              <p className="b-suave">Os pagamentos desta comanda são estornados, o estoque volta e as comissões ficam suspensas. Planos, pacotes e vales-presentes vendidos nela ficam desativados até a comanda ser fechada de novo.</p>
-              <label className="b-campo"><span className="rotulo">Motivo da correção (obrigatório, fica no histórico)</span>
-                <textarea rows={2} value={motivoReabrir} onChange={(e) => setMotivoReabrir(e.target.value)} maxLength={200} placeholder="Ex.: cobrei o protetor a mais" autoFocus /></label>
-              <Erro>{erroReabrir}</Erro>
-              <div className="cm-acoes">
-                <BotaoAcao className="botao botao--cheio botao--p" disabled={!motivoReabrir.trim()} acao={async () => {
-                  setErroReabrir('');
-                  try {
-                    const r = await chamar('reabrirComanda', { id: c.id, motivo: motivoReabrir.trim() });
-                    setC(r); setCodigo(r.codigo); setReabrindo(false); setValesCriados([]);
-                    setAviso('Comanda reaberta. Corrija o que precisar e receba de novo: os pagamentos anteriores foram estornados.');
-                  } catch (e) { setErroReabrir(e.message); }
-                }}>Reabrir comanda</BotaoAcao>
-                <button type="button" className="link-acao" onClick={() => setReabrindo(false)}>Voltar</button>
-              </div>
-            </section>
-          ) : (
+            admin && (
+              <section className="cm-painel" aria-label="Reabrir para corrigir">
+                <h3 className="cm-painel__titulo">Reabrir para corrigir</h3>
+                <Aviso tom="aviso">Estorna os pagamentos, devolve o estoque e suspende as comissões. Planos, pacotes e vales-presentes vendidos nesta comanda ficam desativados até ela ser fechada de novo.</Aviso>
+                <label className="b-campo"><span className="rotulo">Motivo da correção (obrigatório, fica no histórico)</span>
+                  <textarea rows={2} value={motivoReabrir} onChange={(e) => setMotivoReabrir(e.target.value)} maxLength={200} placeholder="Ex.: cobrei o protetor a mais" autoFocus /></label>
+                <Erro>{erroReabrir}</Erro>
+                <div className="cm-acoes">
+                  <BotaoAcao className="botao botao--cheio botao--p" disabled={!motivoReabrir.trim()} acao={async () => {
+                    setErroReabrir('');
+                    try {
+                      const r = await chamar('reabrirComanda', { id: c.id, motivo: motivoReabrir.trim() });
+                      setC(r); setCodigo(r.codigo); setReabrindo(false); setValesCriados([]);
+                      setAviso('Comanda reaberta. Corrija o que precisar e receba de novo: os pagamentos anteriores foram estornados.');
+                    } catch (e) { setErroReabrir(e.message); }
+                  }}>Reabrir comanda</BotaoAcao>
+                  <button type="button" className="botao botao--fantasma botao--p" onClick={() => setReabrindo(false)}>Voltar</button>
+                </div>
+              </section>
+            )
+          ) : (balcao || admin) && (
             <div className="cm-corrigir">
-              <button type="button" className="link-acao" onClick={() => { setReabrindo(true); setMotivoReabrir(''); setErroReabrir(''); }}>Reabrir para corrigir</button>
-              <span className="b-suave">Só a administração. Estorna os pagamentos para lançar de novo.</span>
+              {balcao && c.pagamentos.some((p) => p.metodo !== 'Vale-presente') && (
+                <button type="button" className="botao botao--linha botao--p cm-corrigir-forma" onClick={() => setCorrigindoForma(true)}>Corrigir forma de pagamento</button>
+              )}
+              {admin && (
+                <span className="cm-corrigir__reabrir">
+                  <button type="button" className="botao botao--linha botao--p" onClick={() => { setReabrindo(true); setMotivoReabrir(''); setErroReabrir(''); }}>Reabrir para corrigir</button>
+                  <Ajuda titulo="Reabrir para corrigir" alinhar="direita">Só a administração. Estorna os pagamentos para lançar de novo.</Ajuda>
+                </span>
+              )}
             </div>
           )
         )}
 
-        {c?.historico?.length > 0 && <HistoricoComanda itens={c.historico} />}
+        {c?.historico?.length > 0 && !(pagar || corrigindoForma) && <HistoricoComanda itens={c.historico} />}
+
+        {!fechada && c && !pagar && !cancelando && (
+          <div className="cm-rodape">
+            <div className="cm-rodape__total">
+              <span>Total</span>
+              <strong>{salvando ? '…' : real(c.total)}</strong>
+              {c.desconto > 0.009 && <small>com {real(c.desconto)} de desconto</small>}
+            </div>
+            <div className="cm-rodape__acoes">
+              <MenuMais rotulo="Mais" className="cm-mais" itens={[{ texto: 'Cancelar comanda', acao: () => { setCancelando(true); setMotivoCancelar(''); } }]} />
+              <button type="button" className="botao botao--linha" onClick={aoFechar}>Deixar aberta</button>
+              {c.total > 0 || salvando ? (
+                <button type="button" className="botao botao--cheio" disabled={salvando || !itens.length} onClick={() => setPagar(true)}>Receber {real(c.total)}</button>
+              ) : (
+                <BotaoAcao className="botao botao--cheio" disabled={!itens.length} acao={async () => {
+                  setErro('');
+                  try { terminou(await chamar('fecharComanda', { id: c.id, pagamentos: [] })); } catch (e) { setErro(e.message); }
+                }}>Concluir (nada a cobrar)</BotaoAcao>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {editando != null && itens[editando] && (
@@ -507,23 +610,23 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   );
 }
 
-// linha pequena embaixo do nome: tipo, profissional, agenda, promoção…
+// linha pequena embaixo do nome: tipo, profissional, agenda, promoção… (cada parte é um pedacinho)
 function MetaItem({ it, fechada }) {
   const partes = it.tipo === 'vale' ? [] : [ROTULO_TIPO[it.tipo]];
   if (it.atendimentoId) partes.push('da agenda');
   if (it.profissional) partes.push(`com ${it.profissional}`);
-  if (it.pago) partes.push('pago antes (pacote, antecipado ou cortesia)');
   if (it.pacote) partes.push(`sessão de ${it.pacoteDescricao || 'pacote'}`);
   if (it.promocao) partes.push(`promoção ${it.promocao}`);
   if (it.cupom) partes.push(`cupom ${it.cupom}`);
   if (it.vale && it.tipo !== 'vale') partes.push(`vale ${it.vale}`);
   if (it.valeCodigo) partes.push(`código ${it.valeCodigo}`);
   const falta = !fechada && it.tipo === 'servico' && !it.profissional;
-  if (!partes.length && !falta) return null;
+  if (!partes.length && !falta && !it.pago) return null;
   return (
-    <span className="b-suave cm-item__meta">
-      {partes.join(' · ')}
-      {falta && <span className="b-alerta-txt"> · falta quem atendeu</span>}
+    <span className="b-meta cm-item__meta">
+      {partes.map((p, i) => <span key={i}>{p}</span>)}
+      {it.pago && <span title="Pago antes: pacote, antecipado ou cortesia">pago antes</span>}
+      {falta && <span className="b-alerta-txt">falta quem atendeu</span>}
     </span>
   );
 }
@@ -622,8 +725,8 @@ function EditarItem({ it, catalogo, aoFechar, aoSalvar }) {
           <div className="b-escolhido">
             <div><strong>{novo ? novo.nome : it.nome}</strong><span>{novo ? `${real(novo.preco)} · no lugar de ${it.nome}` : `${real(it.preco)} na tabela`}</span></div>
             {podeTrocar && (novo
-              ? <button type="button" className="link-sair" onClick={() => { setNovo(null); setTrocar(false); }}>desfazer</button>
-              : !trocar && <button type="button" className="link-acao" onClick={() => setTrocar(true)}>trocar</button>)}
+              ? <button type="button" className="botao botao--fantasma botao--p" onClick={() => { setNovo(null); setTrocar(false); }}>Desfazer</button>
+              : !trocar && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setTrocar(true)}>Trocar</button>)}
           </div>
           {trocar && !novo && <EscolherItem catalogo={catalogo} filtro={filtroTroca} placeholder={`Buscar outro ${NOME_TIPO[it.tipo] || 'item'}`} autoFocus aoEscolher={(i) => { setNovo(i); setTrocar(false); }} />}
           {it.pago && <p className="b-suave cm-editar__nota">Este item já foi pago antes (pacote, antecipado ou cortesia): dá para mudar a profissional e a observação. Para trocar o serviço, tire este item e inclua o novo.</p>}
@@ -744,7 +847,7 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
   }
 
   return (
-    <Modal titulo="Vale-presente" rotulo="Venda: quem compra paga nesta comanda; o código é criado ao fechar" aoFechar={aoFechar}>
+    <Modal titulo="Vale-presente" rotulo="Quem compra paga nesta comanda; o código nasce ao fechar" aoFechar={aoFechar}>
       <div className="b-form">
         <fieldset className="cm-grupo">
           <legend className="rotulo">O que o vale dá</legend>
@@ -757,7 +860,7 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
             <input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="Ex.: 150" /></label>
         ) : plano ? (
           <div className="b-escolhido"><div><strong>{plano.nome}</strong><span>{real(plano.preco)} · preço do catálogo</span></div>
-            <button type="button" className="link-sair" onClick={() => setPlano(null)}>trocar</button></div>
+            <button type="button" className="botao botao--fantasma botao--p" onClick={() => setPlano(null)}>Trocar</button></div>
         ) : (
           <EscolherItem catalogo={catalogo} filtro={filtroPlano} placeholder="Buscar serviço, pacote, aula ou plano" aoEscolher={setPlano} />
         )}
@@ -778,11 +881,11 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
           <legend className="rotulo">Como entregar o vale</legend>
           <label className={`b-check${okEmail ? '' : ' b-check--apagado'}`}>
             <input type="checkbox" checked={enviar && okEmail} disabled={!okEmail} onChange={(e) => setEnviar(e.target.checked)} />
-            {okEmail ? `Por e-mail para ${email.trim()}, assim que fechar a comanda` : 'Por e-mail ao fechar a comanda (informe o e-mail)'}
+            {okEmail ? `Por e-mail para ${email.trim()}, ao fechar` : 'Por e-mail ao fechar (informe o e-mail)'}
           </label>
           <label className={`b-check${okWhats ? '' : ' b-check--apagado'}`}>
             <input type="checkbox" checked={enviarWa && okWhats} disabled={!okWhats} onChange={(e) => setEnviarWa(e.target.checked)} />
-            {okWhats ? `Pelo WhatsApp para ${telFmt(soDigitos(whats))}: ao fechar, o botão de enviar já vem com a mensagem pronta` : 'Pelo WhatsApp ao fechar a comanda (informe o WhatsApp)'}
+            {okWhats ? `Pelo WhatsApp para ${telFmt(soDigitos(whats))}, ao fechar` : 'Pelo WhatsApp ao fechar (informe o WhatsApp)'}
           </label>
         </fieldset>
         <Erro>{erro}</Erro>
@@ -810,7 +913,7 @@ function ValesCriados({ lista }) {
           <strong className="cm-vale__codigo">{v.codigo}</strong>
           <span className="cm-vale__desc">{v.descricao}</span>
           <span className="b-suave">Válido até {dataBR(v.validade)}</span>
-          {v.enviarWhats && !enviados[v.codigo] && <span className="cm-vale__ok">Falta enviar: toque no botão e depois em enviar no WhatsApp.</span>}
+          {v.enviarWhats && !enviados[v.codigo] && <span className="cm-vale__ok">Falta enviar pelo WhatsApp.</span>}
           {enviados[v.codigo] && <span className="cm-vale__ok">Marcado como enviado pelo WhatsApp.</span>}
           <div className="cm-vale__botoes">
             <a className="botao botao--cheio botao--p com-icone" target="_blank" rel="noreferrer" onClick={() => marcar(v)}
@@ -827,6 +930,21 @@ function ValesCriados({ lista }) {
   );
 }
 
+// rodapé preso ao pé da folha: total à esquerda, ações à direita (a ação principal é a última)
+function RodapeAcao({ rotulo, valor, aviso, erro, children }) {
+  return (
+    <div className="cm-rodape">
+      {erro && <Erro>{erro}</Erro>}
+      <div className="cm-rodape__total">
+        <span>{rotulo}</span>
+        <strong>{real(valor)}</strong>
+        {aviso}
+      </div>
+      <div className="cm-rodape__acoes">{children}</div>
+    </div>
+  );
+}
+
 function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
   const { chamar } = useBancada();
   const [linhas, setLinhas] = useState([{ ...LINHA_PAGAMENTO, valor: String(c.total.toFixed(2)).replace('.', ',') }]);
@@ -836,23 +954,23 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
   // um vale-presente vendido não se paga com outro vale
   const formas = semVale ? METODOS : METODOS.concat(['Vale-presente']);
   return (
-    <section className="cm-pagar" aria-label="Pagamento">
-      <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
-      <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={c.total} formas={formas} />
-      {semVale && <p className="b-suave cm-pagar__nota">Esta comanda vende um vale-presente: não dá para pagar com outro vale.</p>}
-      {troco && <TrocoCalc valor={numBR(troco.valor)} />}
-      <Erro>{erro}</Erro>
-      <div className="cm-acoes">
-        {semBandeira && <span className="b-alerta-txt">Escolha a bandeira do cartão.</span>}
+    <>
+      <section className="cm-pagar" aria-label="Pagamento">
+        <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
+        <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={c.total} formas={formas} />
+        {semVale && <Aviso tom="info">Esta comanda vende um vale-presente: não dá para pagar com outro vale.</Aviso>}
+        {troco && <TrocoCalc valor={numBR(troco.valor)} />}
+      </section>
+      <RodapeAcao rotulo="A receber" valor={c.total} erro={erro} aviso={semBandeira && <small className="b-alerta-txt">Escolha a bandeira do cartão</small>}>
+        <button type="button" className="botao botao--linha" onClick={aoVoltar}>Voltar</button>
         <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || semBandeira} acao={async () => {
           setErro('');
           try {
             aoFechar(await chamar('fecharComanda', { id: c.id, pagamentos: linhas.map((l) => ({ ...l, valor: numBR(l.valor) })) }));
           } catch (e) { setErro(e.message); }
         }}>Fechar comanda</BotaoAcao>
-        <button type="button" className="link-acao" onClick={aoVoltar}>Voltar</button>
-      </div>
-    </section>
+      </RodapeAcao>
+    </>
   );
 }
 
@@ -867,22 +985,24 @@ function CorrigirFormas({ c, aoCorrigir, aoCancelar }) {
   const [erro, setErro] = useState('');
   const { falta, semBandeira } = resumoLinhas(linhas, total);
   return (
-    <section className="cm-pagar cm-pagar--corrigir" aria-label="Corrigir forma de pagamento">
-      <h3 className="cm-pagar__titulo">Corrigir como foi pago</h3>
-      <p className="b-suave">Total pago em dinheiro, cartão ou Pix: <strong>{real(total)}</strong>{vale > 0 ? ` (mais ${real(vale)} em vale-presente, que não muda)` : ''}. Mude a divisão: o caixa e os relatórios acompanham.</p>
-      <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={total} formas={METODOS} />
-      <label className="b-campo"><span className="rotulo">Motivo da correção</span>
-        <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: pagou metade no dinheiro" /></label>
-      <Erro>{erro}</Erro>
-      <div className="cm-acoes">
-        {semBandeira && <span className="b-alerta-txt">Escolha a bandeira do cartão.</span>}
+    <>
+      <section className="cm-pagar cm-pagar--corrigir" aria-label="Corrigir forma de pagamento">
+        <h3 className="cm-pagar__titulo">Corrigir como foi pago</h3>
+        <Aviso tom="info" titulo={`Total pago em dinheiro, cartão ou Pix: ${real(total)}`}>
+          {vale > 0 ? `Mais ${real(vale)} em vale-presente, que não muda. ` : ''}Mude a divisão: o caixa e os relatórios acompanham.
+        </Aviso>
+        <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={total} formas={METODOS} />
+        <label className="b-campo"><span className="rotulo">Motivo da correção</span>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: pagou metade no dinheiro" /></label>
+      </section>
+      <RodapeAcao rotulo="Total pago" valor={total} erro={erro} aviso={semBandeira && <small className="b-alerta-txt">Escolha a bandeira do cartão</small>}>
+        <button type="button" className="botao botao--linha" onClick={aoCancelar}>Cancelar</button>
         <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || semBandeira || motivo.trim().length < 3} acao={async () => {
           setErro('');
           try { aoCorrigir(await chamar('corrigirFormasComanda', { id: c.id, motivo, pagamentos: linhas.map((l) => ({ ...l, valor: numBR(l.valor) })) })); } catch (e) { setErro(e.message); }
         }}>Salvar correção</BotaoAcao>
-        <button type="button" className="link-acao" onClick={aoCancelar}>Cancelar</button>
-      </div>
-    </section>
+      </RodapeAcao>
+    </>
   );
 }
 
@@ -891,10 +1011,10 @@ function TrocoCalc({ valor }) {
   const t = numBR(recebido) - valor;
   return (
     <label className="b-campo cm-troco">
-      <span className="rotulo">Recebeu em dinheiro (para calcular o troco)</span>
+      <span className="rotulo">Troco: quanto recebeu em dinheiro?</span>
       <span className="cm-troco__linha">
         <input inputMode="decimal" value={recebido} onChange={(e) => setRecebido(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="Ex.: 200" />
-        {recebido && <strong>{t >= 0 ? `Troco ${real(t)}` : `Falta ${real(-t)}`}</strong>}
+        {recebido && <strong className={t >= 0 ? 'cm-troco__ok' : 'cm-troco__falta'}>{t >= 0 ? `Troco ${real(t)}` : `Falta ${real(-t)}`}</strong>}
       </span>
     </label>
   );
@@ -906,9 +1026,13 @@ function Recibo({ c }) {
     `\n\nTotal: ${real(c.total)} (${c.pagamentos.map((p) => p.metodo).join(' + ')})`;
   return (
     <div className="cm-recibo">
-      <p className="aviso">Comanda fechada. Os pagamentos entraram em Vendas e no caixa do dia.</p>
-      {c.whatsapp && <a className="botao botao--linha botao--p com-icone" href={linkWhats(c.whatsapp, texto)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> Enviar recibo por WhatsApp</a>}
-      {c.whatsapp && <span className="b-suave">{telFmt(c.whatsapp)}</span>}
+      <Aviso tom="ok" titulo="Comanda fechada">Os pagamentos entraram em Vendas e no caixa do dia.</Aviso>
+      {c.whatsapp && (
+        <div className="cm-recibo__zap">
+          <a className="botao botao--cheio botao--p com-icone" href={linkWhats(c.whatsapp, texto)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> Enviar recibo por WhatsApp</a>
+          <span className="b-suave">{telFmt(c.whatsapp)}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -944,6 +1068,22 @@ export function CaixaDoDia({ diaInicial }) {
 // "Aberto depois, em 2026-10-20 09:12:30, por bia" → "… em 20/10/2026 09:12, por bia"
 const obsCaixa = (t) => String(t || '').replace(/(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})(:\d{2})?/g, '$3/$2/$1 $4');
 
+// situação do caixa em uma linha: bolinha de cor + o que importa
+function StatusCaixa({ tom, titulo, children, lado }) {
+  return (
+    <div className={`cx-status cx-status--${tom}`} role="status">
+      <span className="cx-status__ponto" aria-hidden="true" />
+      <div className="cx-status__corpo">
+        <strong>{titulo}</strong>
+        {children && <span className="b-suave">{children}</span>}
+      </div>
+      {lado && <div className="cx-status__lado">{lado}</div>}
+    </div>
+  );
+}
+
+const textoDif = (d) => (Math.abs(d) < 0.01 ? 'bateu' : d > 0 ? `+${real(d)}` : `−${real(-d)}`);
+
 function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
   const { chamar } = useBancada();
   // hoje usa a mesma chave da tela inicial (já vem pré-carregada)
@@ -956,13 +1096,11 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
   const [erroA, setErroA] = useState('');
   const aberturaDepois = /^Aberto depois/.test(cx?.obs || '');
   const faixa = passado && (
-    <p className="cx-passado" role="status">
-      <strong>Caixa de {dataBR(dia).slice(0, 5)} (dia que já passou) — você está lançando depois</strong>
-      <span>Abertura, movimentos e fechamento entram na data de {dataBR(dia)} e ficam marcados como lançados depois.</span>
-      {aberturaDepois && <span className="cx-passado__obs">{obsCaixa(cx.obs)}.</span>}
-    </p>
+    <Aviso tom="aviso" titulo={`Caixa de ${dataBR(dia).slice(0, 5)} (dia que já passou)`}>
+      Você está lançando depois: abertura, movimentos e fechamento entram em {dataBR(dia)} e ficam marcados como lançados depois.{aberturaDepois ? ` ${obsCaixa(cx.obs)}.` : ''}
+    </Aviso>
   );
-  if (carregando && !cx) return <>{faixa}<Carregando /></>;
+  if (carregando && !cx) return <>{faixa}<Esqueleto linhas={6} altura={26} /></>;
   if (!cx) return <>{faixa}<Erro>{erro}</Erro></>;
   const acao = async (nome, dados) => {
     setErroA('');
@@ -977,16 +1115,18 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
     return (
       <>
         {faixa}
+        <StatusCaixa tom="parado" titulo={`Caixa ${doDia} ainda não foi aberto`} />
         <section className="cx cx--fechada">
           <div className="cx__gaveta" aria-hidden="true" />
           <div className="cx__abrir">
             <h2 className="b-cartao__titulo">Abrir o caixa {doDia}</h2>
-            <p className="b-suave">{passado ? 'Informe o troco que havia na gaveta no começo daquele dia.' : 'Conte o troco que está na gaveta antes do primeiro atendimento.'}</p>
             <label className="b-campo"><span className="rotulo">Troco inicial (R$)</span>
-              <input inputMode="decimal" value={abertura} onChange={(e) => setAbertura(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="0,00" /></label>
+              <input inputMode="decimal" value={abertura} onChange={(e) => setAbertura(e.target.value.replace(/[^\d,.]/g, ''))} placeholder="0,00" />
+              <small className="b-suave">{passado ? 'O troco que havia na gaveta no começo daquele dia.' : 'Conte o troco da gaveta antes do primeiro atendimento.'}</small>
+            </label>
             <Erro>{erroA}</Erro>
             <BotaoAcao className="botao botao--cheio" acao={() => acao('abrirCaixa', { valor: numBR(abertura) })}>{passado ? `Abrir caixa de ${dataBR(dia).slice(0, 5)}` : 'Abrir caixa'}</BotaoAcao>
-            {cx.qtdVendas > 0 && <p className="b-suave">{passado ? 'Nesse dia' : 'Hoje já'} {cx.qtdVendas === 1 ? 'entrou' : 'entraram'} {plural(cx.qtdVendas, 'venda', 'vendas')}: {real(cx.vendas)}.</p>}
+            {cx.qtdVendas > 0 && <Aviso tom="info">{passado ? 'Nesse dia' : 'Hoje já'} {cx.qtdVendas === 1 ? 'entrou' : 'entraram'} {plural(cx.qtdVendas, 'venda', 'vendas')}: {real(cx.vendas)}.</Aviso>}
           </div>
         </section>
         <Lancamentos lista={cx.lancamentos} doDia={doDia} />
@@ -995,84 +1135,130 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
     );
   }
 
+  const aberto = cx.status === 'aberto';
+  const totalFormas = cx.porForma.reduce((s, f) => s + f.valor, 0);
+  const quando = `${passado ? `em ${dataBR(cx.abertoEm).slice(0, 5)} ` : ''}às ${hora(cx.abertoEm.slice(11, 16))}`;
+
   return (
     <>
       {faixa}
-      {!passado && aberturaDepois && cx.status === 'aberto' && <p className="b-suave cx-obs">{obsCaixa(cx.obs)}.</p>}
-      <section className="b-kpis">
-        <div className="b-kpi"><span className="b-kpi__rotulo">Troco inicial</span><strong className="b-kpi__valor">{real(cx.abertura)}</strong><span className="b-kpi__detalhe">aberto por {cx.abertoPor} {passado ? `em ${dataBR(cx.abertoEm).slice(0, 5)} ` : ''}às {hora(cx.abertoEm.slice(11, 16))}</span></div>
-        <div className="b-kpi"><span className="b-kpi__rotulo">{passado ? 'Vendas do dia' : 'Vendas de hoje'}</span><strong className="b-kpi__valor">{real(cx.vendas)}</strong><span className="b-kpi__detalhe">{plural(cx.qtdVendas, 'lançamento', 'lançamentos')}</span></div>
-        <div className="b-kpi b-kpi--destaque"><span className="b-kpi__rotulo">Dinheiro na gaveta</span><strong className="b-kpi__valor">{real(cx.esperado)}</strong><span className="b-kpi__detalhe">{passado ? 'o que devia ter no fim do dia' : 'o que deve ter agora'}</span></div>
-      </section>
-      <Lancamentos lista={cx.lancamentos} doDia={doDia} />
-      <div className="b-duas">
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Entradas por forma</h2></header>
-          {cx.porForma.length === 0 ? <p className="b-suave">Nenhuma venda ainda.</p> : (
-            <dl className="b-dados">{cx.porForma.map((f) => <Fragment key={f.nome}><dt>{f.nome}</dt><dd>{real(f.valor)}</dd></Fragment>)}</dl>
-          )}
-          <dl className="b-dados cx__conta">
-            <dt>Troco inicial</dt><dd>{real(cx.abertura)}</dd>
-            <dt>+ vendas em dinheiro</dt><dd>{real(cx.dinheiroVendas)}</dd>
-            {cx.suprimentos > 0 && <><dt>+ suprimentos</dt><dd>{real(cx.suprimentos)}</dd></>}
-            {cx.sangrias > 0 && <><dt>− sangrias</dt><dd>{real(cx.sangrias)}</dd></>}
-            {cx.despesas > 0 && <><dt>− despesas pagas do caixa</dt><dd>{real(cx.despesas)}</dd></>}
-            <dt><strong>= esperado na gaveta</strong></dt><dd><strong>{real(cx.esperado)}</strong></dd>
-          </dl>
-        </section>
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Movimentos</h2></header>
-          {cx.movimentos.length === 0 && <p className="b-suave">Sem retiradas nem reforços de troco.</p>}
-          <ul className="b-lista-simples">
-            {cx.movimentos.map((m, i) => (
-              <li key={i}>
-                <strong>{ROT[m.tipo]} · {real(m.valor)}</strong>
-                <span>{m.motivo} · {m.retroativo ? `lançado depois, em ${dataBR(m.quando).slice(0, 5)} ${hora(m.quando.slice(11, 16))}` : hora(m.quando.slice(11, 16))} · {m.quem}</span>
-              </li>
-            ))}
-          </ul>
-          {cx.status === 'aberto' && (
-            <div className="b-botoes">
+      {aberto ? (
+        <StatusCaixa tom="aberto" titulo={`Caixa ${doDia} aberto`} lado={!passado && aberturaDepois ? <Tag tom="aviso" title={obsCaixa(cx.obs)}>aberto depois</Tag> : undefined}>
+          por {cx.abertoPor} {quando}
+        </StatusCaixa>
+      ) : (
+        <StatusCaixa tom="fechado" titulo={`Caixa ${doDia} fechado`} lado={<Tag tom={Math.abs(cx.diferenca || 0) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(cx.diferenca || 0) < 0.01 ? 'bateu' : `diferença ${real(cx.diferenca)}`}</Tag>}>
+          por {cx.fechadoPor} {passado || cx.fechadoEm.slice(0, 10) !== dia ? `em ${dataBR(cx.fechadoEm).slice(0, 5)} ` : ''}às {hora(cx.fechadoEm.slice(11, 16))}
+        </StatusCaixa>
+      )}
+      {!passado && aberto && aberturaDepois && <p className="b-suave cx-obs">{obsCaixa(cx.obs)}.</p>}
+      <div className="b-kpis cx-kpis">
+        <Kpi rotulo="Troco inicial" valor={real(cx.abertura)} />
+        <Kpi rotulo={passado ? 'Vendas do dia' : 'Vendas de hoje'} valor={real(cx.vendas)} detalhe={plural(cx.qtdVendas, 'lançamento', 'lançamentos')} />
+        <Kpi rotulo="Dinheiro na gaveta" valor={real(cx.esperado)} detalhe={passado ? 'o que devia ter no fim do dia' : 'o que deve ter agora'} tom="destaque" />
+      </div>
+
+      <div className="b-duas cx-duas">
+        <div className="cx-pilha">
+          <Secao titulo="Entradas por forma" className="b-cartao cx-cartao">
+            {cx.porForma.length === 0 ? <p className="b-suave">Nenhuma venda ainda.</p> : (
+              <ul className="cx-formas">
+                {cx.porForma.map((f) => {
+                  const pct = totalFormas > 0 ? Math.round((f.valor / totalFormas) * 100) : 0;
+                  return (
+                    <li key={f.nome}>
+                      <span className="cx-formas__nome">{f.nome}</span>
+                      <strong>{real(f.valor)}</strong>
+                      <span className="cx-formas__barra" aria-hidden="true"><i style={{ width: `${pct}%` }} /></span>
+                      <small>{pct}%</small>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Secao>
+          <Secao titulo="Dinheiro na gaveta" className="b-cartao cx-cartao">
+            <dl className="cx-conta">
+              <dt>Troco inicial</dt><dd>{real(cx.abertura)}</dd>
+              <dt>+ vendas em dinheiro</dt><dd>{real(cx.dinheiroVendas)}</dd>
+              {cx.suprimentos > 0 && <><dt>+ suprimentos</dt><dd>{real(cx.suprimentos)}</dd></>}
+              {cx.sangrias > 0 && <><dt>− sangrias</dt><dd>{real(cx.sangrias)}</dd></>}
+              {cx.despesas > 0 && <><dt>− despesas pagas do caixa</dt><dd>{real(cx.despesas)}</dd></>}
+              <dt className="cx-conta__total">= esperado na gaveta</dt><dd className="cx-conta__total">{real(cx.esperado)}</dd>
+            </dl>
+          </Secao>
+        </div>
+        <Secao titulo="Movimentos" className="b-cartao cx-cartao"
+          acoes={aberto && (
+            <>
               <button type="button" className="botao botao--linha botao--p" onClick={() => setMov({ tipo: 'sangria', valor: '', motivo: '' })}>Sangria</button>
               <button type="button" className="botao botao--linha botao--p" onClick={() => setMov({ tipo: 'suprimento', valor: '', motivo: '' })}>Suprimento</button>
               <button type="button" className="botao botao--linha botao--p" onClick={() => setMov({ tipo: 'despesa', valor: '', motivo: '', categoria: 'Outros' })}>Pagar despesa</button>
-            </div>
-          )}
-        </section>
+            </>
+          )}>
+          {cx.movimentos.length === 0 && <p className="b-suave">Sem retiradas nem reforços de troco.</p>}
+          <ul className="cx-mov">
+            {cx.movimentos.map((m, i) => (
+              <li key={i}>
+                <span className="cx-mov__tipo">{ROT[m.tipo]}</span>
+                <strong className={m.tipo === 'suprimento' ? 'cx-mov__entra' : 'cx-mov__sai'}>{m.tipo === 'suprimento' ? '+' : '−'} {real(m.valor)}</strong>
+                <span className="b-suave cx-mov__meta">{m.motivo} · {m.retroativo ? `lançado depois, em ${dataBR(m.quando).slice(0, 5)} ${hora(m.quando.slice(11, 16))}` : hora(m.quando.slice(11, 16))} · {m.quem}</span>
+              </li>
+            ))}
+          </ul>
+        </Secao>
       </div>
+
+      <Lancamentos lista={cx.lancamentos} doDia={doDia} />
       <Erro>{erroA}</Erro>
-      {cx.status === 'aberto' ? (
-        <section className="b-cartao cx__fechar">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Fechar o caixa {doDia}</h2></header>
-          <p className="b-suave">{passado ? 'Informe quanto havia na gaveta no fim daquele dia. O sistema compara com o esperado.' : 'Conte o dinheiro da gaveta e informe o total. O sistema compara com o esperado.'}</p>
-          <div className="b-linha2">
-            <label className="b-campo"><span className="rotulo">Dinheiro contado (R$)</span>
-              <input inputMode="decimal" value={contado} onChange={(e) => setContado(e.target.value.replace(/[^\d,.]/g, ''))} placeholder={String(cx.esperado).replace('.', ',')} /></label>
-            <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
-          </div>
-          {dif != null && <p className={Math.abs(dif) < 0.01 ? 'aviso' : 'b-alerta-txt'}>{Math.abs(dif) < 0.01 ? 'Bateu certinho.' : dif > 0 ? `Sobrando ${real(dif)}.` : `Faltando ${real(-dif)}.`}</p>}
-          <ConferirExtrato conferir={cx.conferir || []} valores={extrato} aoMudar={setExtrato} />
-          <BotaoAcao className="botao botao--cheio" disabled={contado === ''} acao={() => acao('fecharCaixa', { contado: numBR(contado), obs,
-            conferencia: Object.fromEntries(Object.entries(extrato).filter(([, v]) => v !== '').map(([k, v]) => [k, numBR(v)])) })}>Fechar caixa</BotaoAcao>
+
+      {aberto ? (
+        <section className="b-cartao cx-cartao cx-fechar">
+          <Secao titulo={`Fechar o caixa ${doDia}`}
+            ajuda={passado ? 'Informe quanto havia na gaveta no fim daquele dia. O sistema compara com o esperado.' : 'Conte o dinheiro da gaveta e informe o total. O sistema compara com o esperado.'}>
+            <div className="b-linha2">
+              <label className="b-campo"><span className="rotulo">Dinheiro contado (R$)</span>
+                <input inputMode="decimal" value={contado} onChange={(e) => setContado(e.target.value.replace(/[^\d,.]/g, ''))} placeholder={String(cx.esperado).replace('.', ',')} />
+                <small className="b-suave">Esperado: {real(cx.esperado)}</small></label>
+              <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
+            </div>
+            {dif != null && (
+              <Aviso tom={Math.abs(dif) < 0.01 ? 'ok' : 'alerta'} titulo={Math.abs(dif) < 0.01 ? 'Bateu certinho' : dif > 0 ? `Sobrando ${real(dif)}` : `Faltando ${real(-dif)}`} />
+            )}
+            <ConferirExtrato conferir={cx.conferir || []} valores={extrato} aoMudar={setExtrato} />
+            <div className="cx-rodape">
+              <span className="cx-rodape__info">{dif == null ? 'Informe o dinheiro contado para fechar' : `Contado ${real(numBR(contado))} · esperado ${real(cx.esperado)}`}</span>
+              <BotaoAcao className="botao botao--cheio" disabled={contado === ''} acao={() => acao('fecharCaixa', { contado: numBR(contado), obs,
+                conferencia: Object.fromEntries(Object.entries(extrato).filter(([, v]) => v !== '').map(([k, v]) => [k, numBR(v)])) })}>Fechar caixa</BotaoAcao>
+            </div>
+          </Secao>
         </section>
       ) : (
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Caixa fechado</h2><Tag tom={Math.abs(cx.diferenca || 0) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(cx.diferenca || 0) < 0.01 ? 'bateu' : `diferença ${real(cx.diferenca)}`}</Tag></header>
-          <p className="b-suave">Contado {real(cx.contado)} · esperado {real(cx.esperado)} · por {cx.fechadoPor} {passado || cx.fechadoEm.slice(0, 10) !== dia ? `em ${dataBR(cx.fechadoEm).slice(0, 5)} ` : ''}às {hora(cx.fechadoEm.slice(11, 16))}{cx.obs ? ' · ' + cx.obs : ''}</p>
-          {Math.abs(cx.depoisDoFechamento || 0) > 0.009 && (
-            <p className="aviso">Depois do fechamento {cx.depoisDoFechamento > 0 ? 'entraram' : 'saíram'} {real(Math.abs(cx.depoisDoFechamento))} em dinheiro (comanda ou venda lançada mais tarde). {admin ? 'Reabra o caixa para conferir de novo.' : 'Avise a administração.'}</p>
-          )}
-          {cx.conferencia?.length > 0 && (
-            <ul className="cx-conf cx-conf--fechado">
-              {cx.conferencia.map((x) => (
-                <li key={x.forma}>
-                  <span>{x.forma}</span><span className="num">{real(x.sistema)}</span><span className="num">{real(x.informado)}</span>
-                  <Tag tom={Math.abs(x.diferenca) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(x.diferenca) < 0.01 ? 'bateu' : x.diferenca > 0 ? `+${real(x.diferenca)}` : `−${real(-x.diferenca)}`}</Tag>
-                </li>
-              ))}
-            </ul>
-          )}
-          {admin && <BotaoAcao acao={() => acao('reabrirCaixa', {})}>Reabrir</BotaoAcao>}
+        <section className="b-cartao cx-cartao cx-fechado">
+          <Secao titulo="Fechamento" acoes={admin && <BotaoAcao acao={() => acao('reabrirCaixa', {})}>Reabrir caixa</BotaoAcao>}>
+            <div className="b-kpis cx-kpis">
+              <Kpi rotulo="Contado" valor={real(cx.contado)} />
+              <Kpi rotulo="Esperado" valor={real(cx.esperado)} />
+              <Kpi rotulo="Diferença" valor={real(cx.diferenca || 0)} tom={Math.abs(cx.diferenca || 0) < 0.01 ? 'ok' : 'alerta'} detalhe={Math.abs(cx.diferenca || 0) < 0.01 ? 'bateu' : cx.diferenca > 0 ? 'sobrando' : 'faltando'} />
+            </div>
+            {cx.obs && <p className="b-suave cx-fechado__obs">Observação: {cx.obs}</p>}
+            {Math.abs(cx.depoisDoFechamento || 0) > 0.009 && (
+              <Aviso tom="aviso" titulo={`Depois do fechamento ${cx.depoisDoFechamento > 0 ? 'entraram' : 'saíram'} ${real(Math.abs(cx.depoisDoFechamento))} em dinheiro`}>
+                Foi uma comanda ou venda lançada mais tarde. {admin ? 'Reabra o caixa para conferir de novo.' : 'Avise a administração.'}
+              </Aviso>
+            )}
+            {cx.conferencia?.length > 0 && (
+              <ul className="cx-conf cx-conf--fechado" aria-label="Conferência com o extrato">
+                <li className="cx-conf__cab" aria-hidden="true"><span>Forma</span><span className="num">Sistema</span><span className="num">Extrato</span><span>Resultado</span></li>
+                {cx.conferencia.map((x) => (
+                  <li key={x.forma}>
+                    <span>{x.forma}</span><span className="num" data-r="Sistema">{real(x.sistema)}</span><span className="num" data-r="Extrato">{real(x.informado)}</span>
+                    <Tag tom={Math.abs(x.diferenca) < 0.01 ? 'ok' : 'alerta'}>{textoDif(x.diferenca)}</Tag>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Secao>
         </section>
       )}
       {anteriores}
@@ -1094,37 +1280,35 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
   );
 }
 
-// administração: os últimos caixas antes do dia escolhido (abre o dia ao tocar)
-// fechamento: confere o total de cada forma com o extrato da maquininha, do link e do Pix (opcional)
 // cada venda do dia: hora, cliente, o quê, como pagou e quem registrou (Vendas tem o detalhe e o estorno)
 function Lancamentos({ lista, doDia }) {
   if (!lista || lista.length === 0) return null;
   const comLiquido = lista.some((l) => l.liquido != null); // só a administração recebe a taxa e o líquido
   const forma = (l) => [l.metodo === 'Misto' && l.divisao ? l.divisao : l.metodo, l.bandeira && l.metodo !== 'Misto' ? l.bandeira : '', l.parcelas > 1 ? `${l.parcelas}x` : ''].filter(Boolean).join(' · ');
-  const onde = (l) => (l.comanda ? `comanda ${l.comanda}` : l.origem === 'site' ? 'pelo site' : 'balcão') + (l.por ? ` · ${l.por}` : '');
+  const onde = (l) => (l.comanda ? `comanda ${String(l.comanda).slice(-5)}` : l.origem === 'site' ? 'pelo site' : 'balcão') + (l.por ? ` · ${l.por}` : '');
   return (
-    <section className="b-cartao">
-      <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Lançamentos {doDia}</h2><span className="b-suave">{plural(lista.length, 'venda', 'vendas')}</span></header>
-      <table className="cx-lanc">
-        <thead><tr><th>Hora</th><th>Cliente</th><th>O quê</th><th>Forma</th><th className="cx-lanc__valor">Valor</th>{comLiquido && <th className="cx-lanc__valor">Líquido</th>}</tr></thead>
-        <tbody>
-          {lista.map((l, i) => (
-            <tr key={i}>
-              <td className="cx-lanc__hora">{l.hora ? hora(l.hora) : '—'}</td>
-              <td><strong>{l.nome || 'Sem nome'}</strong><small>{onde(l)}</small></td>
-              <td>{l.item}</td>
-              <td>{forma(l)}</td>
-              <td className="cx-lanc__valor">{real(l.valor)}</td>
-              {comLiquido && <td className="cx-lanc__valor">{l.taxa > 0 ? <>{real(l.liquido)}<small>taxa {real(l.taxa)}</small></> : <span className="b-suave">{real(l.liquido)}</span>}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="b-suave">Para estornar ou ver o recibo, use Vendas.</p>
-    </section>
+    <Secao titulo={`Lançamentos ${doDia}`} className="b-cartao cx-cartao" ajuda="Cada venda do dia. Para estornar, corrigir ou ver o recibo, use Vendas."
+      acoes={<><span className="b-suave">{plural(lista.length, 'venda', 'vendas')}</span><Link className="botao botao--linha botao--p" to="/bancada/vendas">Abrir Vendas</Link></>}>
+      <ul className={`cx-lanc${comLiquido ? ' cx-lanc--liquido' : ''}`}>
+        <li className="cx-lanc__cab" aria-hidden="true">
+          <span>Hora</span><span>Cliente</span><span>O quê</span><span>Forma</span><span className="cx-lanc__valor">Valor</span>{comLiquido && <span className="cx-lanc__valor">Líquido</span>}
+        </li>
+        {lista.map((l, i) => (
+          <li key={i}>
+            <span className="cx-lanc__hora">{l.hora ? hora(l.hora) : '—'}</span>
+            <span className="cx-lanc__quem"><strong>{l.nome || 'Sem nome'}</strong><small>{onde(l)}</small></span>
+            <span className="cx-lanc__item">{l.item}</span>
+            <span className="cx-lanc__forma">{forma(l)}</span>
+            <span className="cx-lanc__valor">{real(l.valor)}</span>
+            {comLiquido && <span className="cx-lanc__valor cx-lanc__liq">{l.taxa > 0 ? <>{real(l.liquido)}<small>taxa {real(l.taxa)}</small></> : <span className="b-suave">{real(l.liquido)}</span>}</span>}
+          </li>
+        ))}
+      </ul>
+    </Secao>
   );
 }
 
+// fechamento: confere o total de cada forma com o extrato da maquininha, do link e do Pix (opcional)
 function ConferirExtrato({ conferir, valores, aoMudar }) {
   const formas = conferir.filter((f) => f.valor > 0 || valores[f.forma]);
   const resto = conferir.filter((f) => !formas.includes(f));
@@ -1133,8 +1317,10 @@ function ConferirExtrato({ conferir, valores, aoMudar }) {
   if (!conferir.length) return null;
   return (
     <fieldset className="cx-conf-campos">
-      <legend className="rotulo">Conferir com o extrato (opcional)</legend>
-      <p className="b-suave">Digite o total que aparece no extrato da maquininha, do link e do banco para cada forma. Os valores com diferença ficam marcados no fechamento.</p>
+      <legend className="rotulo">
+        Conferir com o extrato <Tag tom="apagado">opcional</Tag>
+        <Ajuda titulo="Conferir com o extrato" alinhar="esquerda">Digite o total que aparece no extrato da maquininha, do link e do banco para cada forma. Os valores com diferença ficam marcados no fechamento.</Ajuda>
+      </legend>
       {lista.length === 0 && <p className="b-suave">Nenhuma venda em Pix ou cartão {mostrarTodas ? '' : 'por enquanto'}.</p>}
       <ul className="cx-conf">
         {lista.map((f) => {
@@ -1146,32 +1332,36 @@ function ConferirExtrato({ conferir, valores, aoMudar }) {
               <span className="num cx-conf__sistema"><small>no sistema</small>{real(f.valor)}</span>
               <input className="cx-conf__campo" inputMode="decimal" value={v} placeholder="extrato" aria-label={`Total de ${f.forma} no extrato`}
                 onChange={(e) => aoMudar({ ...valores, [f.forma]: e.target.value.replace(/[^\d,.]/g, '') })} />
-              <span className="cx-conf__dif">{d == null ? '' : <Tag tom={Math.abs(d) < 0.01 ? 'ok' : 'alerta'}>{Math.abs(d) < 0.01 ? 'bateu' : d > 0 ? `+${real(d)}` : `−${real(-d)}`}</Tag>}</span>
+              <span className="cx-conf__dif">{d == null ? '' : <Tag tom={Math.abs(d) < 0.01 ? 'ok' : 'alerta'}>{textoDif(d)}</Tag>}</span>
             </li>
           );
         })}
       </ul>
-      {!mostrarTodas && resto.length > 0 && <button type="button" className="link-acao" onClick={() => setMostrarTodas(true)}>Conferir também {resto.map((f) => f.forma).join(', ')}</button>}
+      {!mostrarTodas && resto.length > 0 && <button type="button" className="botao botao--fantasma botao--p cx-conf__mais" onClick={() => setMostrarTodas(true)}>Conferir também {resto.map((f) => f.forma).join(', ')}</button>}
     </fieldset>
   );
 }
 
+// administração: os últimos caixas antes do dia escolhido (abre o dia ao tocar)
 function CaixasAnteriores({ lista, aoAbrir }) {
   if (!lista?.length) return null;
   return (
-    <section className="b-cartao cx-anteriores">
-      <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Caixas anteriores</h2></header>
-      <ul className="cx-anteriores__lista">
+    <Secao titulo="Caixas anteriores" className="cx-anteriores">
+      <ul className="b-itens">
         {lista.map((c) => (
           <li key={c.data}>
-            <button type="button" onClick={() => aoAbrir(c.data)}>
-              <strong>{dataBR(c.data)}</strong>
-              <span className="b-suave">{c.status === 'aberto' ? 'ficou aberto' : `esperado ${real(c.esperado)}${c.fechadoPor ? ` · ${c.fechadoPor}` : ''}`}</span>
-              {c.status === 'aberto' || c.diferenca == null ? <Tag tom="aviso">não fechado</Tag> : Math.abs(c.diferenca) < 0.01 ? <Tag tom="ok">bateu</Tag> : <Tag tom="alerta">{real(c.diferenca)}</Tag>}
+            <button type="button" className="b-item" onClick={() => aoAbrir(c.data)}>
+              <span className="b-item__corpo">
+                <span className="b-item__titulo">{dataBR(c.data)}</span>
+                <span className="b-suave">{c.status === 'aberto' ? 'ficou aberto' : `esperado ${real(c.esperado)}${c.fechadoPor ? ` · ${c.fechadoPor}` : ''}`}</span>
+              </span>
+              <span className="b-item__lado">
+                {c.status === 'aberto' || c.diferenca == null ? <Tag tom="aviso">não fechado</Tag> : Math.abs(c.diferenca) < 0.01 ? <Tag tom="ok">bateu</Tag> : <Tag tom="alerta">{real(c.diferenca)}</Tag>}
+              </span>
             </button>
           </li>
         ))}
       </ul>
-    </section>
+    </Secao>
   );
 }
