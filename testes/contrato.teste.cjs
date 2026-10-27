@@ -8,6 +8,7 @@ let falhas = 0;
 const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 500) : ''); } else console.log('  ✓', msg); };
 const linkDe = (e) => (e.body.match(/t=([a-f0-9]+)/) || [])[1];
 const FICHA = { emergencia_nome: 'Mãe', emergencia_telefone: '85999998888', parq_1: 'nao', parq_2: 'nao', parq_3: 'nao', parq_4: 'nao', parq_5: 'nao', parq_6: 'nao', parq_7: 'nao', declaracao: true, consentimento: true, data_nascimento: '1990-05-12' };
+const DESENHO = 'data:image/png;base64,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'; // assinatura desenhada de teste (PNG)
 const TEXTO_REAL = ctx.CONTRATO_TEXTO, VERSAO_REAL = ctx.CONTRATO_VERSAO;
 ctx.CONTRATO_PRONTO = false;
 ctx.configurarPlanilha();
@@ -35,7 +36,7 @@ ok(r.ok && r.dados.ficha === false && r.dados.exige === false, 'contrato ainda n
 console.log('— contrato ligado (texto de teste)');
 ctx.CONTRATO_PRONTO = true; ctx.CONTRATO_VERSAO = 'v1'; ctx.CONTRATO_TITULO = 'Contrato de teste';
 ctx.CONTRATO_TEXTO = '# 1. Do objeto\n{nome}, CPF {cpf}, contrata {plano} ({tipo}) por {valor}, validade {validade} dias, em {data}.\n\n# 2. Do resto\nCláusula dois.';
-r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza' });
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza', assinatura: DESENHO });
 ok(!r.ok && r.codigo === 'FICHA', 'assinar sem ficha: pede a ficha antes', r);
 r = chamar('salvarAnamnese', { token: maria.token, ficha: FICHA }); ok(r.ok, 'ficha salva');
 r = chamar('contratoDoPlano', { token: maria.token, planoId: 'yoga-mensal-2x' });
@@ -46,16 +47,23 @@ r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' });
 ok(!r.ok && r.codigo === 'CONTRATO', 'pagar sem assinar: recusado pelo servidor', r);
 r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: false, nome: 'Maria Souza' }); ok(!r.ok && /concorda/.test(r.erro), 'sem marcar "li e concordo": recusado', r.erro);
 r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, nome: 'Maria Souza' }); ok(!r.ok && /imagem/.test(r.erro), 'sem escolher o uso de imagem: recusado', r.erro);
-r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria' }); ok(!r.ok && /nome completo/.test(r.erro), 'nome diferente do cadastro: recusado', r.erro);
-r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-avulsa', aceito: true, imagem: 'sim', nome: 'Maria Souza' }); ok(!r.ok && /não precisa/.test(r.erro), 'plano avulso: sem contrato', r.erro);
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria', assinatura: DESENHO }); ok(!r.ok && /nome completo/.test(r.erro), 'nome diferente do cadastro: recusado', r.erro);
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-avulsa', aceito: true, imagem: 'sim', nome: 'Maria Souza', assinatura: DESENHO }); ok(!r.ok && /não precisa/.test(r.erro), 'plano avulso: sem contrato', r.erro);
 const antesEmails = emails.length;
-r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'maria  souza', dispositivo: 'Teste/1.0' });
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'maria  souza', dispositivo: 'Teste/1.0', assinatura: DESENHO });
 ok(r.ok && r.dados.assinado, 'assinou (nome sem acento e maiúsculas iguais vale)', r);
 const linha = ctx.lerAba('Contratos').find((c) => c.id === r.dados.id);
 ok(linha && linha.plano_id === 'yoga-mensal-2x' && linha.versao === 'v1' && /^[a-f0-9]{64}$/.test(linha.hash) && linha.assinado_em && linha.pdf, 'registro com plano, versão, impressão digital, data e PDF', linha);
-ok(emails.length === antesEmails + 1 && emails.at(-1).to === 'maria@gmail.com' && emails.at(-1).attachments && emails.at(-1).attachments.length === 1, 'a pessoa recebe a cópia por e-mail com o PDF anexo');
-r = chamar('contratoDoPlano', { token: maria.token, planoId: 'yoga-mensal-2x' }); ok(r.dados.assinado === true, 'a tela passa a saber que já assinou');
+ok(emails.length === antesEmails, 'assinar NÃO manda e-mail: a cópia só sai depois do pagamento');
+ok(linha.assinatura && /^https?:/.test(linha.assinatura) && linha.pdf_id && !linha.enviado_em, 'o desenho da assinatura e o PDF ficam guardados (ainda sem envio)', linha);
 r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza' });
+ok(!r.ok && /assinatura/.test(r.erro), 'sem desenhar a assinatura: recusado', r.erro);
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza', assinatura: 'data:image/png;base64,AAAA' });
+ok(!r.ok, 'desenho que não é um PNG de verdade: recusado', r.erro);
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza', assinatura: 'http://exemplo.com/a.png' });
+ok(!r.ok, 'assinatura que não é um desenho enviado pelo quadro: recusada', r.erro);
+r = chamar('contratoDoPlano', { token: maria.token, planoId: 'yoga-mensal-2x' }); ok(r.dados.assinado === true, 'a tela passa a saber que já assinou');
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza', assinatura: DESENHO });
 ok(r.ok && ctx.lerAba('Contratos').length === 1, 'assinar duas vezes não duplica o registro');
 r = chamar('contratoDoPlano', { token: maria.token, planoId: 'pilates-mensal-2x' }); ok(r.dados.exige && !r.dados.assinado, 'outro plano pede outro aceite (a cada contratação)');
 r = chamar('comprar', { token: maria.token, planoId: 'pilates-mensal-2x' }); ok(!r.ok && r.codigo === 'CONTRATO', 'o aceite de um plano não vale para outro', r);
@@ -64,7 +72,12 @@ ok(r.ok && r.dados.valor === 350, 'plano assinado: segue para o pagamento', r.er
 const nsu = r.dados.order_nsu;
 ok(ctx.lerAba('Contratos')[0].order_nsu === nsu, 'o aceite guarda o primeiro pedido de pagamento feito com ele');
 r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' }); ok(r.ok, 'pedido não pago: tentar de novo não pede nova assinatura', r.erro);
+const antesPago = emails.length;
 pagar(nsu, 350);
+ok(emails.length === antesPago + 1 && emails.at(-1).to === 'maria@gmail.com' && emails.at(-1).attachments && emails.at(-1).attachments.length === 1 && /contrato/i.test(emails.at(-1).subject), 'pagamento confirmado: a pessoa recebe a cópia do contrato com o PDF anexo', emails.at(-1));
+ok(ctx.lerAba('Contratos')[0].enviado_em, 'o envio fica marcado no registro');
+pagar(nsu, 350);
+ok(emails.length === antesPago + 1, 'pagamento confirmado de novo (link e tela): o e-mail não sai em dobro');
 r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' });
 ok(!r.ok && r.codigo === 'CONTRATO', 'depois de pago, a próxima contratação pede assinar de novo', r);
 
@@ -73,7 +86,7 @@ ctx.CONTRATO_A_CADA_COMPRA = false;
 r = chamar('contratoDoPlano', { token: maria.token, planoId: 'pilates-mensal-2x' }); ok(r.dados.exige && r.dados.assinado, 'uma vez por versão: vale para todos os planos', r.dados);
 ctx.CONTRATO_VERSAO = 'v2';
 r = chamar('contratoDoPlano', { token: maria.token, planoId: 'pilates-mensal-2x' }); ok(r.dados.exige && !r.dados.assinado, 'contrato mudou de versão: assina de novo');
-r = chamar('assinarContrato', { token: maria.token, planoId: 'pilates-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza' });
+r = chamar('assinarContrato', { token: maria.token, planoId: 'pilates-mensal-2x', aceito: true, imagem: 'sim', nome: 'Maria Souza', assinatura: DESENHO });
 ok(r.ok && ctx.lerAba('Contratos').length === 2 && ctx.lerAba('Contratos')[1].versao === 'v2', 'a versão assinada fica registrada');
 
 console.log('— texto real do contrato da Casa');
@@ -85,7 +98,7 @@ ok(!/\{\w+\}/.test(real), 'nenhum campo {…} ficou sem preencher', real.match(/
 ok(/escolha abaixo/.test(real) && r.dados.texto.filter((l) => /^# /.test(l)).length === 7, 'uso de imagem aguarda a escolha; 7 cláusulas', r.dados.texto.filter((l) => /^# /.test(l)));
 const lAut = ctx.contratoParaPlano(ctx.alunoDaSessao(maria.token), ctx.buscarPlano('yoga-mensal-2x'), 'nao').join('\n');
 ok(/\( \) Autorizo \(X\) Não autorizo/.test(lAut), 'a escolha "não autorizo" entra no texto assinado');
-r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'nao', nome: 'Maria Souza' });
+r = chamar('assinarContrato', { token: maria.token, planoId: 'yoga-mensal-2x', aceito: true, imagem: 'nao', nome: 'Maria Souza', assinatura: DESENHO });
 ok(r.ok && ctx.lerAba('Contratos').some((c) => c.id === r.dados.id && c.imagem === 'não autoriza'), 'a escolha do uso de imagem fica registrada na aba Contratos', r);
 
 console.log('— bancada e privacidade');

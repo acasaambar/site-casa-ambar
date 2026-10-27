@@ -697,7 +697,7 @@ function anonimizarNaAba(nomeAba, cpf, novo) {
   var v = s.getDataRange().getValues();
   if (v.length < 2) return 0;
   var k = indiceColunas(v[0]);
-  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo, nome_digitado: NOME_EXCLUIDO, dispositivo: '', pdf: '' };
+  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo, nome_digitado: NOME_EXCLUIDO, dispositivo: '', pdf: '', pdf_id: '', assinatura: '' };
   var cols = Object.keys(trocar).filter(function (c) { return k[c] != null; });
   var n = 0;
   for (var i = 1; i < v.length; i++) {
@@ -745,7 +745,10 @@ function bancada_excluirCliente(d, m) {
     apagarLinhasDoCpf('FichasEstetica', cpf);
     apagarLinhasDoCpf('Espera', cpf);
     // contrato assinado: o PDF (com nome e CPF) vai para a lixeira; a linha fica anonimizada junto com as vendas
-    linhasDoCpf('Contratos', cpf).forEach(function (l) { lixeiraDrive((String(l.pdf || '').match(/\/d\/([\w-]+)/) || [])[1]); });
+    linhasDoCpf('Contratos', cpf).forEach(function (l) {
+      // PDF assinado e desenho da assinatura vão para a lixeira do Drive
+      [String(l.pdf_id || ''), (String(l.pdf || '').match(/\/d\/([\w-]+)/) || [])[1], (String(l.assinatura || '').match(/\/d\/([\w-]+)/) || [])[1]].forEach(function (id) { if (id) lixeiraDrive(id); });
+    });
     apagarLinhasDoCpf('Evolucoes', cpf, function (l) { String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive); });
     apagarLinhasDoCpf('AnamnesesProf', cpf, function (l) {
       String(l.fotos || '').split(',').filter(String).forEach(lixeiraDrive);

@@ -226,7 +226,9 @@ var ABAS = {
     'exposicao_solar', 'fototipo', 'tipo_pele', 'obs', 'consentimento_fotos'],
   Evolucoes: ['id', 'cpf', 'nome', 'data', 'profissional', 'atendimento_id', 'servico', 'anotacao', 'fotos', 'criado_por', 'criado_em'],
   // ---- contrato dos planos mensal e trimestral (Contrato.gs): um aceite eletrônico por linha ----
-  Contratos: ['id', 'cpf', 'nome', 'plano_id', 'plano', 'versao', 'hash', 'assinado_em', 'nome_digitado', 'dispositivo', 'pdf', 'order_nsu', 'imagem'],
+  Contratos: ['id', 'cpf', 'nome', 'plano_id', 'plano', 'versao', 'hash', 'assinado_em', 'nome_digitado', 'dispositivo', 'pdf', 'order_nsu', 'imagem',
+    // cópia por e-mail só depois do pagamento (enviado_em); pdf_id = arquivo no Drive; assinatura = desenho da pessoa (PNG no Drive)
+    'enviado_em', 'pdf_id', 'assinatura'],
   // ---- lista de espera (Espera.gs): aula lotada ou serviço sem horário ----
   Espera: ['id', 'criado_em', 'tipo', 'aula_id', 'servico_id', 'servico', 'profissional', 'data', 'periodo', 'cpf', 'nome', 'whatsapp', 'obs', 'status',
     'avisado_em', 'resolvido_em', 'criado_por', 'origem'],
@@ -1475,6 +1477,8 @@ function concluirPagamento(pg, info) {
     valor_pago: info.valor_pago != null ? info.valor_pago : numero(pg.valor), transaction_nsu: info.transaction_nsu || '', slug: info.slug || '',
     observacao: obs.filter(String).join(' ') || pg.observacao || '',
   });
+  // contrato assinado deste plano: a cópia por e-mail sai só agora que o pagamento foi confirmado
+  try { enviarContratoPago(pg); } catch (e) { Logger.log('contrato pago: ' + e.message); }
   if (pg.vale) {
     var v2 = acharVale(pg.vale);
     if (v2 && v2.tipo !== 'plano' && saldoVale(v2, pagamentosPagos()) <= 0.009) atualizarLinha('Vales', v2._linha, { status: 'usado', resgatado_em: agoraTexto(), resgatado_cpf: normCpf(pg.cpf) });

@@ -1859,3 +1859,14 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
 .contrato__assinatura { margin-top: 18px; }
 .opcoes-imagem { display: grid; gap: 8px; margin-bottom: 14px; }
 .opcoes-imagem__titulo { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caramelo-escuro); }
+
+/* ---------- assinatura desenhada (contrato) ---------- */
+.assina { display: grid; gap: 8px; margin-top: 4px; }
+.assina__topo { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.assina__rotulo { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caramelo-escuro); }
+.assina__limpar { font: inherit; font-size: 13px; color: var(--terracota, #7E3717); background: none; border: 0; padding: 8px 4px; min-height: 40px; cursor: pointer; text-decoration: underline; }
+.assina__limpar:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
+.assina__quadro { position: relative; border: 1px solid rgba(47, 56, 33, 0.3); border-radius: 14px; background: #fff; overflow: hidden; }
+.assina__tela { display: block; width: 100%; height: auto; aspect-ratio: 700 / 240; touch-action: none; cursor: crosshair; }
+.assina__dica { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: #8A8670; pointer-events: none; padding: 0 16px; text-align: center; }
+.assina__linha { position: absolute; left: 6%; right: 6%; bottom: 22%; border-bottom: 1px dashed rgba(47, 56, 33, 0.35); pointer-events: none; }

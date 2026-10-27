@@ -152,7 +152,19 @@ function contratoDoPlano(d) {
 
 function pastaContratos() { return pastaPrivada(PASTA_CONTRATOS, 'PASTA_CONTRATOS_ID'); }
 
-function gerarPdfContrato(c, linhas, aluno) {
+// desenho da assinatura (PNG em data URL, vindo do quadro do site): confere o formato e o tamanho; devolve os bytes
+function bytesDaAssinatura(dataUrl) {
+  var t = String(dataUrl || '');
+  var m = t.match(/^data:image\/png;base64,([A-Za-z0-9+\/=]+)$/);
+  if (!m || t.length > 400000) throw new Error('Desenhe sua assinatura no quadro antes de continuar.');
+  var bytes = Utilities.base64Decode(m[1]);
+  if (bytes.length < 200 || (bytes[0] & 255) !== 137 || (bytes[1] & 255) !== 80 || (bytes[2] & 255) !== 78 || (bytes[3] & 255) !== 71) {
+    throw new Error('Não deu para ler o desenho da assinatura. Limpe o quadro e assine de novo.');
+  }
+  return { base64: m[1], bytes: bytes };
+}
+
+function gerarPdfContrato(c, linhas, aluno, assinatura) {
   var corpo = linhas.map(function (l) {
     return /^#\s/.test(l) ? '<h2>' + escHtml(l.replace(/^#\s+/, '')) + '</h2>' : '<p>' + escHtml(l) + '</p>';
   }).join('');
@@ -160,14 +172,14 @@ function gerarPdfContrato(c, linhas, aluno) {
     'h1{font-size:18px;letter-spacing:3px;font-weight:normal;margin:0}h2{font-size:12px;margin:16px 0 4px;color:#7E3717}.topo{border-bottom:2px solid #2F3821;padding-bottom:8px;margin-bottom:10px}' +
     '.sub{color:#6F784D;font-size:10px;letter-spacing:2px}.assin{margin-top:26px;border-top:1px solid #A6845E;padding-top:10px}.assin p{margin:2px 0}.mini{color:#6B6F58;font-size:9px;word-break:break-all}</style></head><body>' +
     '<div class="topo"><h1>CASA ÂMBAR</h1><div class="sub">' + escHtml(CONTRATO_TITULO.toUpperCase()) + '</div></div>' + corpo +
-    '<div class="assin"><p><strong>Assinado eletronicamente</strong> por ' + escHtml(c.nome_digitado) + ' (CPF ' + escHtml(normCpf(aluno.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')) + ')</p>' +
+    '<div class="assin">' + (assinatura ? '<p><img src="data:image/png;base64,' + assinatura.base64 + '" width="260" alt="Assinatura"></p>' : '') + '<p><strong>Assinado eletronicamente</strong> por ' + escHtml(c.nome_digitado) + ' (CPF ' + escHtml(normCpf(aluno.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')) + ')</p>' +
     '<p>em ' + escHtml(String(c.assinado_em)) + ' (horário de Fortaleza) · contrato versão ' + escHtml(CONTRATO_VERSAO) + ' · plano ' + escHtml(c.plano) + '</p>' +
     '<p class="mini">Impressão digital do texto (SHA-256): ' + escHtml(c.hash) + '</p>' +
     '<p class="mini">Aceite dado na área do aluno do site da Casa Âmbar, com login por CPF e senha da própria pessoa.</p></div></body></html>';
   var nome = 'Contrato · ' + aluno.nome + ' · ' + c.plano_id + ' · ' + c.id + '.pdf';
   var pdf = Utilities.newBlob(html, 'text/html', 'contrato.html').getAs('application/pdf').setName(nome);
   var arq = pastaContratos().createFile(pdf);
-  return { url: arq.getUrl(), blob: pdf };
+  return { url: arq.getUrl(), id: arq.getId(), blob: pdf };
 }
 
 // site: assinar o contrato do plano escolhido
@@ -183,6 +195,7 @@ function assinarContrato(d) {
   if (!imagem) throw new Error('Escolha uma das opções sobre o uso de imagem (cláusula sexta).');
   var digitado = semAcento(d.nome), cadastro = semAcento(aluno.nome);
   if (!digitado || digitado !== cadastro) throw new Error('Digite seu nome completo exatamente como está no cadastro: ' + aluno.nome + '.');
+  var desenho = bytesDaAssinatura(d.assinatura);
   limitarPorMinutos('contrato_' + cpf, 10, 60);
   var linhas = contratoParaPlano(aluno, plano, imagem);
   var existente = aceiteDisponivel(cpf, plano);
@@ -190,7 +203,12 @@ function assinarContrato(d) {
   var c = { id: novoId('CT'), cpf: cpf, nome: aluno.nome, plano_id: plano.id, plano: plano.nome, versao: CONTRATO_VERSAO, hash: hashContrato(linhas),
     assinado_em: agoraTexto(), nome_digitado: String(d.nome).replace(/\s+/g, ' ').trim().slice(0, 120), dispositivo: String(d.dispositivo || '').slice(0, 160), pdf: '', order_nsu: '', imagem: imagem === 'sim' ? 'autoriza' : 'não autoriza' };
   var pdf = null;
-  try { pdf = gerarPdfContrato(c, linhas, aluno); c.pdf = pdf.url; } catch (e) { Logger.log('PDF do contrato: ' + e.message); c.pdf = 'erro ao gerar o PDF'; }
+  // desenho da assinatura guardado como imagem na pasta privada (e também dentro do PDF)
+  try {
+    var png = pastaContratos().createFile(Utilities.newBlob(desenho.bytes, 'image/png', 'Assinatura · ' + aluno.nome + ' · ' + c.id + '.png'));
+    c.assinatura = png.getUrl();
+  } catch (e) { Logger.log('assinatura do contrato: ' + e.message); c.assinatura = 'erro ao guardar o desenho'; }
+  try { pdf = gerarPdfContrato(c, linhas, aluno, desenho); c.pdf = pdf.url; c.pdf_id = pdf.id; } catch (e) { Logger.log('PDF do contrato: ' + e.message); c.pdf = 'erro ao gerar o PDF'; }
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 15000);
   try {
@@ -200,14 +218,27 @@ function assinarContrato(d) {
   } finally {
     soltarTrava(trava);
   }
-  if (emailValido(aluno.email)) {
-    try {
-      enviarEmail(aluno.email, 'Cópia do seu contrato · Casa Âmbar', 'Contrato assinado',
-        ['Olá, ' + primeiroNome(aluno.nome) + '.', 'Você assinou o contrato do plano ' + plano.nome + ' em ' + c.assinado_em + '. A cópia está em anexo.',
-          'Se não foi você, fale com a recepção pelo WhatsApp (85) 99185-6528.'], null, '', '', pdf ? [pdf.blob] : null);
-    } catch (e) { Logger.log('cópia do contrato: ' + e.message); }
-  }
+  // a cópia por e-mail NÃO sai agora: só depois que o pagamento do plano for confirmado (enviarContratoPago)
   return { assinado: true, id: c.id, versao: CONTRATO_VERSAO };
+}
+
+// pagamento do plano confirmado (site, link ou balcão): manda a cópia assinada do contrato por e-mail, uma vez só
+function enviarContratoPago(pg) {
+  if (!CONTRATO_PRONTO || !pg || !soDigitos(pg.cpf)) return;
+  var plano = buscarPlano(String(pg.plano_id));
+  if (!planoExigeContrato(plano)) return;
+  var pendentes = contratoAssinadoDe(pg.cpf).filter(function (c) { return String(c.plano_id) === String(pg.plano_id) && !String(c.enviado_em || ''); });
+  if (!pendentes.length) return;
+  var c = pendentes[pendentes.length - 1];
+  // marca antes de mandar: se o pagamento for confirmado duas vezes (webhook + tela), o e-mail não sai em dobro
+  atualizarLinha('Contratos', c._linha, { enviado_em: agoraTexto(), order_nsu: String(pg.order_nsu) });
+  var aluno = lerAba('Alunos').filter(function (a) { return normCpf(a.cpf) === normCpf(pg.cpf); })[0];
+  if (!aluno || !emailValido(aluno.email)) return;
+  var anexos = null;
+  try { if (c.pdf_id) anexos = [DriveApp.getFileById(String(c.pdf_id)).getBlob()]; } catch (e) { Logger.log('anexo do contrato: ' + e.message); }
+  enviarEmail(aluno.email, 'Seu contrato assinado · Casa Âmbar', 'Pagamento confirmado',
+    ['Olá, ' + primeiroNome(aluno.nome) + '.', 'Recebemos o pagamento do plano ' + plano.nome + '. A cópia do contrato que você assinou em ' + c.assinado_em + ' ' + (anexos ? 'está em anexo.' : 'fica com a recepção; se quiser, é só pedir pelo WhatsApp.'),
+      'Se não foi você, fale com a recepção pelo WhatsApp (85) 99185-6528.'], null, '', '', anexos);
 }
 
 // ao criar o pagamento do plano: exige ficha e (se o contrato estiver ligado) o aceite; devolve a linha do aceite para ligar ao pedido
@@ -223,6 +254,6 @@ function exigirFichaEContrato(aluno, plano) {
 // bancada: contratos assinados de uma cliente
 function contratosPublicos(cpf) {
   return contratoAssinadoDe(cpf).map(function (c) {
-    return { id: String(c.id), plano: String(c.plano), versao: String(c.versao), imagem: String(c.imagem || ''), assinadoEm: String(c.assinado_em), pdf: /^https?:/.test(String(c.pdf)) ? String(c.pdf) : '', pedido: String(c.order_nsu || '') };
+    return { id: String(c.id), plano: String(c.plano), versao: String(c.versao), imagem: String(c.imagem || ''), assinadoEm: String(c.assinado_em), pdf: /^https?:/.test(String(c.pdf)) ? String(c.pdf) : '', assinatura: /^https?:/.test(String(c.assinatura)) ? String(c.assinatura) : '', pedido: String(c.order_nsu || ''), enviado: !!String(c.enviado_em || '') };
   }).reverse();
 }

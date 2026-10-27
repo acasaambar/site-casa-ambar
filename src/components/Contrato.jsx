@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
+import AssinaturaDesenhada from './AssinaturaDesenhada.jsx';
 
 // Contrato do plano mensal ou trimestral: a pessoa lê, marca "li e concordo" e digita o nome completo (aceite eletrônico).
 // O texto vem do servidor (Contrato.gs), já com os dados dela e do plano: aqui só aparece e é assinado.
@@ -10,6 +11,7 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
   const [aceito, setAceito] = useState(false);
   const [nome, setNome] = useState('');
   const [imagem, setImagem] = useState('');
+  const [desenho, setDesenho] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -18,10 +20,11 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
     if (!aceito) return setErro('Marque que leu e concorda com o contrato.');
     if (!imagem) return setErro('Escolha uma das opções sobre o uso de imagem (cláusula sexta).');
     if (nome.trim().split(/\s+/).length < 2) return setErro('Digite seu nome completo, como no cadastro.');
+    if (!desenho) return setErro('Desenhe sua assinatura no quadro (com o dedo, a caneta ou o mouse).');
     setErro('');
     setEnviando(true);
     try {
-      await api.assinarContrato(token, plano.id, nome.trim(), true, typeof navigator === 'undefined' ? '' : navigator.userAgent, imagem);
+      await api.assinarContrato(token, plano.id, nome.trim(), true, typeof navigator === 'undefined' ? '' : navigator.userAgent, imagem, desenho);
       aoAssinar();
     } catch (err) {
       setErro(err.message);
@@ -63,8 +66,10 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
             <label>
               Para assinar, digite seu nome completo
               <input type="text" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} placeholder={dados.nomeCadastro} />
-              <span className="dica-campo">Igual ao do cadastro. A cópia assinada chega no seu e-mail.</span>
+              <span className="dica-campo">Igual ao do cadastro.</span>
             </label>
+            <AssinaturaDesenhada aoMudar={setDesenho} desabilitado={enviando} />
+            <span className="dica-campo">A cópia assinada chega no seu e-mail assim que o pagamento do plano for confirmado.</span>
           </fieldset>
           {erro && <p className="erro erro--destaque" role="alert">{erro}</p>}
           <div className="ficha__botoes">

@@ -479,6 +479,8 @@ export function AlunoDetalhe() {
                   <li key={c.id}>
                     <strong>{c.plano}</strong> · assinado em {dataBR(String(c.assinadoEm).slice(0, 10))} {String(c.assinadoEm).slice(11, 16)} · versão {c.versao}
                     {c.pdf && <> · <a href={c.pdf} target="_blank" rel="noreferrer">abrir PDF</a></>}
+                    {c.assinatura && <> · <a href={c.assinatura} target="_blank" rel="noreferrer">ver assinatura</a></>}
+                    <span className="b-suave b-bloco">{c.enviado ? 'cópia enviada por e-mail (pagamento confirmado)' : 'cópia ainda não enviada: sai quando o pagamento do plano for confirmado'}</span>
                   </li>
                 ))}
               </ul>
