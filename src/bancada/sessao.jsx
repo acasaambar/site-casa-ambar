@@ -83,7 +83,11 @@ export function SessaoBancada({ children }) {
   useEffect(() => {
     if (!s?.token) return undefined;
     let vivo = true;
+    // já conferido há pouco (F5, outra aba): não vai ao Google de novo (cada ida custa ~2 s e uma execução do Apps Script)
+    const marca = 'ambar_eu|' + s.token.slice(0, 12);
+    try { if (Date.now() - Number(localStorage.getItem(marca) || 0) < 10 * 60e3) return undefined; } catch { /* sem armazenamento */ }
     bancada('eu', { token: s.token }).then((m) => {
+      try { localStorage.setItem(marca, String(Date.now())); } catch { /* sem armazenamento */ }
       if (!vivo || !m || JSON.stringify(m) === JSON.stringify(s.membro)) return;
       setS((atual) => {
         const novo = atual ? { ...atual, membro: m } : atual;

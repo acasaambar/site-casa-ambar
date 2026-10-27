@@ -32,16 +32,20 @@ function lerSessao() {
 export function AuthProvider({ children }) {
   const [sessao, setSessao] = useState(lerSessao);
 
-  // regras definidas na bancada (check-in, cancelamento...): só o site e a área do aluno usam
-  // (a bancada pedia a cada F5, uma ida ao Google à toa)
+  // regras definidas na bancada (check-in, cancelamento...): só a área do aluno usa. Cada pedido é uma execução do Apps Script,
+  // então não pede para quem só visita o site nem na bancada; lembra por 1 hora (F5 e troca de página não pedem de novo).
   useEffect(() => {
-    if (/^#\/bancada/.test(window.location.hash)) return;
+    if (!sessao?.token || /^#\/bancada/.test(window.location.hash)) return;
+    const aplicar = (r) => ['checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis'].forEach((k) => { if (r && r[k] != null) CONFIG[k] = r[k]; });
+    try {
+      const guardado = JSON.parse(localStorage.getItem('ambar_regras') || 'null');
+      if (guardado && Date.now() - guardado.em < 3600e3) { aplicar(guardado.r); return; }
+    } catch { /* sem armazenamento */ }
     api.regras().then((r) => {
-      ['checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis'].forEach((k) => {
-        if (r && r[k] != null) CONFIG[k] = r[k];
-      });
+      aplicar(r);
+      try { localStorage.setItem('ambar_regras', JSON.stringify({ em: Date.now(), r })); } catch { /* sem armazenamento */ }
     }).catch(() => {});
-  }, []);
+  }, [sessao?.token]);
 
   const guardar = useCallback((s) => {
     setSessao(s);
