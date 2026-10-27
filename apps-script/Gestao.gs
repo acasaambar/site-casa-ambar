@@ -271,7 +271,8 @@ function listarProfessoras() {
     return { nome: String(x.nome).trim(), ativo: String(x.ativo).toUpperCase() !== 'NÃO',
       pilatesPct: String(x.pilates_pct) === '' ? null : numero(x.pilates_pct),
       wellhubPct: String(x.wellhub_pct) === '' ? null : numero(x.wellhub_pct),
-      yogaPorAula: numero(x.yoga_por_aula), desde: x.desde ? dataTexto(x.desde) : '' };
+      yogaPorAula: numero(x.yoga_por_aula), desde: x.desde ? dataTexto(x.desde) : '',
+      modalidades: String(x.modalidades || '').split(',').map(function (t) { return t.trim(); }).filter(function (t) { return t === 'Pilates' || t === 'Yoga'; }) };
   });
 }
 
@@ -382,14 +383,18 @@ function bancada_pagamentoAulas() {
   });
   var cfg = {};
   var naGrade = Object.keys(mods).map(semAcento);
+  var daGrade = {}; // modalidades que vêm da Grade (não dá para desmarcar no cadastro)
+  Object.keys(mods).forEach(function (n) { daGrade[n] = Object.keys(mods[n]).sort(); });
   listarProfessoras().forEach(function (p) {
     cfg[semAcento(p.nome)] = p;
-    if (naGrade.indexOf(semAcento(p.nome)) < 0) mods[p.nome] = {}; // saiu da grade, mas tem valor salvo
+    var chave = Object.keys(mods).filter(function (n) { return semAcento(n) === semAcento(p.nome); })[0];
+    if (!chave) { chave = p.nome; mods[chave] = {}; } // saiu da grade (ou ainda não entrou), mas tem cadastro salvo
+    p.modalidades.forEach(function (t) { mods[chave][t] = 1; }); // marcadas no cadastro
   });
   return { wellhubValor: valorWellhubCheckin(), hoje: hojeTexto(),
     professoras: Object.keys(mods).sort().map(function (n) {
       var c = cfg[semAcento(n)] || {};
-      return { nome: n, modalidades: Object.keys(mods[n]).sort(), pilatesPct: c.pilatesPct == null ? null : c.pilatesPct, wellhubPct: c.wellhubPct == null ? null : c.wellhubPct,
+      return { nome: n, modalidades: Object.keys(mods[n]).sort(), daGrade: daGrade[n] || [], pilatesPct: c.pilatesPct == null ? null : c.pilatesPct, wellhubPct: c.wellhubPct == null ? null : c.wellhubPct,
         yogaPorAula: c.yogaPorAula || 0, desde: c.desde || '', ativo: c.ativo !== false };
     }) };
 }
@@ -411,9 +416,11 @@ function bancada_salvarPagamentoAulas(d, m) {
     var linha = { nome: nome, ativo: x.ativo === false ? 'NÃO' : 'SIM', pilates_pct: limite(x.pilatesPct, 100, 'Comissão de Pilates de ' + nome),
       wellhub_pct: limite(x.wellhubPct, 100, 'Comissão Wellhub de ' + nome), yoga_por_aula: limite(x.yogaPorAula, 2000, 'Valor da aula de Yoga de ' + nome) || '',
       desde: /^\d{4}-\d{2}-\d{2}$/.test(String(x.desde)) ? x.desde : hojeTexto(), atualizado_em: agoraTexto() };
+    // modalidades marcadas no cadastro (só Pilates e Yoga); sem o campo, o que já estava salvo continua
+    if (Array.isArray(x.modalidades)) linha.modalidades = ['Pilates', 'Yoga'].filter(function (t) { return x.modalidades.indexOf(t) >= 0; }).join(', ');
     var ex = existentes[semAcento(nome)];
     if (ex) atualizarLinha('Professoras', ex._linha, linha);
-    else if (linha.pilates_pct !== '' || linha.wellhub_pct !== '' || linha.yoga_por_aula !== '') novas.push(linha);
+    else if (linha.pilates_pct !== '' || linha.wellhub_pct !== '' || linha.yoga_por_aula !== '' || linha.modalidades) novas.push(linha);
   });
   adicionarLinhas('Professoras', novas);
   PropertiesService.getScriptProperties().setProperty('WELLHUB_VALOR_CHECKIN', String(wv || 0));

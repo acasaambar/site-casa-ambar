@@ -420,6 +420,13 @@ console.log('— pagamento das professoras de aula (Pilates %, Yoga por aula)');
   ok(r.ok && ['Kalliny', 'Sara', 'Ana Paula', 'Hanna'].every((n) => r.dados.professoras.some((p) => p.nome === n)), 'professoras vêm da grade', r.dados && r.dados.professoras.map((p) => p.nome));
   r = chamar('b_salvarPagamentoAulas', { token: adm, wellhubValor: 30, professoras: [{ nome: 'Kalliny', pilatesPct: 40, wellhubPct: 50, desde: dd }, { nome: 'Ana Paula', yogaPorAula: 60, desde: dd }, { nome: 'Sara', pilatesPct: 40, desde: ctx.somarDias(hoje, 30) }] });
   ok(r.ok && r.dados.wellhubValor === 30 && r.dados.professoras.find((p) => p.nome === 'Kalliny').pilatesPct === 40, 'valores salvos', r);
+  // modalidades marcadas no cadastro: valem antes de a pessoa estar na Grade (a da Grade não se perde nem se duplica)
+  r = chamar('b_salvarPagamentoAulas', { token: adm, wellhubValor: 30, professoras: [{ nome: 'Nova Instrutora', yogaPorAula: 70, modalidades: ['Yoga'], desde: dd }, { nome: 'Kalliny', pilatesPct: 40, wellhubPct: 50, desde: dd, modalidades: ['Yoga', 'Pilates'] }] });
+  const nova = r.ok && r.dados.professoras.find((p) => p.nome === 'Nova Instrutora'), kal = r.ok && r.dados.professoras.find((p) => p.nome === 'Kalliny');
+  ok(nova && nova.modalidades.join() === 'Yoga' && nova.daGrade.length === 0 && nova.yogaPorAula === 70, 'quem ainda não está na grade guarda as modalidades marcadas', r.dados && r.dados.professoras);
+  ok(kal && kal.modalidades.join() === 'Pilates,Yoga' && kal.daGrade.join() === 'Pilates' && r.dados.professoras.filter((p) => p.nome === 'Kalliny').length === 1, 'Pilates da grade + Yoga marcado, sem duplicar a pessoa', kal);
+  r = chamar('b_salvarPagamentoAulas', { token: adm, wellhubValor: 30, professoras: [{ nome: 'Kalliny', pilatesPct: 40, wellhubPct: 50, desde: dd, modalidades: [] }] });
+  ok(r.ok && r.dados.professoras.find((p) => p.nome === 'Kalliny').modalidades.join() === 'Pilates', 'desmarcar tira só o que não é da grade', r.dados && r.dados.professoras.find((p) => p.nome === 'Kalliny'));
   const mesDD = dd.slice(0, 7);
   r = chamar('b_comissoes', { token: adm, mes: mesDD });
   const ks = r.dados.lista.filter((c) => c.origem === 'aula' || c.origem === 'aula_fixa');

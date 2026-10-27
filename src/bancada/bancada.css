@@ -2355,3 +2355,4 @@
 .pf-tipos-resumo { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
 .pa-wellhub-linha { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .pa-wellhub-linha .b-campo { margin: 0; }
+.pf-mods { display: flex; gap: 8px 22px; flex-wrap: wrap; }

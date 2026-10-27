@@ -128,7 +128,9 @@ var ABAS = {
   // nome = nome do combo (ex.: "Combo Alívio"), opcional
   Pacotes: ['id', 'ativo', 'servico_id', 'sessoes', 'preco', 'validade_dias', 'sem_juros_ate', 'nome'],
   Profissionais: ['nome', 'ativo', 'categorias', 'dias', 'inicio', 'fim', 'comissao', 'comissao_produto', 'servicos', 'horarios', 'especiais'],
-  Professoras: ['nome', 'ativo', 'pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde', 'atualizado_em'],
+  Professoras: ['nome', 'ativo', 'pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde', 'atualizado_em',
+    // modalidades marcadas no cadastro ("Pilates, Yoga"): valem mesmo antes de a pessoa entrar na Grade de aulas
+    'modalidades'],
   // anamnese escrita pelas profissionais (texto livre + fotos), por cliente
   AnamnesesProf: ['id', 'cpf', 'nome', 'titulo', 'conteudo', 'fotos', 'profissional', 'criado_por', 'criado_em', 'atualizado_por', 'atualizado_em'],
   Atendimentos: ['id', 'data', 'hora', 'duracao_min', 'servico_id', 'servico', 'categoria', 'profissional', 'cpf', 'nome', 'whatsapp', 'status',

@@ -1444,9 +1444,12 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
   const [daAula, setDaAula] = useState(!!aula);
   const txt = (v) => (v == null || v === 0 ? '' : String(v).replace('.', ','));
   const [au, setAu] = useState({ pilatesPct: txt(aula?.pilatesPct), wellhubPct: txt(aula?.wellhubPct), yogaPorAula: txt(aula?.yogaPorAula), desde: aula?.desde || hojeIso() });
-  const mods = aula?.modalidades || [];
-  const pilates = mods.includes('Pilates') || !mods.length;
-  const yoga = mods.includes('Yoga') || !mods.length;
+  // Pilates e/ou Yoga: o que já está na Grade de aulas fica marcado (para tirar, tire as aulas da grade); o resto é escolha do cadastro
+  const daGrade = aula?.daGrade || [];
+  const [mods, setMods] = useState(aula?.modalidades || []);
+  const pilates = mods.includes('Pilates');
+  const yoga = mods.includes('Yoga');
+  const alternar = (t) => setMods((l) => (l.includes(t) ? l.filter((x) => x !== t) : [...l, t]));
   const nomeAula = aula?.nome || '';
   const marcar = (lista, sim) => setF((x) => {
     const m = { ...x.servicos };
@@ -1461,6 +1464,7 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
   async function salvar() {
     setErro('');
     if (!atende && !daAula) { setErro('Marque o que esta pessoa faz: serviços, aulas ou os dois.'); return; }
+    if (daAula && !mods.length) { setErro('Marque se a pessoa dá aula de Pilates, de Yoga ou das duas.'); return; }
     if (atende) {
       if (!qtd) { setErro('Marque pelo menos um serviço que esta pessoa faz.'); return; }
       if (!Object.keys(f.horarios).length) { setErro('Marque pelo menos um dia de atendimento.'); return; }
@@ -1471,7 +1475,7 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
       // serviços: salva quando atende; se deixou de atender (e tinha cadastro), fica "não atendendo" sem perder o resto
       if (atende || temServico) catalogo = await chamar('salvarProfissional', { profissional: { ...f, ativo: atende ? f.ativo : false, servicos: lista, comissao: num(f.comissao), comissaoProduto: num(f.comissaoProduto) } });
       if (daAula) {
-        await chamar('salvarPagamentoAulas', { wellhubValor: wellhubValor || 0, professoras: [{ nome: nomeAula || f.nome.trim(), ...au, ativo: true }] });
+        await chamar('salvarPagamentoAulas', { wellhubValor: wellhubValor || 0, professoras: [{ nome: nomeAula || f.nome.trim(), ...au, modalidades: mods, ativo: true }] });
       }
       aoSalvar(catalogo);
     } catch (e) { setErro(e.message); }
@@ -1541,8 +1545,16 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
 
         {daAula && (
           <fieldset className="pf-aulas">
-            <legend className="rotulo">Aulas · {mods.length ? mods.join(' e ') : 'fora da grade'}</legend>
-            {!mods.length && <p className="b-suave">Esta pessoa ainda não está na Grade de aulas. Ponha o nome dela como professor(a) nas aulas (Catálogo → Grade de aulas) para as aulas aparecerem na agenda.</p>}
+            <legend className="rotulo">Aulas</legend>
+            <div className="pf-mods" role="group" aria-label="Modalidades que a pessoa ensina">
+              {['Pilates', 'Yoga'].map((t) => (
+                <label key={t} className={`b-check${mods.includes(t) ? ' pf-mods--on' : ''}`}>
+                  <input type="checkbox" checked={mods.includes(t)} disabled={daGrade.includes(t)} onChange={() => alternar(t)} /> {t}
+                  {daGrade.includes(t) && <span className="b-suave"> · está na Grade de aulas</span>}
+                </label>
+              ))}
+            </div>
+            {mods.some((t) => !daGrade.includes(t)) && <p className="b-suave">As aulas só aparecem na agenda e no site quando o nome da pessoa estiver como professor(a) na Grade de aulas (Catálogo → Grade de aulas).</p>}
             <p className="b-suave">Pilates: comissão sobre o valor de cada aluno na aula (o plano dividido pelas aulas dele). Yoga: valor fixo por aula dada. Contam as aulas que já terminaram, a partir da data abaixo.</p>
             <div className="pa-campos">
               {pilates && <label className="b-campo"><span className="rotulo">Pilates · % por aluno</span>
