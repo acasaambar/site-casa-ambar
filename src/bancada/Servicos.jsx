@@ -1439,9 +1439,10 @@ export function Profissionais() {
     return [...mapa.values()].sort((x, y) => x.nome.localeCompare(y.nome));
   }, [dados, aulas]);
   // nomes parecidos (mesmo primeiro nome) em cadastros separados: provavelmente a mesma pessoa com o nome escrito diferente
+  // (quem tem aulas na Grade com um nome e serviços com outro: ex. "Sara" nas aulas e "Sara Pontes" nos serviços)
   const parecidos = useMemo(() => {
     const out = [];
-    pessoas.filter((x) => x.servico && !x.aula).forEach((sv) => pessoas.filter((x) => x.aula && !x.servico && x.aula.modalidades.length).forEach((au) => {
+    pessoas.filter((x) => x.servico && !x.aula?.daGrade?.length).forEach((sv) => pessoas.filter((x) => x.aula?.daGrade?.length && !x.servico).forEach((au) => {
       if (semAcentoJs(sv.nome).split(' ')[0] === semAcentoJs(au.nome).split(' ')[0]) out.push({ sv, au });
     }));
     return out;
@@ -1464,7 +1465,12 @@ export function Profissionais() {
       </Barra>
       {parecidos.map(({ sv, au }) => (
         <Aviso key={sv.nome + au.nome} tom="aviso" titulo="Mesma pessoa com dois nomes?"
-          acao={<button type="button" className="botao botao--linha botao--p" onClick={() => setEditar({ p: { ...sv.servico, nomeOriginal: sv.servico.nome, nome: au.nome }, aula: au })}>Usar “{au.nome}” em {sv.nome}</button>}>
+          acao={(
+            <>
+              <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ p: { ...sv.servico, nomeOriginal: sv.servico.nome }, aula: au.aula })}>Juntar como “{sv.nome}”</button>
+              <button type="button" className="botao botao--linha botao--p" onClick={() => setEditar({ p: { ...sv.servico, nomeOriginal: sv.servico.nome, nome: au.nome }, aula: au.aula })}>Juntar como “{au.nome}”</button>
+            </>
+          )}>
           <strong>{sv.nome}</strong> (serviços) e <strong>{au.nome}</strong> (aulas) precisam ter o mesmo nome para ficarem na mesma coluna da agenda.
         </Aviso>
       ))}
@@ -1576,7 +1582,10 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
       // serviços: salva quando atende; se deixou de atender (e tinha cadastro), fica "não atendendo" sem perder o resto
       if (atende || temServico) catalogo = await chamar('salvarProfissional', { profissional: { ...f, ativo: atende ? f.ativo : false, servicos: lista, comissao: num(f.comissao), comissaoProduto: num(f.comissaoProduto) } });
       if (daAula) {
-        await chamar('salvarPagamentoAulas', { wellhubValor: wellhubValor || 0, professoras: [{ nome: nomeAula || f.nome.trim(), ...au, modalidades: mods, ativo: true }] });
+        const nomeNovo = f.nome.trim();
+        // o nome das aulas (Grade) muda junto: é assim que "Sara" e "Sara Pontes" viram uma pessoa só
+        if (nomeAula && nomeAula !== nomeNovo) await chamar('renomearProfessora', { de: nomeAula, para: nomeNovo });
+        await chamar('salvarPagamentoAulas', { wellhubValor: wellhubValor || 0, professoras: [{ nome: nomeNovo, ...au, modalidades: mods, ativo: true }] });
       }
       aoSalvar(catalogo);
     } catch (e) { setErro(e.message); }
@@ -1587,8 +1596,8 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
       <div className="b-form">
         <BlocoForm titulo="Dados" ajuda={atende && daAula ? 'Na agenda, serviços e aulas ficam na mesma coluna, e a pessoa vê tudo com um só acesso.' : undefined}>
           <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
-          {atende && daAula && nomeAula && semAcentoJs(nomeAula) !== semAcentoJs(f.nome) && (
-            <Aviso tom="aviso">Nas aulas (Grade de aulas) o nome é “{nomeAula}”. Para serviços e aulas aparecerem juntos na agenda, os dois nomes precisam ser iguais.</Aviso>
+          {daAula && nomeAula && nomeAula !== f.nome.trim() && f.nome.trim().length > 1 && (
+            <Aviso tom="info">Ao salvar, o nome nas aulas (Grade de aulas) passa de “{nomeAula}” para “{f.nome.trim()}”. Reservas e comissões de aula acompanham.</Aviso>
           )}
           <div className="cg-tipos" role="group" aria-label="O que esta pessoa faz">
             <Interruptor checked={atende} onChange={(e) => setAtende(e.target.checked)} detalhe="Estética e fisioterapia">Atende serviços</Interruptor>

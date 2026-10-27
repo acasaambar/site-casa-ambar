@@ -61,6 +61,7 @@ var PERMISSOES = {
   b_salvarPacote: ['admin'],
   b_salvarProfissional: ['admin'],
   b_excluirProfissional: ['admin'],
+  b_renomearProfessora: ['admin'],
   b_relatorioProfissional: ['admin', 'professora'],
   // clientes: histórico, ficha de estética, evolução e fotos, importação
   b_prontuario: ['admin', 'recepcao', 'professora'],

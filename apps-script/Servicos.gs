@@ -817,6 +817,55 @@ function bancada_salvarProfissional(d, m) {
   return bancada_catalogoServicos();
 }
 
+// Troca o nome de quem dá aula (a administração): Grade de aulas, valores (aba Professoras), reservas e comissões de aula passam a
+// usar o nome novo. Serve para juntar "Sara" (aulas) com "Sara Pontes" (serviços): os dois lados precisam ter o mesmo nome para
+// ficarem numa coluna só da agenda. Se já existir cadastro de valores com o nome novo, os dois viram um só.
+function bancada_renomearProfessora(d, m) {
+  var de = String(d.de || '').trim();
+  var para = String(d.para || '').trim();
+  if (!de) throw new Error('Escolha quem muda de nome.');
+  if (para.length < 2) throw new Error('Informe o nome novo.');
+  if (de === para) return bancada_pagamentoAulas();
+  var chaveDe = semAcento(de);
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  var movidas = 0, reservas = 0;
+  try {
+    var grade = lerAba('Grade').filter(function (g) { return semAcento(g.professor) === chaveDe; });
+    var cadDe = lerAba('Professoras').filter(function (x) { return semAcento(x.nome) === chaveDe; })[0];
+    if (!grade.length && !cadDe) throw new Error('Não achei ' + de + ' entre quem dá aula.');
+    grade.forEach(function (g) { atualizarLinha('Grade', g._linha, { professor: para }); movidas++; });
+    var cadPara = lerAba('Professoras').filter(function (x) { return semAcento(x.nome) === semAcento(para) && x !== cadDe; })[0];
+    if (cadDe && cadPara) {
+      // os dois cadastros viram um: o do nome novo fica com o que faltava nele
+      var junto = {};
+      ['pilates_pct', 'wellhub_pct', 'yoga_por_aula', 'desde'].forEach(function (k) {
+        if (String(cadPara[k]) === '' && String(cadDe[k]) !== '') junto[k] = cadDe[k];
+      });
+      var mods = {};
+      (String(cadPara.modalidades || '') + ',' + String(cadDe.modalidades || '')).split(',').forEach(function (t) { t = t.trim(); if (t === 'Pilates' || t === 'Yoga') mods[t] = 1; });
+      junto.modalidades = Object.keys(mods).sort().join(', ');
+      junto.nome = para;
+      atualizarLinha('Professoras', cadPara._linha, junto);
+      aba('Professoras').deleteRow(cadDe._linha);
+    } else if (cadDe) {
+      atualizarLinha('Professoras', cadDe._linha, { nome: para, atualizado_em: agoraTexto() });
+    }
+    // reservas e comissões de aula: a pessoa é a mesma, o histórico acompanha o nome
+    lerAba('Reservas').forEach(function (r) {
+      if (r.id && semAcento(r.professor) === chaveDe) { atualizarLinha('Reservas', r._linha, { professor: para }); reservas++; }
+    });
+    lerAba('Comissoes').forEach(function (c) {
+      if ((c.origem === 'aula' || c.origem === 'aula_fixa') && semAcento(c.profissional) === chaveDe) atualizarLinha('Comissoes', c._linha, { profissional: para });
+    });
+  } finally {
+    soltarTrava(trava);
+  }
+  esquecerComissoesAulas();
+  registrar(m, 'trocou o nome de quem dá aula', de + ' → ' + para + ' · ' + movidas + ' aulas na Grade · ' + reservas + ' reservas');
+  return bancada_pagamentoAulas();
+}
+
 // Apaga o cadastro de uma pessoa da equipe (a administração). O histórico fica: atendimentos passados, vendas e comissões
 // continuam com o nome dela escrito. Não apaga enquanto houver horário marcado daqui para a frente, bloqueio futuro, item em comanda aberta
 // ou aula na Grade (o horário de alguém não pode ficar sem dono). O acesso em Equipe é separado (desative lá, se for o caso).

@@ -118,5 +118,25 @@ ok(!r.ok && /Grade de aulas/.test(r.erro) && temCad('Kalliny'), 'quem dá aula n
 r = chamar('b_excluirProfissional', { token: adm, nome: 'Não Existe' });
 ok(!r.ok, 'cadastro que não existe', r.erro);
 
+console.log('— juntar "Kalliny" (aulas) com "Kalliny Pontes" (serviços)');
+chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Kalliny Pontes', categorias: ['Estética facial'], dias: [1, 2, 3, 4, 5], inicio: '08:00', fim: '17:00', comissao: 30 } });
+chamar('b_salvarPagamentoAulas', { token: adm, wellhubValor: 0, professoras: [{ nome: 'Kalliny', pilatesPct: 40, modalidades: ['Pilates'] }, { nome: 'Kalliny Pontes', yogaPorAula: 50, modalidades: ['Yoga'] }] });
+const naGrade = (n) => ctx.lerAba('Grade').filter((g) => g.professor === n).length;
+const kAntes = naGrade('Kalliny');
+ok(kAntes > 0, 'a Grade tem aulas com o nome "Kalliny"', kAntes);
+r = chamar('b_renomearProfessora', { token: rec, de: 'Kalliny', para: 'Kalliny Pontes' });
+ok(!r.ok && naGrade('Kalliny') === kAntes, 'recepção não troca o nome', r.erro);
+r = chamar('b_renomearProfessora', { token: adm, de: 'Ninguém', para: 'Kalliny Pontes' });
+ok(!r.ok, 'quem não dá aula: recusa', r.erro);
+r = chamar('b_renomearProfessora', { token: adm, de: 'Kalliny', para: 'Kalliny Pontes' });
+ok(r.ok && naGrade('Kalliny') === 0 && naGrade('Kalliny Pontes') === kAntes, 'todas as aulas da Grade passam para o nome novo', r.erro);
+const lista = r.ok ? r.dados.professoras.filter((x) => x.nome.indexOf('Kalliny') === 0) : [];
+ok(lista.length === 1 && lista[0].nome === 'Kalliny Pontes', 'na lista de quem dá aula sobra uma pessoa só', lista);
+ok(lista[0] && lista[0].pilatesPct === 40 && lista[0].yogaPorAula === 50, 'os valores dos dois cadastros ficam juntos', lista[0]);
+ok(ctx.lerAba('Professoras').filter((x) => String(x.nome).indexOf('Kalliny') === 0).length === 1, 'só uma linha de valores na planilha');
+ok(ctx.lerAba('Reservas').every((x) => x.professor !== 'Kalliny'), 'reservas acompanham o nome');
+const aulaHoje = ctx.gerarAulas(hoje, 14).filter((a) => a.professor === 'Kalliny Pontes');
+ok(aulaHoje.length > 0, 'a agenda de aulas já mostra o nome novo', aulaHoje.length);
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);
