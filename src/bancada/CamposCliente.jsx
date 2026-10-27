@@ -1,5 +1,18 @@
 import { useState } from 'react';
 import { COMO_CONHECEU, UFS, buscarCep, mascaraCep } from '../lib/clientes.js';
+import './css/clientes.css';
+
+// Iniciais (primeiro e último nome) e cor fixa por pessoa: o avatar é sempre o mesmo para o mesmo nome
+const iniciais = (nome) => {
+  const p = String(nome || '').trim().split(/\s+/).filter((x) => x.length > 0 && !/^(d[aeo]s?|e)$/i.test(x));
+  if (!p.length) return '?';
+  return ((p[0][0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
+};
+const TONS_AVATAR = 6;
+const tomDe = (nome) => { let h = 0; for (const c of String(nome || '')) h = (h * 31 + c.charCodeAt(0)) % 997; return h % TONS_AVATAR; };
+export function Avatar({ nome, tamanho = 'm', className = '' }) {
+  return <span className={`cl-avatar cl-avatar--${tamanho} cl-avatar--t${tomDe(nome)} ${className}`.trim()} aria-hidden="true">{iniciais(nome)}</span>;
+}
 
 // Endereço com preenchimento pelo CEP (rua, bairro, cidade e UF)
 export function CamposEndereco({ valor, aoMudar }) {
