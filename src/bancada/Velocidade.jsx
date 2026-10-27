@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
-import { Cabecalho, BotaoAcao, Erro, Vazio, plural } from './ui.jsx';
+import { Cabecalho, BotaoAcao, Erro, Vazio, Aviso, plural } from './ui.jsx';
+import { Barra } from './CatalogoPecas.jsx';
 import { lerMedidas, limparMedidas } from '../lib/api.js';
 
 // ============================================================
@@ -57,7 +58,7 @@ export function PainelVelocidade() {
 
   return (
     <div className="vel">
-      <p className="b-suave">Medições deste computador (as últimas {plural(400, 'ida', 'idas')} ao servidor). Cada linha mostra o tempo típico (a mediana): o total é o que a pessoa espera; o servidor é a parte do nosso sistema; o resto é a internet e o Google preparando o pedido.</p>
+      <Barra resumo={`Medições deste computador (últimas ${plural(400, 'ida', 'idas')})`} titulo="Velocidade" ajuda="Cada linha mostra o tempo típico (a mediana): o total é o que a pessoa espera; o servidor é a parte do nosso sistema; o resto é a internet e o Google preparando o pedido." />
       {medidas.length === 0 ? (
         <Vazio titulo="Ainda sem medições">Use a bancada normalmente e volte aqui depois.</Vazio>
       ) : (<>
@@ -66,9 +67,9 @@ export function PainelVelocidade() {
           <div><span className="rotulo">No nosso servidor</span><strong>{seg(geral.servidor)}</strong></div>
           <div><span className="rotulo">Internet e Google</span><strong>{seg(fora)}</strong></div>
         </div>
-        {textoTrocas && <p className="b-suave">{textoTrocas}. A bancada descartou e buscou de novo; se o número crescer, mande o resumo para o Fábio.</p>}
+        {textoTrocas && <Aviso tom="aviso" titulo={textoTrocas}>A bancada descartou e buscou de novo; se o número crescer, mande o resumo para o Fábio.</Aviso>}
         <div className="b-tabela-caixa">
-          <table className="b-tabela">
+          <table className="b-tabela vel-tabela">
             <thead><tr><th>Ação</th><th>Vezes</th><th>Total</th><th>Servidor</th><th>Abas da planilha</th><th>Abas do cache</th></tr></thead>
             <tbody>
               {linhas.map((l) => (

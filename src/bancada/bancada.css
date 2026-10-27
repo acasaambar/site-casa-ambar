@@ -150,10 +150,6 @@
 .b-campo input:focus, .b-campo select:focus, .b-campo textarea:focus, .b-busca input:focus, .b-barra-busca input:focus {
   outline: none; border-color: var(--oliva); box-shadow: 0 0 0 4px rgba(111, 120, 77, 0.16);
 }
-.b-campo--linha { flex-direction: row; justify-content: space-between; align-items: center; gap: 16px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid rgba(47, 56, 33, 0.08); }
-.b-unidade { display: inline-flex; align-items: center; gap: 8px; }
-.b-unidade input { width: 92px; text-align: right; }
-.b-unidade small { color: var(--tinta-suave); width: 44px; }
 .b-linha2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .b-linha3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 560px) { .b-linha2, .b-linha3 { grid-template-columns: 1fr; } .b-campo--linha { flex-direction: column; align-items: flex-start; gap: 6px; } }
@@ -384,12 +380,6 @@
 .b-entregar__canais { align-items: end; }
 
 /* ---------- equipe ---------- */
-.b-equipe { display: grid; gap: 10px; }
-.b-equipe li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto auto; gap: 14px; align-items: center; padding: 14px 18px; border-radius: 18px; background: var(--branco); border: 1px solid rgba(47, 56, 33, 0.1); }
-.b-equipe li.inativo { opacity: 0.6; }
-.b-equipe li > div:nth-child(2) strong { display: block; font-weight: 500; }
-.b-equipe__ini { width: 44px; height: 44px; border-radius: 50%; background: var(--caramelo); color: #FBF3E2; display: grid; place-items: center; font-family: var(--display); font-size: 22px; }
-@media (max-width: 720px) { .b-equipe li { grid-template-columns: 44px minmax(0, 1fr) auto; } .b-equipe li > :nth-child(3), .b-equipe li > :nth-child(4) { grid-column: 2 / -1; } }
 
 /* listas simples (bloqueios, planos, contatos) */
 .b-lista-simples { display: grid; }
@@ -680,10 +670,10 @@
 .s-bloco strong { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .s-bloco__hora { font-size: 11px; color: var(--b-suave); }
 .s-bloco__serv { font-size: 11px; color: var(--b-suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.s-bloco--facial, .s-item--facial, .s-detalhe--facial, .s-cat--facial { --cor: var(--c-facial); }
-.s-bloco--corporal, .s-item--corporal, .s-detalhe--corporal, .s-cat--corporal { --cor: var(--c-corporal); }
-.s-bloco--capilar, .s-item--capilar, .s-detalhe--capilar, .s-cat--capilar { --cor: var(--c-capilar); }
-.s-bloco--fisio, .s-item--fisio, .s-detalhe--fisio, .s-cat--fisio { --cor: var(--c-fisio); }
+.s-bloco--facial, .s-item--facial, .s-detalhe--facial { --cor: var(--c-facial); }
+.s-bloco--corporal, .s-item--corporal, .s-detalhe--corporal { --cor: var(--c-corporal); }
+.s-bloco--capilar, .s-item--capilar, .s-detalhe--capilar { --cor: var(--c-capilar); }
+.s-bloco--fisio, .s-item--fisio, .s-detalhe--fisio { --cor: var(--c-fisio); }
 .s-bloco--atendido { background: color-mix(in srgb, var(--cor) 8%, #FBF8EF); }
 .s-bloco--atendido strong::after { content: ' ✓'; color: var(--b-oliva); }
 .s-bloco--falta { opacity: 0.55; background: repeating-linear-gradient(135deg, #F3E2DA 0 6px, #FBF8EF 6px 12px); }
@@ -723,23 +713,6 @@
 .s-rodape { padding-top: 14px; border-top: 1px solid var(--b-linha); gap: 18px; }
 
 /* catálogo de serviços */
-.s-cat { display: grid; gap: 8px; }
-.s-cat__titulo { margin: 8px 0 0; font-family: var(--display); font-weight: 400; font-size: 26px; display: flex; align-items: center; gap: 12px; }
-.s-cat__titulo::before { content: ''; width: 12px; height: 12px; border-radius: 50% 40% 55% 45%; background: var(--cor); }
-.s-cat__lista { list-style: none; margin: 0; padding: 0; border: 1px solid var(--b-linha); border-radius: 18px; background: var(--b-linho); }
-.s-cat__lista li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 18px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--b-linha); }
-.s-cat__lista li:last-child { border-bottom: 0; }
-.s-cat__lista li.inativo { opacity: 0.5; }
-.s-cat__serv { display: grid; gap: 3px; min-width: 0; }
-.s-cat__serv > strong { font-weight: 500; }
-.s-cat__preco { font-family: var(--display); font-weight: 400; font-size: 22px; white-space: nowrap; }
-.s-cat__pacotes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.s-pacote {
-  font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 999px; cursor: pointer; color: var(--b-tinta);
-  border: 1px solid color-mix(in srgb, var(--cor) 50%, transparent); background: color-mix(in srgb, var(--cor) 10%, #FBF8EF);
-}
-.s-pacote.inativo { opacity: 0.5; text-decoration: line-through; }
-@media (max-width: 560px) { .s-cat__lista li { grid-template-columns: minmax(0, 1fr) auto; } .s-cat__lista li > .b-botoes { grid-column: 1 / -1; flex-direction: row; } }
 
 /* botões e links da bancada em caixa normal (sem letras espaçadas) */
 .bancada .botao, .b-modal .botao { text-transform: none; letter-spacing: 0.01em; font-size: 13px; font-weight: 500; }
@@ -1292,7 +1265,7 @@
 
 /* números, horas e nomes: seminegrito, algarismos alinhados */
 .b-kpi__valor, .b-proximas__hora, .b-tira strong, .b-aula__hora, .b-equipe__ini, .pedra strong, .seguir__hora, .s-item__hora,
-.s-detalhe__quando strong, .s-cat__titulo, .s-cat__preco, .b-subtitulo, .b-mes strong, .cm-nota__quem, .cm-nota__pe strong, .cm-papel__cliente,
+.s-detalhe__quando strong, .b-subtitulo, .b-mes strong, .cm-nota__quem, .cm-nota__pe strong, .cm-papel__cliente,
 .cm-item__valor strong, .cm-totais__valor, .cm-pagar__titulo, .cm-troco__linha strong, .est__qtd strong, .desp__dia strong, .desp__valor,
 .k-card__valor, .cp__num, .cp__contagem strong, .lb__hora, .pt-titulo, .pt-linha__data strong, .hist__ano, .pa-cartao__topo strong,
 .b-cartao__titulo, .b-vazio strong, .b-atalho strong, .linha__horas span, .s-linha__topo strong, .s-linha__horas span {
@@ -1301,7 +1274,7 @@
 .b-kpi__valor { font-size: min(32px, 15cqi); }
 @media (max-width: 560px) { .b-kpi__valor { font-size: min(26px, 15cqi); } }
 .b-cartao__titulo { font-size: 19px; }
-.b-subtitulo, .pt-titulo, .s-cat__titulo, .pa-cartao__topo strong { font-size: 19px; }
+.b-subtitulo, .pt-titulo, .pa-cartao__topo strong { font-size: 19px; }
 .b-tira strong { font-size: 20px; }
 .b-aula__hora, .seguir__hora, .b-proximas__hora { font-size: 22px; }
 .s-item__hora, .lb__hora { font-size: 19px; }
@@ -1309,7 +1282,7 @@
 .b-vazio strong { font-size: 18px; }
 .b-atalho strong { font-size: 17px; }
 .desp__dia strong { font-size: 22px; }
-.desp__valor, .s-cat__preco, .est__qtd strong { font-size: 18px; }
+.desp__valor, .est__qtd strong { font-size: 18px; }
 .b-mes strong { font-size: 17px; }
 .pedra strong { font-size: 14px; }
 .linha__horas span { font-size: 13px; font-weight: 500; }
@@ -1622,7 +1595,7 @@
     min-height: 40px; display: inline-flex; align-items: center;
   }
   .b-lateral__site, .b-lateral__sair, .atalhos a { min-height: 40px; display: inline-flex; align-items: center; }
-  .b-chip, .b-segmento button, .b-presenca, .s-pacote, .hr-mais { min-height: 40px; }
+  .b-chip, .b-segmento button, .b-presenca, .hr-mais { min-height: 40px; }
   .ag-colunas button { min-height: 40px; min-width: 40px; }
   .b-mes button, .cm-item__tirar, .cm-qtd button, .hr-tirar { width: 40px; height: 40px; }
   .cm-item { grid-template-columns: minmax(0, 1fr) auto auto 40px; }
@@ -2345,10 +2318,7 @@
 @media (max-width: 560px) { .vd-extra--um { grid-template-columns: 1fr; } .vd-extra--um .vd-extra__valor { grid-row: auto; } }
 
 /* ===== Profissionais: serviços e aulas no mesmo cadastro ===== */
-.pf-tipos, .pf-aulas { border: 1px solid var(--b-linha); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
-.pf-tipos-resumo { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-.pa-wellhub-linha { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.pa-wellhub-linha .b-campo { margin: 0; }
+.pf-aulas { border: 1px solid var(--b-linha); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
 .pf-mods { display: flex; gap: 8px 22px; flex-wrap: wrap; }
 
 /* ===== Pagamento dividido em mais de uma forma ===== */
@@ -2356,7 +2326,6 @@
 .b-pagar--dividido { display: grid; gap: 10px; }
 .cm-pagar--corrigir { margin-top: 14px; }
 .cm-corrigir-forma { margin-top: 8px; }
-.pf-acoes { display: inline-flex; gap: 14px; align-items: baseline; }
 
 /* ===== Relatório do mês de cada profissional (tela e impressão) ===== */
 .rel-tela { font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 1.5; position: fixed; inset: 0; z-index: 95; overflow: auto; background: #E4DFCB; -webkit-overflow-scrolling: touch; }

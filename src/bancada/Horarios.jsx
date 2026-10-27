@@ -1,4 +1,5 @@
-import { DIAS_LONGOS, dataBR, hojeIso, hora } from './ui.jsx';
+import { DIAS_LONGOS, dataBR, hojeIso, hora, Ajuda } from './ui.jsx';
+import './css/catalogo.css';
 
 // Horário de cada profissional: por dia da semana (até 3 turnos, ex.: 8h–12h e 14h–18h)
 // e datas especiais (um sábado diferente, uma folga). Formato: { "1": [["08:00","12:00"]], ... }
@@ -78,9 +79,8 @@ export function HorarioSemanal({ valor, aoMudar }) {
     aoMudar({ ...valor, ...Object.fromEntries([2, 3, 4, 5].map((d) => [d, base])) });
   };
   return (
-    <fieldset className="hr">
-      <legend className="rotulo">Horário de atendimento</legend>
-      <p className="b-suave">Marque os dias e os turnos. Para o almoço, use dois turnos (ex.: 8h às 12h e 14h às 18h).</p>
+    <fieldset className="hr cg-bloco">
+      <legend className="cg-bloco__titulo">Horário de atendimento<Ajuda titulo="Horário de atendimento">Marque os dias e os turnos. Para o almoço, use dois turnos (ex.: 8h às 12h e 14h às 18h).</Ajuda></legend>
       <ul className="hr-dias">
         {ORDEM.map((d) => {
           const turnos = valor[d];
@@ -90,12 +90,12 @@ export function HorarioSemanal({ valor, aoMudar }) {
                 <input type="checkbox" checked={!!turnos} onChange={(e) => ligar(d, e.target.checked)} />
                 <span>{DIAS_LONGOS[d]}</span>
               </label>
-              {turnos ? <Turnos turnos={turnos} rotulo={DIAS_LONGOS[d]} aoMudar={(t) => aoMudar({ ...valor, [d]: t })} /> : <span className="hr-folga">não atende</span>}
+              {turnos ? <Turnos turnos={turnos} rotulo={DIAS_LONGOS[d]} aoMudar={(t) => aoMudar({ ...valor, [d]: t })} /> : <span className="hr-folga">Não atende</span>}
             </li>
           );
         })}
       </ul>
-      {valor[1] && <button type="button" className="link-acao hr-copiar" onClick={copiar}>Usar o horário de segunda de terça a sexta</button>}
+      {valor[1] && <button type="button" className="botao botao--fantasma botao--p hr-copiar" onClick={copiar}>Copiar o horário de segunda para terça a sexta</button>}
     </fieldset>
   );
 }
@@ -115,9 +115,8 @@ export function DiasEspeciais({ valor, aoMudar }) {
     aoMudar(o);
   };
   return (
-    <fieldset className="hr">
-      <legend className="rotulo">Dias especiais</legend>
-      <p className="b-suave">Um sábado com horário diferente, um feriado com atendimento ou um dia de folga. Vale só naquela data.</p>
+    <fieldset className="hr cg-bloco">
+      <legend className="cg-bloco__titulo">Dias especiais<Ajuda titulo="Dias especiais">Um sábado com horário diferente, um feriado com atendimento ou um dia de folga. Vale só naquela data.</Ajuda></legend>
       {datas.length > 0 && (
         <ul className="hr-dias">
           {datas.map((d) => {
