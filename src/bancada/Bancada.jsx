@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import './bancada.css';
+import './css/base.css';
 import { SessaoBancada, useBancada, pode } from './sessao.jsx';
 import { Logo, Sol, Selo, img } from '../components/Marca.jsx';
 import { bancada } from '../lib/api.js';
@@ -25,7 +27,6 @@ import '@fontsource/ibm-plex-sans/400.css';
 import '@fontsource/ibm-plex-sans/500.css';
 import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/ibm-plex-sans/700.css';
-import './bancada.css';
 
 const PAPEL = { admin: 'Administração', recepcao: 'Recepção', professora: 'Profissional' };
 
