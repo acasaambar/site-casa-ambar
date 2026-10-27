@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import './css/marketing.css';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, real, dataBR, dataCurta, hora, linkWhats, primeiro, telFmt, somarDias, hojeIso,
+import { useDados, Esqueleto, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, Aviso, Secao, real, dataBR, dataCurta, hora, linkWhats, primeiro, telFmt, somarDias, hojeIso,
   numBR, MESES_LONGOS, DIAS_LONGOS, diaSemana, plural } from './ui.jsx';
 import { Cupons } from './Vales.jsx';
 import { useCatalogoComanda } from './Comandas.jsx';
@@ -18,7 +19,7 @@ export default function Marketing() {
   const [aba, setAba] = useState(local.state?.aba || 'promocoes');
   return (
     <>
-      <Cabecalho titulo="Marketing">Promoções automáticas, campanhas para trazer de volta quem sumiu, lembretes e cupons.</Cabecalho>
+      <Cabecalho titulo="Marketing">Promoções, campanhas, lembretes e retornos para a casa cheia</Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={[['promocoes', 'Promoções'], ['campanhas', 'Campanhas'], ['lembretes', 'Lembretes'], ['retornos', 'Retornos'], ['cupons', 'Cupons']]} />
       {aba === 'promocoes' && <Promocoes admin={pode(membro, 'admin')} />}
       {aba === 'campanhas' && <Campanhas admin={pode(membro, 'admin')} />}
@@ -43,43 +44,51 @@ function Promocoes({ admin }) {
   const catalogo = useCatalogoComanda();
   const [editar, setEditar] = useState(null);
   const nomeItem = (id) => catalogo?.itens.find((i) => i.id === id)?.nome || id;
+  const nova = () => setEditar({ tipo: 'percentual', onde: 'ambos', ativo: true, grupos: [], itens: [], dias: [] });
   return (
     <>
-      <div className="b-barra-acoes">
-        <p className="b-suave">A promoção entra sozinha no preço, sem código. Se também houver cupom, vale o maior desconto.</p>
-        {admin && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ tipo: 'percentual', onde: 'ambos', ativo: true, grupos: [], itens: [], dias: [] })}>Nova promoção</button>}
-      </div>
-      <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
-      {dados && dados.length === 0 && <Vazio titulo="Nenhuma promoção" forma="equilibrio">Ex.: 10% em estética facial às terças, ou drenagem por R$ 159 em novembro.</Vazio>}
-      <ul className="pr-lista">
-        {(dados || []).map((p) => {
-          const [grande, pequeno] = textoDesconto(p);
-          const alvo = !p.itens.length && !p.grupos.length ? 'Todos os serviços, aulas e produtos' : [...p.grupos, ...p.itens.map(nomeItem)].join(' · ');
-          return (
-            <li key={p.id} className={`pr pr--${p.situacao.replace(' ', '-')}`}>
-              <div className="pr__selo" aria-hidden="true"><strong>{comNumeros(grande)}</strong><span>{pequeno}</span></div>
-              <div className="pr__corpo">
-                <div className="pr__topo">
-                  <h3>{p.nome}</h3>
-                  <Tag tom={p.situacao === 'no ar' ? 'ok' : p.situacao === 'agendada' ? 'aviso' : 'apagado'}>{p.situacao}</Tag>
+      <Secao titulo="Promoções" ajuda="A promoção entra sozinha no preço, sem código. Se também houver cupom, vale o maior desconto." acoes={admin && <button type="button" className="botao botao--cheio botao--p" onClick={nova}>Nova promoção</button>}>
+        <Erro>{erro}</Erro>
+        {carregando && !dados && <Esqueleto linhas={3} altura={96} />}
+        {dados && dados.length === 0 && (
+          <Vazio titulo="Nenhuma promoção" forma="equilibrio" acao={admin && <button type="button" className="botao botao--cheio botao--p" onClick={nova}>Nova promoção</button>}>
+            Ex.: 10% em estética facial às terças, ou drenagem por R$ 159 em novembro.
+          </Vazio>
+        )}
+        <ul className="mk-promos">
+          {(dados || []).map((p) => {
+            const [grande, pequeno] = textoDesconto(p);
+            const todos = !p.itens.length && !p.grupos.length;
+            const alvos = [...p.grupos, ...p.itens.map(nomeItem)];
+            return (
+              <li key={p.id} className={`mk-promo mk-promo--${p.situacao.replace(' ', '-')}`}>
+                <div className="mk-promo__selo" aria-hidden="true"><strong>{comNumeros(grande)}</strong><span>{pequeno}</span></div>
+                <div className="mk-promo__corpo">
+                  <div className="mk-promo__topo">
+                    <h3>{p.nome}</h3>
+                    <Tag tom={p.situacao === 'no ar' ? 'ok' : p.situacao === 'agendada' ? 'aviso' : 'apagado'}>{p.situacao}</Tag>
+                  </div>
+                  {p.descricao && <p className="mk-promo__desc">{p.descricao}</p>}
+                  <div className="mk-promo__alvos">
+                    {todos ? <Tag>Todos os serviços, aulas e produtos</Tag> : alvos.map((a) => <Tag key={a}>{a}</Tag>)}
+                  </div>
+                  <div className="mk-promo__pe">
+                    <span className="mk-promo__dias" aria-label={p.dias.length ? 'Dias: ' + p.dias.map((d) => DIAS_LONGOS[d]).join(', ') : 'Todos os dias'}>
+                      {DIAS_LETRA.map((l, i) => <b key={i} className={!p.dias.length || p.dias.includes(i) ? 'sim' : ''}>{l}</b>)}
+                    </span>
+                    <span className="b-meta">
+                      <span>{p.de || p.ate ? `${p.de ? dataCurta(p.de) : '…'} a ${p.ate ? dataCurta(p.ate) : '…'}` : 'sem prazo'}</span>
+                      <span>{p.onde === 'ambos' ? 'site e balcão' : p.onde === 'site' ? 'só no site' : 'só no balcão'}</span>
+                      <span>{plural(p.usos, 'uso', 'usos')} · {real(p.descontoTotal)} em descontos</span>
+                    </span>
+                  </div>
                 </div>
-                {p.descricao && <p className="pr__desc">{p.descricao}</p>}
-                <p className="b-suave">{alvo}</p>
-                <div className="pr__pe">
-                  <span className="pr__dias" aria-label={p.dias.length ? 'Dias: ' + p.dias.map((d) => DIAS_LONGOS[d]).join(', ') : 'Todos os dias'}>
-                    {DIAS_LETRA.map((l, i) => <b key={i} className={!p.dias.length || p.dias.includes(i) ? 'sim' : ''}>{l}</b>)}
-                  </span>
-                  <span className="b-suave">{p.de || p.ate ? `${p.de ? dataCurta(p.de) : '…'} a ${p.ate ? dataCurta(p.ate) : '…'}` : 'sem prazo'}</span>
-                  <span className="b-suave">{p.onde === 'ambos' ? 'site e balcão' : p.onde === 'site' ? 'só no site' : 'só no balcão'}</span>
-                  <span className="b-suave">{plural(p.usos, 'uso', 'usos')} · {real(p.descontoTotal)} em descontos</span>
-                </div>
-              </div>
-              {admin && <button type="button" className="link-acao pr__editar" onClick={() => setEditar(p)}>editar</button>}
-            </li>
-          );
-        })}
-      </ul>
+                {admin && <button type="button" className="botao botao--fantasma botao--p mk-promo__editar" onClick={() => setEditar(p)}>Editar</button>}
+              </li>
+            );
+          })}
+        </ul>
+      </Secao>
       {editar && <EditarPromocao p={editar} catalogo={catalogo} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
     </>
   );
@@ -118,7 +127,7 @@ function EditarPromocao({ p, catalogo, aoFechar, aoSalvar }) {
         </fieldset>
         <label className="b-campo"><span className="rotulo">{f.tipo === 'percentual' ? 'Desconto (%)' : f.tipo === 'valor' ? 'Desconto (R$)' : 'Preço na promoção (R$)'}</span>
           <input inputMode="decimal" value={f.valor} onChange={(e) => setF({ ...f, valor: e.target.value.replace(/[^\d,.]/g, '') })} /></label>
-        {exemplo && <p className="b-suave">{exemplo}</p>}
+        {exemplo && <Aviso tom="info">{exemplo}</Aviso>}
         <fieldset className="b-opcoes">
           <legend className="rotulo">Vale para</legend>
           <div className="b-filtros">
@@ -154,7 +163,7 @@ function EditarPromocao({ p, catalogo, aoFechar, aoSalvar }) {
             <label key={id} className={f.onde === id ? 'ativo' : ''}><input type="radio" checked={f.onde === id} onChange={() => setF({ ...f, onde: id })} /><span><strong>{t}</strong></span></label>
           ))}
         </fieldset>
-        <span className="b-suave">No site entram só aulas de Yoga e Pilates (serviços são agendados pela bancada).</span>
+        <Aviso tom="info">No site entram só aulas de Yoga e Pilates (serviços são agendados pela bancada).</Aviso>
         <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Promoção ativa</label>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
@@ -216,121 +225,146 @@ function Campanhas({ admin }) {
   // quem desmarcou "receber novidades" (aceitaEmail = marketing) não entra na lista do WhatsApp
   const comWhats = (publico?.pessoas || []).filter((p) => p.aceitaEmail && p.whatsapp.replace(/\D/g, '').length >= 10);
 
+  const nomeCanal = canal === 'email' ? 'E-mail' : 'WhatsApp';
   return (
     <>
-      <section className="b-cartao cp">
-        <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Nova campanha</h2></header>
-        <div className="cp__passo">
-          <span className="cp__num">1</span>
-          <div className="cp__conteudo">
-            <strong>Para quem</strong>
-            <div className="cp-publicos">
+      <Secao titulo="Nova campanha" ajuda="Escolha quem recebe, ajuste a mensagem e envie. No e-mail, cada pessoa pode sair da lista pelo link “não quero mais receber”.">
+        <ol className="mk-passos">
+          <li className="mk-passo">
+            <header className="mk-passo__topo"><span className="mk-passo__num">1</span><h3>Para quem</h3></header>
+            <div className="mk-publicos" role="group" aria-label="Público da campanha">
               {PUBLICOS.map(([id, t, d]) => (
-                <button key={id} type="button" className={`cp-publico${filtro.tipo === id ? ' cp-publico--ativo' : ''}`} onClick={() => mudarTipo(id)}>
+                <button key={id} type="button" aria-pressed={filtro.tipo === id} className={`mk-publico${filtro.tipo === id ? ' mk-publico--ativo' : ''}`} onClick={() => mudarTipo(id)}>
                   <strong>{t}</strong>{d && <span>{d}</span>}
                 </button>
               ))}
             </div>
-            <div className="b-linha2">
-              {filtro.tipo === 'sumidos' && (
-                <label className="b-campo"><span className="rotulo">Sem vir há mais de</span>
-                  <select value={filtro.dias} onChange={(e) => { setFiltro({ ...filtro, dias: Number(e.target.value) }); setPublico(null); }}>{[21, 30, 45, 60, 90, 180].map((n) => <option key={n} value={n}>{n} dias</option>)}</select></label>
-              )}
-              {filtro.tipo === 'aniversariantes' && (
-                <label className="b-campo"><span className="rotulo">Mês</span>
-                  <select value={filtro.mes} onChange={(e) => { setFiltro({ ...filtro, mes: e.target.value }); setPublico(null); }}>{MESES_LONGOS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}</select></label>
-              )}
-              {filtro.tipo === 'categoria' && cat && (
-                <label className="b-campo"><span className="rotulo">Área</span>
-                  <select value={filtro.categoria || ''} onChange={(e) => { setFiltro({ ...filtro, categoria: e.target.value }); setPublico(null); }}><option value="">Escolha…</option>{cat.categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
-              )}
-              {filtro.tipo === 'servico' && cat && (
-                <label className="b-campo"><span className="rotulo">Serviço</span>
-                  <select value={filtro.servicoId || ''} onChange={(e) => { setFiltro({ ...filtro, servicoId: e.target.value }); setPublico(null); }}><option value="">Escolha…</option>{cat.servicos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select></label>
-              )}
-              {filtro.tipo === 'modalidade' && (
-                <label className="b-campo"><span className="rotulo">Modalidade</span>
-                  <select value={filtro.modalidade || ''} onChange={(e) => { setFiltro({ ...filtro, modalidade: e.target.value }); setPublico(null); }}><option value="">Escolha…</option><option>Yoga</option><option>Pilates</option></select></label>
-              )}
-            </div>
-            <button type="button" className="botao botao--linha botao--p" disabled={buscando} onClick={buscar}>{buscando ? 'Procurando…' : 'Ver quem entra'}</button>
-            {publico && (
-              <p className="cp__contagem"><strong>{publico.total}</strong> cliente{publico.total === 1 ? '' : 's'} · {publico.comWhats} com WhatsApp · {publico.comEmail} {publico.comEmail === 1 ? 'recebe' : 'recebem'} e-mail</p>
-            )}
-          </div>
-        </div>
-
-        {publico && publico.total > 0 && (
-          <>
-            <div className="cp__passo">
-              <span className="cp__num">2</span>
-              <div className="cp__conteudo">
-                <strong>A mensagem</strong>
-                <div className="b-segmento" role="tablist" aria-label="Canal">
-                  <button type="button" role="tab" aria-selected={canal === 'whatsapp'} onClick={() => setCanal('whatsapp')}>WhatsApp</button>
-                  <button type="button" role="tab" aria-selected={canal === 'email'} onClick={() => setCanal('email')}>E-mail</button>
-                </div>
-                {canal === 'email' && <label className="b-campo"><span className="rotulo">Assunto</span><input value={assunto} onChange={(e) => setAssunto(e.target.value)} /></label>}
-                <label className="b-campo"><span className="rotulo">Texto · use {'{nome}'} para o primeiro nome</span><textarea rows={6} value={mensagem} onChange={(e) => setMensagem(e.target.value)} /></label>
-                <div className="cp__previa" aria-label="Prévia">
-                  <span className="b-suave">Prévia para {primeiro(publico.pessoas[0].nome)}</span>
-                  {canal === 'email' && <strong>{personal(assunto, publico.pessoas[0])}</strong>}
-                  <p>{personal(mensagem, publico.pessoas[0])}</p>
-                </div>
+            {['sumidos', 'aniversariantes', 'categoria', 'servico', 'modalidade'].includes(filtro.tipo) && (
+              <div className="mk-passo__filtro">
+                {filtro.tipo === 'sumidos' && (
+                  <label className="b-campo"><span className="rotulo">Sem vir há mais de</span>
+                    <select value={filtro.dias} onChange={(e) => { setFiltro({ ...filtro, dias: Number(e.target.value) }); setPublico(null); }}>{[21, 30, 45, 60, 90, 180].map((n) => <option key={n} value={n}>{n} dias</option>)}</select></label>
+                )}
+                {filtro.tipo === 'aniversariantes' && (
+                  <label className="b-campo"><span className="rotulo">Mês</span>
+                    <select value={filtro.mes} onChange={(e) => { setFiltro({ ...filtro, mes: e.target.value }); setPublico(null); }}>{MESES_LONGOS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}</select></label>
+                )}
+                {filtro.tipo === 'categoria' && cat && (
+                  <label className="b-campo"><span className="rotulo">Área</span>
+                    <select value={filtro.categoria || ''} onChange={(e) => { setFiltro({ ...filtro, categoria: e.target.value }); setPublico(null); }}><option value="">Escolha…</option>{cat.categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
+                )}
+                {filtro.tipo === 'servico' && cat && (
+                  <label className="b-campo"><span className="rotulo">Serviço</span>
+                    <select value={filtro.servicoId || ''} onChange={(e) => { setFiltro({ ...filtro, servicoId: e.target.value }); setPublico(null); }}><option value="">Escolha…</option>{cat.servicos.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</select></label>
+                )}
+                {filtro.tipo === 'modalidade' && (
+                  <label className="b-campo"><span className="rotulo">Modalidade</span>
+                    <select value={filtro.modalidade || ''} onChange={(e) => { setFiltro({ ...filtro, modalidade: e.target.value }); setPublico(null); }}><option value="">Escolha…</option><option>Yoga</option><option>Pilates</option></select></label>
+                )}
               </div>
+            )}
+            <div className="mk-passo__acao">
+              <button type="button" className="botao botao--cheio botao--p" disabled={buscando} onClick={buscar}>{buscando ? 'Procurando…' : 'Ver quem entra'}</button>
+              {publico && (
+                <p className="mk-contagem" aria-live="polite">
+                  <span><strong>{publico.total}</strong> {publico.total === 1 ? 'cliente' : 'clientes'}</span>
+                  <span><strong>{publico.comWhats}</strong> com WhatsApp</span>
+                  <span><strong>{publico.comEmail}</strong> {publico.comEmail === 1 ? 'recebe' : 'recebem'} e-mail</span>
+                </p>
+              )}
             </div>
-            <div className="cp__passo">
-              <span className="cp__num">3</span>
-              <div className="cp__conteudo">
-                <strong>Enviar</strong>
+            {publico && publico.total === 0 && <Aviso tom="aviso">Ninguém entra neste público agora. Mude a escolha e veja de novo.</Aviso>}
+          </li>
+
+          {publico && publico.total > 0 && (
+            <>
+              <li className="mk-passo">
+                <header className="mk-passo__topo"><span className="mk-passo__num">2</span><h3>A mensagem</h3></header>
+                <div className="mk-mensagem">
+                  <div className="mk-mensagem__editor">
+                    <div className="b-segmento" role="tablist" aria-label="Canal">
+                      <button type="button" role="tab" aria-selected={canal === 'whatsapp'} onClick={() => setCanal('whatsapp')}>WhatsApp</button>
+                      <button type="button" role="tab" aria-selected={canal === 'email'} onClick={() => setCanal('email')}>E-mail</button>
+                    </div>
+                    {canal === 'email' && <label className="b-campo"><span className="rotulo">Assunto</span><input value={assunto} onChange={(e) => setAssunto(e.target.value)} /></label>}
+                    <label className="b-campo"><span className="rotulo">Texto · {'{nome}'} vira o primeiro nome</span><textarea rows={7} value={mensagem} onChange={(e) => setMensagem(e.target.value)} /></label>
+                  </div>
+                  <div className={`mk-previa mk-previa--${canal}`} aria-label="Prévia">
+                    <span className="mk-previa__rotulo">Prévia para {primeiro(publico.pessoas[0].nome)} · {nomeCanal}</span>
+                    <div className="mk-previa__balao">
+                      {canal === 'email' && <strong>{personal(assunto, publico.pessoas[0])}</strong>}
+                      <p>{personal(mensagem, publico.pessoas[0])}</p>
+                    </div>
+                  </div>
+                </div>
+              </li>
+              <li className="mk-passo">
+                <header className="mk-passo__topo"><span className="mk-passo__num">3</span><h3>Enviar</h3></header>
                 {canal === 'email' ? (
                   admin ? (
                     <>
-                      <p className="b-suave">Sai da conta Google da Casa Âmbar, com o link “não quero mais receber” no rodapé. Hoje ainda dá para enviar {publico.cotaEmail} e-mails.</p>
-                      <BotaoAcao className="botao botao--cheio" confirmar={`Enviar para ${plural(publico.comEmail, 'pessoa', 'pessoas')} por e-mail?`} acao={async () => {
-                        setErro(''); setResultado('');
-                        try {
-                          const r = await chamar('enviarCampanha', { filtro, assunto, mensagem, nome: assunto });
-                          setResultado(`${plural(r.enviados, 'e-mail enviado', 'e-mails enviados')}.${r.faltaram ? ` ${r.faltaram} ${r.faltaram === 1 ? 'ficou' : 'ficaram'} para amanhã (limite diário).` : ''}`);
-                          setHistorico(await chamar('campanhas', {}));
-                        } catch (e) { setErro(e.message); }
-                      }}>Enviar {publico.comEmail} e-mails</BotaoAcao>
+                      <Aviso tom="info">Sai da conta Google da Casa Âmbar, com o link “não quero mais receber” no rodapé. Hoje ainda dá para enviar {plural(publico.cotaEmail, 'e-mail', 'e-mails')}.</Aviso>
+                      <div className="mk-passo__acao">
+                        <BotaoAcao className="botao botao--cheio" confirmar={`Enviar para ${plural(publico.comEmail, 'pessoa', 'pessoas')} por e-mail?`} acao={async () => {
+                          setErro(''); setResultado('');
+                          try {
+                            const r = await chamar('enviarCampanha', { filtro, assunto, mensagem, nome: assunto });
+                            setResultado(`${plural(r.enviados, 'e-mail enviado', 'e-mails enviados')}.${r.faltaram ? ` ${r.faltaram} ${r.faltaram === 1 ? 'ficou' : 'ficaram'} para amanhã (limite diário).` : ''}`);
+                            setHistorico(await chamar('campanhas', {}));
+                          } catch (e) { setErro(e.message); }
+                        }}>Enviar {publico.comEmail} e-mails</BotaoAcao>
+                      </div>
                     </>
-                  ) : <p className="b-suave">E-mail em massa é enviado pela administração. Use o WhatsApp.</p>
+                  ) : <Aviso tom="info">E-mail em massa é enviado pela administração. Use o WhatsApp.</Aviso>
                 ) : (
                   <>
-                    <p className="b-suave">Toque em cada nome para abrir o WhatsApp com a mensagem pronta. Envie uma a uma.</p>
-                    <ul className="cp-fila">
+                    <div className="mk-progresso">
+                      <span className="b-suave">Toque em “Abrir” em cada nome: a mensagem já vai pronta. Envie uma a uma.</span>
+                      <strong>{Object.keys(enviadosW).length} de {comWhats.length}</strong>
+                      <span className="mk-progresso__barra"><i style={{ width: `${comWhats.length ? (Object.keys(enviadosW).length / comWhats.length) * 100 : 0}%` }} /></span>
+                    </div>
+                    {comWhats.length === 0 && <Aviso tom="aviso">Ninguém deste público tem WhatsApp para receber novidades.</Aviso>}
+                    <ul className="mk-fila">
                       {comWhats.map((p) => (
                         <li key={p.cpf} className={enviadosW[p.cpf] ? 'feito' : ''}>
-                          <span><strong>{p.nome}</strong><small>{p.motivo || telFmt(p.whatsapp)}</small></span>
-                          <a className="botao botao--linha botao--p com-icone" href={linkWhats(p.whatsapp, personal(mensagem, p))} target="_blank" rel="noreferrer"
+                          <span className="mk-fila__ini" aria-hidden="true">{enviadosW[p.cpf] ? '✓' : primeiro(p.nome).slice(0, 1)}</span>
+                          <span className="mk-fila__nome"><strong>{p.nome}</strong><small>{p.motivo || telFmt(p.whatsapp)}</small></span>
+                          <a className={`botao ${enviadosW[p.cpf] ? 'botao--linha' : 'botao--cheio'} botao--p com-icone`} href={linkWhats(p.whatsapp, personal(mensagem, p))} target="_blank" rel="noreferrer"
                             onClick={() => setEnviadosW((x) => ({ ...x, [p.cpf]: true }))}><IconeWhatsapp tamanho={14} /> {enviadosW[p.cpf] ? 'Abrir de novo' : 'Abrir'}</a>
                         </li>
                       ))}
                     </ul>
-                    <BotaoAcao className="botao botao--cheio botao--p" disabled={!Object.keys(enviadosW).length} acao={async () => {
-                      try {
-                        setHistorico(await chamar('registrarCampanha', { nome: PUBLICOS.find((x) => x[0] === filtro.tipo)[1] + ' · WhatsApp', filtro, mensagem, total: comWhats.length, enviados: Object.keys(enviadosW).length }));
-                        setResultado('Campanha registrada.');
-                      } catch (e) { setErro(e.message); }
-                    }}>Concluir ({Object.keys(enviadosW).length} de {comWhats.length})</BotaoAcao>
+                    <div className="mk-passo__acao">
+                      <BotaoAcao className="botao botao--cheio botao--p" disabled={!Object.keys(enviadosW).length} acao={async () => {
+                        try {
+                          setHistorico(await chamar('registrarCampanha', { nome: PUBLICOS.find((x) => x[0] === filtro.tipo)[1] + ' · WhatsApp', filtro, mensagem, total: comWhats.length, enviados: Object.keys(enviadosW).length }));
+                          setResultado('Campanha registrada.');
+                        } catch (e) { setErro(e.message); }
+                      }}>Concluir ({Object.keys(enviadosW).length} de {comWhats.length})</BotaoAcao>
+                    </div>
                   </>
                 )}
-                {resultado && <p className="aviso">{resultado}</p>}
-              </div>
-            </div>
-          </>
-        )}
+                {resultado && <Aviso tom="ok">{resultado}</Aviso>}
+              </li>
+            </>
+          )}
+        </ol>
         <Erro>{erro}</Erro>
-      </section>
+      </Secao>
       {historico && historico.length > 0 && (
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Campanhas anteriores</h2></header>
-          <ul className="b-lista-simples">
-            {historico.map((c) => <li key={c.id}><strong>{c.nome} · {c.canal}</strong><span>{dataBR(c.criadaEm)} · {c.publico} · {c.enviados} de {c.total} · {c.criadoPor}</span></li>)}
+        <Secao titulo="Campanhas anteriores">
+          <ul className="b-itens">
+            {historico.map((c) => (
+              <li key={c.id} className="b-item">
+                <div className="b-item__corpo">
+                  <span className="b-item__titulo">{c.nome}</span>
+                  <span className="b-meta"><span>{dataBR(c.criadaEm)}</span><span>{c.publico}</span><span>{c.enviados} de {c.total}</span><span>{c.criadoPor}</span></span>
+                </div>
+                <div className="b-item__lado"><Tag>{c.canal}</Tag></div>
+              </li>
+            ))}
           </ul>
-        </section>
+        </Secao>
       )}
     </>
   );
@@ -344,41 +378,54 @@ function Lembretes() {
   const [data, setData] = useState(somarDias(hojeIso(), 1));
   const { dados, erro, carregando, setDados } = useDados('lembretes', { data });
   const [aviso, setAviso] = useState('');
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={4} altura={56} />;
   if (!dados) return <Erro>{erro}</Erro>;
   const semEnvio = dados.lista.filter((x) => !x.enviado);
   const comEmail = semEnvio.filter((x) => x.temEmail);
   const dia = `${DIAS_LONGOS[diaSemana(data)].toLowerCase()}, ${dataBR(data)}`;
   return (
-    <>
-      <div className="b-barra-acoes">
-        <label className="b-campo"><span className="rotulo">Horários de</span><input type="date" value={data} onChange={(e) => e.target.value && setData(e.target.value)} /></label>
-        <p className="b-suave">{dados.automatico ? 'O e-mail da véspera sai sozinho quando a bancada é aberta.' : 'Lembrete automático desligado em Ajustes.'}{dados.ultimoEnvio ? ` Último envio: ${dataBR(dados.ultimoEnvio)} ${hora(dados.ultimoEnvio.slice(11, 16))}.` : ''}</p>
-        <BotaoAcao className="botao botao--cheio botao--p" disabled={!comEmail.length} acao={async () => {
-          try { const r = await chamar('enviarLembretes', { data }); setDados(r); setAviso(`${plural(r.enviados, 'e-mail enviado', 'e-mails enviados')}.`); } catch (e) { setAviso(e.message); }
-        }}>Enviar {plural(comEmail.length, 'e-mail', 'e-mails')} agora</BotaoAcao>
+    <Secao titulo="Lembretes da véspera"
+      ajuda={`${dados.automatico ? 'O e-mail da véspera sai sozinho quando a bancada é aberta.' : 'Lembrete automático desligado em Ajustes.'} O WhatsApp é enviado por você, um a um.`}
+      acoes={
+        <>
+          <label className="mk-data"><span>Horários de</span><input type="date" value={data} onChange={(e) => e.target.value && setData(e.target.value)} /></label>
+          <BotaoAcao className="botao botao--cheio botao--p" disabled={!comEmail.length} acao={async () => {
+            try { const r = await chamar('enviarLembretes', { data }); setDados(r); setAviso(`${plural(r.enviados, 'e-mail enviado', 'e-mails enviados')}.`); } catch (e) { setAviso(e.message); }
+          }}>Enviar {plural(comEmail.length, 'e-mail', 'e-mails')} agora</BotaoAcao>
+        </>
+      }>
+      <div className="mk-resumo">
+        <Tag tom={dados.automatico ? 'ok' : 'aviso'}>{dados.automatico ? 'Envio automático ligado' : 'Envio automático desligado'}</Tag>
+        <span className="b-meta">
+          <span>{plural(dados.lista.length, 'horário', 'horários')} em {dia}</span>
+          <span>{semEnvio.length} sem aviso</span>
+          {dados.ultimoEnvio && <span>último envio {dataBR(dados.ultimoEnvio)} {hora(dados.ultimoEnvio.slice(11, 16))}</span>}
+        </span>
       </div>
-      {aviso && <p className="aviso">{aviso}</p>}
-      {dados.lista.length === 0 ? <Vazio titulo={`Nada marcado para ${dia}`} forma="presenca" /> : (
-        <ul className="lb-lista">
+      {aviso && <Aviso tom="ok">{aviso}</Aviso>}
+      {dados.lista.length === 0 ? <Vazio titulo={`Nada marcado para ${dia}`} forma="presenca">Troque a data para ver os horários de outro dia.</Vazio> : (
+        <ul className="b-itens mk-lembretes">
           {dados.lista.map((x) => (
-            <li key={x.tipo + x.id} className={x.enviado ? 'lb lb--ok' : 'lb'}>
-              <span className="lb__hora">{hora(x.hora)}</span>
-              <span className="lb__quem"><strong>{x.nome}</strong><small>{x.titulo}{x.com ? ` · ${x.com}` : ''}</small></span>
-              <span className="lb__status">
+            <li key={x.tipo + x.id} className={`b-item mk-lembrete${x.enviado ? ' mk-lembrete--ok' : ''}`}>
+              <span className="mk-lembrete__hora">{hora(x.hora)}</span>
+              <div className="b-item__corpo">
+                <span className="b-item__titulo">{x.nome}</span>
+                <span className="b-meta"><span>{x.titulo}</span>{x.com && <span>{x.com}</span>}</span>
+              </div>
+              <div className="b-item__lado b-item__lado--tira">
                 {x.enviado ? <Tag tom="ok">{x.enviado.split(' ')[0]}</Tag> : x.temEmail ? <Tag tom="aviso">e-mail pendente</Tag> : <Tag>sem e-mail</Tag>}
-              </span>
-              {x.whatsapp && (
-                <a className="link-acao com-icone" href={linkWhats(x.whatsapp, x.texto)} target="_blank" rel="noreferrer"
-                  onClick={() => chamar('marcarLembrete', { id: x.id, tipo: x.tipo }).then(() => setDados((d) => ({ ...d, lista: d.lista.map((y) => (y.id === x.id ? { ...y, enviado: 'WhatsApp' } : y)) }))).catch(() => {})}>
-                  <IconeWhatsapp tamanho={14} /> WhatsApp
-                </a>
-              )}
+                {x.whatsapp && (
+                  <a className="botao botao--linha botao--p com-icone" href={linkWhats(x.whatsapp, x.texto)} target="_blank" rel="noreferrer"
+                    onClick={() => chamar('marcarLembrete', { id: x.id, tipo: x.tipo }).then(() => setDados((d) => ({ ...d, lista: d.lista.map((y) => (y.id === x.id ? { ...y, enviado: 'WhatsApp' } : y)) }))).catch(() => {})}>
+                    <IconeWhatsapp tamanho={14} /> WhatsApp
+                  </a>
+                )}
+              </div>
             </li>
           ))}
         </ul>
       )}
-    </>
+    </Secao>
   );
 }
 
@@ -387,10 +434,11 @@ function Lembretes() {
 // ============================================================
 function Retornos({ admin }) {
   const { chamar } = useBancada();
+  const navegar = useNavigate();
   const { dados, erro, carregando, setDados, recarregar } = useDados('retornos', {});
   const { dados: catalogo } = useDados('catalogoServicos', {});
   const [agendar, setAgendar] = useState(null);
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={4} altura={64} />;
   if (!dados) return <Erro>{erro}</Erro>;
   const tirar = (x) => setDados((d) => ({ ...d, lista: d.lista.filter((y) => y.atendimentoId !== x.atendimentoId) }));
   const marcar = (x, como) => chamar('marcarRetorno', { atendimentoId: x.atendimentoId, como }).then(() => tirar(x));
@@ -398,26 +446,33 @@ function Retornos({ admin }) {
   const texto = (x) => `Olá, ${primeiro(x.nome)}! Aqui é da Casa Âmbar. Já faz ${plural(Math.max(1, Math.round((new Date(hoje) - new Date(x.ultima)) / 86400000)), 'dia', 'dias')} da sua sessão de ${x.servico}${x.profissional ? ` com ${primeiro(x.profissional)}` : ''}: é um bom momento para o retorno. Quer que a gente reserve um horário?`;
   return (
     <>
-      <div className="b-barra-acoes">
-        <p className="b-suave">Aparece aqui quem fez um serviço com retorno sugerido, chegou no prazo e ainda não tem nada marcado. {admin ? 'O prazo de cada serviço fica em Catálogo → Serviços.' : 'O prazo de cada serviço é definido pela administração no Catálogo.'}</p>
-      </div>
-      {dados.semConfiguracao && <Vazio titulo="Nenhum serviço com retorno sugerido" forma="equilibrio">{admin ? 'Em Catálogo → Serviços, edite um serviço e preencha "Retorno sugerido". Ex.: limpeza de pele em 30 dias, peeling em 7.' : 'Peça à administração para preencher o retorno sugerido dos serviços no Catálogo.'}</Vazio>}
-      {!dados.semConfiguracao && dados.lista.length === 0 && <Vazio titulo="Ninguém para chamar agora" forma="presenca">Quando alguém chegar no prazo do retorno, aparece aqui.</Vazio>}
-      {dados.lista.length > 0 && (
-        <ul className="lb-lista rt-lista">
-          {dados.lista.map((x) => (
-            <li key={x.atendimentoId} className={`lb${x.retornoEm < hoje ? ' rt--passou' : ''}`}>
-              <span className="lb__hora rt__quando">{x.retornoEm <= hoje ? 'já' : dataCurta(x.retornoEm)}</span>
-              <span className="lb__quem"><strong>{x.nome}</strong><small>{x.servico} em {dataBR(x.ultima)}{x.profissional ? ` com ${x.profissional}` : ''} · retorno em {plural(x.dias, 'dia', 'dias')}</small></span>
-              <span className="rt__acoes">
-                {x.whatsapp && <a className="link-acao com-icone" href={linkWhats(x.whatsapp, texto(x))} target="_blank" rel="noreferrer" onClick={() => marcar(x, 'avisado').catch(() => {})}><IconeWhatsapp tamanho={14} /> Chamar</a>}
-                <button type="button" className="link-acao" disabled={!catalogo} onClick={() => setAgendar(x)}>Agendar</button>
-                <BotaoAcao className="link-sair" confirmar={`Tirar ${x.nome} dos retornos?`} acao={() => marcar(x, 'dispensado')}>dispensar</BotaoAcao>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <Secao titulo="Retornos" ajuda={`Aparece aqui quem fez um serviço com retorno sugerido, chegou no prazo e ainda não tem nada marcado. ${admin ? 'O prazo de cada serviço fica em Catálogo → Serviços.' : 'O prazo de cada serviço é definido pela administração no Catálogo.'}`}
+        acoes={dados.lista.length > 0 && <span className="b-meta"><span>{plural(dados.lista.length, 'pessoa para chamar', 'pessoas para chamar')}</span></span>}>
+        {dados.semConfiguracao && (
+          <Vazio titulo="Nenhum serviço com retorno sugerido" forma="equilibrio" acao={admin && <button type="button" className="botao botao--linha botao--p" onClick={() => navegar('/bancada/grade')}>Abrir o catálogo</button>}>
+            {admin ? 'Em Catálogo → Serviços, edite um serviço e preencha "Retorno sugerido". Ex.: limpeza de pele em 30 dias, peeling em 7.' : 'Peça à administração para preencher o retorno sugerido dos serviços no Catálogo.'}
+          </Vazio>
+        )}
+        {!dados.semConfiguracao && dados.lista.length === 0 && <Vazio titulo="Ninguém para chamar agora" forma="presenca">Quando alguém chegar no prazo do retorno, aparece aqui.</Vazio>}
+        {dados.lista.length > 0 && (
+          <ul className="b-itens mk-retornos">
+            {dados.lista.map((x) => (
+              <li key={x.atendimentoId} className={`b-item mk-retorno${x.retornoEm < hoje ? ' mk-retorno--passou' : ''}`}>
+                <span className="mk-retorno__quando">{x.retornoEm <= hoje ? 'já' : dataCurta(x.retornoEm)}</span>
+                <div className="b-item__corpo">
+                  <span className="b-item__titulo">{x.nome}</span>
+                  <span className="b-meta"><span>{x.servico} em {dataBR(x.ultima)}</span>{x.profissional && <span>com {x.profissional}</span>}<span>retorno em {plural(x.dias, 'dia', 'dias')}</span></span>
+                </div>
+                <div className="b-item__lado b-item__lado--tira">
+                  {x.whatsapp && <a className="botao botao--cheio botao--p com-icone" href={linkWhats(x.whatsapp, texto(x))} target="_blank" rel="noreferrer" onClick={() => marcar(x, 'avisado').catch(() => {})}><IconeWhatsapp tamanho={14} /> Chamar</a>}
+                  <button type="button" className="botao botao--linha botao--p" disabled={!catalogo} onClick={() => setAgendar(x)}>Agendar</button>
+                  <BotaoAcao className="botao botao--fantasma botao--p" confirmar={`Tirar ${x.nome} dos retornos?`} acao={() => marcar(x, 'dispensado')}>Dispensar</BotaoAcao>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Secao>
       {agendar && catalogo && <NovoAtendimento catalogo={catalogo} inicial={{ data: hoje, servicoId: agendar.servicoId, profissional: agendar.profissional, cliente: { nome: agendar.nome, cpf: agendar.cpf, whatsapp: agendar.whatsapp } }}
         aoFechar={() => setAgendar(null)} aoSalvar={() => { setAgendar(null); recarregar(); }} />}
     </>

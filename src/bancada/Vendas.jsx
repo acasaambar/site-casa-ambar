@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
+import './css/vendas.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useEsquecerPedidoDaRota, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, CampoBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, METODOS, ehCartao, faltaBandeira,
-  real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural, numBR } from './ui.jsx';
-import { VenderModal, ListaPagamentos } from './Alunos.jsx';
+import { useDados, useEsquecerPedidoDaRota, Esqueleto, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, Aviso, Tag, Vazio, CampoBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, METODOS, ehCartao, faltaBandeira,
+  real, realCurto, hojeIso, somarDias, dataBR, dataCurta, cpfFmt, baixarCSV, plural, numBR } from './ui.jsx';
+import { VenderModal } from './Alunos.jsx';
 import { ListaVales } from './Vales.jsx';
 
 // Vendas e vales-presente (o vale é sempre vendido, pela comanda)
@@ -16,12 +17,26 @@ export default function Vendas() {
   if (aba === 'vendas') return <ListaVendas abas={abas} />;
   return (
     <>
-      <Cabecalho titulo="Vendas">Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga.</Cabecalho>
+      <Cabecalho titulo="Vendas" ajuda="Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga.">Vales-presente vendidos e entregues</Cabecalho>
       {abas}
       <ListaVales abrirNovo={abrirVale} />
     </>
   );
 }
+
+const FILTROS = [['todos', 'Todos'], ['pagos', 'Pagos'], ['pendentes', 'Pendentes'], ['site', 'Site'], ['balcao', 'Balcão'], ['devolver', 'Juros a devolver'], ['estornados', 'Estornados'], ['excluidas', 'Excluídas']];
+const passaNoFiltro = (p, filtro) => {
+  if (filtro === 'pagos') return p.status === 'pago';
+  if (filtro === 'pendentes') return p.status === 'pendente';
+  if (filtro === 'estornados') return p.status === 'estornado';
+  if (filtro === 'excluidas') return p.status === 'excluido';
+  if (filtro === 'devolver') return /^DEVOLVER/.test(p.observacao);
+  if (filtro === 'balcao') return p.origem === 'balcão';
+  if (filtro === 'site') return p.origem === 'site';
+  return true;
+};
+const TOM_SITUACAO = { pago: 'ok', pendente: 'aviso', estornado: 'apagado', expirado: 'apagado', descartado: 'apagado', excluido: 'apagado' };
+const NOME_SITUACAO = { excluido: 'excluída' };
 
 function ListaVendas({ abas }) {
   const local = useLocation();
@@ -33,16 +48,8 @@ function ListaVendas({ abas }) {
   const [aberta, setAberta] = useState(null); // venda aberta na folha (corrigir, excluir, estorno)
   const { dados, erro, carregando, recarregar } = useDados('pagamentos', { de, ate });
 
-  const lista = useMemo(() => (dados || []).filter((p) => {
-    if (filtro === 'pagos') return p.status === 'pago';
-    if (filtro === 'pendentes') return p.status === 'pendente';
-    if (filtro === 'estornados') return p.status === 'estornado';
-    if (filtro === 'excluidas') return p.status === 'excluido';
-    if (filtro === 'devolver') return /^DEVOLVER/.test(p.observacao);
-    if (filtro === 'balcao') return p.origem === 'balcão';
-    if (filtro === 'site') return p.origem === 'site';
-    return true;
-  }), [dados, filtro]);
+  const lista = useMemo(() => (dados || []).filter((p) => passaNoFiltro(p, filtro)), [dados, filtro]);
+  const contagem = useMemo(() => Object.fromEntries(FILTROS.map(([id]) => [id, (dados || []).filter((p) => passaNoFiltro(p, id)).length])), [dados]);
   const pagos = (dados || []).filter((p) => p.status === 'pago');
   const total = pagos.reduce((s, p) => s + p.valor, 0);
   const verLiquido = pagos.some((p) => p.liquido != null); // só a administração recebe a taxa e o líquido
@@ -60,11 +67,11 @@ function ListaVendas({ abas }) {
             ['observacao', 'Observação'], ['orderNsu', 'Código']], lista)}>Exportar CSV</button>
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>Registrar venda</button>
         </>
-      } />
+      }>Tudo o que entrou no caixa, do site e do balcão</Cabecalho>
       {abas}
-      <div className="b-periodo">
-        <label className="b-campo"><span className="rotulo">De</span><input type="date" value={de} onChange={(e) => e.target.value && setDe(e.target.value)} /></label>
-        <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>
+      <div className="vn-periodo" role="group" aria-label="Período">
+        <label className="vn-periodo__campo"><span>De</span><input type="date" value={de} onChange={(e) => e.target.value && setDe(e.target.value)} /></label>
+        <label className="vn-periodo__campo"><span>Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>
       </div>
       <section className="b-kpis">
         <Kpi rotulo="Recebido no período" valor={realCurto(total)} detalhe={plural(pagos.filter((p) => p.valor > 0).length, 'venda', 'vendas')} />
@@ -72,21 +79,61 @@ function ListaVendas({ abas }) {
         <Kpi rotulo="Aguardando pagamento" valor={(dados || []).filter((p) => p.status === 'pendente').length} detalhe="links gerados e não pagos" />
         <Kpi rotulo="Juros a devolver" valor={devolver.length} tom={devolver.length ? 'alerta' : ''} detalhe="parcelou dentro do sem juros" />
       </section>
-      <div className="b-filtros">
-        {[['todos', 'Todos'], ['pagos', 'Pagos'], ['pendentes', 'Pendentes'], ['site', 'Site'], ['balcao', 'Balcão'], ['devolver', 'Juros a devolver'], ['estornados', 'Estornados'], ['excluidas', 'Excluídas']].map(([id, t]) => (
-          <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}</button>
-        ))}
+      <div className="b-barra-fixa vn-barra">
+        <div className="b-filtros vn-chips" role="group" aria-label="Filtrar vendas">
+          {FILTROS.map(([id, t]) => (
+            <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}{dados && contagem[id] > 0 && <span>{contagem[id]}</span>}</button>
+          ))}
+        </div>
       </div>
       <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
-      {dados && (
-        <ListaPagamentos lista={lista} aoAbrir={setAberta} acoes={(p) => (
-          <div className="b-botoes b-botoes--coluna">
-            {/^DEVOLVER/.test(p.observacao) && <BotaoAcao acao={async () => { await chamar('marcarDevolvido', { orderNsu: p.orderNsu }); recarregar(); }}>Já devolvi</BotaoAcao>}
-            {p.status === 'pago' && <button type="button" className="link-acao" onClick={() => setAberta(p)}>editar</button>}
-            {p.recibo && <a className="link-acao" href={p.recibo} target="_blank" rel="noreferrer">recibo</a>}
-          </div>
-        )} />
+      {carregando && !dados && <Esqueleto linhas={6} altura={58} />}
+      {dados && lista.length === 0 && (
+        <Vazio titulo="Nenhuma venda aqui" forma="equilibrio" acao={
+          <>
+            {filtro !== 'todos' && <button type="button" className="botao botao--linha botao--p" onClick={() => setFiltro('todos')}>Ver todas</button>}
+            <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>Registrar venda</button>
+          </>
+        }>Nada neste período e filtro. Mude as datas ou registre uma venda do balcão.</Vazio>
+      )}
+      {dados && lista.length > 0 && (
+        <ul className="vn-lista">
+          {lista.map((p) => {
+            const devolverEsta = /^DEVOLVER/.test(p.observacao);
+            return (
+              <li key={p.orderNsu} className={`vn-venda${p.status === 'excluido' ? ' vn-venda--excluida' : ''}`} tabIndex={0} role="button" aria-label={`Abrir venda de ${p.nome}`}
+                onClick={(e) => { if (!e.target.closest('button, a')) setAberta(p); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setAberta(p); }}>
+                <div className="vn-venda__corpo">
+                  <span className="vn-venda__quem"><strong>{p.nome}</strong><Tag tom={TOM_SITUACAO[p.status] || 'neutro'}>{NOME_SITUACAO[p.status] || p.status}</Tag></span>
+                  <span className="vn-venda__item">{p.descricao}</span>
+                  {(p.cupom || p.vale || p.observacao) && (
+                    <span className="vn-venda__nota">
+                      {(p.cupom || p.vale) && <span className="vn-venda__desconto">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
+                      {p.observacao && <span className={devolverEsta ? 'b-alerta-txt' : undefined}>{p.observacao}</span>}
+                    </span>
+                  )}
+                </div>
+                <div className="vn-venda__valor">
+                  <strong className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</strong>
+                  {p.taxa > 0 && <small title={`Taxa estimada da maquininha: ${real(p.taxa)} (${String(p.taxaPct).replace('.', ',')}%)`}>líquido {real(p.liquido)}</small>}
+                </div>
+                <div className="vn-venda__rodape">
+                  <span className="vn-venda__data" title={dataBR(p.pagoEm || p.criadoEm)}>{dataCurta(p.pagoEm || p.criadoEm)}</span>
+                  <span className="vn-venda__forma">
+                    <Tag>{p.metodo || '—'}</Tag>
+                    <small>{[p.bandeira, Number(p.parcelas) > 1 ? `${p.parcelas}x` : '', p.origem].filter(Boolean).join(' · ')}</small>
+                  </span>
+                  <span className="vn-venda__acoes">
+                    {devolverEsta && <BotaoAcao className="botao botao--linha botao--p" acao={async () => { await chamar('marcarDevolvido', { orderNsu: p.orderNsu }); recarregar(); }}>Já devolvi</BotaoAcao>}
+                    {p.status === 'pago' && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setAberta(p)}>Editar</button>}
+                    {p.recibo && <a className="botao botao--fantasma botao--p" href={p.recibo} target="_blank" rel="noreferrer">Recibo</a>}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
       {nova && <VenderModal aoFechar={() => setNova(false)} aoVender={() => { setNova(false); recarregar(); }} />}
       {aberta && <VendaAberta p={aberta} aoFechar={() => setAberta(null)} aoMudar={() => { setAberta(null); recarregar(); }} />}
@@ -110,28 +157,45 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
   const opcoes = [!comVale && ['corrigir', 'Corrigir'], ['excluir', 'Excluir'], ['estorno', 'Estorno']].filter(Boolean);
   return (
     <Modal rotulo={`${p.nome} · ${dataBR(p.pagoEm || p.criadoEm)}`} titulo="Venda" aoFechar={aoFechar}>
-      <dl className="vd-resumo">
-        <div><dt>Item</dt><dd>{p.descricao}</dd></div>
-        <div><dt>Valor</dt><dd>{real(p.valor)}{p.valeUsado > 0 && <span className="b-suave"> + {real(p.valeUsado)} em vale-presente</span>}</dd></div>
-        <div><dt>Forma</dt><dd>{forma}<span className="b-suave"> · {p.origem}</span></dd></div>
-        {p.liquido != null && p.status === 'pago' && (
-          <div><dt>Líquido</dt><dd><strong>{real(p.liquido)}</strong>{p.taxa > 0 ? <span className="b-suave"> · taxa estimada {real(p.taxa)} ({String(p.taxaPct).replace('.', ',')}%)</span> : <span className="b-suave"> · sem taxa</span>}</dd></div>
-        )}
-        {p.registradoPor && <div><dt>Lançada por</dt><dd>{p.registradoPor.split('@')[0]}{p.pagoEm ? ` · ${p.pagoEm.slice(11, 16)}` : ''}</dd></div>}
-        {p.observacao && <div><dt>Observação</dt><dd>{p.observacao}</dd></div>}
-      </dl>
+      <section className="vn-resumo">
+        <div className="vn-resumo__topo">
+          <div className="vn-resumo__quem">
+            <strong>{p.descricao}</strong>
+            <span className="b-suave">{p.nome}</span>
+          </div>
+          <div className="vn-resumo__valor">
+            <strong>{real(p.valor)}</strong>
+            <Tag tom={TOM_SITUACAO[p.status] || 'neutro'}>{NOME_SITUACAO[p.status] || p.status}</Tag>
+          </div>
+        </div>
+        {p.valeUsado > 0 && <p className="vn-resumo__vale">+ {real(p.valeUsado)} pagos em vale-presente</p>}
+        <dl className="vn-dados">
+          <div><dt>Forma</dt><dd>{forma}</dd></div>
+          <div><dt>Origem</dt><dd>{p.origem}</dd></div>
+          {p.liquido != null && p.status === 'pago' && (
+            <div><dt>Líquido</dt><dd><strong>{real(p.liquido)}</strong><small>{p.taxa > 0 ? `taxa estimada ${real(p.taxa)} (${String(p.taxaPct).replace('.', ',')}%)` : 'sem taxa'}</small></dd></div>
+          )}
+          {p.registradoPor && <div><dt>Lançada por</dt><dd>{p.registradoPor.split('@')[0]}{p.pagoEm ? ` · ${p.pagoEm.slice(11, 16)}` : ''}</dd></div>}
+          {p.observacao && <div className="vn-dados__largo"><dt>Observação</dt><dd>{p.observacao}</dd></div>}
+        </dl>
+      </section>
       {p.status !== 'pago' ? (
-        <p className="b-suave">Esta venda está como “{SITUACAO[p.status] || p.status}”: não há o que corrigir.</p>
+        <Aviso tom="info">Esta venda está como “{SITUACAO[p.status] || p.status}”: não há o que corrigir.</Aviso>
       ) : p.comanda ? (
         <div className="b-form">
-          <p className="aviso">Esta venda é de uma comanda. Para só mudar como foi pago (a divisão entre Pix, dinheiro e cartão), abra a comanda e use “Corrigir a forma de pagamento”. Para desfazer ou mudar os itens, a administração usa “Reabrir para corrigir”: assim o estoque, as comissões e os outros itens acompanham.</p>
-          <button type="button" className="botao botao--linha" onClick={() => navegar('/bancada/comandas', { state: { abrir: p.comanda } })}>Abrir a comanda</button>
+          <Aviso tom="info" titulo="Venda de comanda" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => navegar('/bancada/comandas', { state: { abrir: p.comanda } })}>Abrir a comanda</button>}>
+            Para mudar como foi pago, use “Corrigir a forma de pagamento” na comanda.
+          </Aviso>
+          <details className="vn-detalhes">
+            <summary>E para desfazer ou mudar os itens?</summary>
+            <p>A administração usa “Reabrir para corrigir”: assim o estoque, as comissões e os outros itens acompanham. A divisão entre Pix, dinheiro e cartão se corrige sem reabrir.</p>
+          </details>
         </div>
       ) : !doBalcao ? (
         <Estorno p={p} aoEstornar={aoMudar} />
       ) : (
         <>
-          {!podeMexer && <p className="aviso">A recepção corrige ou exclui só as vendas lançadas hoje. Para esta, peça à administração.</p>}
+          {!podeMexer && <Aviso tom="aviso">A recepção corrige ou exclui só as vendas lançadas hoje. Para esta, peça à administração.</Aviso>}
           {podeMexer && <Segmento rotulo="O que fazer" atual={vista} aoMudar={setVista} itens={opcoes} />}
           {vista === 'corrigir' && podeMexer && <CorrigirVenda p={p} aoSalvar={aoMudar} />}
           {vista === 'excluir' && podeMexer && <ExcluirVenda p={p} aoExcluir={aoMudar} />}
@@ -166,7 +230,7 @@ function CorrigirVenda({ p, aoSalvar }) {
         <div className="b-campo">
           <span className="rotulo">Formas de pagamento · soma {real(somaFormas.soma)} de {real(valorNum)}</span>
           <LinhasDePagamento linhas={formas} aoMudar={(l) => setFormas(l)} total={valorNum} formas={FORMAS_CORRIGIR.filter((m) => m !== 'Cortesia')} minimo={2} />
-          <button type="button" className="link-acao" onClick={() => { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }}>Voltar para uma forma só</button>
+          <button type="button" className="botao botao--fantasma botao--p vn-voltar" onClick={() => { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }}>Voltar para uma forma só</button>
         </div>
       ) : (
         <>
@@ -180,8 +244,8 @@ function CorrigirVenda({ p, aoSalvar }) {
             )}
           </div>
           {!cortesia && (
-            <button type="button" className="link-acao" onClick={() => setFormas([{ ...LINHA_PAGAMENTO, metodo, bandeira, parcelas, valor: '' }, { ...LINHA_PAGAMENTO, metodo: metodo === 'Pix' ? 'Dinheiro' : 'Pix' }])}>
-              Dividir em mais de uma forma (ex.: metade no débito, metade no dinheiro)
+            <button type="button" className="botao botao--fantasma botao--p vn-voltar" title="Ex.: metade no débito, metade no dinheiro" onClick={() => setFormas([{ ...LINHA_PAGAMENTO, metodo, bandeira, parcelas, valor: '' }, { ...LINHA_PAGAMENTO, metodo: metodo === 'Pix' ? 'Dinheiro' : 'Pix' }])}>
+              Dividir em mais de uma forma
             </button>
           )}
         </>
@@ -198,7 +262,7 @@ function CorrigirVenda({ p, aoSalvar }) {
         <input value={obs} onChange={(e) => setObs(e.target.value)} maxLength={250} /></label>
       <label className="b-campo"><span className="rotulo">Motivo da correção</span>
         <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: foi no débito, não no crédito" /></label>
-      <p className="b-suave">Fica anotado na venda quem corrigiu, quando e como estava antes. Para trocar a cliente ou o item, exclua e registre de novo.</p>
+      <p className="vn-nota">Fica anotado quem corrigiu, quando e como estava antes. Para trocar a cliente ou o item, exclua e registre de novo.</p>
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio" disabled={valorRuim || formasRuins || motivo.trim().length < 3 || (!formas && ehCartao(metodo) && faltaBandeira(metodo, bandeira))} acao={async () => {
         setErro('');
@@ -214,12 +278,15 @@ function ExcluirVenda({ p, aoExcluir }) {
   const [erro, setErro] = useState('');
   return (
     <div className="b-form">
-      <p>Use quando a venda foi <strong>lançada por engano</strong> e o dinheiro não entrou (se entrou e foi devolvido, use Estorno).</p>
-      <ul className="vd-lista b-suave">
-        <li>Sai do caixa e do total de vendas (continua em “Excluídas”, com o motivo).</li>
-        <li>O plano ou pacote vendido é desativado.</li>
-        <li>Aula avulsa já marcada volta a ficar “A pagar”; serviço pago na agenda volta a “paga no dia”.</li>
-      </ul>
+      <Aviso tom="aviso" titulo="Só para venda lançada por engano">O dinheiro não entrou. Se entrou e foi devolvido, use Estorno.</Aviso>
+      <details className="vn-detalhes">
+        <summary>O que acontece ao excluir</summary>
+        <ul>
+          <li>Sai do caixa e do total de vendas (continua em “Excluídas”, com o motivo).</li>
+          <li>O plano ou pacote vendido é desativado.</li>
+          <li>Aula avulsa já marcada volta a ficar “A pagar”; serviço pago na agenda volta a “paga no dia”.</li>
+        </ul>
+      </details>
       <label className="b-campo"><span className="rotulo">Motivo</span>
         <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: lancei a aula antes de a aluna pagar" /></label>
       <Erro>{erro}</Erro>
@@ -239,13 +306,13 @@ function Estorno({ p, aoEstornar }) {
   const [erro, setErro] = useState('');
   return (
     <div className="b-form">
-      <p className="b-suave">
+      <Aviso tom="info" titulo="Dinheiro devolvido">
         {p.origem === 'site'
           ? 'Faça o estorno no app da InfinitePay (Vendas → esta venda → Estornar). Depois registre aqui: o plano é desativado.'
           : 'Use quando o dinheiro entrou e foi devolvido. Registre aqui: o plano é desativado.'}
-      </p>
+      </Aviso>
       <label className="b-campo"><span className="rotulo">Motivo (obrigatório)</span><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: mudou de cidade" /></label>
-      <p className="b-suave">Fica registrado quem estornou, quando e o motivo.</p>
+      <p className="vn-nota">Fica registrado quem estornou, quando e o motivo.</p>
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio botao--perigo-cheio" acao={async () => {
         try {

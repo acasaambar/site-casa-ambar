@@ -1,0 +1,121 @@
+/* ============================================================
+   Marketing (revisão visual de out/2026): promoções (selos de cera), campanhas em passos,
+   lembretes e retornos. Guia: docs/design-bancada.md · prefixo mk-
+   ============================================================ */
+
+/* ---------- promoções: o selo de cera é a peça de identidade ---------- */
+.mk-promos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-3); }
+.mk-promo {
+  position: relative; display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--e-4); align-items: center; padding: 20px 22px;
+  border-radius: var(--r-g); background: var(--b-linho); border: 1px solid var(--b-linha); box-shadow: var(--sombra-1);
+}
+.mk-promo__selo {
+  width: 104px; height: 104px; border-radius: 50%; display: grid; place-content: center; text-align: center; color: #FBF3E2; transform: rotate(-8deg);
+  background: radial-gradient(circle at 35% 30%, #9A4A26 0%, #7E3717 55%, #66290F 100%);
+  box-shadow: inset 0 0 0 6px rgba(251, 243, 226, 0.08), inset 0 0 0 7px rgba(251, 243, 226, 0.35), 0 10px 20px -12px rgba(102, 41, 15, 0.8);
+}
+.mk-promo__selo strong { font-family: var(--titulo); font-weight: 400; font-size: 32px; line-height: 1; }
+.mk-promo__selo > span { font-size: 13px; margin-top: 4px; opacity: 0.92; line-height: 1.1; }
+.mk-promo--pausada .mk-promo__selo, .mk-promo--encerrada .mk-promo__selo { filter: grayscale(0.9); opacity: 0.5; }
+.mk-promo--agendada .mk-promo__selo { background: radial-gradient(circle at 35% 30%, #B9946A 0%, #A6845E 60%, #8C6D4B 100%); }
+.mk-promo--pausada, .mk-promo--encerrada { background: rgba(251, 248, 239, 0.6); }
+.mk-promo__corpo { display: flex; flex-direction: column; gap: var(--e-2); min-width: 0; }
+.mk-promo__topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mk-promo__topo h3 { margin: 0; font: 600 19px/1.25 'IBM Plex Sans', system-ui, sans-serif; letter-spacing: -0.01em; }
+.mk-promo__desc { margin: 0; font-size: 14px; color: var(--b-suave); }
+.mk-promo__alvos { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk-promo__pe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.mk-promo__dias { display: inline-flex; gap: 3px; }
+.mk-promo__dias b { width: 24px; height: 24px; display: grid; place-content: center; border-radius: 50%; font-size: 13px; font-weight: 500; color: rgba(47, 56, 33, 0.5); }
+.mk-promo__dias b.sim { background: var(--b-tinta); color: var(--b-areia); }
+.mk-promo__editar { align-self: start; }
+@media (max-width: 640px) {
+  .mk-promo { grid-template-columns: 94px minmax(0, 1fr); gap: 14px; padding: 16px; align-items: start; }
+  .mk-promo__selo { width: 92px; height: 92px; }
+  .mk-promo__selo strong { font-size: 22px; }
+  .mk-promo__selo > span { font-size: 13px; margin-top: 2px; }
+  .mk-promo__editar { grid-column: 1 / -1; justify-self: stretch; border-color: var(--b-linha); }
+}
+
+/* ---------- campanhas em passos ---------- */
+.mk-passos { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-3); }
+.mk-passo { display: flex; flex-direction: column; gap: var(--e-3); padding: 20px 22px; border-radius: var(--r-g); background: var(--b-linho); border: 1px solid var(--b-linha); box-shadow: var(--sombra-1); min-width: 0; }
+.mk-passo__topo { display: flex; align-items: center; gap: var(--e-2); }
+.mk-passo__topo h3 { margin: 0; font: 600 17px/1.3 'IBM Plex Sans', system-ui, sans-serif; }
+.mk-passo__num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-content: center; font-size: 15px; font-weight: 600; background: var(--b-tinta); color: var(--b-areia); flex: none; }
+.mk-passo__filtro { max-width: 340px; }
+.mk-passo__filtro .b-campo { margin: 0; }
+.mk-passo__acao { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-3); }
+.mk-publicos { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--e-2); }
+.mk-publico {
+  font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; min-height: 64px; border-radius: var(--r-m);
+  border: 1px solid var(--b-linha); background: rgba(255, 253, 246, 0.8); color: var(--b-tinta); transition: border-color var(--rapido), background var(--rapido);
+}
+.mk-publico strong { font-size: 15px; font-weight: 600; }
+.mk-publico span { font-size: 13px; color: var(--b-suave); line-height: 1.35; }
+@media (hover: hover) { .mk-publico:hover { border-color: rgba(47, 56, 33, 0.4); } }
+.mk-publico--ativo { border-color: var(--b-tinta); box-shadow: inset 0 0 0 1px var(--b-tinta); background: var(--b-ok); }
+.mk-publico:focus-visible { outline: 2px solid var(--b-oliva); outline-offset: 2px; }
+.mk-contagem { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 14px; }
+.mk-contagem span { padding: 5px 12px; border-radius: 999px; background: rgba(47, 56, 33, 0.07); color: var(--b-suave); }
+.mk-contagem strong { font-size: 16px; font-weight: 600; color: var(--b-tinta); margin-right: 2px; }
+@media (max-width: 560px) { .mk-passo { padding: 16px; } .mk-publicos { grid-template-columns: 1fr 1fr; } .mk-passo__acao .botao { flex: 1 1 100%; } }
+@media (max-width: 380px) { .mk-publicos { grid-template-columns: 1fr; } }
+
+.mk-mensagem { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--e-4); align-items: start; }
+.mk-mensagem__editor { display: flex; flex-direction: column; gap: var(--e-2); min-width: 0; }
+.mk-mensagem__editor .b-segmento { align-self: flex-start; }
+.mk-mensagem__editor .b-campo { margin: 0; }
+.mk-mensagem__editor textarea { resize: vertical; min-height: 150px; }
+.mk-previa { display: flex; flex-direction: column; gap: var(--e-2); padding: 16px; border-radius: var(--r-m); background: rgba(47, 56, 33, 0.05); min-width: 0; }
+.mk-previa__rotulo { font-size: 13px; color: var(--b-suave); }
+.mk-previa__balao { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-radius: 4px 18px 18px 18px; background: #E3EBD3; color: var(--b-tinta); box-shadow: 0 1px 2px rgba(47, 56, 33, 0.12); max-width: 440px; }
+.mk-previa__balao p { margin: 0; white-space: pre-wrap; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.mk-previa--email .mk-previa__balao { background: var(--b-linho); border: 1px solid var(--b-linha); border-radius: var(--r-m); max-width: none; }
+.mk-previa--email .mk-previa__balao strong { font-size: 16px; font-weight: 600; padding-bottom: 6px; border-bottom: 1px solid var(--b-linha); }
+@media (max-width: 860px) { .mk-mensagem { grid-template-columns: 1fr; } }
+
+.mk-progresso { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--e-3); align-items: center; font-size: 14px; }
+.mk-progresso > strong { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.mk-progresso__barra { grid-column: 1 / -1; height: 6px; border-radius: 99px; background: rgba(47, 56, 33, 0.09); overflow: hidden; }
+.mk-progresso__barra i { display: block; height: 100%; background: var(--b-oliva); border-radius: 99px; transition: width var(--rapido); }
+.mk-fila { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-1); max-height: 420px; overflow-y: auto; }
+.mk-fila li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--e-2); align-items: center; padding: 8px 10px 8px 8px; border-radius: var(--r-m); background: rgba(255, 253, 246, 0.8); border: 1px solid var(--b-linha); }
+.mk-fila__ini { width: 36px; height: 36px; border-radius: 50%; display: grid; place-content: center; font-size: 15px; font-weight: 600; text-transform: uppercase; background: rgba(111, 120, 77, 0.16); color: var(--b-oliva); }
+.mk-fila__nome { display: flex; flex-direction: column; min-width: 0; }
+.mk-fila__nome strong { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.mk-fila__nome small { font-size: 13px; color: var(--b-suave); overflow-wrap: anywhere; }
+.mk-fila li.feito { background: transparent; }
+.mk-fila li.feito .mk-fila__ini { background: var(--b-oliva); color: var(--b-linho); }
+.mk-fila li.feito .mk-fila__nome { opacity: 0.65; }
+@media (max-width: 480px) { .mk-fila li { grid-template-columns: 36px minmax(0, 1fr); } .mk-fila li .botao { grid-column: 1 / -1; justify-content: center; } }
+
+/* ---------- lembretes e retornos ---------- */
+.mk-data { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px 3px 14px; border-radius: 999px; background: var(--b-linho); border: 1px solid var(--b-linha); font-size: 14px; color: var(--b-suave); }
+.mk-data input { border: 0; background: transparent; font: inherit; color: var(--b-tinta); min-height: 36px; padding: 0 8px; }
+.mk-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px var(--e-3); }
+.mk-lembrete { align-items: center; }
+.mk-lembrete__hora { flex: none; min-width: 56px; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--b-tinta); }
+.mk-lembrete--ok .mk-lembrete__hora { color: var(--b-suave); }
+.mk-retorno__quando {
+  flex: none; min-width: 64px; padding: 6px 10px; border-radius: var(--r-p); text-align: center; font-size: 14px; font-weight: 600;
+  background: rgba(166, 132, 94, 0.18); color: #6B4512;
+}
+.mk-retorno--passou .mk-retorno__quando { background: var(--b-alerta-fundo); color: var(--b-alerta-tinta); }
+@media (max-width: 720px) {
+  .mk-lembrete, .mk-retorno { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; row-gap: 10px; }
+  .mk-lembrete .b-item__lado, .mk-retorno .b-item__lado { grid-column: 1 / -1; flex-wrap: wrap; justify-content: flex-start; }
+  .mk-retorno .b-item__lado .botao { flex: 1 1 auto; justify-content: center; }
+  .mk-data { width: 100%; }
+  .mk-data input { flex: 1; font-size: 16px; }
+}
+
+/* listas de itens (base.css não zera a lista) */
+.bancada ul.b-itens { margin: 0; padding: 0; list-style: none; }
+.mk-lembrete__hora { text-align: left; }
+
+/* celular: info miúda em coluna, sem ponto no começo da linha quebrada */
+@media (max-width: 560px) {
+  .mk-promo .b-meta, .mk-lembrete .b-meta, .mk-retorno .b-meta, .mk-resumo .b-meta { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .mk-promo .b-meta > * + *::before, .mk-lembrete .b-meta > * + *::before, .mk-retorno .b-meta > * + *::before, .mk-resumo .b-meta > * + *::before { display: none; }
+}
