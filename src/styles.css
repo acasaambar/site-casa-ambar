@@ -1857,3 +1857,5 @@ body:has(.barra-confirmar) .rodape { padding-bottom: calc(30px + 80px + env(safe
 .contrato__texto h2:first-child { margin-top: 0; }
 .contrato__texto p { margin: 0 0 10px; text-transform: none; letter-spacing: 0; }
 .contrato__assinatura { margin-top: 18px; }
+.opcoes-imagem { display: grid; gap: 8px; margin-bottom: 14px; }
+.opcoes-imagem__titulo { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--caramelo-escuro); }

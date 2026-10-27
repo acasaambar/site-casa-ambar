@@ -138,7 +138,9 @@ var ABAS = {
     // retorno sugerido ("avisado 2026-10-21" / "dispensado …") e resposta da cliente pelo link de confirmação
     'retorno', 'resposta', 'resposta_em',
     // combo (pacote) que a cliente escolheu levar ao marcar "paga no dia": entra sozinho na comanda
-    'combo'],
+    'combo',
+    // serviços marcados juntos na mesma visita (agendarServicos): a comanda traz todos de uma vez
+    'grupo'],
   // ---- gestão (Gestao.gs) ----
   Produtos: ['id', 'ativo', 'nome', 'categoria', 'marca', 'unidade', 'preco', 'custo', 'estoque', 'minimo', 'vende', 'obs'],
   MovEstoque: ['quando', 'produto_id', 'produto', 'tipo', 'qtd', 'custo_unit', 'valor', 'motivo', 'ref', 'quem'],
@@ -159,7 +161,7 @@ var ABAS = {
     'exposicao_solar', 'fototipo', 'tipo_pele', 'obs', 'consentimento_fotos'],
   Evolucoes: ['id', 'cpf', 'nome', 'data', 'profissional', 'atendimento_id', 'servico', 'anotacao', 'fotos', 'criado_por', 'criado_em'],
   // ---- contrato dos planos mensal e trimestral (Contrato.gs): um aceite eletrônico por linha ----
-  Contratos: ['id', 'cpf', 'nome', 'plano_id', 'plano', 'versao', 'hash', 'assinado_em', 'nome_digitado', 'dispositivo', 'pdf', 'order_nsu'],
+  Contratos: ['id', 'cpf', 'nome', 'plano_id', 'plano', 'versao', 'hash', 'assinado_em', 'nome_digitado', 'dispositivo', 'pdf', 'order_nsu', 'imagem'],
   // ---- lista de espera (Espera.gs): aula lotada ou serviço sem horário ----
   Espera: ['id', 'criado_em', 'tipo', 'aula_id', 'servico_id', 'servico', 'profissional', 'data', 'periodo', 'cpf', 'nome', 'whatsapp', 'obs', 'status',
     'avisado_em', 'resolvido_em', 'criado_por', 'origem'],

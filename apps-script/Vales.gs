@@ -230,7 +230,7 @@ function textoWhatsVale(v) {
   return (nome ? 'Olá, ' + nome + '! ' : 'Olá! ') + 'Você ganhou um vale-presente da Casa Âmbar ✨\n\n' +
     (v.mensagem ? v.mensagem + '\n\n' : '') +
     '🎁 Vale-presente: ' + descreverVale(v) + '\nCódigo: *' + v.codigo + '*\nVálido até ' + val + '.\n\n' +
-    'Para usar: entre em ' + AJUSTES.siteUrl + ' → Área do aluno → Meu plano → "Tenho um vale-presente".';
+    'Para usar, toque no link e entre na sua conta (ou mostre o código na recepção):\n' + AJUSTES.siteUrl + '#/meu-plano?vale=' + v.codigo;
 }
 
 function enviarEmailVale(v) {

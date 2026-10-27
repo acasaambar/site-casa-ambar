@@ -65,7 +65,7 @@ r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'D
 ok(r.ok && kAt().status === 'a_pagar' && estoque() === 5, 'fechada de novo: comissão volta, sem baixar o protetor', [kAt(), estoque()]);
 
 console.log('— vale-presente vendido na comanda');
-r = chamar('b_salvarComanda', { token: rec, comanda: { cpf: '52998224725', itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor: 150, nome: 'Júlia Lima', email: 'julia@gmail.com', whatsapp: '85988887777', mensagem: 'Feliz aniversário!', enviarEmail: true } }] } });
+r = chamar('b_salvarComanda', { token: rec, comanda: { cpf: '52998224725', itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor: 150, nome: 'Júlia Lima', email: 'julia@gmail.com', whatsapp: '85988887777', mensagem: 'Feliz aniversário!', enviarEmail: true, enviarWhats: true } }] } });
 const cv = r.dados;
 ok(r.ok && cv.total === 150 && cv.itens[0].tipo === 'vale' && /para Júlia/.test(cv.itens[0].nome), 'vale de R$ 150 como item da comanda', r);
 r = chamar('b_fecharComanda', { token: rec, id: cv.id, pagamentos: [{ metodo: 'Vale-presente', valor: 150, codigo: 'X' }] });
@@ -75,6 +75,7 @@ r = chamar('b_fecharComanda', { token: rec, id: cv.id, pagamentos: [{ metodo: 'C
 const novoVale = r.ok && r.dados.valesCriados[0];
 ok(novoVale && /^AMBAR-/.test(novoVale.codigo) && novoVale.emailEnviado && /AMBAR-/.test(novoVale.textoWhats) && novoVale.whatsapp === '85988887777', 'código gerado ao fechar, com e-mail e WhatsApp prontos', r);
 ok(emails.length === nEmails + 1 && emails.at(-1).to === 'julia@gmail.com', 'e-mail do vale para quem recebe');
+ok(novoVale.enviarWhats === true && new RegExp('#/meu-plano\\?vale=' + novoVale.codigo).test(novoVale.textoWhats), 'vale marcado para o WhatsApp: a resposta avisa e a mensagem leva o link direto para usar o vale', novoVale);
 const linhaVale = ctx.lerAba('Vales').find((v) => v.codigo === novoVale.codigo);
 ok(linhaVale.origem === 'vendido' && linhaVale.comanda === cv.id && linhaVale.status === 'ativo' && Number(linhaVale.valor) === 150, 'vale registrado como vendido, ligado à comanda', linhaVale);
 const pgVale = ctx.lerAba('Pagamentos').find((p) => p.comanda === cv.id);
@@ -127,7 +128,7 @@ console.log('— revisão: reagendar move o atendimento, sem cobrar de novo');
 console.log('— revisão: comanda aberta e agenda não cobram duas vezes');
 {
   const dA = ctx.somarDias(hoje, 0);
-  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: ctx.somarDias(hoje, 20), hora: '08:00', cliente: { nome: 'Paula Nunes', whatsapp: '85977776666' }, pagamento: 'no_dia' });
+  r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: (() => { let d = ctx.somarDias(hoje, 20); if (new Date(d + 'T12:00:00Z').getUTCDay() === 0) d = ctx.somarDias(d, 1); return d; })(), hora: '08:00', cliente: { nome: 'Paula Nunes', whatsapp: '85977776666' }, pagamento: 'no_dia' });
   const atC = r.dados.id;
   const cmC = chamar('b_comandaDoAtendimento', { token: rec, atendimentoId: atC }).dados;
   r = chamar('b_atualizarAtendimento', { token: rec, id: atC, status: 'atendido', metodo: 'Pix' });

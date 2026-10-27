@@ -2329,3 +2329,23 @@
 .s-hora-passada { max-width: 220px; }
 .s-receber__combo { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid rgba(47, 56, 33, 0.18); border-radius: 10px; background: var(--b-linho, #FBF8EF); cursor: pointer; }
 .s-receber__combo input { width: 20px; height: 20px; margin-top: 1px; flex: none; accent-color: #2F3821; }
+
+/* ===== Venda com vários itens e agendamento com vários serviços ===== */
+.vd-extra { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 150px) auto; gap: 10px; align-items: end; padding: 10px 12px; border-radius: 12px; background: rgba(111, 120, 77, 0.08); }
+.vd-extra .b-campo { margin: 0; }
+.vd-extra__tirar { align-self: center; min-height: 40px; padding: 0 6px; }
+.vd-mais { align-self: flex-start; min-height: 40px; }
+@media (max-width: 560px) {
+  .vd-extra { grid-template-columns: 1fr auto; }
+  .vd-extra .vd-extra__valor { grid-column: 1 / -1; grid-row: 2; }
+}
+.sv-extra { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: rgba(111, 120, 77, 0.08); box-shadow: inset 0 0 0 1px rgba(111, 120, 77, 0.22); }
+.sv-extra__topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sv-extra__topo strong { font-weight: 600; }
+.sv-extra .b-campo { margin: 0; }
+.sv-resumo { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.sv-resumo li { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sv-resumo small { color: var(--b-suave, #535647); font-size: 13px; }
+.sv-resumo .sr-nao { color: var(--b-terracota, #7E3717); }
+.vd-extra--um { grid-template-columns: minmax(0, 1fr) minmax(0, 150px); }
+@media (max-width: 560px) { .vd-extra--um { grid-template-columns: 1fr; } .vd-extra--um .vd-extra__valor { grid-row: auto; } }

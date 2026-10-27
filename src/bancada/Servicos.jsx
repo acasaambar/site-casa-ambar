@@ -627,6 +627,8 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const [repetir, setRepetir] = useState({ cadaDias: 0, vezes: 4 });
   const [serie, setSerie] = useState(null); // resultado da série: { criados, pulados }
   const [combo, setCombo] = useState(''); // combo que a cliente vai levar ('' = só a sessão)
+  const [extras, setExtras] = useState([]); // outros serviços da mesma visita: [{ chave, servicoId, profissional, hora, dur }]
+  const [lote, setLote] = useState(null); // resultado de vários serviços: { criados, falhas }
   // dia que já passou: lança o atendimento feito (migração do Avec); horário digitado, sem série
   const passado = !re && !!data && data < hojeIso();
   const limitePassado = somarDias(hojeIso(), -120);
@@ -665,11 +667,24 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
     setErro('');
     setEnviando(true);
     try {
-      const r = await chamar('agendarServico', {
-        servicoId, profissional, data, hora: horaSel, obs, pagamento, ...pg, outraPessoa: outraPessoa === true || undefined,
-        combo: comboValido && (pagamento === 'no_dia' || pagamento === 'pago') ? combo : undefined,
+      const comum = {
+        data, obs, pagamento, ...pg, outraPessoa: outraPessoa === true || undefined,
         cpf: cliente?.cpf || undefined,
         cliente: cliente?.cpf ? undefined : cliente ? { nome: cliente.nome, whatsapp: cliente.whatsapp } : { ...semCadastro, whatsapp: soDigitos(semCadastro.whatsapp) },
+      };
+      const combinado = comboValido && (pagamento === 'no_dia' || pagamento === 'pago') ? combo : undefined;
+      if (extras.length) {
+        // vários serviços da mesma visita: uma ida só ao servidor; o que não couber volta em `falhas`
+        const r = await chamar('agendarServicos', {
+          ...comum,
+          servicos: [{ servicoId, profissional, hora: horaSel, combo: combinado }, ...extras.map((x) => ({ servicoId: x.servicoId, profissional: x.profissional, hora: x.hora }))],
+        });
+        if (r.falhas.length) setLote(r);
+        else aoSalvar(r.criados[0]);
+        return;
+      }
+      const r = await chamar('agendarServico', {
+        ...comum, servicoId, profissional, hora: horaSel, combo: combinado,
         reagendarId: re?.id,
         repetir: !re && !passado && repetir.cadaDias ? repetir : undefined,
       });
@@ -695,6 +710,20 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const combos = serv ? combosDe(serv.id) : [];
   const comboEscolhido = combos.find((p) => p.id === combo);
   const comboValido = !!comboEscolhido && !re && !pacote;
+  if (lote) {
+    return (
+      <Modal rotulo={`${cliente?.nome || semCadastro.nome} · ${dataBR(data)}`} titulo={`${plural(lote.criados.length, 'serviço marcado', 'serviços marcados')}, ${plural(lote.falhas.length, 'não coube', 'não couberam')}`} aoFechar={() => aoSalvar(lote.criados[0])}>
+        <div className="b-form">
+          <ul className="sv-resumo">
+            {lote.criados.map((x) => <li key={x.id}><span className="sr-ok" aria-hidden="true">✓</span><strong>{hora(x.hora)} · {x.servico}</strong><small>com {x.profissional}</small></li>)}
+            {lote.falhas.map((x, i) => <li key={i}><span className="sr-nao" aria-hidden="true">×</span><strong>{x.servico}{x.hora ? ` · ${hora(x.hora)}` : ''}</strong><small>{x.motivo}</small></li>)}
+          </ul>
+          <p className="b-suave">Os com × não foram marcados. Marque-os de novo pela agenda, em outro horário.</p>
+          <button type="button" className="botao botao--cheio" onClick={() => aoSalvar(lote.criados[0])}>Ok</button>
+        </div>
+      </Modal>
+    );
+  }
   if (serie) {
     const nomePg = { no_dia: 'paga no dia', pacote: 'pacote', pago: 'pago', cortesia: 'cortesia' };
     return (
@@ -769,6 +798,25 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
           </fieldset>
         )}
 
+        {!re && !passado && serv && profissional && horaSel && (
+          <>
+            {extras.map((x, i) => {
+              const antes = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.slice(0, i).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
+              const fim = antes.reduce((m, y) => Math.max(m, minDe(y.hora) + (y.dur || 0)), 0);
+              const outros = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.filter((y) => y.chave !== x.chave).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
+              return (
+                <ServicoExtra key={x.chave} n={i + 2} item={x} catalogo={catalogo} data={data} outros={outros} depoisDe={fim} profPadrao={profissional}
+                  aoMudar={(mud) => setExtras((l) => l.map((y) => (y.chave === x.chave ? { ...y, ...mud } : y)))} aoTirar={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))} />
+              );
+            })}
+            {extras.length < 7 && (
+              <button type="button" className="link-acao vd-mais" onClick={() => { setRepetir({ cadaDias: 0, vezes: 4 }); setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), servicoId: '', profissional: '', hora: '', dur: 0 }]); }}>
+                + Outro serviço neste atendimento
+              </button>
+            )}
+          </>
+        )}
+
         {!re && (
           <fieldset className="b-opcoes">
             <legend className="rotulo">Cliente</legend>
@@ -834,7 +882,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
           </fieldset>
         )}
         {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas />}
-        {!re && serv && !passado && (
+        {!re && serv && !passado && extras.length === 0 && (
           <div className="b-linha2 sr-repetir">
             <label className="b-campo"><span className="rotulo">Repetir</span>
               <select value={repetir.cadaDias} onChange={(e) => setRepetir({ ...repetir, cadaDias: Number(e.target.value) })}>
@@ -855,11 +903,88 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
         )}
         <label className="b-campo"><span className="rotulo">Observação para quem vai atender</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaPagamento(pg)) || (passado && data < limitePassado)} onClick={salvar}>
-          {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : passado ? `Lançar atendimento de ${dataBR(data)} às ${hora(horaSel)}` : repetir.cadaDias ? `Agendar ${repetir.vezes} vezes a partir de ${dataBR(data)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
+        {extras.length > 0 && pagamento === 'pago' && !re && (
+          <p className="b-suave">Cada serviço é cobrado pelo preço dele: {real(serv.preco + extras.reduce((t, x) => t + (servicos.find((y) => y.id === x.servicoId)?.preco || 0), 0))} no total ({plural(extras.length + 1, 'serviço', 'serviços')}). Vale-presente, cupom e valor combinado só com um serviço: para esses, receba pela comanda.</p>
+        )}
+        <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaPagamento(pg)) || (passado && data < limitePassado)
+          || (extras.length > 0 && (extras.some((x) => !x.servicoId || !x.profissional || !x.hora) || (pagamento === 'pago' && pg.metodo === 'Vale-presente')))} onClick={salvar}>
+          {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : passado ? `Lançar atendimento de ${dataBR(data)} às ${hora(horaSel)}`
+            : extras.length ? `Agendar ${extras.length + 1} serviços em ${dataBR(data)}` : repetir.cadaDias ? `Agendar ${repetir.vezes} vezes a partir de ${dataBR(data)}` : `Agendar ${dataBR(data)} às ${hora(horaSel)}`}
         </button>
       </div>
     </Modal>
+  );
+}
+
+const minDe = (h) => { const [a, b] = String(h).split(':'); return Number(a) * 60 + Number(b || 0); };
+
+// Outro serviço da mesma visita: serviço, profissional e horário. Os horários que batem com os outros serviços
+// desta visita (a pessoa não pode estar em dois lugares) ficam de fora; sugere o primeiro horário depois do serviço anterior.
+function ServicoExtra({ n, item, catalogo, data, outros, depoisDe, profPadrao, aoMudar, aoTirar }) {
+  const { chamar, token } = useBancada();
+  const servicos = catalogo.servicos.filter((s) => s.ativo);
+  const serv = servicos.find((s) => s.id === item.servicoId);
+  const profs = catalogo.profissionais.filter((p) => p.ativo && (!serv || fazServico(p, serv)));
+  const porCategoria = catalogo.categorias.map((c) => [c, servicos.filter((s) => s.categoria === c)]).filter(([, l]) => l.length);
+  const [horarios, setHorarios] = useState(null);
+  const dur = horarios?.duracao || serv?.duracao || 0;
+  const bate = (h) => outros.some((o) => minDe(h) < minDe(o.hora) + (o.dur || 0) && minDe(h) + dur > minDe(o.hora));
+
+  useEffect(() => {
+    if (!serv || !item.profissional) { setHorarios(null); return undefined; }
+    let vivo = true;
+    const params = { de: segundaDe(data) };
+    const semana = lembrar(`${token}|agendaSemana|${JSON.stringify(params)}`);
+    const local = horariosLivres({ semana, catalogo, servicoId: item.servicoId, profissional: item.profissional, data, hoje: hojeIso(), segundosAgora: segundosAgoraFortaleza() });
+    setHorarios(local);
+    chamar('horarios', { servicoId: item.servicoId, profissional: item.profissional, data }).then((r) => { if (vivo) setHorarios(r); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [item.servicoId, item.profissional, data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const livres = (horarios?.horarios || []).filter((h) => !bate(h));
+  // sugestão: o primeiro horário livre depois do serviço anterior; e solta o horário que passou a bater com outro serviço
+  useEffect(() => {
+    if (!horarios) return;
+    if (item.hora && (!(horarios.horarios || []).includes(item.hora) || bate(item.hora))) { aoMudar({ hora: '', dur: 0 }); return; }
+    if (!item.hora) {
+      const sugerido = livres.find((h) => minDe(h) >= depoisDe);
+      if (sugerido) aoMudar({ hora: sugerido, dur });
+    }
+  }, [horarios, depoisDe, outros.map((o) => o.hora + o.dur).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="sv-extra">
+      <div className="sv-extra__topo"><strong>Serviço {n}</strong><button type="button" className="link-sair" onClick={aoTirar}>tirar</button></div>
+      <label className="b-campo">
+        <span className="rotulo">Serviço</span>
+        <select value={item.servicoId} onChange={(e) => aoMudar({ servicoId: e.target.value, profissional: '', hora: '', dur: 0 })}>
+          <option value="">Escolha…</option>
+          {porCategoria.map(([c, l]) => <optgroup key={c} label={c}>{l.map((x) => <option key={x.id} value={x.id}>{x.nome} · {x.duracao} min · {real(x.preco)}</option>)}</optgroup>)}
+        </select>
+      </label>
+      {serv && (
+        <label className="b-campo">
+          <span className="rotulo">Profissional</span>
+          <select value={item.profissional} onChange={(e) => aoMudar({ profissional: e.target.value, hora: '', dur: 0 })}>
+            <option value="">Escolha…</option>
+            {profs.map((p) => <option key={p.nome}>{p.nome}</option>)}
+          </select>
+        </label>
+      )}
+      {serv && profs.length === 0 && <p className="aviso">Ninguém está marcado para fazer {serv.nome}. A administração acerta em Catálogo → Serviços.</p>}
+      {serv && item.profissional && (
+        <fieldset className="s-horarios">
+          <legend className="rotulo">Horário · {dur} min</legend>
+          {!horarios && <span className="b-suave">Procurando horários livres…</span>}
+          {horarios && livres.length === 0 && <span className="b-suave">{horarios.horarios?.length ? 'Os horários livres batem com os outros serviços desta pessoa.' : horarios.motivo || 'Sem horário livre neste dia. Tente outro profissional.'}</span>}
+          {livres.length > 0 && (
+            <div className="s-horarios__grade">
+              {livres.map((h) => <button key={h} type="button" aria-pressed={item.hora === h} onClick={() => aoMudar({ hora: h, dur })}>{hora(h)}</button>)}
+            </div>
+          )}
+        </fieldset>
+      )}
+    </div>
   );
 }
 
@@ -1345,10 +1470,11 @@ export function useItensVenda() {
   }, [planos, cat]);
 }
 
-export function OpcoesItens({ itens }) {
+// comGrupo: o nome do grupo (Yoga, Pilates, categoria) vem na frente de cada opção; com vários itens na mesma tela, a opção escolhida fica clara mesmo com o seletor fechado
+export function OpcoesItens({ itens, comGrupo }) {
   if (!itens) return null;
   return itens.grupos.filter(([, l]) => l.length).map(([g, l]) => (
-    <optgroup key={g} label={g}>{l.map((i) => <option key={i.id} value={i.id}>{i.nome} · {real(i.preco)}</option>)}</optgroup>
+    <optgroup key={g} label={g}>{l.map((i) => <option key={i.id} value={i.id}>{comGrupo ? `${g} · ` : ''}{i.nome} · {real(i.preco)}</option>)}</optgroup>
   ));
 }
 

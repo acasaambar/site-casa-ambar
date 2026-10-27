@@ -9,17 +9,19 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
   const { token } = useAuth();
   const [aceito, setAceito] = useState(false);
   const [nome, setNome] = useState('');
+  const [imagem, setImagem] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   async function assinar(e) {
     e.preventDefault();
     if (!aceito) return setErro('Marque que leu e concorda com o contrato.');
+    if (!imagem) return setErro('Escolha uma das opções sobre o uso de imagem (cláusula sexta).');
     if (nome.trim().split(/\s+/).length < 2) return setErro('Digite seu nome completo, como no cadastro.');
     setErro('');
     setEnviando(true);
     try {
-      await api.assinarContrato(token, plano.id, nome.trim(), true, typeof navigator === 'undefined' ? '' : navigator.userAgent);
+      await api.assinarContrato(token, plano.id, nome.trim(), true, typeof navigator === 'undefined' ? '' : navigator.userAgent, imagem);
       aoAssinar();
     } catch (err) {
       setErro(err.message);
@@ -42,6 +44,18 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
         </article>
         <form className="form ficha__form contrato__assinatura" onSubmit={assinar} noValidate>
           <fieldset className="bloco bloco--termos">
+            <div className="opcoes-imagem" role="radiogroup" aria-label="Uso de imagem">
+              <span className="opcoes-imagem__titulo">Uso de imagem (cláusula sexta)</span>
+              <label className="termo">
+                <input type="radio" name="imagem" checked={imagem === 'sim'} onChange={() => setImagem('sim')} />
+                <span>Autorizo o uso da minha imagem em redes sociais e materiais da Casa Âmbar.</span>
+              </label>
+              <label className="termo">
+                <input type="radio" name="imagem" checked={imagem === 'nao'} onChange={() => setImagem('nao')} />
+                <span>Não autorizo.</span>
+              </label>
+              <span className="dica-campo">Pode mudar de ideia a qualquer momento, avisando por escrito.</span>
+            </div>
             <label className="termo">
               <input type="checkbox" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
               <span>Li o contrato e concordo com todas as cláusulas.</span>

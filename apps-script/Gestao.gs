@@ -1041,7 +1041,7 @@ function calcularItensComanda(itens, cpf, codigo) {
 }
 
 // vale-presente VENDIDO na comanda (quem compra paga; o código nasce ao fechar e vai para quem recebe)
-// x.vale = { tipo: 'valor' | 'plano', valor, planoId, nome, whatsapp, email, mensagem, validadeDias, enviarEmail }
+// x.vale = { tipo: 'valor' | 'plano', valor, planoId, nome, whatsapp, email, mensagem, validadeDias, enviarEmail, enviarWhats }
 function itemValeVendido(x) {
   var v = x.vale || x.dadosVale || {};
   var tipo = v.tipo === 'plano' ? 'plano' : 'valor';
@@ -1053,7 +1053,7 @@ function itemValeVendido(x) {
   if (email && !emailValido(email)) throw new Error('Confira o e-mail de quem vai receber o vale.');
   var dados = { tipo: tipo, valor: valor, planoId: plano ? plano.id : '', nome: String(v.nome || '').replace(/\s+/g, ' ').trim().slice(0, 80), whatsapp: soDigitos(v.whatsapp).slice(0, 13),
     email: email, mensagem: String(v.mensagem || '').trim().slice(0, 500), validadeDias: Math.min(Math.max(Number(v.validadeDias) || AJUSTES.valeValidadeDias, 30), 730),
-    enviarEmail: !!v.enviarEmail };
+    enviarEmail: !!v.enviarEmail, enviarWhats: !!v.enviarWhats && soDigitos(v.whatsapp).length >= 10 };
   return { uid: String(x.uid || '') || novoId('I'), tipo: 'vale', id: 'vale', nome: 'Vale-presente · ' + (plano ? plano.nome : brl(valor)) + (dados.nome ? ' para ' + primeiroNome(dados.nome) : ''),
     qtd: 1, preco: valor, valor: valor, total: valor, desconto: 0, profissional: '', atendimentoId: '', data: hojeTexto(), pago: false, promocao: '', cupom: '', vale: '',
     valeUsado: 0, obs: String(x.obs || '').trim().slice(0, 200), dadosVale: dados };
@@ -1231,12 +1231,24 @@ function bancada_comandaDoAtendimento(d, m) {
   var mesma = a.cpf ? lerAba('Comandas').filter(function (c) {
     return c.status === 'aberta' && c.cpf && normCpf(c.cpf) === normCpf(a.cpf) && String(c.aberta_em || '').slice(0, 10) === hojeTexto();
   })[0] : null;
-  var item = { tipo: 'servico', id: String(a.servico_id), nome: a.servico, profissional: a.profissional, atendimentoId: a.id, data: dataTexto(a.data),
-    pago: a.pagamento !== 'no_dia' };
-  var novos = [item];
-  // combo escolhido no agendamento: entra junto, e a sessão sai dele
-  var combo = a.combo && a.pagamento === 'no_dia' && a.cpf ? buscarItemVenda(a.combo) : null;
-  if (combo && combo.tipo === 'pacote') novos.push({ tipo: 'pacote', id: combo.id, nome: combo.nome, qtd: 1 });
+  // itens deste atendimento: o serviço e, se foi escolhido no agendamento, o combo (a sessão sai dele)
+  var itensDe = function (y) {
+    var lista = [{ tipo: 'servico', id: String(y.servico_id), nome: y.servico, profissional: y.profissional, atendimentoId: y.id, data: dataTexto(y.data), pago: y.pagamento !== 'no_dia' }];
+    var combo = y.combo && y.pagamento === 'no_dia' && y.cpf ? buscarItemVenda(y.combo) : null;
+    if (combo && combo.tipo === 'pacote') lista.push({ tipo: 'pacote', id: combo.id, nome: combo.nome, qtd: 1 });
+    return lista;
+  };
+  var novos = itensDe(a);
+  // serviços marcados juntos com este (mesma visita, ainda a pagar e fora de comanda): vêm juntos para fechar tudo de uma vez
+  // (dá para tirar o que não for cobrar agora). Só os do mesmo `grupo`: outro horário do mesmo dia não vem sozinho.
+  if (a.cpf && a.grupo) {
+    var emAberta = {};
+    lerAba('Comandas').forEach(function (c) { if (c.status === 'aberta') parseJson(c.itens, []).forEach(function (i) { if (i.atendimentoId) emAberta[i.atendimentoId] = 1; }); });
+    lerAba('Atendimentos').filter(function (y) {
+      return y.id !== a.id && y.cpf && normCpf(y.cpf) === normCpf(a.cpf) && String(y.grupo) === String(a.grupo) && y.pagamento === 'no_dia'
+        && ['agendado', 'confirmado', 'atendido'].indexOf(String(y.status)) >= 0 && !y.comanda && !emAberta[y.id];
+    }).sort(function (x, y) { return String(horaTexto(x.hora)).localeCompare(String(horaTexto(y.hora))); }).forEach(function (y) { novos = novos.concat(itensDe(y)); });
+  }
   if (mesma) {
     var cm = comandaPublica(mesma);
     return bancada_salvarComanda({ comanda: { id: cm.id, itens: cm.itens.concat(novos), codigo: cm.codigo, obs: cm.obs } }, m);
@@ -1517,7 +1529,7 @@ function bancada_fecharComanda(d, m) {
           criado_por: m.email, validade: somarDias(hoje, dv.validadeDias || AJUSTES.valeValidadeDias), enviado: '', origem: 'vendido', comanda: cm.id };
         adicionarLinha('Vales', novo);
         it.valeCodigo = novo.codigo;
-        valesCriados.push({ vale: novo, enviarEmail: !!dv.enviarEmail });
+        valesCriados.push({ vale: novo, enviarEmail: !!dv.enviarEmail, enviarWhats: !!dv.enviarWhats });
       } else if (it.tipo === 'produto') {
         try { movimentarEstoque(it.id, -it.qtd, 'venda', 'Comanda ' + cm.id + ' · ' + cm.nome, 'comanda:' + cm.id, m.email); } catch (e) { Logger.log('estoque: ' + e.message); }
         if (it.profissional) {
@@ -1565,7 +1577,7 @@ function bancada_fecharComanda(d, m) {
       } catch (e) { Logger.log('e-mail do vale: ' + e.message); }
     }
     return { codigo: x.vale.codigo, descricao: descreverVale(x.vale), nome: x.vale.nome, whatsapp: x.vale.whatsapp, email: x.vale.email, emailEnviado: enviado,
-      validade: x.vale.validade, textoWhats: textoWhatsVale(x.vale) };
+      enviarWhats: !!x.enviarWhats, validade: x.vale.validade, textoWhats: textoWhatsVale(x.vale) };
   });
   return saida;
 }

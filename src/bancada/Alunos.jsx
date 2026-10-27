@@ -679,6 +679,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const itens = useItensVenda();
   const [aluno, setAluno] = useState(inicial || null);
   const [planoId, setPlanoId] = useState('');
+  const [extras, setExtras] = useState([]); // outros itens da mesma venda: [{ chave, planoId, valor }]
   const [metodo, setMetodo] = useState('Pix');
   const [bandeira, setBandeira] = useState('');
   const [parcelas, setParcelas] = useState(1);
@@ -691,8 +692,11 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const plano = itens?.achar(planoId);
+  const varios = extras.length > 0;
 
   useEffect(() => { setSimulado(null); setValor(''); }, [planoId]);
+
+  function mudarExtra(chave, mud) { setExtras((l) => l.map((x) => (x.chave === chave ? { ...x, ...mud } : x))); }
 
   async function aplicarCodigo() {
     setErro('');
@@ -710,7 +714,12 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('vender', { cpf: aluno.cpf, planoId, metodo, bandeira, parcelas, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : numBR(valor), inicio, dataVenda, obs });
+      const comum = { cpf: aluno.cpf, metodo, bandeira, parcelas, inicio, dataVenda, obs };
+      if (varios) {
+        await chamar('vender', { ...comum, itens: [{ planoId, valor: valor === '' ? undefined : numBR(valor) }, ...extras.map((x) => ({ planoId: x.planoId, valor: x.valor === '' ? undefined : numBR(x.valor) }))] });
+      } else {
+        await chamar('vender', { ...comum, planoId, codigo: simulado ? codigo : '', valor: valor === '' ? undefined : numBR(valor) });
+      }
       aoVender();
     } catch (e) {
       setErro(e.message);
@@ -719,9 +728,14 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     }
   }
 
-  const final = metodo === 'Cortesia' ? 0 : valor !== '' ? numBR(valor) : plano?.preco;
+  // total da venda: cada item pelo valor combinado ou pelo preço (o servidor aplica as promoções do dia item a item)
+  const doItem = (item, v) => (metodo === 'Cortesia' ? 0 : v !== '' ? numBR(v) : item?.preco || 0);
+  const linhas = [[plano, valor], ...extras.map((x) => [itens?.achar(x.planoId), x.valor])];
+  const final = linhas.reduce((t, [it, v]) => t + (it ? doItem(it, v) : 0), 0);
+  const cheio = linhas.reduce((t, [it]) => t + (it?.preco || 0), 0);
+  const completo = !!planoId && extras.every((x) => x.planoId);
   return (
-    <Modal rotulo="Venda no balcão" titulo="Vender plano ou aula" aoFechar={aoFechar}>
+    <Modal rotulo="Venda no balcão" titulo="Vender plano, aula ou serviço" aoFechar={aoFechar}>
       <div className="b-form">
         {!aluno ? (
           <BuscaAluno aoEscolher={setAluno} autoFocus />
@@ -731,13 +745,44 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
             {!inicial && <button type="button" className="link-sair" onClick={() => setAluno(null)}>trocar</button>}
           </div>
         )}
-        <label className="b-campo">
-          <span className="rotulo">O que foi vendido</span>
-          <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
-            <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
-            <OpcoesItens itens={itens} />
-          </select>
-        </label>
+        <div className={varios ? 'vd-extra vd-extra--um' : undefined}>
+          <label className="b-campo">
+            <span className="rotulo">{varios ? 'Item 1' : 'O que foi vendido'}</span>
+            <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
+              <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
+              <OpcoesItens itens={itens} comGrupo />
+            </select>
+          </label>
+          {varios && metodo !== 'Cortesia' && (
+            <label className="b-campo vd-extra__valor">
+              <span className="rotulo">Valor cobrado (R$)</span>
+              <input inputMode="decimal" value={valor} placeholder={plano ? String(plano.preco).replace('.', ',') : ''} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} />
+            </label>
+          )}
+        </div>
+        {extras.map((x, i) => (
+          <div key={x.chave} className="vd-extra">
+            <label className="b-campo">
+              <span className="rotulo">Item {i + 2}</span>
+              <select value={x.planoId} onChange={(e) => mudarExtra(x.chave, { planoId: e.target.value })}>
+                <option value="">Escolha…</option>
+                <OpcoesItens itens={itens} comGrupo />
+              </select>
+            </label>
+            {metodo !== 'Cortesia' && (
+              <label className="b-campo vd-extra__valor">
+                <span className="rotulo">Valor cobrado (R$)</span>
+                <input inputMode="decimal" value={x.valor} placeholder={itens?.achar(x.planoId) ? String(itens.achar(x.planoId).preco).replace('.', ',') : ''} onChange={(e) => mudarExtra(x.chave, { valor: e.target.value.replace(/[^\d,.]/g, '') })} />
+              </label>
+            )}
+            <button type="button" className="link-sair vd-extra__tirar" onClick={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))}>tirar</button>
+          </div>
+        ))}
+        {extras.length < 11 && (
+          <button type="button" className="link-acao vd-mais" disabled={!itens || !planoId} onClick={() => { setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), planoId: '', valor: '' }]); setCodigo(''); setSimulado(null); }}>
+            + Adicionar outro item nesta venda
+          </button>
+        )}
         <div className="b-linha2">
           <label className="b-campo">
             <span className="rotulo">Recebido por</span>
@@ -758,7 +803,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
           )}
           <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
         </div>
-        {plano && metodo !== 'Cortesia' && (
+        {plano && metodo !== 'Cortesia' && !varios && (
           <>
             <div className="b-linha2">
               <label className="b-campo">
@@ -776,6 +821,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
             {simulado && <p className="aviso">{simulado.mensagem}</p>}
           </>
         )}
+        {varios && metodo !== 'Cortesia' && <p className="b-suave">Cupom ou vale-presente só em venda de um item; para vários itens com cupom ou vale, use a comanda. As promoções do dia valem em cada item.</p>}
         <div className="b-linha2">
           <label className="b-campo">
             <span className="rotulo">Data da venda</span>
@@ -787,14 +833,14 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
         {dataVenda < hojeIso() && <p className="aviso">Venda de {dataBR(dataVenda)}: entra no caixa daquele dia, não no de hoje.</p>}
         {plano && (
           <div className="b-total">
-            <span>Total</span>
+            <span>{varios ? `Total · ${extras.length + 1} itens` : 'Total'}</span>
             <strong>{final === 0 ? 'Cortesia' : real(final)}</strong>
-            {final < plano.preco && <s>{real(plano.preco)}</s>}
+            {final < cheio && <s>{real(cheio)}</s>}
           </div>
         )}
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={!aluno || !planoId || enviando || faltaBandeira(metodo, bandeira)} onClick={confirmar}>
-          {enviando ? 'Registrando…' : 'Registrar venda'}
+        <button type="button" className="botao botao--cheio" disabled={!aluno || !completo || enviando || faltaBandeira(metodo, bandeira)} onClick={confirmar}>
+          {enviando ? 'Registrando…' : varios ? `Registrar venda dos ${extras.length + 1} itens` : 'Registrar venda'}
         </button>
         <p className="b-suave b-nota">O plano entra na hora no cadastro. Pagamentos pelo site entram sozinhos — não precisa registrar aqui.</p>
       </div>

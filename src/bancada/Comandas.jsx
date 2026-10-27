@@ -532,7 +532,7 @@ function NotasItem({ it }) {
     const v = it.dadosVale;
     const para = [v.nome && `Para ${v.nome}`, v.whatsapp && telFmt(v.whatsapp), v.email].filter(Boolean).join(' · ');
     if (para) linhas.push(['vale', para]);
-    linhas.push(['vale', `${v.validadeDias ? `Vale por ${v.validadeDias % 30 === 0 ? plural(v.validadeDias / 30, 'mês', 'meses') : plural(v.validadeDias, 'dia', 'dias')}` : 'Validade padrão'}${v.enviarEmail && v.email ? ' · e-mail ao fechar' : ''}${v.mensagem ? ' · com mensagem' : ''}`]);
+    linhas.push(['vale', `${v.validadeDias ? `Vale por ${v.validadeDias % 30 === 0 ? plural(v.validadeDias / 30, 'mês', 'meses') : plural(v.validadeDias, 'dia', 'dias')}` : 'Validade padrão'}${v.enviarEmail && v.email ? ' · e-mail ao fechar' : ''}${v.enviarWhats && v.whatsapp ? ' · WhatsApp ao fechar' : ''}${v.mensagem ? ' · com mensagem' : ''}`]);
   }
   if (it.obs) linhas.push(['obs', `Obs.: ${it.obs}`]);
   if (!linhas.length) return null;
@@ -717,9 +717,11 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
   const [mensagem, setMensagem] = useState(d.mensagem || '');
   const [validade, setValidade] = useState(d.validadeDias ? String(d.validadeDias) : '');
   const [enviar, setEnviar] = useState(d.enviarEmail ?? true);
+  const [enviarWa, setEnviarWa] = useState(d.enviarWhats ?? true); // já vem marcado (só vale se o WhatsApp estiver preenchido)
   const [erro, setErro] = useState('');
   const filtroPlano = useMemo(() => (i) => i.tipo !== 'produto', []);
   const okEmail = emailOk(email);
+  const okWhats = soDigitos(whats).length >= 10;
   const opcoesValidade = validade && !VALIDADES.some(([v]) => v === validade) ? [...VALIDADES, [validade, plural(Number(validade), 'dia', 'dias')]] : VALIDADES;
 
   async function salvar() {
@@ -732,7 +734,7 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
     if (w && w.length < 10) return setErro('Confira o WhatsApp (com DDD).');
     try {
       await aoSalvar({ tipo, valor: tipo === 'valor' ? v : plano.preco, planoId: tipo === 'plano' ? plano.id : '', nome: nome.trim(), whatsapp: w, email: email.trim().toLowerCase(),
-        mensagem: mensagem.trim(), validadeDias: validade ? Number(validade) : undefined, enviarEmail: enviar && okEmail });
+        mensagem: mensagem.trim(), validadeDias: validade ? Number(validade) : undefined, enviarEmail: enviar && okEmail, enviarWhats: enviarWa && w.length >= 10 });
     } catch (e) { setErro(e.message); }
   }
 
@@ -767,10 +769,17 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
           <textarea rows={3} value={mensagem} onChange={(e) => setMensagem(e.target.value.slice(0, 500))} placeholder="Ex.: Feliz aniversário! Um momento só seu." /></label>
         <label className="b-campo"><span className="rotulo">Validade</span>
           <select value={validade} onChange={(e) => setValidade(e.target.value)}>{opcoesValidade.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></label>
-        <label className={`b-check${okEmail ? '' : ' b-check--apagado'}`}>
-          <input type="checkbox" checked={enviar && okEmail} disabled={!okEmail} onChange={(e) => setEnviar(e.target.checked)} />
-          {okEmail ? `Enviar por e-mail para ${email.trim()} ao fechar a comanda` : 'Enviar por e-mail ao fechar a comanda (informe o e-mail)'}
-        </label>
+        <fieldset className="cm-grupo">
+          <legend className="rotulo">Como entregar o vale</legend>
+          <label className={`b-check${okEmail ? '' : ' b-check--apagado'}`}>
+            <input type="checkbox" checked={enviar && okEmail} disabled={!okEmail} onChange={(e) => setEnviar(e.target.checked)} />
+            {okEmail ? `Por e-mail para ${email.trim()}, assim que fechar a comanda` : 'Por e-mail ao fechar a comanda (informe o e-mail)'}
+          </label>
+          <label className={`b-check${okWhats ? '' : ' b-check--apagado'}`}>
+            <input type="checkbox" checked={enviarWa && okWhats} disabled={!okWhats} onChange={(e) => setEnviarWa(e.target.checked)} />
+            {okWhats ? `Pelo WhatsApp para ${telFmt(soDigitos(whats))}: ao fechar, o botão de enviar já vem com a mensagem pronta` : 'Pelo WhatsApp ao fechar a comanda (informe o WhatsApp)'}
+          </label>
+        </fieldset>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={salvar}>{inicial ? 'Salvar vale' : 'Incluir na comanda'}</BotaoAcao>
       </div>
@@ -780,10 +789,14 @@ function VendaVale({ inicial, catalogo, aoFechar, aoSalvar }) {
 
 // depois de fechar: o código de cada vale vendido, pronto para mandar
 function ValesCriados({ lista }) {
+  const { chamar } = useBancada();
   const [copiado, setCopiado] = useState('');
+  const [enviados, setEnviados] = useState({});
   async function copiar(v) {
     try { await navigator.clipboard.writeText(v.textoWhats); setCopiado(v.codigo); setTimeout(() => setCopiado(''), 2500); } catch { setCopiado(''); }
   }
+  // o WhatsApp abre com a mensagem pronta (o envio é um toque seu: não existe envio automático sem a API paga do WhatsApp); fica anotado como enviado
+  const marcar = (v) => { setEnviados((e) => ({ ...e, [v.codigo]: true })); chamar('enviarVale', { codigo: v.codigo, canal: 'whatsapp' }).catch(() => {}); };
   return (
     <section className="cm-vales" aria-label="Vales-presentes criados">
       {lista.map((v) => (
@@ -792,10 +805,12 @@ function ValesCriados({ lista }) {
           <strong className="cm-vale__codigo">{v.codigo}</strong>
           <span className="cm-vale__desc">{v.descricao}</span>
           <span className="b-suave">Válido até {dataBR(v.validade)}</span>
+          {v.enviarWhats && !enviados[v.codigo] && <span className="cm-vale__ok">Falta enviar: toque no botão e depois em enviar no WhatsApp.</span>}
+          {enviados[v.codigo] && <span className="cm-vale__ok">Marcado como enviado pelo WhatsApp.</span>}
           <div className="cm-vale__botoes">
-            <a className="botao botao--cheio botao--p com-icone" target="_blank" rel="noreferrer"
+            <a className="botao botao--cheio botao--p com-icone" target="_blank" rel="noreferrer" onClick={() => marcar(v)}
               href={soDigitos(v.whatsapp) ? linkWhats(v.whatsapp, v.textoWhats) : `https://wa.me/?text=${encodeURIComponent(v.textoWhats)}`}>
-              <IconeWhatsapp tamanho={15} /> Enviar pelo WhatsApp
+              <IconeWhatsapp tamanho={15} /> {soDigitos(v.whatsapp) ? `Enviar para ${telFmt(v.whatsapp)}` : 'Enviar pelo WhatsApp'}
             </a>
             <button type="button" className="botao botao--linha botao--p" onClick={() => copiar(v)}>{copiado === v.codigo ? 'Mensagem copiada' : 'Copiar mensagem'}</button>
           </div>

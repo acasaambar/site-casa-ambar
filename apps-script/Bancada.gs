@@ -55,6 +55,7 @@ var PERMISSOES = {
   b_atualizarAtendimento: ['admin', 'recepcao', 'professora'],
   b_horarios: ['admin', 'recepcao'],
   b_agendarServico: ['admin', 'recepcao'],
+  b_agendarServicos: ['admin', 'recepcao'],
   b_creditosServico: ['admin', 'recepcao'],
   b_salvarServico: ['admin'],
   b_salvarPacote: ['admin'],
@@ -1007,20 +1008,49 @@ function bancada_simularPreco(d) {
   return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem, promocao: r.promocao, vale: r.vale, valeUsado: r.valeUsado };
 }
 
+// Venda no balcão com um ou vários itens (d.itens = [{ planoId, valor? }]; sem d.itens vale d.planoId/d.valor, como antes).
+// Cada item vira uma venda própria (caixa, comissão e relatórios continuam por item), com a mesma forma de pagamento, data e início.
+// Cupom ou vale-presente só com um item (com vários, a comanda faz essa conta). Se um item falhar no meio, os já lançados são desfeitos.
+var MAX_ITENS_VENDA = 12;
 function bancada_vender(d, m) {
   var aluno = buscarAluno(d.cpf);
   if (!aluno) throw new Error('Aluno não encontrado.');
-  var plano = buscarItemVenda(d.planoId);
-  if (!plano) throw new Error('Plano não encontrado.');
+  var pedidos = Array.isArray(d.itens) && d.itens.length ? d.itens : [{ planoId: d.planoId, valor: d.valor }];
+  if (pedidos.length > MAX_ITENS_VENDA) throw new Error('Uma venda aceita até ' + MAX_ITENS_VENDA + ' itens. Faça em duas vendas.');
+  if (pedidos.length > 1 && codigoLimpo(d.codigo)) throw new Error('Cupom ou vale-presente só em venda de um item. Para vários itens com cupom ou vale, use a comanda.');
+  if (pedidos.length > 1 && d.metodo === 'Vale-presente') throw new Error('Pagar com vale-presente só em venda de um item. Para vários itens, use a comanda.');
+  var itens = pedidos.map(function (x) {
+    var plano = buscarItemVenda(x && x.planoId);
+    if (!plano) throw new Error('Um dos itens da venda não foi encontrado. Escolha de novo.');
+    return { plano: plano, valor: x.valor };
+  });
+  var resumo = itens.length > 1 ? 'Venda com ' + itens.length + ' itens: ' + itens.map(function (i) { return i.plano.nome; }).join(' + ') + '.' : '';
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
+  var feitas = [];
   try {
-    var v = registrarVenda(aluno, plano, d, m);
-    registrar(m, 'venda no balcão', aluno.nome + ' · ' + plano.nome + ' · R$ ' + v.valor + ' · ' + v.metodo);
-    return v;
-  } finally {
+    itens.forEach(function (it) {
+      var o = Object.assign({}, d, { valor: it.valor, obs: (resumo ? resumo + ' ' : '') + String(d.obs || '') });
+      var v = registrarVenda(aluno, it.plano, o, m);
+      feitas.push({ nome: it.plano.nome, v: v });
+    });
+  } catch (falha) {
+    // desfaz o que já foi lançado nesta venda (não deixa metade da venda no caixa)
+    feitas.forEach(function (f) {
+      try {
+        var pg = linhaPagamento(f.v.orderNsu);
+        if (pg) atualizarLinha('Pagamentos', pg._linha, { status: 'excluido', observacao: ('EXCLUÍDA em ' + agoraTexto() + ' (venda com vários itens interrompida por erro). ' + (pg.observacao || '')).slice(0, 500) });
+        var c = mapaCreditos()['C' + String(f.v.orderNsu).slice(1)];
+        if (c) atualizarLinha('Creditos', c._linha, { ativo: 'NÃO' });
+      } catch (e2) { Logger.log('desfazer venda em lote: ' + e2.message); }
+    });
     soltarTrava(trava);
+    throw falha;
   }
+  soltarTrava(trava);
+  registrar(m, 'venda no balcão', aluno.nome + ' · ' + feitas.map(function (f) { return f.nome + ' R$ ' + f.v.valor; }).join(' + ') + ' · ' + feitas[0].v.metodo);
+  var primeira = feitas[0].v;
+  return Object.assign({}, primeira, { valor: feitas.reduce(function (t, f) { return t + numero(f.v.valor); }, 0), vendas: feitas.map(function (f) { return { nome: f.nome, orderNsu: f.v.orderNsu, valor: f.v.valor }; }) });
 }
 
 function bancada_pagamentos(d) {

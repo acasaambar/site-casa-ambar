@@ -83,7 +83,7 @@ export const api = {
   meuPlano: (token) => chamar('meuPlano', { token }),
   comprar: (token, planoId, codigo = '') => chamar('comprar', { token, planoId, codigo }),
   contratoDoPlano: (token, planoId) => chamar('contratoDoPlano', { token, planoId }),
-  assinarContrato: (token, planoId, nome, aceito, dispositivo = '') => chamar('assinarContrato', { token, planoId, nome, aceito, dispositivo }),
+  assinarContrato: (token, planoId, nome, aceito, dispositivo = '', imagem = '') => chamar('assinarContrato', { token, planoId, nome, aceito, dispositivo, imagem }),
   descartarPagamento: (token, orderNsu) => chamar('descartarPagamento', { token, orderNsu }),
   validarCodigo: (token, planoId, codigo) => chamar('validarCodigo', { token, planoId, codigo }),
   resgatarVale: (token, codigo) => chamar('resgatarVale', { token, codigo }),

@@ -8,6 +8,7 @@ const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '
 const R = require('path').join(__dirname, '..', 'apps-script');
 const m = criar([R+'/Codigo.gs', R+'/Seguranca.gs', R+'/Vales.gs', R+'/Bancada.gs', R+'/Relatorios.gs', R+'/Servicos.gs', R+'/Gestao.gs', R+'/Clientes.gs', R+'/Marketing.gs', R+'/Substituicoes.gs', R+'/Espera.gs', R+'/Contrato.gs']);
 const { ctx, chamar, emails } = m;
+ctx.CONTRATO_PRONTO = true; // simulador mostra o contrato dos planos como na Casa
 ctx.configurarPlanilha();
 // dados de exemplo
 const linkDe = e => (e.body.match(/t=([a-f0-9]+)/) || [])[1];

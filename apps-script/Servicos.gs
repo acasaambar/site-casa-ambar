@@ -444,6 +444,49 @@ function bancada_agendarServico(d, m) {
   return saida;
 }
 
+// Vários serviços da mesma pessoa no mesmo dia, de uma vez (ex.: drenagem + massagem).
+// d = o mesmo de agendarServico (cliente, data, pagamento, forma de pagamento…) + servicos: [{ servicoId, profissional, hora, combo? }].
+// O 1º serviço é agendado como sempre (se falhar, nada é criado). Os outros entram um a um: o que não couber
+// (horário ocupado, fora do turno, bate com outro serviço da própria pessoa) volta em `falhas` e os demais ficam marcados.
+// Pagamento: "já pagou" cobra cada serviço pelo preço dele; "pacote" usa o pacote de cada serviço que a pessoa tiver
+// (sem pacote daquele serviço fica para pagar no dia). Cupom, vale e valor combinado só em agendamento de um serviço.
+var MAX_SERVICOS_JUNTOS = 8;
+function bancada_agendarServicos(d, m) {
+  var lista = Array.isArray(d.servicos) ? d.servicos : [];
+  if (!lista.length) throw new Error('Escolha ao menos um serviço.');
+  if (lista.length > MAX_SERVICOS_JUNTOS) throw new Error('Até ' + MAX_SERVICOS_JUNTOS + ' serviços de uma vez.');
+  if (String(d.data) < hojeTexto()) throw new Error('Vários serviços de uma vez são só para hoje em diante.');
+  if (d.reagendarId) throw new Error('Para mudar o horário, remarque um serviço de cada vez.');
+  if (lista.length > 1 && (codigoLimpo(d.codigo) || d.metodo === 'Vale-presente')) throw new Error('Cupom ou vale-presente só com um serviço. Para vários, receba pela comanda.');
+  var grupo = novoId('G');
+  var base = Object.assign({}, d, { grupo: grupo, servicos: undefined, repetir: undefined, valor: lista.length > 1 ? undefined : d.valor, codigo: lista.length > 1 ? '' : d.codigo });
+  var primeiro = bancada_agendarServico(Object.assign({}, base, lista[0]), m);
+  var criados = [primeiro], falhas = [];
+  var ocupados = [{ ini: minutos(primeiro.hora), fim: minutos(primeiro.hora) + primeiro.duracao }];
+  var forma = String(d.pagamento || 'no_dia');
+  var todos = listarServicos(true);
+  for (var i = 1; i < lista.length; i++) {
+    var x = lista[i] || {};
+    var serv = todos.filter(function (s) { return s.id === x.servicoId; })[0];
+    var rotulo = serv ? serv.nome : 'Serviço';
+    try {
+      if (!serv) throw new Error('Serviço não encontrado.');
+      var prof = String(x.profissional || '').trim();
+      var dur = prof ? duracaoServico(serv, prof) : 0;
+      var ini = /^\d{2}:\d{2}$/.test(String(x.hora)) ? minutos(x.hora) : -1;
+      if (ini >= 0 && ocupados.some(function (o) { return ini < o.fim && ini + dur > o.ini; })) throw new Error('Este horário bate com outro serviço desta mesma pessoa.');
+      var f = forma;
+      if (f === 'pacote' && !creditoDeServico(primeiro.cpf, serv.id, d.data)) f = 'no_dia';
+      var r = bancada_agendarServico(Object.assign({}, base, { cpf: primeiro.cpf, cliente: undefined, outraPessoa: undefined, combo: undefined }, x, { pagamento: f }), m);
+      criados.push(r);
+      ocupados.push({ ini: minutos(r.hora), fim: minutos(r.hora) + r.duracao });
+    } catch (e) {
+      falhas.push({ servicoId: x.servicoId || '', servico: rotulo, profissional: x.profissional || '', hora: x.hora || '', motivo: e.message });
+    }
+  }
+  return { criados: criados, falhas: falhas };
+}
+
 // pacote (combo) à venda deste serviço
 function comboDoServico(id, serv) {
   var c = buscarItemVenda(id);
@@ -468,7 +511,7 @@ function criarAtendimento(d, m, serv, prof, dur, cliente, data, forma) {
   var linha = { id: novoId('A'),
     data: data, hora: d.hora, duracao_min: dur, servico_id: serv.id, servico: serv.nome, categoria: serv.categoria, profissional: prof,
     cpf: cliente.cpf, nome: cliente.nome, whatsapp: cliente.whatsapp, status: passado ? 'atendido' : 'agendado', pagamento: forma, valor: serv.preco,
-    obs: String(d.obs || '').slice(0, 500), criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto() };
+    obs: String(d.obs || '').slice(0, 500), criado_por: m.email, criado_em: agoraTexto(), atualizado_em: agoraTexto(), grupo: /^G[\w-]{3,40}$/.test(String(d.grupo || '')) ? String(d.grupo) : '' };
   // combo escolhido no agendamento (só na 1ª da série): "já pagou" vende o combo agora e a sessão sai dele;
   // "paga no dia" guarda a escolha e a comanda já abre com o combo
   var combo = d.combo && data === d.data && (forma === 'pago' || forma === 'no_dia') ? comboDoServico(d.combo, serv) : null;

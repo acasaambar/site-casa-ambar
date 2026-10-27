@@ -21,20 +21,57 @@
  *   {nome} {cpf} {whatsapp} {email} {endereco}  → dados do cadastro da pessoa
  *   {plano} {modalidade} {frequencia} {tipo}    → o plano escolhido (tipo = mensal ou trimestral)
  *   {valor} {validade} {data}                   → preço, dias de validade e a data de hoje
+   {nascimento} {quantidade}                    → data de nascimento e quantidade de aulas do plano
+   {imagem}                                     → escolha da pessoa sobre o uso de imagem (tela de assinatura)
  *
  *  Cada assinatura grava uma linha na aba Contratos (quem, plano, versão, impressão digital do texto,
  *  data e hora) e um PDF na pasta privada "Casa Âmbar · Contratos" do Drive. A pessoa recebe a cópia por e-mail.
  */
 
-var CONTRATO_PRONTO = false;
-var CONTRATO_VERSAO = 'rascunho';
+var CONTRATO_PRONTO = true;
+var CONTRATO_VERSAO = '2026-10-27';
 var CONTRATO_TITULO = 'Contrato de prestação de serviços';
 // true: assina de novo a cada plano que contratar. false: assina uma vez por versão do contrato.
 var CONTRATO_A_CADA_COMPRA = true;
 var PASTA_CONTRATOS = 'Casa Âmbar · Contratos';
+// Texto do contrato da Casa (modelo "Contrato Clientes - Geral"), adaptado para os planos de Yoga e Pilates contratados pelo site.
+// Os Anexos I (declaração de saúde, que no site é a ficha de saúde) e II (consentimento de procedimentos de estética/fisioterapia) não entram.
+// {imagem} = escolha da pessoa sobre o uso de imagem (marcada na tela de assinatura).
 var CONTRATO_TEXTO = [
-  '# Contrato de prestação de serviços (texto de exemplo: troque pelo contrato da Casa)',
-  'Este é um texto de exemplo. {nome}, CPF {cpf}, contrata o plano {plano} ({tipo}), no valor de {valor}, com validade de {validade} dias.',
+  'CASA AMBAR LTDA, CNPJ nº 64.075.396/0001-19, com sede na Rua Eduardo Salgado, nº 448, Aldeota, Fortaleza/CE, CEP 60.150-140, e-mail contato@acasaambar.com.br, telefone (85) 9844-3720, doravante CASA AMBAR;',
+  'CLIENTE: Nome: {nome} · CPF: {cpf} · Data de nascimento: {nascimento} · Endereço: {endereco} · Telefone/WhatsApp: {whatsapp} · E-mail: {email}.',
+  'Se o CLIENTE for menor de 18 anos, a contratação é feita e assinada pelo seu responsável legal, que responde por este contrato.',
+  '# Cláusula primeira – Do objeto',
+  'A CASA AMBAR prestará ao CLIENTE os serviços assinalados abaixo, por meio de profissionais legalmente habilitados por ela indicados, que poderão ser substituídos por outros de igual qualificação:',
+  'Serviço: {modalidade}',
+  'Plano ou pacote: {plano} ({tipo})',
+  'Quantidade de sessões/aulas: {quantidade}',
+  'Frequência: {frequencia}',
+  'Validade do pacote: {validade} dias.',
+  'Procedimentos invasivos ou minimamente invasivos não são regidos por este contrato e dependem de contrato e termo de consentimento próprios.',
+  '# Cláusula segunda – Do preço e pagamento',
+  'Valor total: {valor}',
+  'Forma de pagamento: pelo link de pagamento seguro da InfinitePay, no Pix ou no cartão, nas condições mostradas no momento do pagamento.',
+  'O atraso sujeita o CLIENTE a multa de 2% (dois por cento) e juros de 1% (um por cento) ao mês. Após 30 (trinta) dias de atraso, os atendimentos poderão ser suspensos até a regularização.',
+  '# Cláusula terceira – Dos agendamentos, faltas e reposições',
+  'Sessões e aulas podem ser remarcadas sem custo se o aviso for dado com, no mínimo, 24 (vinte e quatro) horas de antecedência. A falta sem esse aviso conta como sessão ou aula utilizada.',
+  'Nas aulas em turma, a reposição depende de vaga disponível e está limitada a 2 (duas) por mês, dentro da validade do plano. Sessões ou aulas não utilizadas dentro da validade do pacote não geram crédito ou devolução, salvo nos casos da cláusula quinta.',
+  'Atrasos do CLIENTE não prorrogam o horário do atendimento.',
+  '# Cláusula quarta – Saúde e responsabilidades do cliente',
+  'O CLIENTE declara que informará, com veracidade, na avaliação inicial e sempre que houver alteração, suas condições de saúde, medicamentos em uso, cirurgias, gestação, alergias e restrições. Informações omitidas ou falsas podem comprometer a segurança do atendimento e afastar a responsabilidade da CASA AMBAR pelos danos delas decorrentes.',
+  'O profissional poderá, por razão técnica, adaptar, interromper ou recusar determinado atendimento, bem como solicitar liberação médica.',
+  'Os resultados dependem de fatores individuais, como condição física, frequência e cumprimento das orientações, e não há garantia de resultado específico.',
+  '# Cláusula quinta – Do cancelamento',
+  'O CLIENTE pode cancelar este contrato a qualquer tempo, mediante aviso por escrito, inclusive por WhatsApp ou e-mail. Serão restituídos os valores das sessões ou aulas não utilizadas, deduzida multa de 30% (trinta por cento) sobre esse saldo.',
+  'A multa não será cobrada se o cancelamento decorrer de impossibilidade médica comprovada, de falha na prestação do serviço ou de desistência exercida em até 7 (sete) dias da contratação feita fora do estabelecimento, como pela internet ou por WhatsApp (art. 49 do Código de Defesa do Consumidor).',
+  'A restituição será feita em até 10 (dez) dias úteis.',
+  '# Cláusula sexta – Dos dados pessoais e imagem',
+  'Os dados pessoais do CLIENTE, inclusive os de saúde, serão utilizados apenas para a prestação dos serviços, cumprimento de obrigações legais e comunicação sobre atendimentos, nos termos da Lei nº 13.709/2018.',
+  'Autorização de uso de imagem para divulgação em redes sociais e materiais da CASA AMBAR: {imagem}. A autorização pode ser revogada a qualquer tempo, por escrito.',
+  '# Cláusula sétima – Vigência e foro',
+  'Este contrato vigora até o fim da validade do plano ou pacote contratado e pode ser renovado por nova contratação.',
+  'Fica eleito o foro da Comarca de Fortaleza/CE.',
+  'Fortaleza/CE, {data}. Assinatura eletrônica do CLIENTE, com nome, data e hora registrados ao final deste documento.',
 ].join('\n');
 
 function planoExigeContrato(plano) {
@@ -42,7 +79,7 @@ function planoExigeContrato(plano) {
 }
 
 // texto do contrato com os dados da pessoa e do plano
-function contratoParaPlano(aluno, plano) {
+function contratoParaPlano(aluno, plano, imagem) {
   var dados = {
     nome: String(aluno.nome || ''), cpf: normCpf(aluno.cpf).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4'),
     whatsapp: soDigitos(aluno.whatsapp), email: String(aluno.email || ''),
@@ -51,9 +88,24 @@ function contratoParaPlano(aluno, plano) {
     frequencia: numero(plano.aulas_semana) > 0 ? 'até ' + numero(plano.aulas_semana) + ' aula(s) por semana' : '',
     valor: brl(plano.preco), validade: String(numero(plano.validade_dias) || (plano.tipo === 'trimestral' ? 90 : 30)),
     data: hojeTexto().split('-').reverse().join('/'),
+    nascimento: nascimentoTexto(aluno.nascimento || nascimentoDaFicha(aluno.cpf)),
+    quantidade: numero(plano.aulas_total) > 0 ? numero(plano.aulas_total) + ' aulas' : 'aulas conforme a frequência semanal, dentro da validade',
+    imagem: imagem === 'sim' ? '(X) Autorizo ( ) Não autorizo' : imagem === 'nao' ? '( ) Autorizo (X) Não autorizo' : '(escolha abaixo, antes de assinar)',
   };
   var texto = String(CONTRATO_TEXTO || '').replace(/\{(\w+)\}/g, function (todo, k) { return dados.hasOwnProperty(k) ? dados[k] : todo; });
   return texto.split('\n').map(function (l) { return l.replace(/\s+$/, ''); }).filter(function (l) { return l.trim(); });
+}
+
+// o cadastro do site não pede o nascimento; a ficha de saúde pede
+function nascimentoDaFicha(cpf) {
+  var f = lerAba('Anamneses').filter(function (x) { return normCpf(x.cpf) === normCpf(cpf); })[0];
+  return f ? f.data_nascimento : '';
+}
+
+// 'AAAA-MM-DD' (ou a data da planilha) → 'DD/MM/AAAA'
+function nascimentoTexto(v) {
+  var t = ehData(v) ? dataTexto(v) : String(v || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t.split('-').reverse().join('/') : 'não informada';
 }
 
 function hashContrato(linhas) { return sha256Hex(CONTRATO_VERSAO + '\n' + linhas.join('\n')); }
@@ -127,14 +179,16 @@ function assinarContrato(d) {
   if (!planoExigeContrato(plano)) throw new Error('Este plano não precisa de contrato.');
   if (!linhaAnamnese(cpf)) throw erroCod('Preencha sua ficha de saúde antes de assinar o contrato.', 'FICHA');
   if (d.aceito !== true) throw new Error('Marque que leu e concorda com o contrato.');
+  var imagem = d.imagem === 'sim' || d.imagem === 'nao' ? d.imagem : '';
+  if (!imagem) throw new Error('Escolha uma das opções sobre o uso de imagem (cláusula sexta).');
   var digitado = semAcento(d.nome), cadastro = semAcento(aluno.nome);
   if (!digitado || digitado !== cadastro) throw new Error('Digite seu nome completo exatamente como está no cadastro: ' + aluno.nome + '.');
   limitarPorMinutos('contrato_' + cpf, 10, 60);
-  var linhas = contratoParaPlano(aluno, plano);
+  var linhas = contratoParaPlano(aluno, plano, imagem);
   var existente = aceiteDisponivel(cpf, plano);
   if (existente) return { assinado: true, id: String(existente.id), versao: CONTRATO_VERSAO };
   var c = { id: novoId('CT'), cpf: cpf, nome: aluno.nome, plano_id: plano.id, plano: plano.nome, versao: CONTRATO_VERSAO, hash: hashContrato(linhas),
-    assinado_em: agoraTexto(), nome_digitado: String(d.nome).replace(/\s+/g, ' ').trim().slice(0, 120), dispositivo: String(d.dispositivo || '').slice(0, 160), pdf: '', order_nsu: '' };
+    assinado_em: agoraTexto(), nome_digitado: String(d.nome).replace(/\s+/g, ' ').trim().slice(0, 120), dispositivo: String(d.dispositivo || '').slice(0, 160), pdf: '', order_nsu: '', imagem: imagem === 'sim' ? 'autoriza' : 'não autoriza' };
   var pdf = null;
   try { pdf = gerarPdfContrato(c, linhas, aluno); c.pdf = pdf.url; } catch (e) { Logger.log('PDF do contrato: ' + e.message); c.pdf = 'erro ao gerar o PDF'; }
   var trava = LockService.getScriptLock();
@@ -169,6 +223,6 @@ function exigirFichaEContrato(aluno, plano) {
 // bancada: contratos assinados de uma cliente
 function contratosPublicos(cpf) {
   return contratoAssinadoDe(cpf).map(function (c) {
-    return { id: String(c.id), plano: String(c.plano), versao: String(c.versao), assinadoEm: String(c.assinado_em), pdf: /^https?:/.test(String(c.pdf)) ? String(c.pdf) : '', pedido: String(c.order_nsu || '') };
+    return { id: String(c.id), plano: String(c.plano), versao: String(c.versao), imagem: String(c.imagem || ''), assinadoEm: String(c.assinado_em), pdf: /^https?:/.test(String(c.pdf)) ? String(c.pdf) : '', pedido: String(c.order_nsu || '') };
   }).reverse();
 }
