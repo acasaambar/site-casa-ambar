@@ -9,6 +9,8 @@ import { IconeWhatsapp } from '../components/Marca.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioModal } from './Prontuario.jsx';
 import { HorarioSemanal, DiasEspeciais, horariosIniciais, resumoHorario } from './Horarios.jsx';
+import { Aviso, Esqueleto, Ajuda } from './ui.jsx';
+import { Avatar, BlocoForm, Interruptor, Barra } from './CatalogoPecas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
 import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
@@ -1156,57 +1158,72 @@ function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRap
     </Modal>
   );
 }
-
 // ============================================================
 //  CATÁLOGO: serviços, pacotes e profissionais (administração)
 // ============================================================
 export function CatalogoServicos() {
   const { dados, erro, carregando, setDados } = useDados('catalogoServicos', {});
   const [editar, setEditar] = useState(null);
-  if (carregando && !dados) return <Carregando />;
+  const [q, setQ] = useState('');
+  if (carregando && !dados) return <Esqueleto linhas={6} altura={64} />;
   if (!dados) return <Erro>{erro}</Erro>;
+  const busca = semAcentoJs(q);
+  const casa = (s) => !busca || semAcentoJs(`${s.nome} ${s.descricao || ''}`).includes(busca);
+  const novoServico = () => setEditar({ tipo: 'servico', v: { categoria: dados.categorias[0], duracao: 60, ativo: true } });
+  const visiveis = dados.servicos.filter(casa).length;
   return (
     <>
-      <div className="b-barra-acoes">
-        <p className="b-suave">Os serviços só aparecem na bancada. A área do aluno continua só com Yoga e Pilates.</p>
-        <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ tipo: 'servico', v: { categoria: dados.categorias[0], duracao: 60, ativo: true } })}>Novo serviço</button>
-      </div>
-      {dados.categorias.map((c) => {
-        const lista = dados.servicos.filter((s) => s.categoria === c);
-        if (!lista.length) return null;
-        return (
-          <section key={c} className={`s-cat s-cat--${COR_CATEGORIA[c]}`}>
-            <h2 className="s-cat__titulo">{c}</h2>
-            <ul className="s-cat__lista">
-              {lista.map((s) => {
-                const pacs = dados.pacotes.filter((p) => p.servicoId === s.id);
-                return (
-                  <li key={s.id} className={s.ativo ? '' : 'inativo'}>
-                    <div className="s-cat__serv">
-                      <strong>{s.nome}</strong>
-                      <span className="b-suave">{s.duracao} min{s.descricao ? ` · ${s.descricao}` : ''}</span>
-                      {pacs.length > 0 && (
-                        <span className="s-cat__pacotes">
-                          {pacs.map((p) => (
-                            <button key={p.id} type="button" className={`s-pacote${p.ativo ? '' : ' inativo'}`} onClick={() => setEditar({ tipo: 'pacote', v: p })}>
-                              {p.nome ? `${p.nome} · ` : ''}{p.sessoes} sessões · {real(p.preco)}
-                            </button>
-                          ))}
+      <Barra resumo={`${plural(dados.servicos.length, 'serviço', 'serviços')} · ${plural(dados.pacotes.length, 'pacote', 'pacotes')}`} titulo="Serviços e pacotes" ajuda="Os serviços só aparecem na bancada. A área do aluno continua só com Yoga e Pilates.">
+        <input type="search" className="cg-busca" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar serviço" aria-label="Buscar serviço" />
+        <button type="button" className="botao botao--cheio botao--p" onClick={novoServico}>Novo serviço</button>
+      </Barra>
+      {dados.servicos.length === 0 && <Vazio titulo="Nenhum serviço cadastrado" acao={<button type="button" className="botao botao--cheio botao--p" onClick={novoServico}>Novo serviço</button>} />}
+      {dados.servicos.length > 0 && visiveis === 0 && <Vazio titulo="Nenhum serviço com esse nome">Tente outra palavra.</Vazio>}
+      <div className="cg-cats">
+        {dados.categorias.map((c) => {
+          const lista = dados.servicos.filter((s) => s.categoria === c).filter(casa);
+          if (!lista.length) return null;
+          return (
+            <section key={c} className={`cg-cat cg-cat--${COR_CATEGORIA[c]}`}>
+              <h3 className="cg-cat__titulo"><i aria-hidden="true" />{c}<span>{plural(lista.length, 'serviço', 'serviços')}</span></h3>
+              <ul className="b-itens">
+                {lista.map((s) => {
+                  const pacs = dados.pacotes.filter((p) => p.servicoId === s.id);
+                  return (
+                    <li key={s.id} className={`b-item cg-serv${s.ativo ? '' : ' cg-inativo'}`}>
+                      <div className="b-item__corpo">
+                        <span className="cg-serv__nome">
+                          <span className="b-item__titulo">{s.nome}</span>
+                          {!s.ativo && <Tag tom="apagado">fora da agenda</Tag>}
                         </span>
-                      )}
-                    </div>
-                    <strong className="s-cat__preco">{real(s.preco)}{s.comissao != null && <small className="b-suave b-bloco">comissão {s.comissao}%</small>}</strong>
-                    <div className="b-botoes b-botoes--coluna">
-                      <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'servico', v: s })}>editar</button>
-                      <button type="button" className="link-acao" onClick={() => setEditar({ tipo: 'pacote', v: { servicoId: s.id, sessoes: 5, semJurosAte: 3, validadeDias: 120, ativo: true } })}>+ pacote ou combo</button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        );
-      })}
+                        <span className="b-meta">
+                          <span>{s.duracao} min</span>
+                          {s.comissao != null && <span>comissão {s.comissao}%</span>}
+                        </span>
+                        {s.descricao && <span className="cg-serv__desc">{s.descricao}</span>}
+                        {pacs.length > 0 && (
+                          <span className="cg-pacotes">
+                            {pacs.map((p) => (
+                              <button key={p.id} type="button" className={`cg-pacote${p.ativo ? '' : ' cg-pacote--off'}`} title="Editar pacote" onClick={() => setEditar({ tipo: 'pacote', v: p })}>
+                                {p.nome ? <em>{p.nome}</em> : null}<b>{p.sessoes} sessões</b><span>{real(p.preco)}</span>
+                              </button>
+                            ))}
+                          </span>
+                        )}
+                      </div>
+                      <strong className="cg-preco">{real(s.preco)}</strong>
+                      <div className="cg-serv__acoes">
+                        <button type="button" className="botao botao--fantasma botao--p" aria-label={`Editar ${s.nome}`} onClick={() => setEditar({ tipo: 'servico', v: s })}>Editar</button>
+                        <button type="button" className="botao botao--fantasma botao--p" aria-label={`Novo pacote ou combo de ${s.nome}`} onClick={() => setEditar({ tipo: 'pacote', v: { servicoId: s.id, sessoes: 5, semJurosAte: 3, validadeDias: 120, ativo: true } })}>+ Pacote ou combo</button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
       {editar?.tipo === 'servico' && <EditarServico s={editar.v} categorias={dados.categorias} produtos={dados.produtos || []} profissionais={dados.profissionais || []} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
       {editar?.tipo === 'pacote' && <EditarPacote p={editar.v} servicos={dados.servicos} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} />}
     </>
@@ -1229,27 +1246,30 @@ function EditarServico({ s, categorias, produtos = [], profissionais = [], aoFec
   return (
     <Modal rotulo={f.categoria} titulo={s.id ? s.nome : 'Novo serviço'} aoFechar={aoFechar}>
       <div className="b-form">
-        <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Área</span><select value={f.categoria} onChange={(e) => {
-            setF({ ...f, categoria: e.target.value });
-            if (!mexeuQuem && (!s.id || ninguemFazia)) setQuem(daArea(e.target.value));
-          }}>{categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
-          <label className="b-campo"><span className="rotulo">Duração (min)</span><input type="number" min={10} step={5} {...campo('duracao')} /></label>
-        </div>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Preço (R$)</span><input inputMode="decimal" {...campo('preco')} /></label>
-          <label className="b-campo"><span className="rotulo">Parcelas sem juros</span><select {...campo('semJurosAte')}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
-        </div>
-        <label className="b-campo"><span className="rotulo">Descrição curta</span><input {...campo('descricao')} /></label>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Comissão deste serviço (%)</span>
-            <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Vazio = a padrão de quem atende" /></label>
-          <label className="b-campo"><span className="rotulo">Retorno sugerido (dias)</span>
-            <input inputMode="numeric" value={f.retornoDias} onChange={(e) => setF({ ...f, retornoDias: e.target.value.replace(/\D/g, '').slice(0, 3) })} placeholder="Vazio = sem retorno" /></label>
-        </div>
-        <fieldset className="b-opcoes">
-          <legend className="rotulo">Produtos usados em cada sessão (baixa o estoque sozinho)</legend>
+        <BlocoForm titulo="Serviço">
+          <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Área</span><select value={f.categoria} onChange={(e) => {
+              setF({ ...f, categoria: e.target.value });
+              if (!mexeuQuem && (!s.id || ninguemFazia)) setQuem(daArea(e.target.value));
+            }}>{categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
+            <label className="b-campo"><span className="rotulo">Duração (min)</span><input type="number" min={10} step={5} {...campo('duracao')} /></label>
+          </div>
+          <label className="b-campo"><span className="rotulo">Descrição curta</span><input {...campo('descricao')} /></label>
+        </BlocoForm>
+        <BlocoForm titulo="Preço e comissão">
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Preço (R$)</span><input inputMode="decimal" {...campo('preco')} /></label>
+            <label className="b-campo"><span className="rotulo">Parcelas sem juros</span><select {...campo('semJurosAte')}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
+          </div>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Comissão deste serviço (%)</span>
+              <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Vazio = a padrão de quem atende" /></label>
+            <label className="b-campo"><span className="rotulo">Retorno sugerido (dias)</span>
+              <input inputMode="numeric" value={f.retornoDias} onChange={(e) => setF({ ...f, retornoDias: e.target.value.replace(/\D/g, '').slice(0, 3) })} placeholder="Vazio = sem retorno" /></label>
+          </div>
+        </BlocoForm>
+        <BlocoForm titulo="Produtos usados em cada sessão" ajuda="Baixa o estoque sozinho a cada atendimento.">
           {f.consumo.map((c, i) => {
             const pr = produtos.find((x) => x.id === c.produtoId);
             return (
@@ -1263,14 +1283,13 @@ function EditarServico({ s, categorias, produtos = [], profissionais = [], aoFec
               </div>
             );
           })}
-          {produtos.length ? <button type="button" className="link-acao" onClick={() => setF({ ...f, consumo: [...f.consumo, { produtoId: '', qtd: 1 }] })}>+ produto</button>
+          {produtos.length ? <button type="button" className="botao botao--linha botao--p cg-mais" onClick={() => setF({ ...f, consumo: [...f.consumo, { produtoId: '', qtd: 1 }] })}>+ Produto</button>
             : <span className="b-suave">Cadastre os insumos em Estoque para usar aqui.</span>}
-        </fieldset>
+        </BlocoForm>
         {ativas.length > 0 && (
-          <fieldset className="b-opcoes s-quemfaz">
-            <legend className="rotulo">Quem faz este serviço</legend>
-            {ninguemFazia && <p className="aviso">Ninguém estava fazendo este serviço, por isso ele não aparecia para agendar. Já marcamos quem atende {f.categoria}: confira e salve.</p>}
-            <div className="s-quemfaz__lista">
+          <BlocoForm titulo="Quem faz este serviço" className="s-quemfaz" extra={<Tag tom={quem.length ? 'neutro' : 'aviso'}>{quem.length ? plural(quem.length, 'pessoa', 'pessoas') : 'ninguém'}</Tag>}>
+            {ninguemFazia && <Aviso tom="aviso">Ninguém fazia este serviço, por isso ele não aparecia para agendar. Já marcamos quem atende {f.categoria}: confira e salve.</Aviso>}
+            <div className="s-quemfaz__lista cg-quem">
               {ativas.map((p) => (
                 <label key={p.nome} className="b-check">
                   <input type="checkbox" checked={quem.includes(p.nome)} onChange={(e) => { setMexeuQuem(true); setQuem((l) => (e.target.checked ? [...l, p.nome] : l.filter((n) => n !== p.nome))); }} />
@@ -1278,10 +1297,10 @@ function EditarServico({ s, categorias, produtos = [], profissionais = [], aoFec
                 </label>
               ))}
             </div>
-            {quem.length === 0 && <p className="b-suave">Sem ninguém marcado, o serviço não aparece para agendar.</p>}
-          </fieldset>
+            {quem.length === 0 && <Aviso tom="aviso">Sem ninguém marcado, o serviço não aparece para agendar.</Aviso>}
+          </BlocoForm>
         )}
-        <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Disponível para agendar</label>
+        <Interruptor checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })}>Disponível para agendar</Interruptor>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
@@ -1306,19 +1325,26 @@ function EditarPacote({ p, servicos, aoFechar, aoSalvar }) {
   return (
     <Modal rotulo={serv?.nome} titulo={p.id ? (p.nome || `Pacote de ${p.sessoes} sessões`) : 'Novo pacote ou combo'} aoFechar={aoFechar}>
       <div className="b-form">
-        <label className="b-campo"><span className="rotulo">Nome do combo (opcional)</span>
-          <input value={f.nome} maxLength={60} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Combo Alívio" /></label>
-        <p className="b-suave">Aparece na comanda, na busca e na ficha do cliente: “{f.nome.trim() ? f.nome.trim() + ' · ' : ''}{serv?.nome} · pacote {f.sessoes || '?'} sessões”. Cada agendamento deste serviço desconta uma sessão.</p>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Sessões</span><input type="number" min={2} max={50} {...campo('sessoes')} disabled={!!p.id} /></label>
-          <label className="b-campo"><span className="rotulo">Preço do pacote (R$)</span><input inputMode="decimal" {...campo('preco')} /></label>
-        </div>
-        {avulso > 0 && preco > 0 && <p className="b-suave">Avulso sairia {real(avulso)} · economia de {real(avulso - preco)} ({Math.round((1 - preco / avulso) * 100)}%).</p>}
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Validade (dias)</span><input type="number" min={7} {...campo('validadeDias')} /></label>
-          <label className="b-campo"><span className="rotulo">Parcelas sem juros</span><select {...campo('semJurosAte')}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
-        </div>
-        <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Pacote à venda</label>
+        <BlocoForm titulo="Nome" ajuda="Aparece na comanda, na busca e na ficha do cliente. Cada agendamento deste serviço desconta uma sessão.">
+          <label className="b-campo"><span className="rotulo">Nome do combo (opcional)</span>
+            <input value={f.nome} maxLength={60} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Combo Alívio" /></label>
+          <div className="cg-previa">
+            <span className="b-suave">Aparece assim</span>
+            <strong>{f.nome.trim() ? f.nome.trim() + ' · ' : ''}{serv?.nome} · pacote {f.sessoes || '?'} sessões</strong>
+          </div>
+        </BlocoForm>
+        <BlocoForm titulo="Valor e regras">
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Sessões</span><input type="number" min={2} max={50} {...campo('sessoes')} disabled={!!p.id} /></label>
+            <label className="b-campo"><span className="rotulo">Preço do pacote (R$)</span><input inputMode="decimal" {...campo('preco')} /></label>
+          </div>
+          {avulso > 0 && preco > 0 && <Aviso tom={avulso - preco >= 0 ? 'ok' : 'aviso'}>Avulso sairia {real(avulso)} · economia de {real(avulso - preco)} ({Math.round((1 - preco / avulso) * 100)}%)</Aviso>}
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Validade (dias)</span><input type="number" min={7} {...campo('validadeDias')} /></label>
+            <label className="b-campo"><span className="rotulo">Parcelas sem juros</span><select {...campo('semJurosAte')}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
+          </div>
+        </BlocoForm>
+        <Interruptor checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })}>Pacote à venda</Interruptor>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
@@ -1358,27 +1384,30 @@ export function Profissionais() {
     }));
     return out;
   }, [pessoas]);
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={5} altura={64} />;
   if (!dados) return <Erro>{erro}</Erro>;
   const temPilates = (aulas?.professoras || []).some((x) => x.modalidades.includes('Pilates'));
   const wellhubAtual = wellhub ?? (aulas?.wellhubValor ? String(aulas.wellhubValor).replace('.', ',') : '');
+  const novaPessoa = () => setEditar({ p: { categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: null });
   return (
     <>
-      <div className="b-barra-acoes">
-        <p className="b-suave">
-          Todas as pessoas da equipe num lugar só: quem atende serviços, quem dá aula ou as duas coisas. Quem faz as duas aparece na agenda numa coluna só, com serviços e aulas juntos
-          (o nome precisa ser igual nos dois lados). Para a pessoa ver a própria agenda, ela precisa de um acesso em Equipe com o mesmo nome.
-        </p>
-        <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ p: { categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: null })}>Cadastrar profissional</button>
-      </div>
+      <Barra resumo={plural(pessoas.length, 'pessoa', 'pessoas')} titulo="Profissionais" ajuda={(
+        <>
+          <span>Todas as pessoas da equipe num lugar só: quem atende serviços, quem dá aula ou as duas coisas.</span>
+          <span>Quem faz as duas aparece na agenda numa coluna só, com serviços e aulas juntos (o nome precisa ser igual nos dois lados).</span>
+          <span>Para a pessoa ver a própria agenda, ela precisa de um acesso em Equipe com o mesmo nome.</span>
+        </>
+      )}>
+        <button type="button" className="botao botao--cheio botao--p" onClick={novaPessoa}>Cadastrar profissional</button>
+      </Barra>
       {parecidos.map(({ sv, au }) => (
-        <p key={sv.nome + au.nome} className="aviso">
-          <strong>{sv.nome}</strong> (serviços) e <strong>{au.nome}</strong> (aulas) parecem ser a mesma pessoa, mas estão com nomes diferentes. Para aparecerem na mesma coluna da agenda, use o mesmo nome.{' '}
-          <button type="button" className="link-acao" onClick={() => setEditar({ p: { ...sv.servico, nomeOriginal: sv.servico.nome, nome: au.nome }, aula: au })}>Usar o nome “{au.nome}” em {sv.nome}</button>
-        </p>
+        <Aviso key={sv.nome + au.nome} tom="aviso" titulo="Mesma pessoa com dois nomes?"
+          acao={<button type="button" className="botao botao--linha botao--p" onClick={() => setEditar({ p: { ...sv.servico, nomeOriginal: sv.servico.nome, nome: au.nome }, aula: au })}>Usar “{au.nome}” em {sv.nome}</button>}>
+          <strong>{sv.nome}</strong> (serviços) e <strong>{au.nome}</strong> (aulas) precisam ter o mesmo nome para ficarem na mesma coluna da agenda.
+        </Aviso>
       ))}
       {temPilates && (
-        <div className="pa-wellhub-linha">
+        <section className="b-cartao cg-wellhub">
           <label className="b-campo pa-wellhub">
             <span className="rotulo">A Casa recebe por check-in Wellhub (R$)</span>
             <input inputMode="decimal" value={wellhubAtual} placeholder="Ex.: 30" onChange={(e) => { setWellhubSalvo(false); setWellhub(e.target.value.replace(/[^\d,.]/g, '')); }} />
@@ -1387,39 +1416,43 @@ export function Profissionais() {
             setErroW('');
             try { await chamar('salvarPagamentoAulas', { wellhubValor: wellhub, professoras: [] }); setWellhubSalvo(true); setWellhub(null); recarregarAulas(); } catch (e) { setErroW(e.message); }
           }}>Salvar valor</BotaoAcao>
-          {wellhubSalvo && <span className="b-ok" role="status">Salvo.</span>}
-        </div>
+          {wellhubSalvo && <Tag tom="ok">Salvo</Tag>}
+        </section>
       )}
       <Erro>{erroW}</Erro>
-      {pessoas.length === 0 && <Vazio titulo="Equipe ainda vazia" forma="presenca">Cadastre a equipe para começar a agendar serviços. Quem dá aula aparece aqui sozinho, assim que entra na Grade de aulas.</Vazio>}
-      <ul className="b-equipe">
-        {pessoas.map(({ nome, servico: p, aula: a }) => {
-          const inativo = p ? !p.ativo && !a : false;
-          return (
-            <li key={nome} className={inativo ? 'inativo' : ''}>
-              <div className="b-equipe__ini" aria-hidden="true">{nome.slice(0, 1)}</div>
-              <div>
-                <strong>{nome}</strong>
-                <span className="b-suave pf-tipos-resumo">
-                  {p && <Tag tom={p.ativo ? 'neutro' : 'apagado'}>{p.servicos?.length ? `${plural(p.servicos.length, 'serviço', 'serviços')} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'Serviços'}</Tag>}
-                  {a && <Tag tom="ambar">{a.modalidades.length ? `Aulas de ${a.modalidades.join(' e ')}` : 'Aulas (fora da grade)'}</Tag>}
-                </span>
-              </div>
-              <span className="b-suave">{p ? `${resumoHorario(p)}${Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}` : 'horários na Grade de aulas'}</span>
-              <span className="b-suave">
-                {[p && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean).join(' · ')}
-              </span>
-              <span className="pf-acoes">
-                <button type="button" className="link-acao" onClick={() => setEditar({ p: p ? { ...p, nomeOriginal: p.nome } : { nome, categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: a, soAula: !p })}>editar</button>
-                {(p || (a && !a.daGrade?.length)) && (
-                  <BotaoAcao className="link-sair" confirmar={`Apagar o cadastro de ${nome}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
-                    acao={async () => { setErroW(''); try { setDados(await chamar('excluirProfissional', { nome })); recarregarAulas(); } catch (e) { setErroW(e.message); } }}>apagar</BotaoAcao>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      {pessoas.length === 0 && <Vazio titulo="Equipe ainda vazia" forma="presenca" acao={<button type="button" className="botao botao--cheio botao--p" onClick={novaPessoa}>Cadastrar profissional</button>}>Quem dá aula aparece aqui sozinho, assim que entra na Grade de aulas.</Vazio>}
+      {pessoas.length > 0 && (
+        <ul className="b-itens cg-equipe">
+          {pessoas.map(({ nome, servico: p, aula: a }) => {
+            const inativo = p ? !p.ativo && !a : false;
+            const comissao = [p && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean);
+            return (
+              <li key={nome} className={`b-item cg-pessoa${inativo ? ' cg-inativo' : ''}`}>
+                <Avatar nome={nome} />
+                <div className="b-item__corpo">
+                  <span className="b-item__titulo">{nome}</span>
+                  <span className="pf-tipos-resumo">
+                    {p && <Tag tom={p.ativo ? 'neutro' : 'apagado'}>{p.servicos?.length ? `${plural(p.servicos.length, 'serviço', 'serviços')} · ${p.categorias.join(', ')}` : p.categorias.join(', ') || 'Serviços'}</Tag>}
+                    {a && <Tag tom="ambar">{a.modalidades.length ? `Aulas de ${a.modalidades.join(' e ')}` : 'Aulas (fora da grade)'}</Tag>}
+                  </span>
+                  <span className="b-meta">
+                    <span>{p ? `${resumoHorario(p)}${Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}` : 'horários na Grade de aulas'}</span>
+                    {comissao.map((t) => <span key={t}>{t}</span>)}
+                  </span>
+                </div>
+                <div className="b-item__lado cg-pessoa__acoes">
+                  <button type="button" className="botao botao--fantasma botao--p" aria-label={`Editar ${nome}`} onClick={() => setEditar({ p: p ? { ...p, nomeOriginal: p.nome } : { nome, categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: a, soAula: !p })}>Editar</button>
+                  {(p || (a && !a.daGrade?.length)) && (
+                    <BotaoAcao className="botao botao--fantasma botao--p cg-perigo" confirmar={`Apagar o cadastro de ${nome}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
+                      aria-label={`Apagar o cadastro de ${nome}`}
+                      acao={async () => { setErroW(''); try { setDados(await chamar('excluirProfissional', { nome })); recarregarAulas(); } catch (e) { setErroW(e.message); } }}>Apagar</BotaoAcao>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {editar && (
         <EditarProfissional p={editar.p} aula={editar.aula} soAula={editar.soAula} wellhubValor={aulas?.wellhubValor || 0} categorias={dados.categorias} servicos={dados.servicos} casa={dados.horarioCasa}
           aoFechar={() => setEditar(null)} aoSalvar={(d) => { if (d) setDados(d); recarregarAulas(); setEditar(null); }} />
@@ -1490,78 +1523,79 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
   return (
     <Modal rotulo="Profissional" titulo={p.nome || 'Cadastrar profissional'} aoFechar={aoFechar} largo>
       <div className="b-form">
-        <fieldset className="pf-tipos">
-          <legend className="rotulo">O que esta pessoa faz</legend>
-          <label className="b-check"><input type="checkbox" checked={atende} onChange={(e) => setAtende(e.target.checked)} /> Atende serviços (estética e fisioterapia)</label>
-          <label className="b-check"><input type="checkbox" checked={daAula} onChange={(e) => setDaAula(e.target.checked)} /> Dá aula (Pilates ou Yoga)</label>
-          {atende && daAula && <p className="b-suave">Na agenda, serviços e aulas ficam na mesma coluna, e a pessoa vê tudo com um só acesso.</p>}
-        </fieldset>
-        <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
-        {atende && daAula && nomeAula && semAcentoJs(nomeAula) !== semAcentoJs(f.nome) && (
-          <p className="aviso">Nas aulas (Grade de aulas) o nome é “{nomeAula}”. Para serviços e aulas aparecerem juntos na agenda, os dois nomes precisam ser iguais.</p>
-        )}
+        <BlocoForm titulo="Dados" ajuda={atende && daAula ? 'Na agenda, serviços e aulas ficam na mesma coluna, e a pessoa vê tudo com um só acesso.' : undefined}>
+          <label className="b-campo"><span className="rotulo">Nome (como aparece na agenda)</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></label>
+          {atende && daAula && nomeAula && semAcentoJs(nomeAula) !== semAcentoJs(f.nome) && (
+            <Aviso tom="aviso">Nas aulas (Grade de aulas) o nome é “{nomeAula}”. Para serviços e aulas aparecerem juntos na agenda, os dois nomes precisam ser iguais.</Aviso>
+          )}
+          <div className="cg-tipos" role="group" aria-label="O que esta pessoa faz">
+            <Interruptor checked={atende} onChange={(e) => setAtende(e.target.checked)} detalhe="Estética e fisioterapia">Atende serviços</Interruptor>
+            <Interruptor checked={daAula} onChange={(e) => setDaAula(e.target.checked)} detalhe="Pilates ou Yoga">Dá aula</Interruptor>
+          </div>
+          {atende && <Interruptor checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} detalhe="Desligado, para de aparecer na agenda de serviços">Atendendo</Interruptor>}
+        </BlocoForm>
+
         {atende && (<>
-        <HorarioSemanal valor={f.horarios} aoMudar={(h) => setF((x) => ({ ...x, horarios: h }))} />
-        <DiasEspeciais valor={f.especiais} aoMudar={(e) => setF((x) => ({ ...x, especiais: e }))} />
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Comissão padrão nos serviços (%)</span><input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 40" /></label>
-          <label className="b-campo"><span className="rotulo">Comissão nos produtos (%)</span><input inputMode="decimal" value={f.comissaoProduto} onChange={(e) => setF({ ...f, comissaoProduto: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 10" /></label>
-        </div>
+          <HorarioSemanal valor={f.horarios} aoMudar={(h) => setF((x) => ({ ...x, horarios: h }))} />
+          <DiasEspeciais valor={f.especiais} aoMudar={(e) => setF((x) => ({ ...x, especiais: e }))} />
 
-        <fieldset className="pf-servicos">
-          <legend className="rotulo">Serviços e comissão · {qtd} marcado{qtd === 1 ? '' : 's'}</legend>
-          <p className="b-suave">Marque o que esta pessoa faz. Comissão ou tempo em branco seguem o padrão (o número cinza).</p>
-          {porArea.map(([area, lista]) => {
-            const n = lista.filter((s) => f.servicos[s.id]).length;
-            return (
-              <div key={area} className="pf-grupo">
-                <div className="pf-linha pf-linha--titulo">
-                  <label className="pf-nome">
-                    <input type="checkbox" checked={n === lista.length} ref={(el) => { if (el) el.indeterminate = n > 0 && n < lista.length; }} onChange={(e) => marcar(lista, e.target.checked)} />
-                    <strong>{area}</strong>
-                  </label>
-                  <span>Comissão</span>
-                  <span>Tempo</span>
+          <BlocoForm titulo="Comissões nos serviços">
+            <div className="b-linha2">
+              <label className="b-campo"><span className="rotulo">Padrão nos serviços (%)</span><input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 40" /></label>
+              <label className="b-campo"><span className="rotulo">Nos produtos (%)</span><input inputMode="decimal" value={f.comissaoProduto} onChange={(e) => setF({ ...f, comissaoProduto: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Ex.: 10" /></label>
+            </div>
+          </BlocoForm>
+
+          <fieldset className="pf-servicos cg-bloco">
+            <legend className="cg-bloco__titulo">Serviços que faz<Tag tom={qtd ? 'neutro' : 'aviso'}>{qtd} marcado{qtd === 1 ? '' : 's'}</Tag><Ajuda titulo="Serviços que faz">Marque o que esta pessoa faz. Comissão ou tempo em branco seguem o padrão (o número cinza).</Ajuda></legend>
+            {porArea.map(([area, lista]) => {
+              const n = lista.filter((s) => f.servicos[s.id]).length;
+              return (
+                <div key={area} className="pf-grupo">
+                  <div className="pf-linha pf-linha--titulo">
+                    <label className="pf-nome">
+                      <input type="checkbox" checked={n === lista.length} ref={(el) => { if (el) el.indeterminate = n > 0 && n < lista.length; }} onChange={(e) => marcar(lista, e.target.checked)} />
+                      <strong>{area}</strong>
+                    </label>
+                    <span>Comissão</span>
+                    <span>Tempo</span>
+                  </div>
+                  {lista.map((s) => {
+                    const c = f.servicos[s.id];
+                    return (
+                      <div key={s.id} className={`pf-linha${c ? '' : ' pf-linha--fora'}`}>
+                        <label className="pf-nome"><input type="checkbox" checked={!!c} onChange={(e) => marcar([s], e.target.checked)} /><span>{s.nome}</span></label>
+                        <label className="pf-num">
+                          <input inputMode="decimal" disabled={!c} value={c?.comissao ?? ''} placeholder={String(s.comissao ?? (num(f.comissao) || 0))} aria-label={`Comissão em ${s.nome}`}
+                            onChange={(e) => mudar(s.id, 'comissao', e.target.value.replace(/[^\d,.]/g, ''))} />
+                          <span>%</span>
+                        </label>
+                        <label className="pf-num">
+                          <input inputMode="numeric" disabled={!c} value={c?.duracao ?? ''} placeholder={String(s.duracao)} aria-label={`Tempo de ${s.nome}`}
+                            onChange={(e) => mudar(s.id, 'duracao', e.target.value.replace(/\D/g, '').slice(0, 3))} />
+                          <span>min</span>
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
-                {lista.map((s) => {
-                  const c = f.servicos[s.id];
-                  return (
-                    <div key={s.id} className={`pf-linha${c ? '' : ' pf-linha--fora'}`}>
-                      <label className="pf-nome"><input type="checkbox" checked={!!c} onChange={(e) => marcar([s], e.target.checked)} /><span>{s.nome}</span></label>
-                      <label className="pf-num">
-                        <input inputMode="decimal" disabled={!c} value={c?.comissao ?? ''} placeholder={String(s.comissao ?? (num(f.comissao) || 0))} aria-label={`Comissão em ${s.nome}`}
-                          onChange={(e) => mudar(s.id, 'comissao', e.target.value.replace(/[^\d,.]/g, ''))} />
-                        <span>%</span>
-                      </label>
-                      <label className="pf-num">
-                        <input inputMode="numeric" disabled={!c} value={c?.duracao ?? ''} placeholder={String(s.duracao)} aria-label={`Tempo de ${s.nome}`}
-                          onChange={(e) => mudar(s.id, 'duracao', e.target.value.replace(/\D/g, '').slice(0, 3))} />
-                        <span>min</span>
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </fieldset>
-
-        <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF({ ...f, ativo: e.target.checked })} /> Atendendo</label>
+              );
+            })}
+          </fieldset>
         </>)}
 
         {daAula && (
-          <fieldset className="pf-aulas">
-            <legend className="rotulo">Aulas</legend>
+          <fieldset className="pf-aulas cg-bloco">
+            <legend className="cg-bloco__titulo">Aulas<Ajuda titulo="Valor de cada aula">Pilates: comissão sobre o valor de cada aluno na aula (o plano dividido pelas aulas dele). Yoga: valor fixo por aula dada. Contam as aulas que já terminaram, a partir da data abaixo.</Ajuda></legend>
             <div className="pf-mods" role="group" aria-label="Modalidades que a pessoa ensina">
               {['Pilates', 'Yoga'].map((t) => (
                 <label key={t} className={`b-check${mods.includes(t) ? ' pf-mods--on' : ''}`}>
                   <input type="checkbox" checked={mods.includes(t)} disabled={daGrade.includes(t)} onChange={() => alternar(t)} /> {t}
-                  {daGrade.includes(t) && <span className="b-suave"> · está na Grade de aulas</span>}
+                  {daGrade.includes(t) && <span className="b-suave"> · na Grade de aulas</span>}
                 </label>
               ))}
             </div>
-            {mods.some((t) => !daGrade.includes(t)) && <p className="b-suave">As aulas só aparecem na agenda e no site quando o nome da pessoa estiver como professor(a) na Grade de aulas (Catálogo → Grade de aulas).</p>}
-            <p className="b-suave">Pilates: comissão sobre o valor de cada aluno na aula (o plano dividido pelas aulas dele). Yoga: valor fixo por aula dada. Contam as aulas que já terminaram, a partir da data abaixo.</p>
+            {mods.some((t) => !daGrade.includes(t)) && <Aviso tom="info">As aulas só aparecem na agenda e no site quando o nome da pessoa estiver como professor(a) na Grade de aulas (Catálogo → Grade de aulas).</Aviso>}
             <div className="pa-campos">
               {pilates && <label className="b-campo"><span className="rotulo">Pilates · % por aluno</span>
                 <input inputMode="decimal" value={au.pilatesPct} placeholder="Ex.: 40" onChange={(e) => setAu({ ...au, pilatesPct: e.target.value.replace(/[^\d,.]/g, '') })} /></label>}
@@ -1577,16 +1611,14 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={salvar}>Salvar</BotaoAcao>
         {(temServico || (aula && !daGrade.length)) && (
-          <>
-            <div className="b-separador" />
-            <BotaoAcao className="link-sair" confirmar={`Apagar o cadastro de ${p.nomeOriginal || nomeAula}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
+          <BlocoForm titulo="Apagar cadastro" className="cg-risco" ajuda='Só apaga se não houver horário marcado daqui para a frente, bloqueio, comanda aberta ou aula na Grade. Para só parar de agendar, desmarque "Atendendo".'>
+            <BotaoAcao className="botao botao--linha botao--p cg-perigo" confirmar={`Apagar o cadastro de ${p.nomeOriginal || nomeAula}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
               acao={async () => { setErro(''); try { aoSalvar(await chamar('excluirProfissional', { nome: p.nomeOriginal || nomeAula })); } catch (e) { setErro(e.message); } }}>
-              apagar este cadastro
+              Apagar este cadastro
             </BotaoAcao>
-            <p className="b-suave">Só apaga se não houver horário marcado daqui para a frente, bloqueio, comanda aberta ou aula na Grade. Para só parar de agendar, desmarque "Atendendo".</p>
-          </>
+          </BlocoForm>
         )}
-        {!temServico && daGrade.length > 0 && <p className="b-suave">Esta pessoa aparece aqui porque dá aula na Grade de aulas. Para tirar, troque o(a) professor(a) dessas aulas na Grade (Catálogo → Grade de aulas).</p>}
+        {!temServico && daGrade.length > 0 && <Aviso tom="info">Esta pessoa aparece aqui porque dá aula na Grade de aulas. Para tirar, troque o(a) professor(a) dessas aulas na Grade (Catálogo → Grade de aulas).</Aviso>}
       </div>
     </Modal>
   );
