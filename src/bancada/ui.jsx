@@ -449,11 +449,12 @@ export function Ajuda({ titulo, children, alinhar = 'esquerda' }) {
   useEffect(() => {
     if (!aberta) return undefined;
     const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberta(false); };
-    const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
+    // o Esc fecha só o "?" (captura + stopImmediatePropagation): a folha por baixo continua aberta
+    const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setAberta(false); } };
     document.addEventListener('mousedown', fora);
     document.addEventListener('touchstart', fora);
-    document.addEventListener('keydown', esc);
-    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('touchstart', fora); document.removeEventListener('keydown', esc); };
+    document.addEventListener('keydown', esc, true);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('touchstart', fora); document.removeEventListener('keydown', esc, true); };
   }, [aberta]);
   return (
     <span className="b-ajuda" ref={ref}>

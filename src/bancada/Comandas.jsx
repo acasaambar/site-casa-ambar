@@ -945,8 +945,19 @@ function RodapeAcao({ rotulo, valor, aviso, erro, children }) {
   );
 }
 
+// ao abrir o pagamento, leva a folha até ele (a comanda é longa e o pagamento nasce abaixo dela)
+function useRolarAteAqui() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const t = setTimeout(() => ref.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }), 80);
+    return () => clearTimeout(t);
+  }, []);
+  return ref;
+}
+
 function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
   const { chamar } = useBancada();
+  const refPagar = useRolarAteAqui();
   const [linhas, setLinhas] = useState([{ ...LINHA_PAGAMENTO, valor: String(c.total.toFixed(2)).replace('.', ',') }]);
   const [erro, setErro] = useState('');
   const { falta, semBandeira } = resumoLinhas(linhas, c.total);
@@ -955,7 +966,7 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
   const formas = semVale ? METODOS : METODOS.concat(['Vale-presente']);
   return (
     <>
-      <section className="cm-pagar" aria-label="Pagamento">
+      <section className="cm-pagar" aria-label="Pagamento" ref={refPagar}>
         <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
         <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={c.total} formas={formas} />
         {semVale && <Aviso tom="info">Esta comanda vende um vale-presente: não dá para pagar com outro vale.</Aviso>}
@@ -977,6 +988,7 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
 // Comanda fechada: corrigir COMO foi pago (a divisão em Pix, dinheiro, cartão…), sem reabrir. O total pago não muda.
 function CorrigirFormas({ c, aoCorrigir, aoCancelar }) {
   const { chamar } = useBancada();
+  const refCorrigir = useRolarAteAqui();
   const reais = (c.pagamentos || []).filter((p) => p.metodo !== 'Vale-presente');
   const vale = (c.pagamentos || []).filter((p) => p.metodo === 'Vale-presente').reduce((t, p) => t + Number(p.valor || 0), 0);
   const total = Math.round(reais.reduce((t, p) => t + Number(p.valor || 0), 0) * 100) / 100;
@@ -986,7 +998,7 @@ function CorrigirFormas({ c, aoCorrigir, aoCancelar }) {
   const { falta, semBandeira } = resumoLinhas(linhas, total);
   return (
     <>
-      <section className="cm-pagar cm-pagar--corrigir" aria-label="Corrigir forma de pagamento">
+      <section className="cm-pagar cm-pagar--corrigir" aria-label="Corrigir forma de pagamento" ref={refCorrigir}>
         <h3 className="cm-pagar__titulo">Corrigir como foi pago</h3>
         <Aviso tom="info" titulo={`Total pago em dinheiro, cartão ou Pix: ${real(total)}`}>
           {vale > 0 ? `Mais ${real(vale)} em vale-presente, que não muda. ` : ''}Mude a divisão: o caixa e os relatórios acompanham.

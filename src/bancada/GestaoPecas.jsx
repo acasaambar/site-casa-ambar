@@ -57,7 +57,7 @@ export function KpiG({ icone = 'moeda', rotulo, valor, detalhe, tom, etiqueta, e
 
 export function BotaoCsv({ aoClicar, desabilitado, rotulo = 'CSV', titulo = 'Baixar planilha (CSV)' }) {
   return (
-    <button type="button" className="botao botao--fantasma botao--p gs-csv" onClick={aoClicar} disabled={desabilitado} title={titulo} aria-label={`${titulo}`}>
+    <button type="button" className="botao botao--fantasma botao--p gs-csv" onClick={aoClicar} disabled={desabilitado} title={titulo}>
       <Ic nome="baixar" tam={16} />{rotulo}
     </button>
   );
