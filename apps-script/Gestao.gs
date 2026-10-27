@@ -485,6 +485,79 @@ function bancada_meusGanhos(d, m) {
     faltas: atend.filter(function (a) { return a.status === 'falta'; }).length };
 }
 
+// Relatório do mês de uma pessoa da equipe, para conferir as contas com ela e imprimir.
+// Administração: qualquer pessoa. Profissional: só o dela (o nome vem do acesso, não do pedido).
+// Atendimentos e aulas do mês com o valor da comissão de cada um, faltas, o que já foi pago (e como) e o que ficou a pagar.
+function bancada_relatorioProfissional(d, m) {
+  var mes = mesValido(d.mes);
+  var de = mes + '-01', ate = mes + '-' + diasNoMes(mes);
+  var nome = m.papel === 'professora' ? String(m.professor_nome || m.nome).trim() : String(d.profissional || '').trim();
+  if (!nome) throw new Error('Escolha a pessoa do relatório.');
+  var chave = semAcento(nome);
+  sincronizarComissoesAulas(de, ate);
+  var todas = lerAba('Comissoes').filter(function (c) { return c.id && c.status !== 'cancelada' && semAcento(c.profissional) === chave; });
+  var doMes = todas.filter(function (c) { var dt = dataTexto(c.data); return dt >= de && dt <= ate; });
+  var anteriores = todas.filter(function (c) { return c.status === 'a_pagar' && dataTexto(c.data) < de; });
+  var atend = {};
+  lerAba('Atendimentos').forEach(function (a) {
+    if (a.id && semAcento(a.profissional) === chave && dataTexto(a.data) >= de && dataTexto(a.data) <= ate) atend[String(a.id)] = a;
+  });
+  // atendimentos do mês que não geram comissão (cancelado, falta) também entram na contagem
+  var atendLista = Object.keys(atend).map(function (k) { return atend[k]; });
+  var linha = function (c) {
+    var pago = c.status === 'pago';
+    return { data: dataTexto(c.data), item: String(c.item), base: dinheiro(c.base), pct: numero(c.pct), valor: dinheiro(c.valor), pago: pago, pagoEm: pago ? String(c.pago_em || '').slice(0, 10) : '', origem: String(c.origem) };
+  };
+  var atendimentos = [], aulas = [], outras = [];
+  doMes.forEach(function (c) {
+    var l = linha(c);
+    if (c.origem === 'atendimento') {
+      var a = atend[String(c.ref)];
+      l.hora = a ? horaTexto(a.hora) : '';
+      l.cliente = a ? String(a.nome) : '';
+      l.servico = a ? String(a.servico) : l.item;
+      l.obs = a && a.titular ? 'no lugar de ' + a.titular : '';
+      atendimentos.push(l);
+    } else if (c.origem === 'aula' || c.origem === 'aula_fixa') aulas.push(l);
+    else outras.push(l);
+  });
+  var porData = function (x, y) { return x.data.localeCompare(y.data) || String(x.hora || x.item).localeCompare(String(y.hora || y.item)); };
+  atendimentos.sort(porData); aulas.sort(porData); outras.sort(porData);
+  var soma = function (lista, campo) { return dinheiro(lista.reduce(function (t, x) { return t + numero(x[campo]); }, 0)); };
+  // como foi pago: cada pagamento de comissões virou uma despesa (data, forma)
+  var despesas = {};
+  lerAba('Despesas').forEach(function (x) { despesas[String(x.id)] = x; });
+  var grupos = {};
+  doMes.filter(function (c) { return c.status === 'pago'; }).forEach(function (c) {
+    var k = String(c.despesa_id || c.pago_em);
+    var ds = despesas[String(c.despesa_id)];
+    grupos[k] = grupos[k] || { data: String(c.pago_em || '').slice(0, 10), forma: ds ? String(ds.forma || '') : '', valor: 0, qtd: 0 };
+    grupos[k].valor = dinheiro(grupos[k].valor + numero(c.valor));
+    grupos[k].qtd++;
+  });
+  var todasLinhas = doMes.map(linha);
+  return {
+    mes: mes, profissional: nome, geradoEm: agoraTexto(), geradoPor: String(m.nome || m.email || ''),
+    resumo: {
+      atendimentos: atendLista.filter(function (a) { return a.status === 'atendido'; }).length,
+      agendados: atendLista.filter(function (a) { return a.status !== 'cancelado'; }).length,
+      faltas: atendLista.filter(function (a) { return a.status === 'falta'; }).length,
+      cancelados: atendLista.filter(function (a) { return a.status === 'cancelado'; }).length,
+      aulasYoga: aulas.filter(function (x) { return x.origem === 'aula_fixa'; }).length,
+      alunosPilates: aulas.filter(function (x) { return x.origem === 'aula'; }).length,
+      baseAtendimentos: soma(atendimentos, 'base'),
+      comissao: soma(todasLinhas, 'valor'),
+      pago: soma(todasLinhas.filter(function (x) { return x.pago; }), 'valor'),
+      aPagar: soma(todasLinhas.filter(function (x) { return !x.pago; }), 'valor'),
+      anterioresAPagar: dinheiro(anteriores.reduce(function (t, c) { return t + numero(c.valor); }, 0)),
+    },
+    atendimentos: atendimentos, aulas: aulas, outras: outras,
+    totais: { atendimentos: soma(atendimentos, 'valor'), aulas: soma(aulas, 'valor'), outras: soma(outras, 'valor') },
+    pagamentos: Object.keys(grupos).map(function (k) { return grupos[k]; }).sort(function (x, y) { return x.data.localeCompare(y.data); }),
+    anteriores: anteriores.map(linha).sort(porData),
+  };
+}
+
 // ============================================================
 //  DESPESAS E FINANCEIRO
 // ============================================================

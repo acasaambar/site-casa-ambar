@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import RelatorioProfissional from './RelatorioProfissional.jsx';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
+import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Kpi, Abas, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
   METODOS, mesTexto, plural } from './ui.jsx';
 import { BarrasH } from './Graficos.jsx';
 
@@ -217,70 +218,184 @@ function EditarDespesa({ x, categorias, aoFechar, aoSalvar, mes }) {
 }
 
 // ---------- comissões ----------
+const TIPOS_COMISSAO = [['todos', 'Tudo'], ['atendimento', 'Atendimentos'], ['aula', 'Aulas'], ['venda', 'Produtos e vendas']];
+const SITUACOES_COMISSAO = [['todas', 'Todas'], ['a_pagar', 'A pagar'], ['pago', 'Pagas']];
+const tipoDaComissao = (c) => (c.origem === 'atendimento' ? 'atendimento' : c.origem === 'aula' || c.origem === 'aula_fixa' ? 'aula' : 'venda');
+const iniciais = (nome) => String(nome || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+const semAcentoJs = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function Segmentos({ rotulo, valor, aoMudar, itens }) {
+  return (
+    <div className="k-seg">
+      <span className="k-seg__rotulo">{rotulo}</span>
+      <div className="k-seg__lista" role="group" aria-label={rotulo}>
+        {itens.map(([id, texto, n]) => (
+          <button key={id} type="button" className={valor === id ? 'k-seg--ativo' : ''} aria-pressed={valor === id} onClick={() => aoMudar(id)}>
+            {texto}{n != null && <small>{n}</small>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Comissoes({ mes }) {
   const { chamar } = useBancada();
   const { dados, erro, carregando, setDados } = useDados('comissoes', { mes });
   const [sel, setSel] = useState({});
   const [forma, setForma] = useState('Pix');
   const [prof, setProf] = useState('');
+  const [situacao, setSituacao] = useState('todas');
+  const [tipo, setTipo] = useState('todos');
+  const [busca, setBusca] = useState('');
   const [erroA, setErroA] = useState('');
-  const lista = useMemo(() => (dados?.lista || []).filter((c) => !prof || c.profissional === prof), [dados, prof]);
+  const [relatorio, setRelatorio] = useState(null);
+  const todas = dados?.lista || [];
+  // cada filtro conta o que sobra com os outros dois já aplicados
+  const passa = (c, f) => (f.prof === undefined || !f.prof || c.profissional === f.prof)
+    && (f.situacao === undefined || f.situacao === 'todas' || c.status === f.situacao)
+    && (f.tipo === undefined || f.tipo === 'todos' || tipoDaComissao(c) === f.tipo)
+    && (!f.busca || semAcentoJs(`${c.profissional} ${c.item}`).includes(f.busca));
+  const q = semAcentoJs(busca.trim());
+  const lista = useMemo(() => todas.filter((c) => passa(c, { prof, situacao, tipo, busca: q })), [todas, prof, situacao, tipo, q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const contar = (f) => todas.filter((c) => passa(c, { prof, situacao, tipo, busca: q, ...f })).length;
   if (carregando && !dados) return <Carregando />;
   if (!dados) return <Erro>{erro}</Erro>;
-  const escolhidas = lista.filter((c) => sel[c.id] && c.status === 'a_pagar');
+  const inicioMes = `${mes}-01`;
   const aPagarLista = lista.filter((c) => c.status === 'a_pagar');
+  const escolhidas = lista.filter((c) => sel[c.id] && c.status === 'a_pagar');
   const todasMarcadas = escolhidas.length > 0 && escolhidas.length === aPagarLista.length;
   const marcarTodas = (sim) => setSel(Object.fromEntries(aPagarLista.map((c) => [c.id, sim])));
-  const totalSel = escolhidas.reduce((s, c) => s + c.valor, 0);
+  const soma = (xs) => xs.reduce((s, c) => s + c.valor, 0);
+  const totalSel = soma(escolhidas);
+  const totalLista = soma(lista);
+  const totalAPagar = soma(aPagarLista);
+  const totalPago = totalLista - totalAPagar;
   const semRegra = dados.profissionais.filter((p) => !p.comissao);
+  const pessoasRel = [...new Set([...dados.profissionais.map((p) => p.nome), ...dados.porProfissional.map((p) => p.nome)])].sort((a, b) => a.localeCompare(b));
+  const filtrando = !!prof || situacao !== 'todas' || tipo !== 'todos' || !!q;
+  const limpar = () => { setProf(''); setSituacao('todas'); setTipo('todos'); setBusca(''); };
+  const mesNome = mesTexto(mes).split(' ')[0].toLowerCase();
+  const exportar = () => baixarCSV(`comissoes-${mes}${prof ? '-' + semAcentoJs(prof).replace(/\s+/g, '-') : ''}`, [
+    ['data', 'Data'], ['profissional', 'Profissional'], ['item', 'Atendimento ou venda'], [(c) => c.base, 'Base'],
+    [(c) => (c.origem === 'aula_fixa' ? 'por aula' : c.pct), '%'], [(c) => c.valor, 'Comissão'],
+    [(c) => (c.status === 'pago' ? 'paga' : 'a pagar'), 'Situação'], [(c) => c.pagoEm || '', 'Paga em'],
+  ], lista);
   return (
-    <>
+    <div className="k-comissoes">
       {semRegra.length > 0 && <p className="aviso">Sem porcentagem de comissão: {semRegra.map((p) => p.nome).join(', ')}. Defina em Catálogo → Profissionais.</p>}
-      <ul className="k-pessoas">
-        {dados.porProfissional.map((p) => (
-          <li key={p.nome}>
-            <button type="button" className={`k-pessoa${prof === p.nome ? ' k-pessoa--ativa' : ''}`} onClick={() => setProf(prof === p.nome ? '' : p.nome)}>
-              <span className="k-pessoa__nome">{p.nome}</span>
-              <strong className="k-pessoa__valor">{real(p.aPagar)}</strong>
-              <span className="b-suave">a pagar · {real(p.pago)} já pago · {plural(p.qtd, 'lançamento', 'lançamentos')}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {dados.lista.length === 0 && <Vazio titulo="Nenhuma comissão neste mês" forma="presenca">Cada atendimento marcado como atendido e cada aula dada geram a comissão (valores em Catálogo).</Vazio>}
-      {lista.length > 0 && aPagarLista.length > 0 && (
-        <label className="b-check k-todas">
-          <input type="checkbox" checked={todasMarcadas} onChange={(e) => marcarTodas(e.target.checked)} /> Marcar todas as comissões a pagar
-        </label>
+
+      {dados.porProfissional.length > 0 && (
+        <section className="k-equipe" aria-label="Comissões por pessoa">
+          {dados.porProfissional.map((p) => {
+            const total = p.aPagar + p.pago;
+            const pct = total > 0 ? Math.round((p.pago / total) * 100) : 0;
+            return (
+              <article key={p.nome} className={`k-card${prof === p.nome ? ' k-card--ativo' : ''}`}>
+                <button type="button" className="k-card__corpo" aria-pressed={prof === p.nome} onClick={() => setProf(prof === p.nome ? '' : p.nome)}>
+                  <span className="k-card__ini" aria-hidden="true">{iniciais(p.nome)}</span>
+                  <span className="k-card__nome">{p.nome}</span>
+                  <span className="k-card__rotulo">A pagar</span>
+                  <strong className="k-card__valor">{real(p.aPagar)}</strong>
+                  <span className="k-card__barra" aria-hidden="true"><i style={{ width: `${pct}%` }} /></span>
+                  <span className="k-card__detalhe">{real(p.pago)} já paga · {plural(p.qtd, 'lançamento', 'lançamentos')}</span>
+                </button>
+                <button type="button" className="k-card__rel" onClick={() => setRelatorio(p.nome)}>Relatório de {mesNome}</button>
+              </article>
+            );
+          })}
+        </section>
       )}
-      {lista.length > 0 && (
-        <div className="b-tabela-caixa">
-          <table className="b-tabela">
-            <thead><tr><th><input type="checkbox" aria-label="Marcar todas a pagar" checked={todasMarcadas} onChange={(e) => marcarTodas(e.target.checked)} /></th>
-              <th>Data</th><th>Profissional</th><th>Atendimento ou venda</th><th className="num">Base</th><th className="num">%</th><th className="num">Comissão</th><th>Situação</th></tr></thead>
-            <tbody>
-              {lista.map((c) => (
-                <tr key={c.id}>
-                  <td className="k-marcar">{c.status === 'a_pagar' && (
-                    <label><input type="checkbox" checked={!!sel[c.id]} onChange={(e) => setSel({ ...sel, [c.id]: e.target.checked })} aria-label="Pagar esta comissão" /><span aria-hidden="true">Pagar esta</span></label>
-                  )}</td>
-                  <td data-rotulo="Data">{dataCurta(c.data)}</td>
-                  <td data-rotulo="Profissional">{c.profissional}</td>
-                  <td data-rotulo="Item">{c.item}</td>
-                  <td data-rotulo="Base" className="num">{real(c.base)}</td>
-                  <td data-rotulo="%" className="num">{c.origem === 'aula_fixa' ? 'por aula' : `${String(c.pct).replace('.', ',')}%`}</td>
-                  <td data-rotulo="Comissão" className="num"><strong>{real(c.valor)}</strong></td>
-                  <td data-rotulo="Situação"><Tag tom={c.status === 'pago' ? 'ok' : 'aviso'}>{c.status === 'pago' ? `paga ${dataCurta(c.pagoEm)}` : 'a pagar'}</Tag></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+      <section className="k-filtros" aria-label="Filtros">
+        <div className="k-filtros__linha">
+          <label className="k-busca">
+            <span className="b-sr">Buscar</span>
+            <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por pessoa, serviço ou produto" />
+          </label>
+          <label className="k-filtros__pessoa">
+            <span className="b-sr">Pessoa</span>
+            <select value={prof} onChange={(e) => setProf(e.target.value)} aria-label="Pessoa">
+              <option value="">Todas as pessoas</option>
+              {pessoasRel.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
         </div>
+        <div className="k-filtros__linha">
+          <Segmentos rotulo="Situação" valor={situacao} aoMudar={setSituacao} itens={SITUACOES_COMISSAO.map(([id, t]) => [id, t, contar({ situacao: id })])} />
+          <Segmentos rotulo="Tipo" valor={tipo} aoMudar={setTipo} itens={TIPOS_COMISSAO.map(([id, t]) => [id, t, contar({ tipo: id })])} />
+        </div>
+        <div className="k-filtros__rodape">
+          <span className="b-suave">{filtrando ? `${plural(lista.length, 'lançamento', 'lançamentos')} com estes filtros` : `${plural(lista.length, 'lançamento', 'lançamentos')} em ${mesTexto(mes)}`}</span>
+          <span className="k-filtros__acoes">
+            {filtrando && <button type="button" className="botao botao--linha botao--p" onClick={limpar}>Limpar filtros</button>}
+            <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={exportar}>Baixar planilha</button>
+            <button type="button" className="botao botao--cheio botao--p" disabled={!pessoasRel.length} onClick={() => setRelatorio(prof || pessoasRel[0])}>
+              Relatório {prof ? `de ${prof.split(' ')[0]}` : 'para imprimir'}
+            </button>
+          </span>
+        </div>
+      </section>
+
+      {relatorio && <RelatorioProfissional mes={mes} profissional={relatorio} aoFechar={() => setRelatorio(null)} />}
+
+      {todas.length === 0 && <Vazio titulo="Nenhuma comissão neste mês" forma="presenca">Cada atendimento marcado como atendido e cada aula dada geram a comissão (valores em Catálogo).</Vazio>}
+      {todas.length > 0 && (
+        <section className="b-kpis k-totais">
+          <Kpi rotulo={filtrando ? 'Comissão (filtro)' : `Comissão de ${mesNome}`} valor={real(totalLista)} detalhe={plural(lista.length, 'lançamento', 'lançamentos')} />
+          <Kpi rotulo="A pagar" valor={real(totalAPagar)} tom={totalAPagar > 0 ? 'aviso' : undefined} detalhe={plural(aPagarLista.length, 'lançamento', 'lançamentos')} />
+          <Kpi rotulo="Já paga" valor={real(totalPago)} tom={totalPago > 0 ? 'ok' : undefined} detalhe={plural(lista.length - aPagarLista.length, 'lançamento', 'lançamentos')} />
+        </section>
       )}
+
+      {todas.length > 0 && lista.length === 0 && (
+        <Vazio titulo="Nada com estes filtros">Tire algum filtro para ver mais lançamentos. <button type="button" className="botao botao--linha botao--p" onClick={limpar}>Limpar filtros</button></Vazio>
+      )}
+
+      {lista.length > 0 && (
+        <>
+          {aPagarLista.length > 0 && (
+            <label className="b-check k-todas">
+              <input type="checkbox" checked={todasMarcadas} onChange={(e) => marcarTodas(e.target.checked)} /> Marcar {plural(aPagarLista.length, 'comissão a pagar', 'comissões a pagar')} ({real(totalAPagar)})
+            </label>
+          )}
+          <div className="b-tabela-caixa k-tabela">
+            <table className="b-tabela">
+              <thead><tr>
+                <th className="k-col-marcar"><input type="checkbox" aria-label="Marcar todas a pagar" checked={todasMarcadas} disabled={!aPagarLista.length} onChange={(e) => marcarTodas(e.target.checked)} /></th>
+                <th>Data</th><th>Pessoa</th><th>Atendimento ou venda</th><th className="num">Base</th><th className="num">%</th><th className="num">Comissão</th><th>Situação</th></tr></thead>
+              <tbody>
+                {lista.map((c) => (
+                  <tr key={c.id} className={sel[c.id] && c.status === 'a_pagar' ? 'k-linha--marcada' : ''}>
+                    <td className="k-marcar">{c.status === 'a_pagar' && (
+                      <label><input type="checkbox" checked={!!sel[c.id]} onChange={(e) => setSel({ ...sel, [c.id]: e.target.checked })} aria-label="Pagar esta comissão" /><span aria-hidden="true">Pagar esta</span></label>
+                    )}</td>
+                    <td data-rotulo="Data" className="k-data">{dataCurta(c.data)}{c.data < inicioMes && <small>mês anterior</small>}</td>
+                    <td data-rotulo="Pessoa" className="k-quem">{c.profissional}</td>
+                    <td data-rotulo="Item"><span className="k-item">{c.item}<small>{tipoDaComissao(c) === 'atendimento' ? 'Atendimento' : tipoDaComissao(c) === 'aula' ? 'Aula' : 'Venda'}</small></span></td>
+                    <td data-rotulo="Base" className="num">{real(c.base)}</td>
+                    <td data-rotulo="%" className="num">{c.origem === 'aula_fixa' ? 'por aula' : `${String(c.pct).replace('.', ',')}%`}</td>
+                    <td data-rotulo="Comissão" className="num"><strong>{real(c.valor)}</strong></td>
+                    <td data-rotulo="Situação"><Tag tom={c.status === 'pago' ? 'ok' : 'aviso'}>{c.status === 'pago' ? `paga ${dataCurta(c.pagoEm)}` : 'a pagar'}</Tag></td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr>
+                <td className="k-col-marcar" />
+                <td colSpan={5} className="k-total__rotulo">Total {filtrando ? 'dos filtros' : `de ${mesNome}`}</td>
+                <td className="num"><strong>{real(totalLista)}</strong></td>
+                <td />
+              </tr></tfoot>
+            </table>
+          </div>
+        </>
+      )}
+
       {escolhidas.length > 0 && (
         <div className="k-pagar">
-          <span>{plural(escolhidas.length, 'selecionada', 'selecionadas')} · <strong>{real(totalSel)}</strong></span>
+          <span><strong>{real(totalSel)}</strong> · {plural(escolhidas.length, 'comissão selecionada', 'comissões selecionadas')}</span>
           <select value={forma} onChange={(e) => setForma(e.target.value)} aria-label="Forma de pagamento">{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
+          <button type="button" className="botao botao--linha botao--p" onClick={() => setSel({})}>Desmarcar</button>
           <BotaoAcao className="botao botao--cheio botao--p" acao={async () => {
             setErroA('');
             try { setDados(await chamar('pagarComissoes', { ids: escolhidas.map((c) => c.id), forma, mes })); setSel({}); } catch (e) { setErroA(e.message); }
@@ -288,7 +403,7 @@ function Comissoes({ mes }) {
         </div>
       )}
       <Erro>{erroA}</Erro>
-    </>
+    </div>
   );
 }
 
@@ -328,6 +443,7 @@ function Caixas() {
 // ---------- a profissional: meus ganhos ----------
 export function MeusGanhos() {
   const [mes, setMes] = useState(mesAtual());
+  const [relatorio, setRelatorio] = useState(false);
   const { dados: g, erro, carregando } = useDados('meusGanhos', { mes });
   return (
     <>
@@ -342,6 +458,10 @@ export function MeusGanhos() {
             <div className="b-kpi"><span className="b-kpi__rotulo">Já recebido</span><strong className="b-kpi__valor">{real(g.pago)}</strong></div>
             <div className="b-kpi"><span className="b-kpi__rotulo">Atendimentos</span><strong className="b-kpi__valor">{g.atendidos}</strong><span className="b-kpi__detalhe">{g.agendados} na agenda · {plural(g.faltas, 'falta', 'faltas')}</span></div>
           </section>
+          <div className="k-relatorio">
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setRelatorio(true)}>Imprimir meu relatório de {mesTexto(mes).split(' ')[0].toLowerCase()}</button>
+          </div>
+          {relatorio && <RelatorioProfissional mes={mes} aoFechar={() => setRelatorio(false)} />}
           {g.lista.length === 0 ? <Vazio titulo="Nada neste mês ainda" forma="presenca" /> : (
             <ul className="b-lista-simples ganhos">
               {g.lista.map((c) => <li key={c.id}><strong>{real(c.valor)} · {c.item}</strong><span>{dataBR(c.data)} · {c.origem === 'aula_fixa' ? 'valor da aula' : `${String(c.pct).replace('.', ',')}% de ${real(c.base)}`} · {c.status === 'pago' ? 'recebido' : 'a receber'}</span></li>)}
