@@ -149,3 +149,8 @@ ul.b-itens > li > .b-item { border-top: 0; }
   .b-meta > * + *::before { content: none; }
   .b-meta > *:not(:last-child)::after { content: '·'; margin-left: 8px; color: rgba(47, 56, 33, 0.35); }
 }
+
+/* "?" dentro de folha lateral: a folha rola e cortaria o cartãozinho; abre como cartão na base da tela */
+.b-modal .b-ajuda__texto, .b-modal .b-ajuda__texto--esquerda, .b-modal .b-ajuda__texto--direita {
+  position: fixed; left: 16px; right: 16px; top: auto; bottom: 16px; width: auto; max-width: 440px; margin-inline: auto; z-index: 90;
+}
