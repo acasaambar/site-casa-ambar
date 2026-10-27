@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBancada } from './sessao.jsx';
-import { Carregando, Erro, Modal, BotaoAcao, Tag, dataBR, hojeIso } from './ui.jsx';
+import { Esqueleto, Erro, Modal, BotaoAcao, Tag, Aviso, Secao, dataBR, hojeIso } from './ui.jsx';
+import './css/clientes.css';
 import { cacheFotos, reduzirFoto } from './fotos.js';
 
 export function Foto({ id, aoAbrir, alt = 'Foto da evolução' }) {
@@ -32,59 +33,70 @@ export function ProntuarioConteudo({ alvo, editavel = true }) {
     return () => { vivo = false; };
   }, [chave]); // eslint-disable-line react-hooks/exhaustive-deps
   if (erro && !p) return <Erro>{erro}</Erro>;
-  if (!p) return <Carregando />;
+  if (!p) return <Esqueleto linhas={5} altura={40} />;
   const f = p.fichaEstetica;
+  const item = (rotulo, valor) => (valor ? <div className="pt-item"><span>{rotulo}</span><p>{valor}</p></div> : null);
   return (
     <div className="pt">
       {(p.alertaSaude || p.alergiasAnamnese) && (
-        <p className="aviso pt-alerta">{p.alertaSaude ? 'Ficha de saúde com resposta “sim” no PAR-Q. ' : ''}{p.alergiasAnamnese ? `Alergias informadas: ${p.alergiasAnamnese}.` : ''}</p>
+        <Aviso tom="alerta" titulo="Atenção à saúde">{p.alertaSaude ? 'Ficha de saúde com resposta “sim” no PAR-Q. ' : ''}{p.alergiasAnamnese ? `Alergias informadas: ${p.alergiasAnamnese}.` : ''}</Aviso>
       )}
-      <section className="pt-ficha">
-        <header className="b-cartao__topo">
-          <h3 className="pt-titulo">Ficha de estética</h3>
-          {editavel && <button type="button" className="link-acao" onClick={() => setEditarFicha(true)}>{f ? 'atualizar' : 'preencher'}</button>}
-        </header>
-        {!f ? <p className="b-suave">Ainda não preenchida. Preencha na primeira sessão, durante o atendimento.</p> : (
+      <Secao titulo="Ficha de estética" acoes={editavel && <button type="button" className="botao botao--linha botao--p" onClick={() => setEditarFicha(true)}>{f ? 'Atualizar ficha' : 'Preencher ficha'}</button>}>
+        {!f ? (
+          <div className="pt-vazio">
+            <strong>Ainda não preenchida</strong>
+            <span>Preencha na primeira sessão, durante o atendimento.</span>
+          </div>
+        ) : (
           <>
-            <dl className="b-dados">
-              {f.queixa && <><dt>Queixa principal</dt><dd>{f.queixa}</dd></>}
-              {f.objetivo && <><dt>Objetivo</dt><dd>{f.objetivo}</dd></>}
-              {(f.tipoPele || f.fototipo) && <><dt>Pele</dt><dd>{[f.tipoPele, f.fototipo && `fototipo ${f.fototipo}`].filter(Boolean).join(' · ')}</dd></>}
-              {f.alergias && <><dt>Alergias</dt><dd>{f.alergias}</dd></>}
-              {f.medicamentos && <><dt>Medicamentos</dt><dd>{f.medicamentos}</dd></>}
-              {f.acidos && <><dt>Ácidos e cosméticos em uso</dt><dd>{f.acidos}</dd></>}
-              {f.procedimentos && <><dt>Procedimentos anteriores</dt><dd>{f.procedimentos}</dd></>}
-              {f.exposicaoSolar && <><dt>Exposição ao sol</dt><dd>{f.exposicaoSolar}</dd></>}
-              {f.obs && <><dt>Observações</dt><dd>{f.obs}</dd></>}
-            </dl>
-            {f.condicoes.length > 0 && <div className="b-reserva__tags pt-condicoes">{f.condicoes.map((c) => <Tag key={c} tom="alerta">{c}</Tag>)}</div>}
-            <p className="b-suave">Atualizada em {dataBR(f.atualizadaEm)} por {f.atualizadaPor}{f.consentimentoFotos ? ' · autorizou fotos' : ' · sem autorização para fotos'}</p>
+            {f.condicoes.length > 0 && (
+              <div className="pt-condicoes">
+                <span className="pt-condicoes__rotulo">Condições de saúde</span>
+                <div className="b-reserva__tags">{f.condicoes.map((c) => <Tag key={c} tom="alerta">{c}</Tag>)}</div>
+              </div>
+            )}
+            <div className="pt-itens">
+              {item('Queixa principal', f.queixa)}
+              {item('Objetivo', f.objetivo)}
+              {item('Pele', [f.tipoPele, f.fototipo && `fototipo ${f.fototipo}`].filter(Boolean).join(' · '))}
+              {item('Alergias', f.alergias)}
+              {item('Medicamentos', f.medicamentos)}
+              {item('Ácidos e cosméticos em uso', f.acidos)}
+              {item('Procedimentos anteriores', f.procedimentos)}
+              {item('Exposição ao sol', f.exposicaoSolar)}
+              {item('Observações', f.obs)}
+            </div>
+            <div className="pt-rodape">
+              <span>Atualizada em {dataBR(f.atualizadaEm)} por {f.atualizadaPor}</span>
+              <Tag tom={f.consentimentoFotos ? 'ok' : 'aviso'}>{f.consentimentoFotos ? 'autorizou fotos' : 'sem autorização para fotos'}</Tag>
+            </div>
           </>
         )}
-      </section>
+      </Secao>
 
-      <section className="pt-evolucao">
-        <h3 className="pt-titulo">Evolução</h3>
+      <Secao titulo={p.evolucoes.length ? `Evolução · ${p.evolucoes.length}` : 'Evolução'}>
         {editavel && <NovaEvolucao alvo={alvo} fotosOk={!f || f.consentimentoFotos} aoSalvar={setP} />}
-        {p.evolucoes.length === 0 && <p className="b-suave">Nenhum registro ainda.</p>}
+        {p.evolucoes.length === 0 && <div className="pt-vazio"><strong>Nenhum registro ainda</strong><span>As sessões anotadas aparecem aqui, com as fotos de antes e depois.</span></div>}
         <ol className="pt-linha">
           {p.evolucoes.map((e) => (
             <li key={e.id}>
               <span className="pt-linha__data"><strong>{Number(e.data.slice(8))}</strong><small>{dataBR(e.data).slice(3)}</small></span>
               <div className="pt-linha__corpo">
-                <span className="b-suave">{[e.servico, e.profissional].filter(Boolean).join(' · ')}</span>
+                <div className="pt-linha__topo">
+                  <span className="b-meta">{[e.servico, e.profissional].filter(Boolean).map((t) => <span key={t}>{t}</span>)}</span>
+                  {(membro.papel === 'admin' || e.autor === membro.email.split('@')[0]) && (
+                    <BotaoAcao className="botao botao--fantasma botao--p" confirmar="Apagar este registro e as fotos?" acao={async () => {
+                      try { await chamar('excluirEvolucao', { id: e.id }); setP({ ...p, evolucoes: p.evolucoes.filter((x) => x.id !== e.id) }); } catch (err) { setErro(err.message); }
+                    }}>Apagar</BotaoAcao>
+                  )}
+                </div>
                 {e.anotacao && <p>{e.anotacao}</p>}
                 {e.fotos.length > 0 && <div className="pt-fotos">{e.fotos.map((id) => <Foto key={id} id={id} aoAbrir={setAmpliada} />)}</div>}
-                {(membro.papel === 'admin' || e.autor === membro.email.split('@')[0]) && (
-                  <BotaoAcao className="link-sair" confirmar="Apagar este registro e as fotos?" acao={async () => {
-                    try { await chamar('excluirEvolucao', { id: e.id }); setP({ ...p, evolucoes: p.evolucoes.filter((x) => x.id !== e.id) }); } catch (err) { setErro(err.message); }
-                  }}>apagar</BotaoAcao>
-                )}
               </div>
             </li>
           ))}
         </ol>
-      </section>
+      </Secao>
       <Erro>{erro}</Erro>
       {editarFicha && <EditarFicha alvo={alvo} f={f} condicoes={p.condicoes} aoFechar={() => setEditarFicha(false)} aoSalvar={(r) => { setP(r); setEditarFicha(false); }} />}
       {ampliada && (
@@ -112,7 +124,10 @@ function NovaEvolucao({ alvo, fotosOk, aoSalvar }) {
   }
   return (
     <div className="pt-nova">
-      <textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Como foi a sessão: área tratada, produtos, reação da pele, orientação para casa…" aria-label="Anotação da sessão" />
+      <label className="pt-nova__campo">
+        <span className="rotulo">Nova sessão</span>
+        <textarea rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Como foi a sessão: área tratada, produtos, reação da pele, orientação para casa…" aria-label="Anotação da sessão" />
+      </label>
       {fotos.length > 0 && (
         <div className="pt-fotos">
           {fotos.map((src, i) => (
@@ -124,9 +139,9 @@ function NovaEvolucao({ alvo, fotosOk, aoSalvar }) {
       <div className="pt-nova__acoes">
         <input ref={input} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => { adicionar(e.target.files); e.target.value = ''; }} />
         <button type="button" className="botao botao--linha botao--p" disabled={fotos.length >= 6} onClick={() => input.current?.click()}>
-          {fotos.length ? 'Mais fotos' : 'Fotos de antes e depois'}
+          {fotos.length ? `Mais fotos (${fotos.length}/6)` : 'Fotos de antes e depois'}
         </button>
-        {!fotosOk && fotos.length > 0 && <span className="b-alerta-txt">A ficha diz que as fotos não foram autorizadas.</span>}
+        {!fotosOk && fotos.length > 0 && <Tag tom="aviso">a ficha diz que as fotos não foram autorizadas</Tag>}
         <BotaoAcao className="botao botao--cheio botao--p" disabled={!texto.trim() && !fotos.length} acao={async () => {
           setErro('');
           try { aoSalvar(await chamar('salvarEvolucao', { ...alvo, anotacao: texto, fotos, data: hojeIso() })); setTexto(''); setFotos([]); } catch (e) { setErro(e.message); }
@@ -147,34 +162,45 @@ function EditarFicha({ alvo, f, condicoes, aoFechar, aoSalvar }) {
   const alterna = (c) => setX({ ...x, condicoes: x.condicoes.includes(c) ? x.condicoes.filter((y) => y !== c) : [...x.condicoes, c] });
   return (
     <Modal titulo="Ficha de estética" rotulo="Preencha durante o atendimento. Só a equipe vê." aoFechar={aoFechar} largo>
-      <div className="b-form">
-        <label className="b-campo"><span className="rotulo">Queixa principal</span><input {...campo('queixa')} placeholder="Ex.: manchas na testa, flacidez" /></label>
-        <label className="b-campo"><span className="rotulo">Objetivo</span><input {...campo('objetivo')} /></label>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Tipo de pele</span>
-            <select {...campo('tipoPele')}><option value="">—</option>{['Normal', 'Seca', 'Oleosa', 'Mista', 'Sensível', 'Acneica'].map((t) => <option key={t}>{t}</option>)}</select></label>
-          <label className="b-campo"><span className="rotulo">Fototipo (Fitzpatrick)</span>
-            <select {...campo('fototipo')}><option value="">—</option>{['I', 'II', 'III', 'IV', 'V', 'VI'].map((t) => <option key={t}>{t}</option>)}</select></label>
+      <div className="b-form cl-form">
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Queixa e objetivo</h3>
+          <label className="b-campo"><span className="rotulo">Queixa principal</span><input {...campo('queixa')} placeholder="Ex.: manchas na testa, flacidez" /></label>
+          <label className="b-campo"><span className="rotulo">Objetivo</span><input {...campo('objetivo')} /></label>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Tipo de pele</span>
+              <select {...campo('tipoPele')}><option value="">—</option>{['Normal', 'Seca', 'Oleosa', 'Mista', 'Sensível', 'Acneica'].map((t) => <option key={t}>{t}</option>)}</select></label>
+            <label className="b-campo"><span className="rotulo">Fototipo (Fitzpatrick)</span>
+              <select {...campo('fototipo')}><option value="">—</option>{['I', 'II', 'III', 'IV', 'V', 'VI'].map((t) => <option key={t}>{t}</option>)}</select></label>
+          </div>
+        </section>
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Saúde</h3>
+          <fieldset className="b-opcoes">
+            <legend className="rotulo">Condições de saúde (marque as que se aplicam)</legend>
+            <div className="b-filtros">{condicoes.map((c) => <button key={c} type="button" className={`b-chip${x.condicoes.includes(c) ? ' b-chip--ativo' : ''}`} aria-pressed={x.condicoes.includes(c)} onClick={() => alterna(c)}>{c}</button>)}</div>
+          </fieldset>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">Alergias</span><input {...campo('alergias')} /></label>
+            <label className="b-campo"><span className="rotulo">Medicamentos em uso</span><input {...campo('medicamentos')} /></label>
+          </div>
+        </section>
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Cuidados e hábitos</h3>
+          <label className="b-campo"><span className="rotulo">Ácidos e cosméticos em uso</span><input {...campo('acidos')} placeholder="Ex.: ácido retinoico à noite" /></label>
+          <label className="b-campo"><span className="rotulo">Procedimentos anteriores</span><input {...campo('procedimentos')} placeholder="Ex.: laser em 2025, botox" /></label>
+          <label className="b-campo"><span className="rotulo">Exposição ao sol</span>
+            <select {...campo('exposicaoSolar')}><option value="">—</option>{['Pouca', 'Moderada', 'Muita', 'Usa protetor todo dia', 'Não usa protetor'].map((t) => <option key={t}>{t}</option>)}</select></label>
+          <label className="b-campo"><span className="rotulo">Observações</span><textarea rows={3} {...campo('obs')} /></label>
+          <label className="b-check"><input type="checkbox" checked={x.consentimentoFotos} onChange={(e) => setX({ ...x, consentimentoFotos: e.target.checked })} /> Autoriza fotos de antes e depois (uso interno, não publicadas)</label>
+        </section>
+        <div className="cl-rodape">
+          <Erro>{erro}</Erro>
+          <BotaoAcao className="botao botao--cheio" acao={async () => {
+            setErro('');
+            try { aoSalvar(await chamar('salvarFichaEstetica', { ...alvo, ficha: x })); } catch (e) { setErro(e.message); }
+          }}>Salvar ficha</BotaoAcao>
         </div>
-        <fieldset className="b-opcoes">
-          <legend className="rotulo">Condições de saúde (marque as que se aplicam)</legend>
-          <div className="b-filtros">{condicoes.map((c) => <button key={c} type="button" className={`b-chip${x.condicoes.includes(c) ? ' b-chip--ativo' : ''}`} onClick={() => alterna(c)}>{c}</button>)}</div>
-        </fieldset>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Alergias</span><input {...campo('alergias')} /></label>
-          <label className="b-campo"><span className="rotulo">Medicamentos em uso</span><input {...campo('medicamentos')} /></label>
-        </div>
-        <label className="b-campo"><span className="rotulo">Ácidos e cosméticos em uso</span><input {...campo('acidos')} placeholder="Ex.: ácido retinoico à noite" /></label>
-        <label className="b-campo"><span className="rotulo">Procedimentos anteriores</span><input {...campo('procedimentos')} placeholder="Ex.: laser em 2025, botox" /></label>
-        <label className="b-campo"><span className="rotulo">Exposição ao sol</span>
-          <select {...campo('exposicaoSolar')}><option value="">—</option>{['Pouca', 'Moderada', 'Muita', 'Usa protetor todo dia', 'Não usa protetor'].map((t) => <option key={t}>{t}</option>)}</select></label>
-        <label className="b-campo"><span className="rotulo">Observações</span><textarea rows={3} {...campo('obs')} /></label>
-        <label className="b-check"><input type="checkbox" checked={x.consentimentoFotos} onChange={(e) => setX({ ...x, consentimentoFotos: e.target.checked })} /> Autoriza fotos de antes e depois (uso interno, não publicadas)</label>
-        <Erro>{erro}</Erro>
-        <BotaoAcao className="botao botao--cheio" acao={async () => {
-          setErro('');
-          try { aoSalvar(await chamar('salvarFichaEstetica', { ...alvo, ficha: x })); } catch (e) { setErro(e.message); }
-        }}>Salvar ficha</BotaoAcao>
       </div>
     </Modal>
   );

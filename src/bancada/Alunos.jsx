@@ -1,8 +1,9 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import './css/clientes.css';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
-import { useDados, Alertas, CampoBandeira, faltaBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
+import { useDados, Alertas, CampoBandeira, faltaBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, Aviso, Ajuda, Secao, Esqueleto, Kpi, MenuMais, MESES, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota, lembrarResultado, incluirNaListaDeClientes } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
@@ -11,7 +12,7 @@ import { FichaConteudo } from './Agenda.jsx';
 import { useItensVenda, OpcoesItens, NovoAtendimento } from './Servicos.jsx';
 import { mascaraCPF, mascaraTelefone, soDigitos, cpfValido } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
-import { CamposEndereco, CampoComoConheceu } from './CamposCliente.jsx';
+import { CamposEndereco, CampoComoConheceu, Avatar } from './CamposCliente.jsx';
 import { ENDERECO_VAZIO } from '../lib/clientes.js';
 
 const WELLHUB = { confirmado: ['Wellhub', 'ok'], pendente: ['Wellhub a confirmar', 'aviso'], bloqueado: ['Wellhub recusado', 'alerta'] };
@@ -53,7 +54,6 @@ export function Alunos() {
       return a.nome.toLowerCase().includes(q) || a.email.toLowerCase().includes(q) || (d.length >= 3 && (a.cpf.includes(d) || a.whatsapp.includes(d)));
     });
   }, [dados, buscaAdiada, filtro, hoje, em7]);
-  const abrir = (a) => nav('/bancada/alunos/' + a.cpf, { state: { resumo: a } });
 
   // contagem de cada filtro numa passada só (antes eram 8 passadas na lista inteira a cada tecla)
   const contagens = useMemo(() => {
@@ -73,62 +73,84 @@ export function Alunos() {
   }, [dados, hoje, em7]);
   const contagem = (f) => contagens[f] || 0;
 
+  const temFiltro = filtro !== 'todos' || buscaAdiada.trim() !== '';
+  const FILTROS = [['todos', 'Todos'], ['ativos', 'Com plano'], ['vencendo', 'Vence em 7 dias'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'],
+    ['wellhub', 'Wellhub'], ['wellhub-pendente', 'Wellhub a confirmar'], ['inativos', 'Desativados']];
+  const colunasCsv = [
+    ['nome', 'Nome'], [(a) => cpfFmt(a.cpf), 'CPF'], [(a) => telFmt(a.whatsapp), 'WhatsApp'], ['email', 'E-mail'], ['plano', 'Plano ativo'],
+    [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaVisita || a.ultimaAula), 'Última visita'], ['presencas', 'Presenças em aula'], ['servicos', 'Serviços feitos'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
+    ['wellhub', 'Wellhub'], [(a) => dataBR(a.criadoEm), 'Cadastro']];
+
   return (
     <>
-      <Cabecalho titulo="Clientes" acoes={
+      <Cabecalho titulo="Clientes" ajuda="Toque numa pessoa para abrir a ficha: dados, planos, aulas, histórico, pagamentos e saúde. A busca acha por nome, CPF, WhatsApp ou e-mail." acoes={
         <>
-          <button type="button" className="botao botao--linha botao--p" disabled={!dados} onClick={() => baixarCSV('clientes-casa-ambar', [
-            ['nome', 'Nome'], [(a) => cpfFmt(a.cpf), 'CPF'], [(a) => telFmt(a.whatsapp), 'WhatsApp'], ['email', 'E-mail'], ['plano', 'Plano ativo'],
-            [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaVisita || a.ultimaAula), 'Última visita'], ['presencas', 'Presenças em aula'], ['servicos', 'Serviços feitos'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
-            ['wellhub', 'Wellhub'], [(a) => dataBR(a.criadoEm), 'Cadastro']], lista)}>Exportar CSV</button>
-          {pode(membro, 'admin') && <button type="button" className="botao botao--linha botao--p" onClick={() => setImportar(true)}>Importar planilha</button>}
+          <MenuMais rotulo="Mais" itens={[
+            dados && { texto: 'Exportar CSV', acao: () => baixarCSV('clientes-casa-ambar', colunasCsv, lista), extra: temFiltro ? 'do filtro' : undefined },
+            pode(membro, 'admin') && { texto: 'Importar planilha', acao: () => setImportar(true) },
+          ]} />
           <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Novo cliente</button>
         </>
-      } />
-      <div className="b-barra-busca">
-        <input type="search" value={busca} onChange={(e) => { setBusca(e.target.value); setMostrar(POR_PAGINA); }} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar cliente" />
-      </div>
-      <div className="b-filtros">
-        {[['todos', 'Todos'], ['ativos', 'Com plano'], ['vencendo', 'Plano vence em 7 dias'], ['servicos', 'Fazem serviços'], ['sem-plano', 'Sem plano'], ['sem-ficha', 'Sem ficha'], ['sem-cpf', 'Sem CPF'],
-          ['wellhub', 'Wellhub'], ['wellhub-pendente', 'Wellhub a confirmar'], ['inativos', 'Desativados']]
-          .filter(([id]) => !['vencendo', 'wellhub-pendente'].includes(id) || filtro === id || contagem(id) > 0).map(([id, t]) => (
-          <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => { setFiltro(id); setMostrar(POR_PAGINA); }}>
-            {t} {dados && <span>{contagem(id)}</span>}
-          </button>
-        ))}
-      </div>
-      {local.state?.aviso && <p className="aviso" role="status">{local.state.aviso}</p>}
-      <Erro>{erro}</Erro>
-      {carregando && !dados && <Carregando />}
-      {dados && lista.length === 0 && <Vazio titulo="Ninguém por aqui">Ajuste a busca ou os filtros.</Vazio>}
-      {lista.length > 0 && (
-        <div className="b-tabela-caixa">
-          <table className="b-tabela b-tabela--clicavel">
-            <thead>
-              <tr><th>Cliente</th><th>Plano</th><th>Última visita</th><th className="num">Visitas</th><th>Situação</th></tr>
-            </thead>
-            <tbody>
-              {lista.slice(0, mostrar).map((a) => (
-                <tr key={a.cpf} onClick={() => abrir(a)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && abrir(a)}>
-                  <td data-rotulo="Cliente"><strong>{a.nome}</strong><span className="b-suave b-bloco b-nowrap">{telFmt(a.whatsapp)}</span></td>
-                  <td data-rotulo="Plano">{a.plano || <span className="b-suave">sem plano ativo</span>}{a.planoFim && <span className="b-suave b-bloco">até {dataCurta(a.planoFim)}</span>}</td>
-                  <td data-rotulo="Última visita">{a.ultimaVisita || a.ultimaAula ? dataCurta(a.ultimaVisita || a.ultimaAula) : <span className="b-suave">—</span>}</td>
-                  <td data-rotulo="Visitas" className="num">{a.presencas + (a.servicos || 0)}</td>
-                  <td data-rotulo="Situação">
-                    <span className="b-reserva__tags">
-                      {!a.ativo && <Tag tom="apagado">desativado</Tag>}
-                      {a.semCpf && <Tag>sem CPF</Tag>}
-                      {!a.ficha && !a.semCpf && <Tag tom="aviso">sem ficha</Tag>}
-                      {a.alerta && <Tag tom="alerta">saúde: atenção</Tag>}
-                      {WELLHUB[a.wellhub] && <Tag tom={WELLHUB[a.wellhub][1]}>{WELLHUB[a.wellhub][0]}</Tag>}
-                      {!a.temSenha && !a.semCpf && <Tag>sem senha</Tag>}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      }>
+        {dados ? `${plural(contagens.todos, 'cadastro', 'cadastros')} · ${contagens.ativos} com plano ativo` : 'Cadastros, planos e histórico'}
+      </Cabecalho>
+      <div className="b-barra-fixa cl-barra">
+        <div className="cl-busca">
+          <input type="search" value={busca} onChange={(e) => { setBusca(e.target.value); setMostrar(POR_PAGINA); }} placeholder="Buscar por nome, CPF, WhatsApp ou e-mail" aria-label="Buscar cliente" />
         </div>
+        <div className="cl-chips" role="group" aria-label="Filtrar clientes">
+          {FILTROS.filter(([id]) => !['vencendo', 'wellhub-pendente'].includes(id) || filtro === id || contagem(id) > 0).map(([id, t]) => (
+            <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} aria-pressed={filtro === id} onClick={() => { setFiltro(id); setMostrar(POR_PAGINA); }}>
+              {t} {dados && <span>{contagem(id)}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      {local.state?.aviso && <Aviso tom="ok">{local.state.aviso}</Aviso>}
+      <Erro>{erro}</Erro>
+      {carregando && !dados && <Esqueleto linhas={7} altura={56} />}
+      {dados && lista.length === 0 && (
+        <Vazio titulo="Ninguém por aqui" acao={temFiltro
+          ? <button type="button" className="botao botao--linha botao--p" onClick={() => { setBusca(''); setFiltro('todos'); setMostrar(POR_PAGINA); }}>Limpar busca e filtros</button>
+          : <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Novo cliente</button>}>
+          {temFiltro ? 'Nenhum cadastro bate com a busca ou o filtro.' : 'Cadastre a primeira pessoa para começar.'}
+        </Vazio>
+      )}
+      {lista.length > 0 && (
+        <>
+          <p className="cl-contagem" role="status">{lista.length === (dados || []).length ? plural(lista.length, 'cliente', 'clientes') : `${lista.length} de ${(dados || []).length} clientes`}</p>
+          <ul className="b-itens cl-lista">
+            {lista.slice(0, mostrar).map((a) => (
+              <li key={a.cpf}>
+                <Link to={'/bancada/alunos/' + a.cpf} state={{ resumo: a }} className={`b-item cl-linha${a.ativo ? '' : ' cl-linha--apagada'}`}>
+                  <Avatar nome={a.nome} />
+                  <span className="cl-linha__quem">
+                    <strong className="b-item__titulo">{a.nome}</strong>
+                    <span className="cl-linha__zap">{telFmt(a.whatsapp) || 'sem WhatsApp'}</span>
+                  </span>
+                  <span className="cl-linha__plano">
+                    {a.plano ? <Tag tom="ok">{a.plano}</Tag> : <span className="b-suave">Sem plano ativo</span>}
+                    {a.planoFim && <small>até {dataCurta(a.planoFim)}</small>}
+                  </span>
+                  <span className="cl-linha__visita">
+                    <small>Última visita</small>
+                    <strong>{a.ultimaVisita || a.ultimaAula ? dataCurta(a.ultimaVisita || a.ultimaAula) : '—'}</strong>
+                    <em>{plural(a.presencas + (a.servicos || 0), 'visita', 'visitas')}</em>
+                  </span>
+                  <span className="cl-linha__tags">
+                    {!a.ativo && <Tag tom="apagado">desativado</Tag>}
+                    {a.semCpf && <Tag>sem CPF</Tag>}
+                    {!a.ficha && !a.semCpf && <Tag tom="aviso">sem ficha</Tag>}
+                    {a.alerta && <Tag tom="alerta">saúde: atenção</Tag>}
+                    {WELLHUB[a.wellhub] && <Tag tom={WELLHUB[a.wellhub][1]}>{WELLHUB[a.wellhub][0]}</Tag>}
+                    {!a.temSenha && !a.semCpf && <Tag>sem senha</Tag>}
+                  </span>
+                  <span className="cl-linha__seta" aria-hidden="true">›</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {lista.length > mostrar && (
         <p className="b-mais">
@@ -205,18 +227,33 @@ function Importar({ aoFechar, aoImportar }) {
       if (simular) setPrevia(soma); else setFeito(soma);
     } catch (e) { setErro(e.message); }
   }
+  const etapa = feito ? 4 : previa ? 3 : tabela ? 2 : 1;
+  const usados = CAMPOS_IMPORT.filter(([k]) => mapa[k] != null);
+  const grupo = (ids) => CAMPOS_IMPORT.filter(([k]) => ids.includes(k));
+  const campoMapa = ([k, t]) => (
+    <label key={k} className={`b-campo cl-mapa__campo${mapa[k] != null ? ' cl-mapa__campo--ok' : ''}`}><span className="rotulo">{t}{mapa[k] != null && <span className="cl-mapa__ok" aria-label="reconhecido">✓</span>}</span>
+      <select value={mapa[k] ?? ''} onChange={(e) => { setMapa({ ...mapa, [k]: e.target.value === '' ? undefined : Number(e.target.value) }); setPrevia(null); }}>
+        <option value="">não tem</option>
+        {tabela[0].map((h, i) => <option key={i} value={i}>{h || `coluna ${i + 1}`}</option>)}
+      </select></label>
+  );
   return (
-    <Modal titulo="Importar clientes" rotulo="Planilha exportada do Avec ou de outro sistema" aoFechar={aoFechar} largo>
-      <div className="b-form">
+    <Modal titulo="Importar clientes" rotulo="Planilha do Avec ou de outro sistema" aoFechar={aoFechar} largo>
+      <div className="b-form cl-import">
+        <ol className="cl-passos" aria-label="Etapas">
+          {['Arquivo', 'Colunas', 'Conferir'].map((t, i) => (
+            <li key={t} className={etapa > i + 1 ? 'cl-passos__feito' : etapa === i + 1 ? 'cl-passos__atual' : undefined} aria-current={etapa === i + 1 ? 'step' : undefined}>
+              <span className="cl-passos__n">{etapa > i + 1 ? '✓' : i + 1}</span><span className="cl-passos__t">{t}</span>
+            </li>
+          ))}
+        </ol>
         {feito ? (
           <>
-            <p className="aviso">{plural(feito.novos, 'cadastro novo importado', 'cadastros novos importados')} · {plural(feito.atualizados, 'completado', 'completados')} · {feito.repetidos} já {feito.repetidos === 1 ? 'existia' : 'existiam'}.</p>
+            <Aviso tom="ok" titulo="Importação concluída">{plural(feito.novos, 'cadastro novo importado', 'cadastros novos importados')} · {plural(feito.atualizados, 'completado', 'completados')} · {feito.repetidos} já {feito.repetidos === 1 ? 'existia' : 'existiam'}.</Aviso>
             <button type="button" className="botao botao--cheio" onClick={aoImportar}>Ver clientes</button>
           </>
         ) : (
           <>
-            <p className="b-suave">No Avec (ou no Excel), salve a lista de clientes como <strong>CSV</strong>. Você também pode copiar as colunas da planilha e colar aqui embaixo.
-              Quem já existe (mesmo CPF, WhatsApp ou e-mail) não é duplicado; só completamos o que faltar.</p>
             <input ref={arquivo} type="file" accept=".csv,.txt,text/csv,text/plain" hidden onChange={(e) => {
               const f = e.target.files[0]; if (!f) return;
               const ler = (cod) => {
@@ -228,39 +265,52 @@ function Importar({ aoFechar, aoImportar }) {
               ler('utf-8');
               e.target.value = '';
             }} />
-            <div className="b-botoes">
-              <button type="button" className="botao botao--linha botao--p" onClick={() => arquivo.current?.click()}>Escolher arquivo CSV</button>
-            </div>
-            <label className="b-campo"><span className="rotulo">Ou cole aqui (com a linha de títulos)</span>
-              <textarea rows={4} onPaste={(e) => { e.preventDefault(); carregar(e.clipboardData.getData('text')); }} placeholder="Nome	Celular	E-mail	CPF	Nascimento" /></label>
+            <Secao titulo="1. Traga a lista" ajuda={<>No Avec (ou no Excel), salve a lista de clientes como <strong>CSV</strong>, ou copie as colunas da planilha e cole abaixo. Quem já existe (mesmo CPF, WhatsApp ou e-mail) não é duplicado; só completamos o que faltar.</>}>
+              <div className="cl-origem">
+                <div className="cl-origem__item">
+                  <strong>Arquivo CSV</strong>
+                  <span className="b-suave">Exportado do Avec ou do Excel</span>
+                  <button type="button" className="botao botao--linha botao--p" onClick={() => arquivo.current?.click()}>Escolher arquivo</button>
+                </div>
+                <label className="b-campo cl-origem__item"><span className="rotulo">Ou cole aqui (com a linha de títulos)</span>
+                  <textarea rows={4} onPaste={(e) => { e.preventDefault(); carregar(e.clipboardData.getData('text')); }} placeholder="Nome	Celular	E-mail	CPF	Nascimento" /></label>
+              </div>
+            </Secao>
             {tabela && (
               <>
-                <p className="b-suave">{plural(tabela.length - 1, 'linha', 'linhas')}. Confira qual coluna é cada informação:</p>
-                <div className="imp-mapa">
-                  {CAMPOS_IMPORT.map(([k, t]) => (
-                    <label key={k} className="b-campo"><span className="rotulo">{t}</span>
-                      <select value={mapa[k] ?? ''} onChange={(e) => { setMapa({ ...mapa, [k]: e.target.value === '' ? undefined : Number(e.target.value) }); setPrevia(null); }}>
-                        <option value="">não tem</option>
-                        {tabela[0].map((h, i) => <option key={i} value={i}>{h || `coluna ${i + 1}`}</option>)}
-                      </select></label>
-                  ))}
-                </div>
-                <div className="b-tabela-caixa">
-                  <table className="b-tabela"><thead><tr>{CAMPOS_IMPORT.filter(([k]) => mapa[k] != null).map(([k, t]) => <th key={k}>{t}</th>)}</tr></thead>
-                    <tbody>{linhas().slice(0, 4).map((l, i) => <tr key={i}>{CAMPOS_IMPORT.filter(([k]) => mapa[k] != null).map(([k]) => <td key={k}>{l[k]}</td>)}</tr>)}</tbody></table>
-                </div>
-                {previa && (
-                  <div className="aviso">
-                    Vão entrar <strong>{plural(previa.novos, 'cadastro novo', 'cadastros novos')}</strong> ({previa.semCpf} sem CPF) · {plural(previa.atualizados, 'completado', 'completados')} · {previa.repetidos} já {previa.repetidos === 1 ? 'existe' : 'existem'} · {plural(previa.totalIgnorados, 'linha ignorada', 'linhas ignoradas')}.
-                    {previa.ignorados.length > 0 && <span className="b-bloco b-suave">Ignoradas: {previa.ignorados.slice(0, 8).map((x) => `linha ${x.linha + 1}${x.nome ? ' (' + x.nome + ')' : ''}: ${x.motivo}`).join('; ')}</span>}
+                <Secao titulo="2. Confira as colunas" acoes={<Tag tom={mapa.nome != null ? 'ok' : 'aviso'}>{usados.length} de {CAMPOS_IMPORT.length} reconhecidas · {plural(tabela.length - 1, 'linha', 'linhas')}</Tag>}>
+                  <div className="cl-mapa">
+                    <p className="cl-mapa__grupo">Dados da pessoa</p>
+                    <div className="imp-mapa">{grupo(['nome', 'whatsapp', 'email', 'cpf', 'nascimento', 'obs']).map(campoMapa)}</div>
+                    <p className="cl-mapa__grupo">Endereço e origem</p>
+                    <div className="imp-mapa">{grupo(['cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'comoConheceu']).map(campoMapa)}</div>
                   </div>
+                  <div className="b-tabela-caixa cl-previa">
+                    <table className="b-tabela"><thead><tr>{usados.map(([k, t]) => <th key={k}>{t}</th>)}</tr></thead>
+                      <tbody>{linhas().slice(0, 4).map((l, i) => <tr key={i}>{usados.map(([k]) => <td key={k}>{l[k]}</td>)}</tr>)}</tbody></table>
+                  </div>
+                </Secao>
+                {previa && (
+                  <Secao titulo="3. Confira o resultado">
+                    <div className="cl-resumo-imp">
+                      <div><strong>{previa.novos}</strong><span>{previa.novos === 1 ? 'cadastro novo' : 'cadastros novos'}{previa.semCpf ? ` · ${previa.semCpf} sem CPF` : ''}</span></div>
+                      <div><strong>{previa.atualizados}</strong><span>{previa.atualizados === 1 ? 'completado' : 'completados'}</span></div>
+                      <div><strong>{previa.repetidos}</strong><span>já {previa.repetidos === 1 ? 'existe' : 'existem'}</span></div>
+                      <div><strong>{previa.totalIgnorados}</strong><span>{previa.totalIgnorados === 1 ? 'linha ignorada' : 'linhas ignoradas'}</span></div>
+                    </div>
+                    {previa.ignorados.length > 0 && (
+                      <Aviso tom="aviso" titulo="Linhas ignoradas">{previa.ignorados.slice(0, 8).map((x) => `linha ${x.linha + 1}${x.nome ? ' (' + x.nome + ')' : ''}: ${x.motivo}`).join('; ')}</Aviso>
+                    )}
+                  </Secao>
                 )}
                 <Erro>{erro}</Erro>
-                {!previa ? (
-                  <BotaoAcao className="botao botao--linha" disabled={mapa.nome == null} acao={() => enviar(true)}>Conferir antes de importar</BotaoAcao>
-                ) : (
-                  <BotaoAcao className="botao botao--cheio" disabled={!previa.novos && !previa.atualizados} acao={() => enviar(false)}>Importar {plural(previa.novos, 'cliente', 'clientes')}</BotaoAcao>
-                )}
+                <div className="cl-rodape">
+                  {!previa ? (
+                    <BotaoAcao className="botao botao--linha" disabled={mapa.nome == null} acao={() => enviar(true)}>Conferir antes de importar</BotaoAcao>
+                  ) : (
+                    <BotaoAcao className="botao botao--cheio" disabled={!previa.novos && !previa.atualizados} acao={() => enviar(false)}>Importar {plural(previa.novos, 'cliente', 'clientes')}</BotaoAcao>
+                  )}
+                </div>
               </>
             )}
             {!tabela && <Erro>{erro}</Erro>}
@@ -294,28 +344,37 @@ function NovoAluno({ aoFechar, aoCriar }) {
     }
   }
   return (
-    <Modal rotulo="Sem CPF não há acesso à área do aluno, mas ficam agenda, comandas e histórico" titulo="Novo cliente" aoFechar={aoFechar} largo>
-      <form className="b-form" onSubmit={salvar} noValidate>
-        <label className="b-campo"><span className="rotulo">Nome completo</span><input {...campo('nome')} autoComplete="off" /></label>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">CPF (opcional)</span><input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
-          <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" {...campo('whatsapp', mascaraTelefone)} /></label>
-        </div>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
-          <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
-        </div>
-        <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
-        <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
+    <Modal rotulo="Cadastro rápido de cliente" titulo="Novo cliente" aoFechar={aoFechar} largo>
+      <form className="b-form cl-form" onSubmit={salvar} noValidate>
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Dados da pessoa</h3>
+          <label className="b-campo"><span className="rotulo">Nome completo</span><input {...campo('nome')} autoComplete="off" /></label>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">CPF (opcional)</span><input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
+            <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" {...campo('whatsapp', mascaraTelefone)} /></label>
+          </div>
+          <small className="cl-dica cl-dica--linha">Sem CPF não há acesso à área do aluno, mas ficam agenda, comandas e histórico.</small>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
+            <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
+          </div>
+        </section>
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Origem e endereço</h3>
+          <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
+          <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
+        </section>
         {soDigitos(f.cpf).length === 11 && (
-          <label className="b-check">
+          <label className="b-check cl-convite">
             <input type="checkbox" checked={f.enviarConvite} onChange={(e) => setF((x) => ({ ...x, enviarConvite: e.target.checked }))} />
             Enviar convite por e-mail para criar a senha da área do aluno
           </label>
         )}
-        <Erro>{erro}</Erro>
-        {duplicado && <button type="button" className="botao botao--linha" onClick={() => aoCriar(duplicado)}>Abrir o cadastro que já existe</button>}
-        <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Salvando…' : 'Cadastrar'}</button>
+        <div className="cl-rodape">
+          <Erro>{erro}</Erro>
+          {duplicado && <button type="button" className="botao botao--linha" onClick={() => aoCriar(duplicado)}>Abrir o cadastro que já existe</button>}
+          <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Salvando…' : 'Cadastrar'}</button>
+        </div>
       </form>
     </Modal>
   );
@@ -341,13 +400,25 @@ export function AlunoDetalhe() {
   const previa = local.state?.resumo?.cpf === cpf ? local.state.resumo : null;
   if (carregando && !a && previa) return (
     <>
-      <Link to="/bancada/alunos" className="link-acao b-voltar">Clientes</Link>
-      <Cabecalho titulo={previa.nome}>{previa.semCpf ? 'Sem CPF' : `CPF ${cpfFmt(previa.cpf)}`} · {telFmt(previa.whatsapp)}{previa.email ? ' · ' + previa.email : ''}</Cabecalho>
-      <div className="b-reserva__tags b-tags-topo">{previa.plano ? <Tag tom="ok">{previa.plano}</Tag> : <Tag>sem plano ativo</Tag>}</div>
-      <Carregando />
+      <Link to="/bancada/alunos" className="link-acao b-voltar cl-voltar">← Clientes</Link>
+      <header className="cl-ficha">
+        <div className="cl-ficha__id">
+          <Avatar nome={previa.nome} tamanho="g" />
+          <div className="cl-ficha__quem">
+            <h1 className="b-titulo cl-ficha__nome">{previa.nome}</h1>
+            <div className="cl-ficha__tags">{previa.plano ? <Tag tom="ok">{previa.plano}</Tag> : <Tag>sem plano ativo</Tag>}</div>
+          </div>
+        </div>
+        <ul className="cl-contatos">
+          <li><span>CPF</span>{previa.semCpf ? 'sem CPF' : cpfFmt(previa.cpf)}</li>
+          {previa.whatsapp && <li><span>WhatsApp</span>{telFmt(previa.whatsapp)}</li>}
+          {previa.email && <li><span>E-mail</span>{previa.email}</li>}
+        </ul>
+      </header>
+      <Esqueleto linhas={5} altura={44} />
     </>
   );
-  if (carregando && !a) return <Carregando />;
+  if (carregando && !a) return <Esqueleto linhas={6} altura={44} />;
   if (!a) return <><Erro>{erro}</Erro><Link to="/bancada/alunos" className="link-acao">Voltar para clientes</Link></>;
 
   async function linkSenha() {
@@ -366,124 +437,147 @@ export function AlunoDetalhe() {
   }
 
   const wh = WELLHUB[a.wellhub];
+  const semWellhub = a.wellhub === 'nao_informado' || a.wellhub === 'desligado';
+  const vigentes = a.creditos.filter((c) => c.vigente && c.ativo).length;
   return (
     <>
-      <Link to="/bancada/alunos" className="link-acao b-voltar">Clientes</Link>
-      <Cabecalho titulo={a.nome} acoes={
-        <>
-          {a.whatsapp && <a className="botao botao--linha botao--p com-icone" href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> WhatsApp</a>}
-          <button type="button" className="botao botao--linha botao--p" onClick={() => setVale(true)}>Aplicar vale</button>
-          <button type="button" className="botao botao--linha botao--p" onClick={() => setVender(true)}>Vender plano</button>
-          <button type="button" className="botao botao--linha botao--p" disabled={!catalogoServ} onClick={() => setAgendarServ(true)}>Agendar serviço</button>
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setComanda(a.comandaAberta ? { id: a.comandaAberta } : { inicial: { cpf: a.cpf, nome: a.nome } })}>
+      <Link to="/bancada/alunos" className="link-acao b-voltar cl-voltar">← Clientes</Link>
+      <header className="cl-ficha">
+        <div className="cl-ficha__id">
+          <Avatar nome={a.nome} tamanho="g" />
+          <div className="cl-ficha__quem">
+            <h1 className="b-titulo cl-ficha__nome">{a.nome}</h1>
+            <div className="cl-ficha__tags">
+              {!a.ativo && <Tag tom="apagado">desativado</Tag>}
+              {a.plano ? <Tag tom="ok">{a.plano}</Tag> : <Tag>sem plano ativo</Tag>}
+              {a.semCpf && <Tag title="Sem CPF a pessoa não acessa a área do aluno">sem CPF</Tag>}
+              {!a.marketing && <Tag>não recebe campanhas</Tag>}
+              {!a.ficha && !a.semCpf && <Tag tom="aviso">sem ficha de saúde</Tag>}
+              {a.alerta && <Tag tom="alerta">saúde: atenção</Tag>}
+              {wh && <Tag tom={wh[1]}>{wh[0]}{a.wellhubId ? ' · ID ' + a.wellhubId : ''}</Tag>}
+              {!a.temSenha && !a.semCpf && <Tag title="Ainda não criou a senha da área do aluno">sem senha</Tag>}
+            </div>
+          </div>
+        </div>
+        <ul className="cl-contatos">
+          <li><span>CPF</span>{a.semCpf ? 'sem CPF' : cpfFmt(a.cpf)}</li>
+          <li><span>WhatsApp</span>{telFmt(a.whatsapp) || '—'}</li>
+          <li><span>E-mail</span>{a.email || 'sem e-mail'}</li>
+          <li><span>Cliente desde</span>{dataBR(a.criadoEm)}</li>
+        </ul>
+        <div className="cl-ficha__acoes">
+          {a.whatsapp && <a className="botao botao--linha botao--p com-icone cl-acao--zap" href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> WhatsApp</a>}
+          <MenuMais className="cl-acao--mais" itens={[{ texto: 'Aplicar vale-presente', acao: () => setVale(true) }]} />
+          <button type="button" className="botao botao--linha botao--p cl-acao--vender" onClick={() => setVender(true)}>Vender plano</button>
+          <button type="button" className="botao botao--linha botao--p cl-acao--agendar" disabled={!catalogoServ} onClick={() => setAgendarServ(true)}>Agendar serviço</button>
+          <button type="button" className="botao botao--cheio botao--p cl-acao--comanda" onClick={() => setComanda(a.comandaAberta ? { id: a.comandaAberta } : { inicial: { cpf: a.cpf, nome: a.nome } })}>
             {a.comandaAberta ? 'Comanda aberta' : 'Abrir comanda'}
           </button>
-        </>
-      }>
-        {a.semCpf ? 'Sem CPF' : `CPF ${cpfFmt(a.cpf)}`} · {telFmt(a.whatsapp)}{a.email ? ' · ' + a.email : ' · sem e-mail'} · cliente desde {dataBR(a.criadoEm)}
-      </Cabecalho>
-      <div className="b-reserva__tags b-tags-topo">
-        {!a.ativo && <Tag tom="apagado">desativado</Tag>}
-        {a.plano ? <Tag tom="ok">{a.plano}</Tag> : <Tag>sem plano ativo</Tag>}
-        {a.semCpf && <Tag>sem CPF · não acessa o site</Tag>}
-        {!a.marketing && <Tag>não recebe campanhas</Tag>}
-        {!a.ficha && !a.semCpf && <Tag tom="aviso">sem ficha de saúde</Tag>}
-        {a.alerta && <Tag tom="alerta">saúde: atenção</Tag>}
-        {wh && <Tag tom={wh[1]}>{wh[0]}{a.wellhubId ? ' · ID ' + a.wellhubId : ''}</Tag>}
-        {!a.temSenha && !a.semCpf && <Tag>ainda não criou senha</Tag>}
-      </div>
+        </div>
+      </header>
       <Alertas lista={a.alertas} />
       <Erro>{erro}</Erro>
-      {aviso && <p className="aviso">{aviso}</p>}
+      {aviso && <Aviso tom="info">{aviso}</Aviso>}
 
-      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['anamnese', 'Anamnese'], ['estetica', 'Estética'], ['planos', 'Planos e pacotes'], ['aulas', 'Aulas'],
-        ['pagamentos', 'Pagamentos'], ['saude', 'Saúde']]} />
+      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['anamnese', 'Anamnese'], ['estetica', 'Estética'],
+        ['planos', vigentes ? `Planos e pacotes · ${vigentes}` : 'Planos e pacotes'], ['aulas', a.reservas.length ? `Aulas · ${a.reservas.length}` : 'Aulas'],
+        ['pagamentos', a.pagamentos?.length ? `Pagamentos · ${a.pagamentos.length}` : 'Pagamentos'], ['saude', 'Saúde']]} />
 
       {aba === 'resumo' && (
-        <div className="b-duas">
-          <section className="b-cartao">
-            <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Dados</h2><button type="button" className="link-acao" onClick={() => setEditar(true)}>editar</button></header>
-            <dl className="b-dados">
-              <dt>WhatsApp</dt><dd>{telFmt(a.whatsapp)}</dd>
-              <dt>E-mail</dt><dd>{a.email || '—'}</dd>
-              <dt>Nascimento</dt><dd>{a.nascimento ? dataBR(a.nascimento) : '—'}</dd>
-              <dt>Como conheceu</dt><dd>{a.comoConheceu || <button type="button" className="link-acao" onClick={() => setEditar(true)}>perguntar e anotar</button>}</dd>
-              <dt>Endereço</dt><dd>{a.endereco?.endereco
-                ? <>{a.endereco.endereco}{a.endereco.numero ? `, ${a.endereco.numero}` : ''}{a.endereco.complemento ? ` · ${a.endereco.complemento}` : ''}<span className="b-suave b-bloco">{[a.endereco.bairro, a.endereco.cidade && `${a.endereco.cidade}${a.endereco.uf ? '/' + a.endereco.uf : ''}`, a.endereco.cep && a.endereco.cep.replace('-', '\u2011')].filter(Boolean).join(' · ')}</span></>
-                : '—'}</dd>
-              <dt>Última visita</dt><dd>{a.ultimaVisita ? dataBR(a.ultimaVisita) : '—'}</dd>
-              <dt>Visitas</dt><dd>{plural(a.presencas, 'aula', 'aulas')} · {plural(a.servicos || 0, 'serviço', 'serviços')}</dd>
-              <dt>Já gastou</dt><dd>{real(a.totalGasto)}</dd>
-              <dt>Acesso ao site</dt><dd>{a.semCpf ? 'precisa de CPF' : <>{a.temSenha ? 'com senha' : 'sem senha'} · <button type="button" className="link-acao" onClick={linkSenha}>{a.temSenha ? 'enviar link de nova senha' : 'enviar convite'}</button></>}</dd>
-            </dl>
-            {a.obs && <div className="b-obs"><span className="rotulo">Observações internas</span><p>{a.obs}</p></div>}
-          </section>
-          <section className="b-cartao">
-            <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Wellhub</h2></header>
-            {a.wellhub === 'nao_informado' || a.wellhub === 'desligado' ? (
-              <p className="b-suave">Não informou Wellhub.</p>
-            ) : (
-              <>
-                <p>ID <strong>{a.wellhubId || '—'}</strong> · {wh ? wh[0] : a.wellhub}</p>
-                <div className="b-botoes">
-                  <BotaoAcao acao={() => salvar({ wellhub: 'confirmado' })} disabled={a.wellhub === 'confirmado'}>Confirmar Gold+</BotaoAcao>
-                  <BotaoAcao acao={() => salvar({ wellhub: 'bloqueado' })} disabled={a.wellhub === 'bloqueado'} className="botao botao--linha botao--p botao--perigo">Recusar</BotaoAcao>
-                </div>
-                <p className="b-suave b-nota">Confira no Portal do Parceiro Wellhub se o plano é Gold+ ou superior.</p>
-              </>
-            )}
-          </section>
-        </div>
+        <>
+          <div className="b-kpis cl-kpis">
+            <Kpi rotulo="Última visita" valor={a.ultimaVisita ? dataCurta(a.ultimaVisita) : '—'} detalhe={a.ultimaVisita ? dataBR(a.ultimaVisita) : 'ainda não veio'} />
+            <Kpi rotulo="Aulas" valor={a.presencas} detalhe={a.presencas === 1 ? 'presença' : 'presenças'} />
+            <Kpi rotulo="Serviços" valor={a.servicos || 0} detalhe="atendimentos" />
+            <Kpi rotulo="Já gastou" valor={real(a.totalGasto)} detalhe="desde o cadastro" />
+          </div>
+          <div className="b-duas cl-resumo">
+            <section className="b-cartao cl-cartao">
+              <Secao titulo="Dados" acoes={<button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(true)}>Editar</button>}>
+                <dl className="cl-dados">
+                  <dt>WhatsApp</dt><dd>{telFmt(a.whatsapp) || '—'}</dd>
+                  <dt>E-mail</dt><dd>{a.email || '—'}</dd>
+                  <dt>Nascimento</dt><dd>{a.nascimento ? dataBR(a.nascimento) : '—'}</dd>
+                  <dt>Como conheceu</dt><dd>{a.comoConheceu || <button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(true)}>Perguntar e anotar</button>}</dd>
+                  <dt>Endereço</dt><dd>{a.endereco?.endereco
+                    ? <>{a.endereco.endereco}{a.endereco.numero ? `, ${a.endereco.numero}` : ''}{a.endereco.complemento ? ` · ${a.endereco.complemento}` : ''}<span className="b-suave b-bloco">{[a.endereco.bairro, a.endereco.cidade && `${a.endereco.cidade}${a.endereco.uf ? '/' + a.endereco.uf : ''}`, a.endereco.cep && a.endereco.cep.replace('-', '‑')].filter(Boolean).join(' · ')}</span></>
+                    : '—'}</dd>
+                </dl>
+                {a.obs && <div className="b-obs cl-obs"><span className="rotulo">Observações internas</span><p>{a.obs}</p></div>}
+              </Secao>
+            </section>
+            <div className="cl-coluna">
+              <section className="b-cartao cl-cartao">
+                <Secao titulo="Área do aluno">
+                  {a.semCpf ? (
+                    <Aviso tom="info">Precisa de CPF para acessar o site.</Aviso>
+                  ) : (
+                    <div className="cl-linha-acao">
+                      <Tag tom={a.temSenha ? 'ok' : 'aviso'}>{a.temSenha ? 'com senha' : 'sem senha'}</Tag>
+                      <button type="button" className="botao botao--linha botao--p" onClick={linkSenha}>{a.temSenha ? 'Enviar link de nova senha' : 'Enviar convite'}</button>
+                    </div>
+                  )}
+                </Secao>
+              </section>
+              <section className="b-cartao cl-cartao">
+                <Secao titulo="Wellhub" ajuda="Confira no Portal do Parceiro Wellhub se o plano é Gold+ ou superior antes de confirmar.">
+                  {semWellhub ? (
+                    <p className="b-suave cl-nada">Não informou Wellhub.</p>
+                  ) : (
+                    <>
+                      <div className="cl-linha-acao">
+                        <span>ID <strong>{a.wellhubId || '—'}</strong></span>
+                        <Tag tom={wh ? wh[1] : 'neutro'}>{wh ? wh[0] : a.wellhub}</Tag>
+                      </div>
+                      <div className="b-botoes">
+                        <BotaoAcao acao={() => salvar({ wellhub: 'confirmado' })} disabled={a.wellhub === 'confirmado'}>Confirmar Gold+</BotaoAcao>
+                        <BotaoAcao acao={() => salvar({ wellhub: 'bloqueado' })} disabled={a.wellhub === 'bloqueado'} className="botao botao--linha botao--p botao--perigo">Recusar</BotaoAcao>
+                      </div>
+                    </>
+                  )}
+                </Secao>
+              </section>
+            </div>
+          </div>
+        </>
       )}
 
       {aba === 'historico' && <Historico itens={a.historico} />}
-      {aba === 'estetica' && <section className="b-cartao"><ProntuarioConteudo alvo={{ cpf: a.cpf }} /></section>}
+      {aba === 'estetica' && <section className="b-cartao cl-cartao"><ProntuarioConteudo alvo={{ cpf: a.cpf }} /></section>}
       {aba === 'anamnese' && <AnamneseConteudo alvo={{ cpf: a.cpf }} />}
       {aba === 'planos' && <Creditos a={a} aoMudar={recarregar} />}
 
-      {aba === 'aulas' && (
-        a.reservas.length === 0 ? <Vazio titulo="Nenhuma aula ainda" /> : (
-          <div className="b-tabela-caixa">
-            <table className="b-tabela">
-              <thead><tr><th>Data</th><th>Aula</th><th>Tapete</th><th>Pago com</th><th>Situação</th></tr></thead>
-              <tbody>
-                {a.reservas.map((r) => {
-                  const st = STATUS_RESERVA[r.status] || [r.status, 'neutro'];
-                  const passou = r.data < hojeIso();
-                  return (
-                    <tr key={r.id}>
-                      <td data-rotulo="Data">{dataBR(r.data)}</td>
-                      <td data-rotulo="Aula">{r.modalidade} · {hora(r.hora)} · {r.professor}</td>
-                      <td data-rotulo="Tapete">{r.tapete || '—'}</td>
-                      <td data-rotulo="Pago com">{r.forma}</td>
-                      <td data-rotulo="Situação"><Tag tom={st[1]}>{r.status === 'reservado' && passou ? 'sem registro' : st[0]}</Tag></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )
-      )}
+      {aba === 'aulas' && <AulasDoCliente reservas={a.reservas} />}
 
-      {aba === 'pagamentos' && <ListaPagamentos lista={a.pagamentos} />}
+      {aba === 'pagamentos' && <PagamentosDoCliente lista={a.pagamentos} />}
 
       {aba === 'saude' && (
         <>
-          <section className="b-cartao">{a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">A ficha é pedida na primeira reserva de aula ou na primeira contratação de plano pela área do aluno (também dá para preencher em Ficha de saúde).</Vazio>}</section>
+          <section className="b-cartao cl-cartao">
+            <Secao titulo="Ficha de saúde">
+              {a.ficha ? <FichaConteudo f={a.ficha} /> : <Vazio titulo="Ficha não preenchida">Ela é pedida na primeira reserva ou plano pelo site (também dá para preencher em Ficha de saúde).</Vazio>}
+            </Secao>
+          </section>
           {a.contratos?.length > 0 && (
-            <section className="b-cartao" aria-label="Contratos assinados">
-              <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Contratos assinados</h2></header>
-              <ul className="b-lista-simples">
-                {a.contratos.map((c) => (
-                  <li key={c.id}>
-                    <strong>{c.plano}</strong> · assinado em {dataBR(String(c.assinadoEm).slice(0, 10))} {String(c.assinadoEm).slice(11, 16)} · versão {c.versao}
-                    {c.pdf && <> · <a href={c.pdf} target="_blank" rel="noreferrer">abrir PDF</a></>}
-                    {c.assinatura && <> · <a href={c.assinatura} target="_blank" rel="noreferrer">ver assinatura</a></>}
-                    <span className="b-suave b-bloco">{c.enviado ? 'cópia enviada por e-mail (pagamento confirmado)' : 'cópia ainda não enviada: sai quando o pagamento do plano for confirmado'}</span>
-                  </li>
-                ))}
-              </ul>
+            <section className="b-cartao cl-cartao" aria-label="Contratos assinados">
+              <Secao titulo="Contratos assinados" acoes={<Tag>{a.contratos.length}</Tag>}>
+                <ul className="cl-contratos">
+                  {a.contratos.map((c) => (
+                    <li key={c.id}>
+                      <span className="b-icone-chip b-icone-chip--caramelo" aria-hidden="true">✎</span>
+                      <div className="cl-contratos__corpo">
+                        <strong>{c.plano}</strong>
+                        <span className="b-meta"><span>assinado em {dataBR(String(c.assinadoEm).slice(0, 10))} {String(c.assinadoEm).slice(11, 16)}</span><span>versão {c.versao}</span></span>
+                        <span><Tag tom={c.enviado ? 'ok' : 'aviso'} title={c.enviado ? 'Cópia enviada por e-mail depois da confirmação do pagamento' : 'A cópia só sai quando o pagamento do plano for confirmado'}>{c.enviado ? 'cópia enviada por e-mail' : 'cópia a enviar: aguarda o pagamento'}</Tag></span>
+                      </div>
+                      <div className="cl-contratos__links">
+                        {c.pdf && <a className="botao botao--linha botao--p" href={c.pdf} target="_blank" rel="noreferrer">Abrir PDF</a>}
+                        {c.assinatura && <a className="botao botao--fantasma botao--p" href={c.assinatura} target="_blank" rel="noreferrer">Ver assinatura</a>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </Secao>
             </section>
           )}
         </>
@@ -493,7 +587,7 @@ export function AlunoDetalhe() {
         <section className="b-zona-exclusao" aria-label="Excluir cliente">
           <div>
             <strong>Excluir cliente</strong>
-            <span>Apaga os dados pessoais, a ficha de saúde e as fotos (pedido de exclusão, LGPD). Não dá para desfazer.</span>
+            <span>Apaga dados pessoais, ficha de saúde e fotos (LGPD). Não dá para desfazer.</span>
           </div>
           <button type="button" className="botao botao--linha botao--p botao--perigo" onClick={() => setExcluir(true)}>Excluir cliente…</button>
         </section>
@@ -520,6 +614,58 @@ export function AlunoDetalhe() {
   );
 }
 
+// ---------- aulas da pessoa: próximas e anteriores ----------
+function AulasDoCliente({ reservas }) {
+  if (!reservas.length) return <Vazio titulo="Nenhuma aula ainda">As reservas e presenças aparecem aqui.</Vazio>;
+  const hoje = hojeIso();
+  const proximas = reservas.filter((r) => r.data >= hoje && r.status === 'reservado');
+  const resto = reservas.filter((r) => !proximas.includes(r));
+  const linha = (r) => {
+    const st = STATUS_RESERVA[r.status] || [r.status, 'neutro'];
+    const passou = r.data < hoje;
+    const dia = Number(r.data.slice(8, 10));
+    return (
+      <li key={r.id} className="b-item cl-aula">
+        <span className="cl-data" title={dataBR(r.data)}><strong>{dia}</strong><small>{MESES[Number(r.data.slice(5, 7)) - 1]}</small></span>
+        <span className="b-item__corpo">
+          <span className="b-item__titulo">{r.modalidade} · {hora(r.hora)}</span>
+          <span className="b-meta">
+            <span>com {r.professor}</span>
+            {r.tapete ? <span>tapete {r.tapete}</span> : null}
+            {r.forma ? <span>{r.forma}</span> : null}
+            <span>{r.data.slice(0, 4)}</span>
+          </span>
+        </span>
+        <span className="b-item__lado"><Tag tom={st[1]}>{r.status === 'reservado' && passou ? 'sem registro' : st[0]}</Tag></span>
+      </li>
+    );
+  };
+  return (
+    <div className="cl-pilha">
+      {proximas.length > 0 && <Secao titulo={`Próximas · ${proximas.length}`}><ul className="b-itens">{proximas.map(linha)}</ul></Secao>}
+      {resto.length > 0 && <Secao titulo={proximas.length ? `Anteriores · ${resto.length}` : `Aulas · ${resto.length}`}><ul className="b-itens">{resto.map(linha)}</ul></Secao>}
+    </div>
+  );
+}
+
+// ---------- pagamentos da pessoa: totais + lista ----------
+function PagamentosDoCliente({ lista }) {
+  const pagos = (lista || []).filter((p) => p.status === 'pago');
+  const total = pagos.reduce((t, p) => t + Number(p.valor || 0), 0);
+  const pendentes = (lista || []).filter((p) => p.status === 'pendente').length;
+  return (
+    <div className="cl-pilha">
+      {lista?.length > 0 && (
+        <div className="b-kpis cl-kpis">
+          <Kpi rotulo="Total pago" valor={real(total)} detalhe={plural(pagos.length, 'pagamento', 'pagamentos')} />
+          <Kpi rotulo="Pendentes" valor={pendentes} tom={pendentes ? 'aviso' : undefined} detalhe={pendentes ? 'aguardando pagamento' : 'nada em aberto'} />
+        </div>
+      )}
+      <ListaPagamentos lista={lista} semCliente />
+    </div>
+  );
+}
+
 // ---------- excluir cliente (só administração; LGPD) ----------
 function ExcluirCliente({ a, aoFechar, aoExcluir }) {
   const { chamar } = useBancada();
@@ -529,25 +675,25 @@ function ExcluirCliente({ a, aoFechar, aoExcluir }) {
   const confere = conf.trim().toLowerCase() === nome.toLowerCase();
   return (
     <Modal titulo="Excluir cliente" rotulo={a.nome} aoFechar={aoFechar}>
-      <div className="b-form ex-cliente">
-        <p className="ex-cliente__alerta"><strong>Isto não pode ser desfeito.</strong> Use quando a pessoa pedir a exclusão dos dados (LGPD) ou para apagar um cadastro feito por engano.</p>
-        <ul className="ex-cliente__lista">
-          <li><strong>Sem histórico</strong> (nenhuma aula, serviço ou compra): o cadastro é apagado por inteiro.</li>
-          <li><strong>Com histórico</strong>: nome, CPF, WhatsApp, e-mail e endereço são apagados em todo o sistema. As vendas continuam no financeiro como “Cliente excluído”, sem dados pessoais, para o caixa e os relatórios não mudarem.</li>
-          <li><strong>Sempre</strong>: ficha de saúde, ficha de estética, evolução, anamneses e fotos são apagadas, e o acesso à área do aluno deixa de funcionar.</li>
+      <div className="b-form ex-cliente cl-form">
+        <Aviso tom="alerta" titulo="Isto não pode ser desfeito">Use quando a pessoa pedir a exclusão dos dados (LGPD) ou para apagar um cadastro feito por engano.</Aviso>
+        <ul className="cl-regras">
+          <li><Tag>sem histórico</Tag><span>Nenhuma aula, serviço ou compra: o cadastro é apagado por inteiro.</span></li>
+          <li><Tag tom="aviso">com histórico</Tag><span>Nome, CPF, WhatsApp, e-mail e endereço são apagados em todo o sistema. As vendas continuam no financeiro como “Cliente excluído”, sem dados pessoais, para o caixa e os relatórios não mudarem.</span></li>
+          <li><Tag tom="alerta">sempre</Tag><span>Ficha de saúde, ficha de estética, evolução, anamneses e fotos são apagadas, e o acesso à área do aluno deixa de funcionar.</span></li>
         </ul>
-        {a.comandaAberta && <p className="b-alerta-txt">Há uma comanda aberta. Feche ou cancele a comanda antes de excluir.</p>}
+        {a.comandaAberta && <Aviso tom="aviso">Há uma comanda aberta. Feche ou cancele a comanda antes de excluir.</Aviso>}
         <label className="b-campo">
           <span className="rotulo">Para confirmar, digite o primeiro nome: <strong>{nome}</strong></span>
           <input value={conf} onChange={(e) => setConf(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={!!conf && !confere} />
         </label>
         <Erro>{erro}</Erro>
-        <div className="b-botoes">
+        <div className="cl-rodape cl-rodape--linha">
+          <button type="button" className="botao botao--linha" onClick={aoFechar}>Voltar</button>
           <BotaoAcao className="botao botao--perigo-cheio" disabled={!confere || !!a.comandaAberta} acao={async () => {
             setErro('');
             try { aoExcluir(await chamar('excluirCliente', { cpf: a.cpf, confirmacao: conf.trim() })); } catch (e) { setErro(e.message); }
           }}>Excluir definitivamente</BotaoAcao>
-          <button type="button" className="botao botao--linha" onClick={aoFechar}>Voltar</button>
         </div>
       </div>
     </Modal>
@@ -555,57 +701,82 @@ function ExcluirCliente({ a, aoFechar, aoExcluir }) {
 }
 
 const TIPO_HIST = { aula: 'Aula', servico: 'Serviço', compra: 'Compra', produto: 'Produto', vale: 'Vale-presente', evolucao: 'Evolução', anamnese: 'Anamnese' };
+const STATUS_HIST = { 'check-in': 'presente', reservado: 'reservada', atendido: 'atendido', falta: 'faltou', cancelado: 'cancelado', agendado: 'agendado', confirmado: 'confirmado', ativo: 'ativo', resgatado: 'usado', usado: 'usado' };
 function Historico({ itens }) {
-  if (!itens?.length) return <Vazio titulo="Nada por aqui ainda" />;
+  const [tipo, setTipo] = useState('todos');
+  if (!itens?.length) return <Vazio titulo="Nada por aqui ainda">Aulas, atendimentos e compras desta pessoa aparecem em ordem de data.</Vazio>;
+  const tipos = Object.keys(TIPO_HIST).filter((t) => itens.some((h) => h.tipo === t));
+  const lista = tipo === 'todos' ? itens : itens.filter((h) => h.tipo === tipo);
   const linhas = [];
-  itens.forEach((h, i) => {
+  lista.forEach((h, i) => {
     const ano = h.data.slice(0, 4);
-    if (!i || itens[i - 1].data.slice(0, 4) !== ano) linhas.push(<li key={'a' + ano + i} className="hist__ano">{ano}</li>);
-    const quando = `${dataCurta(h.data)}${h.hora ? ` · ${hora(h.hora)}` : ''}`;
+    if (!i || lista[i - 1].data.slice(0, 4) !== ano) linhas.push(<li key={'a' + ano + i} className="cl-tl__ano">{ano}</li>);
     linhas.push(
-      <li key={i} className={`hist__item hist__item--${h.tipo}`}>
-        <span className="hist__data">{quando}</span>
-        <span className="hist__ponto" aria-hidden="true" />
-        <span className="hist__corpo">
-          <strong>{h.titulo}</strong>
-          <span className="b-suave">{TIPO_HIST[h.tipo]}{h.detalhe ? ` · ${h.detalhe}` : ''}{h.valor ? ` · ${real(h.valor)}` : ''}</span>
-          <span className="b-suave hist__quando">{quando}</span>
+      <li key={i} className={`cl-tl__item cl-tl__item--${h.tipo}`}>
+        <span className="cl-tl__data" title={dataBR(h.data)}><strong>{Number(h.data.slice(8, 10))}</strong><small>{MESES[Number(h.data.slice(5, 7)) - 1]}</small></span>
+        <span className="cl-tl__ponto" aria-hidden="true" />
+        <span className="cl-tl__corpo">
+          <span className="cl-tl__topo">
+            <span className="cl-tl__tipo">{TIPO_HIST[h.tipo] || h.tipo}{h.hora ? ` · ${hora(h.hora)}` : ''}</span>
+            {h.status && h.status !== 'pago' ? <Tag tom={h.status === 'falta' ? 'alerta' : h.status === 'cancelado' ? 'apagado' : h.status === 'atendido' || h.status === 'check-in' ? 'ok' : 'neutro'}>{STATUS_HIST[h.status] || h.status}</Tag> : null}
+          </span>
+          <strong className="cl-tl__titulo">{h.titulo}</strong>
+          {(h.detalhe || h.valor) ? <span className="b-meta">{h.detalhe ? <span>{h.detalhe}</span> : null}{h.valor ? <span className="cl-tl__valor">{real(h.valor)}</span> : null}</span> : null}
         </span>
-        {h.status && h.status !== 'pago' ? <Tag tom={h.status === 'falta' ? 'alerta' : h.status === 'cancelado' ? 'apagado' : h.status === 'atendido' || h.status === 'check-in' ? 'ok' : 'neutro'}>{
-          { 'check-in': 'presente', reservado: 'reservada', atendido: 'atendido', falta: 'faltou', cancelado: 'cancelado', agendado: 'agendado', confirmado: 'confirmado', ativo: 'ativo', resgatado: 'usado', usado: 'usado' }[h.status] || h.status}</Tag> : <span />}
       </li>
     );
   });
-  return <ol className="hist">{linhas}</ol>;
+  return (
+    <div className="cl-pilha">
+      {tipos.length > 1 && (
+        <div className="cl-chips cl-chips--solto" role="group" aria-label="Filtrar histórico">
+          <button type="button" className={`b-chip${tipo === 'todos' ? ' b-chip--ativo' : ''}`} aria-pressed={tipo === 'todos'} onClick={() => setTipo('todos')}>Tudo <span>{itens.length}</span></button>
+          {tipos.map((t) => (
+            <button key={t} type="button" className={`b-chip${tipo === t ? ' b-chip--ativo' : ''}`} aria-pressed={tipo === t} onClick={() => setTipo(t)}>{TIPO_HIST[t]} <span>{itens.filter((h) => h.tipo === t).length}</span></button>
+          ))}
+        </div>
+      )}
+      <ol className="cl-tl">{linhas}</ol>
+    </div>
+  );
 }
 
 function Creditos({ a, aoMudar }) {
   const { chamar } = useBancada();
   const [prorrogar, setProrrogar] = useState(null);
   if (!a.creditos.length) return <Vazio titulo="Nenhum plano ainda">Use “Vender plano” para registrar uma compra feita no balcão.</Vazio>;
+  const emUso = a.creditos.filter((c) => c.ativo && c.vigente);
+  const outros = a.creditos.filter((c) => !(c.ativo && c.vigente));
+  const cartao = (c) => {
+    const pct = c.limite > 0 ? Math.min(100, Math.round((c.usadas / c.limite) * 100)) : 0;
+    const acabou = c.limite > 0 && c.usadas >= c.limite;
+    return (
+      <li key={c.id} className={`cl-plano${c.vigente && c.ativo ? ' cl-plano--vigente' : ''}${c.ativo ? '' : ' cl-plano--apagado'}`}>
+        <header className="cl-plano__topo">
+          <strong className="cl-plano__nome">{c.descricao}</strong>
+          <Tag tom={!c.ativo ? 'apagado' : c.vigente ? 'ok' : 'neutro'}>{!c.ativo ? 'desativado' : c.vigente ? 'vigente' : c.fim < hojeIso() ? 'vencido' : 'futuro'}</Tag>
+        </header>
+        <div className="cl-plano__uso">
+          <div className={`cl-barra-uso${acabou ? ' cl-barra-uso--cheia' : ''}`} role="img" aria-label={`${c.usadas} de ${c.limite} usadas`}><span style={{ width: `${pct}%` }} /></div>
+          <span className="cl-plano__num"><strong>{c.usadas}/{c.limite}</strong> {c.porSemana ? 'nesta semana' : `usada${c.limite > 1 ? 's' : ''}`}</span>
+        </div>
+        <span className="b-meta"><span>{dataBR(c.inicio)} a {dataBR(c.fim)}</span><span>{c.origem}</span></span>
+        <div className="cl-plano__acoes">
+          <button type="button" className="botao botao--linha botao--p" onClick={() => setProrrogar(c)}>Mudar validade</button>
+          <BotaoAcao className="botao botao--fantasma botao--p" acao={async () => { await chamar('ajustarCredito', { creditoId: c.id, ativo: !c.ativo }); aoMudar(); }}
+            confirmar={c.ativo ? 'Desativar este crédito? As aulas dele deixam de poder ser reservadas.' : undefined}>
+            {c.ativo ? 'Desativar' : 'Reativar'}
+          </BotaoAcao>
+        </div>
+      </li>
+    );
+  };
   return (
     <>
-      <ul className="b-creditos">
-        {a.creditos.map((c) => (
-          <li key={c.id} className={c.vigente ? 'vigente' : ''}>
-            <div>
-              <strong>{c.descricao}</strong>
-              <span className="b-suave">{dataBR(c.inicio)} a {dataBR(c.fim)} · {c.origem}</span>
-            </div>
-            <div className="b-creditos__uso">
-              {c.porSemana ? <span>{c.usadas}/{c.limite} nesta semana</span> : <span>{c.usadas}/{c.limite} usada{c.limite > 1 ? 's' : ''}</span>}
-              <Tag tom={!c.ativo ? 'apagado' : c.vigente ? 'ok' : 'neutro'}>{!c.ativo ? 'desativado' : c.vigente ? 'vigente' : c.fim < hojeIso() ? 'vencido' : 'futuro'}</Tag>
-            </div>
-            <div className="b-botoes">
-              <button type="button" className="link-acao" onClick={() => setProrrogar(c)}>mudar validade</button>
-              <BotaoAcao className="link-sair" acao={async () => { await chamar('ajustarCredito', { creditoId: c.id, ativo: !c.ativo }); aoMudar(); }}
-                confirmar={c.ativo ? 'Desativar este crédito? As aulas dele deixam de poder ser reservadas.' : undefined}>
-                {c.ativo ? 'desativar' : 'reativar'}
-              </BotaoAcao>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div className="cl-pilha">
+        {emUso.length > 0 && <Secao titulo={`Em uso · ${emUso.length}`}><ul className="cl-planos">{emUso.map(cartao)}</ul></Secao>}
+        {outros.length > 0 && <Secao titulo={emUso.length ? `Anteriores e desativados · ${outros.length}` : `Planos · ${outros.length}`}><ul className="cl-planos">{outros.map(cartao)}</ul></Secao>}
+      </div>
       {prorrogar && (
         <Modal rotulo={prorrogar.descricao} titulo="Mudar validade" aoFechar={() => setProrrogar(null)}>
           <Prorrogar c={prorrogar} aoSalvar={async (fim) => { await chamar('ajustarCredito', { creditoId: prorrogar.id, fim }); setProrrogar(null); aoMudar(); }} />
@@ -619,11 +790,13 @@ function Prorrogar({ c, aoSalvar }) {
   const [fim, setFim] = useState(c.fim);
   const [erro, setErro] = useState('');
   return (
-    <div className="b-form">
-      <p className="b-suave">Útil para atestado médico, viagem ou feriado prolongado.</p>
-      <label className="b-campo"><span className="rotulo">Válido até</span><input type="date" value={fim} onChange={(e) => setFim(e.target.value)} /></label>
+    <div className="b-form cl-form">
+      <label className="b-campo"><span className="rotulo">Válido até</span><input type="date" value={fim} onChange={(e) => setFim(e.target.value)} />
+        <small className="cl-dica">Útil para atestado médico, viagem ou feriado prolongado.</small></label>
       <Erro>{erro}</Erro>
-      <BotaoAcao className="botao botao--cheio" acao={async () => { try { await aoSalvar(fim); } catch (e) { setErro(e.message); } }}>Salvar</BotaoAcao>
+      <div className="cl-rodape">
+        <BotaoAcao className="botao botao--cheio" acao={async () => { try { await aoSalvar(fim); } catch (e) { setErro(e.message); } }}>Salvar</BotaoAcao>
+      </div>
     </div>
   );
 }
@@ -634,40 +807,53 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
   const [erro, setErro] = useState('');
   const campo = (k, m) => ({ value: f[k], onChange: (e) => setF((x) => ({ ...x, [k]: m ? m(e.target.value) : e.target.value })) });
   return (
-    <Modal rotulo="Cliente" titulo="Editar dados" aoFechar={aoFechar} largo>
-      <div className="b-form">
-        <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" {...campo('whatsapp', mascaraTelefone)} /></label>
-          <label className="b-campo"><span className="rotulo">ID Wellhub</span><input inputMode="numeric" {...campo('wellhubId')} /></label>
+    <Modal rotulo={a.nome} titulo="Editar dados" aoFechar={aoFechar} largo>
+      <div className="b-form cl-form">
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Dados da pessoa</h3>
+          <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} /></label>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" {...campo('whatsapp', mascaraTelefone)} /></label>
+            <label className="b-campo"><span className="rotulo">ID Wellhub</span><input inputMode="numeric" {...campo('wellhubId')} /></label>
+          </div>
+          <div className="b-linha2">
+            <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
+            <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
+          </div>
+          {a.semCpf && (
+            <label className="b-campo"><span className="rotulo">CPF</span>
+              <input inputMode="numeric" {...campo('cpf', mascaraCPF)} />
+              <small className="cl-dica">Todo o histórico passa para o CPF; se já houver cadastro no site com ele, juntamos os dois.</small></label>
+          )}
+        </section>
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Origem e endereço</h3>
+          <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
+          <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
+        </section>
+        <section className="cl-bloco">
+          <h3 className="cl-bloco__titulo">Avisos e observações</h3>
+          <label className="b-campo"><span className="rotulo">Alerta fixo</span>
+            <input {...campo('alertaFixo')} maxLength={200} placeholder="Ex.: alergia a látex · pressão baixa · não usar óleo de amêndoas" />
+            <small className="cl-dica">Aparece na agenda, nas aulas e na comanda.</small></label>
+          <label className="b-campo"><span className="rotulo">Observações internas</span><textarea rows={3} {...campo('obs')} placeholder="Só a equipe vê. Ex.: prefere tapete perto da janela" /></label>
+          <label className="b-check"><input type="checkbox" checked={f.marketing} onChange={(e) => setF((x) => ({ ...x, marketing: e.target.checked }))} /> Recebe campanhas por e-mail</label>
+          <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF((x) => ({ ...x, ativo: e.target.checked }))} /> Cadastro ativo (pode entrar e reservar)</label>
+        </section>
+        <div className="cl-rodape">
+          <Erro>{erro}</Erro>
+          <BotaoAcao className="botao botao--cheio" acao={async () => {
+            setErro('');
+            if (f.cpf && !cpfValido(f.cpf)) { setErro('CPF inválido.'); return; }
+            const dados = { ...f, whatsapp: soDigitos(f.whatsapp), cpf: soDigitos(f.cpf) || undefined };
+            try { await aoSalvar(dados); } catch (e) {
+              // CPF de um cadastro que já existe: junta só se a recepção confirmar que é a mesma pessoa
+              if (e.codigo === 'CPF_DE_OUTRA' && window.confirm(`${e.message}\n\nOK = é a mesma pessoa: juntar os cadastros (o histórico passa para o cadastro com CPF).\nCancelar = não juntar.`)) {
+                try { await aoSalvar({ ...dados, juntarCpf: true }); } catch (e2) { setErro(e2.message); }
+              } else setErro(e.message);
+            }
+          }}>Salvar</BotaoAcao>
         </div>
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">E-mail</span><input type="email" {...campo('email')} /></label>
-          <label className="b-campo"><span className="rotulo">Nascimento</span><input type="date" {...campo('nascimento')} /></label>
-        </div>
-        {a.semCpf && (
-          <label className="b-campo"><span className="rotulo">CPF (todo o histórico passa para o CPF; se já houver cadastro no site com ele, juntamos os dois)</span>
-            <input inputMode="numeric" {...campo('cpf', mascaraCPF)} /></label>
-        )}
-        <CampoComoConheceu valor={f.comoConheceu} aoMudar={(v) => setF((x) => ({ ...x, comoConheceu: v }))} />
-        <CamposEndereco valor={f.endereco} aoMudar={(v) => setF((x) => ({ ...x, endereco: v }))} />
-        <label className="b-check"><input type="checkbox" checked={f.marketing} onChange={(e) => setF((x) => ({ ...x, marketing: e.target.checked }))} /> Recebe campanhas por e-mail</label>
-        <label className="b-campo"><span className="rotulo">Alerta fixo (aparece na agenda, nas aulas e na comanda)</span>
-          <input {...campo('alertaFixo')} maxLength={200} placeholder="Ex.: alergia a látex · pressão baixa · não usar óleo de amêndoas" /></label>
-        <label className="b-campo"><span className="rotulo">Observações internas</span><textarea rows={3} {...campo('obs')} placeholder="Só a equipe vê. Ex.: prefere tapete perto da janela" /></label>
-        <label className="b-check"><input type="checkbox" checked={f.ativo} onChange={(e) => setF((x) => ({ ...x, ativo: e.target.checked }))} /> Cadastro ativo (pode entrar e reservar)</label>
-        <Erro>{erro}</Erro>
-        <BotaoAcao className="botao botao--cheio" acao={async () => {
-          setErro('');
-          if (f.cpf && !cpfValido(f.cpf)) { setErro('CPF inválido.'); return; }
-          const dados = { ...f, whatsapp: soDigitos(f.whatsapp), cpf: soDigitos(f.cpf) || undefined };
-          try { await aoSalvar(dados); } catch (e) {
-            // CPF de um cadastro que já existe: junta só se a recepção confirmar que é a mesma pessoa
-            if (e.codigo === 'CPF_DE_OUTRA' && window.confirm(`${e.message}\n\nOK = é a mesma pessoa: juntar os cadastros (o histórico passa para o cadastro com CPF).\nCancelar = não juntar.`)) {
-              try { await aoSalvar({ ...dados, juntarCpf: true }); } catch (e2) { setErro(e2.message); }
-            } else setErro(e.message);
-          }
-        }}>Salvar</BotaoAcao>
       </div>
     </Modal>
   );
@@ -737,138 +923,159 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const final = linhas.reduce((t, [it, v]) => t + (it ? doItem(it, v) : 0), 0);
   const cheio = linhas.reduce((t, [it]) => t + (it?.preco || 0), 0);
   const completo = !!planoId && extras.every((x) => x.planoId);
+  const podeRegistrar = !!aluno && completo && !enviando && !(formas ? !resumoLinhas(formas).ok : faltaBandeira(metodo, bandeira));
+  const adicionarItem = () => {
+    setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), planoId: '', valor: '' }]); setCodigo(''); setSimulado(null);
+    if (formas) { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }
+  };
   return (
-    <Modal rotulo="Venda no balcão" titulo="Vender plano, aula ou serviço" aoFechar={aoFechar}>
-      <div className="b-form">
-        {!aluno ? (
-          <BuscaAluno aoEscolher={setAluno} autoFocus />
-        ) : (
-          <div className="b-escolhido">
-            <div><strong>{aluno.nome}</strong><span>{aluno.plano || 'sem plano ativo'}</span></div>
-            {!inicial && <button type="button" className="link-sair" onClick={() => setAluno(null)}>trocar</button>}
-          </div>
-        )}
-        <div className={varios ? 'vd-extra vd-extra--um' : undefined}>
-          <label className="b-campo">
-            <span className="rotulo">{varios ? 'Item 1' : 'O que foi vendido'}</span>
-            <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
-              <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
-              <OpcoesItens itens={itens} comGrupo />
-            </select>
-          </label>
-          {varios && metodo !== 'Cortesia' && (
-            <label className="b-campo vd-extra__valor">
-              <span className="rotulo">Valor cobrado (R$)</span>
-              <input inputMode="decimal" value={valor} placeholder={plano ? String(plano.preco).replace('.', ',') : ''} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} />
-            </label>
+    <Modal rotulo="Venda no balcão" titulo="Vender plano, aula ou serviço" aoFechar={aoFechar} largo>
+      <div className="b-form cl-venda">
+        <Passo n={1} titulo="Cliente">
+          {!aluno ? (
+            <BuscaAluno aoEscolher={setAluno} autoFocus />
+          ) : (
+            <div className="b-escolhido cl-escolhido">
+              <Avatar nome={aluno.nome} tamanho="p" />
+              <div><strong>{aluno.nome}</strong><span>{aluno.plano || 'sem plano ativo'}</span></div>
+              {!inicial && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setAluno(null)}>Trocar</button>}
+            </div>
           )}
-        </div>
-        {extras.map((x, i) => (
-          <div key={x.chave} className="vd-extra">
+        </Passo>
+
+        <Passo n={2} titulo={varios ? 'Itens da venda' : 'O que foi vendido'} ajuda="O plano entra na hora no cadastro. Pagamentos feitos pelo site entram sozinhos: não precisa registrar aqui.">
+          <div className={varios ? 'vd-extra vd-extra--um' : undefined}>
             <label className="b-campo">
-              <span className="rotulo">Item {i + 2}</span>
-              <select value={x.planoId} onChange={(e) => mudarExtra(x.chave, { planoId: e.target.value })}>
-                <option value="">Escolha…</option>
+              <span className="rotulo">{varios ? 'Item 1' : 'Plano, aula ou serviço'}</span>
+              <select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>
+                <option value="">{itens ? 'Escolha…' : 'Carregando…'}</option>
                 <OpcoesItens itens={itens} comGrupo />
               </select>
             </label>
-            {metodo !== 'Cortesia' && (
+            {varios && metodo !== 'Cortesia' && (
               <label className="b-campo vd-extra__valor">
                 <span className="rotulo">Valor cobrado (R$)</span>
-                <input inputMode="decimal" value={x.valor} placeholder={itens?.achar(x.planoId) ? String(itens.achar(x.planoId).preco).replace('.', ',') : ''} onChange={(e) => mudarExtra(x.chave, { valor: e.target.value.replace(/[^\d,.]/g, '') })} />
+                <input inputMode="decimal" value={valor} placeholder={plano ? String(plano.preco).replace('.', ',') : ''} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} />
               </label>
             )}
-            <button type="button" className="link-sair vd-extra__tirar" onClick={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))}>tirar</button>
           </div>
-        ))}
-        {extras.length < 11 && (
-          <button type="button" className="link-acao vd-mais" disabled={!itens || !planoId} onClick={() => { setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), planoId: '', valor: '' }]); setCodigo(''); setSimulado(null); if (formas) { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); } }}>
-            + Adicionar outro item nesta venda
-          </button>
-        )}
-        {formas ? (
-          <div className="b-campo">
-            <span className="rotulo">Recebido por · dividido em {formas.length} formas</span>
-            <LinhasDePagamento linhas={formas} aoMudar={(l) => setFormas(l)} formas={METODOS} minimo={2} />
-            <button type="button" className="link-acao" onClick={() => { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }}>Voltar para uma forma só</button>
-          </div>
-        ) : (
-          <>
-            <div className="b-linha2">
+          {extras.map((x, i) => (
+            <div key={x.chave} className="vd-extra">
               <label className="b-campo">
-                <span className="rotulo">Recebido por</span>
-                <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
+                <span className="rotulo">Item {i + 2}</span>
+                <select value={x.planoId} onChange={(e) => mudarExtra(x.chave, { planoId: e.target.value })}>
+                  <option value="">Escolha…</option>
+                  <OpcoesItens itens={itens} comGrupo />
+                </select>
               </label>
-              <label className="b-campo">
-                <span className="rotulo">Começa em</span>
-                <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
-              </label>
-            </div>
-            {/* no cartão, parcelas e bandeira ficam juntas (antes o "Começa em" sumia e o plano sempre começava hoje) */}
-            <div className="b-linha2">
-              {/Cartão de crédito|Link/.test(metodo) && (
-                <label className="b-campo">
-                  <span className="rotulo">Parcelas</span>
-                  <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select>
+              {metodo !== 'Cortesia' && (
+                <label className="b-campo vd-extra__valor">
+                  <span className="rotulo">Valor cobrado (R$)</span>
+                  <input inputMode="decimal" value={x.valor} placeholder={itens?.achar(x.planoId) ? String(itens.achar(x.planoId).preco).replace('.', ',') : ''} onChange={(e) => mudarExtra(x.chave, { valor: e.target.value.replace(/[^\d,.]/g, '') })} />
                 </label>
               )}
-              <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
+              <button type="button" className="botao botao--fantasma botao--p vd-extra__tirar" onClick={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))}>Tirar</button>
             </div>
-            {!varios && metodo !== 'Cortesia' && (
-              <button type="button" className="link-acao" onClick={() => setFormas([{ ...LINHA_PAGAMENTO, metodo, bandeira, parcelas }, { ...LINHA_PAGAMENTO, metodo: metodo === 'Pix' ? 'Dinheiro' : 'Pix' }])}>
-                Dividir em mais de uma forma (ex.: metade no débito, metade no dinheiro)
-              </button>
-            )}
-          </>
-        )}
-        {formas && (
-          <label className="b-campo">
-            <span className="rotulo">Começa em</span>
-            <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
-          </label>
-        )}
-        {plano && metodo !== 'Cortesia' && !varios && (
-          <>
-            <div className="b-linha2">
-              <label className="b-campo">
-                <span className="rotulo">Cupom ou vale (opcional)</span>
-                <span className="codigo__linha">
-                  <input value={codigo} onChange={(e) => { setCodigo(e.target.value.toUpperCase()); setSimulado(null); }} placeholder="Código" />
-                  <button type="button" className="botao botao--linha botao--p" disabled={!codigo.trim()} onClick={aplicarCodigo}>Aplicar</button>
-                </span>
-              </label>
-              <label className="b-campo">
-                <span className="rotulo">Valor cobrado (R$)</span>
-                <input inputMode="decimal" value={valor} placeholder={String(plano.preco).replace('.', ',')} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} />
-              </label>
+          ))}
+          {extras.length < 11 && (
+            <button type="button" className="botao botao--linha botao--p vd-mais" disabled={!itens || !planoId} onClick={adicionarItem}>+ Adicionar outro item</button>
+          )}
+          {plano && metodo !== 'Cortesia' && !varios && (
+            <>
+              <div className="b-linha2">
+                <label className="b-campo">
+                  <span className="rotulo">Cupom ou vale (opcional)</span>
+                  <span className="codigo__linha">
+                    <input value={codigo} onChange={(e) => { setCodigo(e.target.value.toUpperCase()); setSimulado(null); }} placeholder="Código" />
+                    <button type="button" className="botao botao--linha botao--p" disabled={!codigo.trim()} onClick={aplicarCodigo}>Aplicar</button>
+                  </span>
+                </label>
+                <label className="b-campo">
+                  <span className="rotulo">Valor cobrado (R$)</span>
+                  <input inputMode="decimal" value={valor} placeholder={String(plano.preco).replace('.', ',')} onChange={(e) => setValor(e.target.value.replace(/[^\d,.]/g, ''))} />
+                </label>
+              </div>
+              {simulado && <Aviso tom="ok">{simulado.mensagem}</Aviso>}
+            </>
+          )}
+          {varios && metodo !== 'Cortesia' && <Aviso tom="info">Cupom e vale-presente só valem em venda de um item; com vários itens, use a comanda. As promoções do dia valem em cada item.</Aviso>}
+        </Passo>
+
+        <Passo n={3} titulo="Pagamento">
+          {formas ? (
+            <div className="b-campo">
+              <span className="rotulo">Dividido em {formas.length} formas</span>
+              <LinhasDePagamento linhas={formas} aoMudar={(l) => setFormas(l)} formas={METODOS} minimo={2} />
+              <button type="button" className="botao botao--fantasma botao--p cl-solto" onClick={() => { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }}>Voltar para uma forma só</button>
             </div>
-            {simulado && <p className="aviso">{simulado.mensagem}</p>}
-          </>
-        )}
-        {varios && metodo !== 'Cortesia' && <p className="b-suave">Cupom ou vale-presente só em venda de um item; para vários itens com cupom ou vale, use a comanda. As promoções do dia valem em cada item.</p>}
-        <div className="b-linha2">
-          <label className="b-campo">
-            <span className="rotulo">Data da venda</span>
-            <input type="date" value={dataVenda} min={somarDias(hojeIso(), -120)} max={hojeIso()}
-              onChange={(e) => { const v = e.target.value; if (!v) return; setDataVenda(v); if (inicio === dataVenda) setInicio(v); }} />
-          </label>
-          <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
-        </div>
-        {dataVenda < hojeIso() && <p className="aviso">Venda de {dataBR(dataVenda)}: entra no caixa daquele dia, não no de hoje.</p>}
-        {plano && (
-          <div className="b-total">
-            <span>{varios ? `Total · ${extras.length + 1} itens` : 'Total'}</span>
-            <strong>{final === 0 ? 'Cortesia' : real(final)}</strong>
-            {final < cheio && <s>{real(cheio)}</s>}
+          ) : (
+            <>
+              <div className="b-linha2">
+                <label className="b-campo">
+                  <span className="rotulo">Recebido por</span>
+                  <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
+                </label>
+                {/Cartão de crédito|Link/.test(metodo) && (
+                  <label className="b-campo">
+                    <span className="rotulo">Parcelas</span>
+                    <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select>
+                  </label>
+                )}
+                <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
+              </div>
+              {!varios && metodo !== 'Cortesia' && (
+                <button type="button" className="botao botao--fantasma botao--p cl-solto" title="Ex.: metade no débito, metade no dinheiro"
+                  onClick={() => setFormas([{ ...LINHA_PAGAMENTO, metodo, bandeira, parcelas }, { ...LINHA_PAGAMENTO, metodo: metodo === 'Pix' ? 'Dinheiro' : 'Pix' }])}>
+                  Dividir em mais de uma forma
+                </button>
+              )}
+            </>
+          )}
+        </Passo>
+
+        <Passo n={4} titulo="Datas e observação">
+          <div className="b-linha2">
+            <label className="b-campo">
+              <span className="rotulo">Começa em</span>
+              <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+            </label>
+            <label className="b-campo">
+              <span className="rotulo">Data da venda</span>
+              <input type="date" value={dataVenda} min={somarDias(hojeIso(), -120)} max={hojeIso()}
+                onChange={(e) => { const v = e.target.value; if (!v) return; setDataVenda(v); if (inicio === dataVenda) setInicio(v); }} />
+            </label>
           </div>
-        )}
-        <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={!aluno || !completo || enviando || (formas ? !resumoLinhas(formas).ok : faltaBandeira(metodo, bandeira))} onClick={confirmar}>
-          {enviando ? 'Registrando…' : varios ? `Registrar venda dos ${extras.length + 1} itens` : 'Registrar venda'}
-        </button>
-        <p className="b-suave b-nota">O plano entra na hora no cadastro. Pagamentos pelo site entram sozinhos — não precisa registrar aqui.</p>
+          <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
+          {dataVenda < hojeIso() && <Aviso tom="aviso">Venda de {dataBR(dataVenda)}: entra no caixa daquele dia, não no de hoje.</Aviso>}
+        </Passo>
+
+        <div className="cl-rodape cl-rodape--total">
+          <div className="cl-total" aria-live="polite">
+            <span>{varios ? `Total · ${extras.length + 1} itens` : 'Total'}</span>
+            <strong>{!plano ? '—' : final === 0 ? 'Cortesia' : real(final)}</strong>
+            {plano && final < cheio && <s>{real(cheio)}</s>}
+          </div>
+          <Erro>{erro}</Erro>
+          <button type="button" className="botao botao--cheio" disabled={!podeRegistrar} onClick={confirmar}>
+            {enviando ? 'Registrando…' : varios ? `Registrar venda dos ${extras.length + 1} itens` : 'Registrar venda'}
+          </button>
+        </div>
       </div>
     </Modal>
+  );
+}
+
+// passo numerado de um formulário longo (venda): título + conteúdo
+function Passo({ n, titulo, ajuda, children }) {
+  return (
+    <section className="cl-passo">
+      <header className="cl-passo__topo">
+        <span className="cl-passo__n" aria-hidden="true">{n}</span>
+        <h3 className="cl-passo__titulo">{titulo}</h3>
+        {ajuda && <Ajuda titulo={titulo}>{ajuda}</Ajuda>}
+      </header>
+      <div className="cl-passo__corpo">{children}</div>
+    </section>
   );
 }
 
@@ -879,54 +1086,65 @@ function AplicarVale({ aluno, aoFechar, aoAplicar }) {
   const [ok, setOk] = useState('');
   return (
     <Modal rotulo={aluno.nome} titulo="Aplicar vale-presente" aoFechar={aoFechar}>
-      <div className="b-form">
-        <p className="b-suave">Vale de aula ou plano entra como crédito na hora. Vale em R$ fica ligado a este cadastro para usar na próxima compra.</p>
-        <label className="b-campo"><span className="rotulo">Código</span><input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="AMBAR-XXXX-XXXX" /></label>
+      <div className="b-form cl-form">
+        <label className="b-campo"><span className="rotulo">Código do vale</span><input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} placeholder="AMBAR-XXXX-XXXX" />
+          <small className="cl-dica">Vale de aula ou plano entra como crédito na hora. Vale em R$ fica ligado a este cadastro para a próxima compra.</small></label>
         <Erro>{erro}</Erro>
-        {ok && <p className="aviso">{ok}</p>}
-        <BotaoAcao className="botao botao--cheio" disabled={!codigo.trim()} acao={async () => {
-          setErro(''); setOk('');
-          try {
-            const r = await chamar('aplicarVale', { cpf: aluno.cpf, codigo });
-            setOk(r.mensagem.replace('Já pode reservar.', '').replace('seu plano', 'o plano de ' + primeiro(aluno.nome)));
-            setTimeout(aoAplicar, 1400);
-          } catch (e) { setErro(e.message); }
-        }}>Aplicar</BotaoAcao>
+        {ok && <Aviso tom="ok">{ok}</Aviso>}
+        <div className="cl-rodape">
+          <BotaoAcao className="botao botao--cheio" disabled={!codigo.trim()} acao={async () => {
+            setErro(''); setOk('');
+            try {
+              const r = await chamar('aplicarVale', { cpf: aluno.cpf, codigo });
+              setOk(r.mensagem.replace('Já pode reservar.', '').replace('seu plano', 'o plano de ' + primeiro(aluno.nome)));
+              setTimeout(aoAplicar, 1400);
+            } catch (e) { setErro(e.message); }
+          }}>Aplicar</BotaoAcao>
+        </div>
       </div>
     </Modal>
   );
 }
 
 // aoAbrir: clicar na linha abre a venda (tela Vendas: corrigir, excluir, estorno)
-export function ListaPagamentos({ lista, acoes, aoAbrir }) {
+// semCliente: dentro da ficha da pessoa o nome é o mesmo em toda linha, então não repete
+export function ListaPagamentos({ lista, acoes, aoAbrir, semCliente }) {
   if (!lista?.length) return <Vazio titulo="Nenhum pagamento">Os pagamentos do site e do balcão aparecem aqui.</Vazio>;
   const tom = { pago: 'ok', pendente: 'aviso', estornado: 'apagado', expirado: 'apagado', descartado: 'apagado', excluido: 'apagado' };
   const nomeSituacao = { excluido: 'excluída' };
   return (
-    <div className="b-tabela-caixa">
-      <table className="b-tabela">
-        <thead><tr><th>Data</th><th>Cliente</th><th>Item</th><th className="num">Valor</th><th>Forma</th><th>Situação</th>{acoes && <th />}</tr></thead>
-        <tbody>
-          {lista.map((p) => (
-            <tr key={p.orderNsu} className={`${aoAbrir ? 'b-linha-abre' : ''}${p.status === 'excluido' ? ' b-linha-excluida' : ''}`}
+    <ul className="b-itens cl-pagamentos">
+      {lista.map((p) => {
+        const iso = String(p.pagoEm || p.criadoEm || '').slice(0, 10);
+        const [ano, mes, dia] = iso.split('-');
+        const forma = `${p.metodo || '—'}${p.bandeira ? ` ${p.bandeira}` : ''}${Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}`;
+        return (
+          <li key={p.orderNsu}>
+            <div className={`b-item cl-pag${aoAbrir ? ' b-linha-abre' : ''}${p.status === 'excluido' ? ' b-linha-excluida' : ''}`}
               onClick={aoAbrir ? (e) => { if (!e.target.closest('button, a')) aoAbrir(p); } : undefined}>
-              <td data-rotulo="Data">{dataBR(p.pagoEm || p.criadoEm)}</td>
-              <td data-rotulo="Cliente"><span className="b-nowrap">{p.nome}</span></td>
-              <td data-rotulo="Item">
-                {p.descricao}
-                {(p.cupom || p.vale) && <span className="b-suave b-bloco">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
-                {p.observacao && <span className={`b-bloco ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
-              </td>
-              <td data-rotulo="Valor" className="num"><span className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</span>
-                {p.taxa > 0 && <span className="b-suave b-bloco vd-liquido" title={`Taxa estimada da maquininha: ${real(p.taxa)} (${String(p.taxaPct).replace('.', ',')}%)`}>líquido {real(p.liquido)}</span>}</td>
-              <td data-rotulo="Forma">{/* "Cartão de crédito" não quebra no meio; bandeira e parcelas podem ir para a linha de baixo */}
-                {(p.metodo || '—').replace(/ /g, '\u00A0')}{p.bandeira ? ` ${p.bandeira}` : ''}{Number(p.parcelas) > 1 ? ` ${p.parcelas}x` : ''}<span className="b-suave b-bloco">{p.origem}</span></td>
-              <td data-rotulo="Situação"><Tag tom={tom[p.status] || 'neutro'}>{nomeSituacao[p.status] || p.status}</Tag></td>
-              {acoes && <td>{acoes(p)}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              <span className="cl-data" title={dataBR(iso)}><strong>{dia ? Number(dia) : '—'}</strong><small>{mes ? `${MESES[Number(mes) - 1]} ${String(ano).slice(2)}` : ''}</small></span>
+              <span className="b-item__corpo">
+                <span className="b-item__titulo">{p.descricao}</span>
+                <span className="b-meta">
+                  {!semCliente && p.nome ? <span>{p.nome}</span> : null}
+                  <span>{forma}</span>
+                  {p.origem ? <span>{p.origem}</span> : null}
+                  {(p.cupom || p.vale) ? <span>{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span> : null}
+                </span>
+                {p.observacao && <span className={`cl-pag__obs ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
+              </span>
+              <span className="cl-pag__valor">
+                <strong className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</strong>
+                {p.taxa > 0 && <small className="vd-liquido" title={`Taxa estimada da maquininha: ${real(p.taxa)} (${String(p.taxaPct).replace('.', ',')}%)`}>líquido {real(p.liquido)}</small>}
+              </span>
+              <span className="b-item__lado cl-pag__lado">
+                <Tag tom={tom[p.status] || 'neutro'}>{nomeSituacao[p.status] || p.status}</Tag>
+                {acoes && <span className="cl-pag__acoes">{acoes(p)}</span>}
+              </span>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
