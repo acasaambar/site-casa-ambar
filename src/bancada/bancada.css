@@ -10,7 +10,7 @@
   background: var(--verde); color: var(--creme); display: flex; flex-direction: column; padding: 26px 16px 18px; z-index: 30;
 }
 .b-lateral__marca { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 0 10px 26px; border-bottom: 1px solid rgba(233, 221, 197, 0.14); }
-.b-lateral__marca .rotulo { color: var(--caramelo); }
+
 .b-menu { display: flex; flex-direction: column; gap: 2px; padding: 18px 0; flex: 1; }
 .b-menu__item {
   display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px; text-decoration: none;
@@ -21,12 +21,12 @@
 .b-menu__item.active svg { color: var(--terracota); }
 .b-lateral__pe { border-top: 1px solid rgba(233, 221, 197, 0.14); padding: 16px 10px 0; display: grid; gap: 8px; position: relative; z-index: 1; }
 .b-eu strong { display: block; font-weight: 500; font-size: 13px; }
-.b-eu span { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--caramelo); }
+
 .b-lateral__site, .b-lateral__sair {
   font: inherit; font-size: 14px; color: rgba(233, 221, 197, 0.8); background: none; border: 0; padding: 4px 0; text-align: left; cursor: pointer; text-underline-offset: 4px;
 }
 .b-lateral__sair { color: #F0B79A; text-decoration: underline; }
-.b-lateral__forma { position: absolute; right: -40px; bottom: 70px; pointer-events: none; }
+
 .b-veu { display: none; }
 
 .b-conteudo { min-width: 0; }
@@ -43,7 +43,7 @@
     display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 20; padding: 12px 16px;
     background: rgba(244, 239, 223, 0.94); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(47, 56, 33, 0.1);
   }
-  .b-topo-cel .rotulo { color: var(--terracota); margin-left: auto; }
+  
   .b-topo-cel__menu { width: 44px; height: 44px; border-radius: 12px; border: 1px solid rgba(47, 56, 33, 0.2); background: var(--branco); display: grid; place-content: center; gap: 4px; cursor: pointer; }
   .b-topo-cel__menu span { display: block; width: 18px; height: 1.6px; background: var(--verde); border-radius: 2px; }
   .b-pagina { padding: 22px 16px 70px; gap: 18px; }
@@ -57,7 +57,7 @@
   position: relative; width: min(420px, 100%); background: var(--papel); border-radius: 28px; padding: 36px 32px 30px;
   display: flex; flex-direction: column; gap: 12px; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6);
 }
-.b-login__caixa .display-m { font-size: 40px; }
+
 .b-login__sub { margin: 0 0 4px; font-size: 13px; color: var(--tinta-suave); }
 .b-login__esqueci { align-self: center; background: none; border: 0; cursor: pointer; text-decoration: underline; font-family: inherit; }
 .b-login__sol { position: absolute; top: 30px; right: 30px; }
@@ -209,17 +209,14 @@
 }
 
 /* ---------- início ---------- */
-.b-proximas, .b-atencao, .b-lista-simples, .b-contatos, .b-creditos, .b-vales, .b-equipe, .b-codigos, .b-reservas { list-style: none; margin: 0; padding: 0; }
+.b-proximas, .b-lista-simples, .b-contatos, .b-creditos, .b-vales, .b-equipe, .b-codigos, .b-reservas { list-style: none; margin: 0; padding: 0; }
 .b-proximas { display: grid; gap: 8px; }
 .b-proximas a { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 14px; align-items: center; text-decoration: none; padding: 10px 12px; border-radius: 14px; background: #F3EFE2; }
 .b-proximas a:hover { background: #ECE7D6; }
 .b-proximas__hora { font-family: var(--display); font-weight: 400; font-size: 26px; }
 .b-proximas__info { display: grid; gap: 6px; font-size: 13px; min-width: 0; }
 .b-proximas__num { font-size: 13px; font-weight: 500; }
-.b-atencao { display: grid; gap: 8px; }
-.b-atencao a { display: flex; align-items: center; gap: 12px; text-decoration: none; padding: 12px 14px; border-radius: 14px; background: #F6E9D5; color: #5E3A10; }
-.b-atencao strong { font-size: 22px; font-weight: 500; min-width: 30px; }
-.b-atencao span { font-size: 13px; }
+
 .b-atalhos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .b-atalho { display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; border-radius: 18px; text-decoration: none; background: var(--verde); color: var(--creme); transition: transform var(--rapido); }
 .b-atalho:hover { transform: translateY(-2px); }
@@ -458,7 +455,6 @@
 .bancada button.link-acao, .b-modal button.link-acao { color: var(--terracota); font-size: 14px; }
 .b-dados .b-tag { white-space: normal; }
 @media (max-width: 560px) { .b-cabecalho--inicio .sol, .b-cabecalho--inicio svg { display: none; } }
-.b-lateral__forma { bottom: -40px; right: -60px; }
 
 /* ============================================================
    DESENHO 2 · "caderno da casa"
@@ -494,7 +490,7 @@
 /* ---------- lateral ---------- */
 .b-lateral { background: linear-gradient(180deg, #313B22 0%, #283019 100%); padding: 28px 14px 18px; }
 .b-lateral__marca { padding: 0 12px 24px; border-bottom: 0; }
-.b-lateral__marca .rotulo { color: var(--b-caramelo); font-size: 12px; letter-spacing: 0.02em; }
+
 .b-menu { padding: 6px 0; gap: 18px; }
 .b-menu__grupo { display: grid; gap: 2px; }
 .b-menu__titulo { padding: 0 12px 6px; font-size: 11px; color: rgba(166, 132, 94, 0.9); letter-spacing: 0.02em; }
@@ -507,9 +503,8 @@
   content: ''; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; margin-top: -9px; border-radius: 0 3px 3px 0; background: var(--b-caramelo);
 }
 .b-lateral__pe { border-top: 1px solid rgba(233, 221, 197, 0.1); }
-.b-eu span { text-transform: none; letter-spacing: 0.01em; font-size: 12px; }
+
 .b-lateral__selo { position: absolute; right: -84px; bottom: 96px; color: rgba(233, 221, 197, 0.06); pointer-events: none; }
-.b-lateral__forma { display: none; }
 
 /* ---------- página ---------- */
 .b-pagina { padding: 40px 44px 90px; gap: 26px; }
@@ -591,10 +586,6 @@
 /* ============================================================
    HOJE · a linha do dia
    ============================================================ */
-.inicio__topo { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.inicio__data { margin: 0 0 8px; font-size: 13px; color: var(--b-terracota); }
-.inicio__saudacao { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(38px, 5vw, 60px); line-height: 1; color: var(--b-tinta); }
-.inicio__resumo { margin: 0; font-size: 13px; color: var(--b-suave); }
 
 .linha {
   position: relative; border-radius: 26px; overflow: hidden; color: var(--b-areia);
@@ -631,26 +622,6 @@
 @keyframes sol-respira { 50% { transform: scale(1.12) rotate(12deg); } }
 @media (prefers-reduced-motion: reduce) { .linha__sol { animation: none; } }
 @media (max-width: 560px) { .linha { border-radius: 20px; } .linha__trilho { margin-left: 84px; } .linha__nome { left: -70px; } }
-
-.seguir { list-style: none; margin: 0; padding: 0; display: grid; }
-.seguir__item { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 14px; align-items: center; padding: 11px 0; text-decoration: none; border-bottom: 1px solid var(--b-linha); position: relative; }
-.seguir li:last-child .seguir__item { border-bottom: 0; }
-.seguir__hora { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1; }
-.seguir__texto { display: grid; gap: 2px; min-width: 0; padding-left: 14px; border-left: 3px solid var(--b-oliva); }
-.seguir__texto span { font-size: 13.5px; font-weight: 500; }
-.seguir__texto small { font-size: 13.5px; color: var(--b-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.seguir__item--pilates .seguir__texto { border-left-color: var(--c-pilates); }
-.seguir__item--facial .seguir__texto { border-left-color: var(--c-facial); }
-.seguir__item--capilar .seguir__texto { border-left-color: var(--c-capilar); }
-.seguir__item--fisio .seguir__texto { border-left-color: var(--c-fisio); }
-.seguir__item:hover .seguir__hora { color: var(--b-terracota); }
-.b-atencao a { background: #F3E6CF; border-radius: 12px; }
-.atalhos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--b-linha); }
-.atalhos a {
-  font-size: 14px; text-decoration: none; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(47, 56, 33, 0.2); color: var(--b-tinta);
-  transition: background var(--rapido), color var(--rapido);
-}
-.atalhos a:hover { background: var(--b-tinta); color: var(--b-areia); }
 
 /* ============================================================
    SERVIÇOS · agenda por profissional
@@ -756,7 +727,6 @@
 .b-kpi--destaque { background: rgba(166, 132, 94, 0.12); }
 .b-kpi--destaque .b-kpi__valor { color: var(--b-tinta); }
 .b-kpi--destaque.b-kpi--alerta .b-kpi__valor { color: #8A2E12; }
-.inicio__folgas { margin: -8px 0 0; }
 
 /* seletor de mês */
 .b-mes { display: inline-flex; align-items: center; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(47, 56, 33, 0.07); }
@@ -1271,7 +1241,7 @@
 .bancada .b-suave { color: var(--b-suave); }
 
 /* títulos grandes continuam em Italiana */
-.b-titulo, .inicio__saudacao, .b-modal__titulo { font-family: var(--titulo); font-weight: 400; letter-spacing: 0; }
+.b-titulo, .b-modal__titulo { font-family: var(--titulo); font-weight: 400; letter-spacing: 0; }
 .pr__selo strong, .b-vale-cartao__presente, .pr__topo h3 { font-family: var(--titulo); }
 
 /* códigos (vale, cupom) em mono, com espaço entre as letras */
@@ -1291,7 +1261,7 @@
 .link-acao { font-weight: 500; }
 
 /* números, horas e nomes: seminegrito, algarismos alinhados */
-.b-kpi__valor, .b-proximas__hora, .b-tira strong, .b-aula__hora, .b-equipe__ini, .pedra strong, .seguir__hora, .s-item__hora,
+.b-kpi__valor, .b-proximas__hora, .b-tira strong, .b-aula__hora, .b-equipe__ini, .pedra strong, .s-item__hora,
 .s-detalhe__quando strong, .s-cat__titulo, .s-cat__preco, .b-subtitulo, .b-mes strong, .cm-nota__quem, .cm-nota__pe strong, .cm-papel__cliente,
 .cm-item__valor strong, .cm-totais__valor, .cm-pagar__titulo, .cm-troco__linha strong, .est__qtd strong, .desp__dia strong, .desp__valor,
 .k-card__valor, .cp__num, .cp__contagem strong, .lb__hora, .pt-titulo, .pt-linha__data strong, .hist__ano, .pa-cartao__topo strong,
@@ -1303,7 +1273,7 @@
 .b-cartao__titulo { font-size: 19px; }
 .b-subtitulo, .pt-titulo, .s-cat__titulo, .pa-cartao__topo strong { font-size: 19px; }
 .b-tira strong { font-size: 20px; }
-.b-aula__hora, .seguir__hora, .b-proximas__hora { font-size: 22px; }
+.b-aula__hora, .b-proximas__hora { font-size: 22px; }
 .s-item__hora, .lb__hora { font-size: 19px; }
 .s-detalhe__quando strong { font-size: 30px; }
 .b-vazio strong { font-size: 18px; }
@@ -1336,7 +1306,7 @@
 .cm-pagar__linha select, .cm-pagar__linha input { font-size: 16px; }
 
 /* mínimo legível: nada de texto de 10–11 px nem LETRAS MAIÚSCULAS espaçadas */
-.b-eu span, .b-chip span, .b-campo .rotulo, .b-opcoes legend, .b-opcoes small, .b-total span, .b-busca__status, .b-busca__lista span,
+.b-chip span, .b-campo .rotulo, .b-opcoes legend, .b-opcoes small, .b-total span, .b-busca__status, .b-busca__lista span,
 .b-tira span, .b-aula__num small, .b-tapetes legend, .b-ficha__item .rotulo, .b-tabela th, .b-vale__cod .rotulo, .b-vale-cartao__val,
 .g-calor th, .g-calor td, .pedra span, .s-bloco__hora, .s-bloco__serv, .desp__dia small, .cp-publico span, .cp-fila li small,
 .pt-foto--erro, .pt-linha__data small, .s-folga span, .s-comanda small, .cm-nota__pe .b-suave, .pf-num span, .ag-horas span.meia {
@@ -1348,20 +1318,19 @@
 .ag-horas span.meia { font-size: 13px; }
 .g-eixo { font-size: 13px; fill: #4A4D3F; }
 .b-agenda__nav .botao--p:nth-child(2) { font-size: 14px; }
-.b-lateral__marca .rotulo { color: #D2B38A; font-size: 13px; }
+
 .b-menu__titulo { color: #C9A97F; }
 
 /* login da equipe: mesma leitura fácil */
 .b-login { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .b-login .form label { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 500; color: #3A402C; }
 .b-login .form input { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 16px; }
-.b-login .rotulo-espacado { letter-spacing: 0.04em; text-transform: none; font-size: 14px; font-weight: 600; }
+
 .b-login .botao { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.01em; text-transform: none; font-size: 15px; }
 .b-login__sub { font-size: 15px; }
 .b-tabela .b-suave, .b-tabela td .b-bloco { font-size: 13.5px; }
 .bancada .b-cartao p.b-suave, .bancada .b-barra-acoes p.b-suave, .bancada > .b-conteudo p.b-suave { font-size: 14px; }
-.seguir__item strong { font-size: 15px; }
-.seguir__item span { font-size: 13.5px; }
+
 .pr__topo h3 { font-family: var(--texto); font-weight: 600; font-size: 19px; letter-spacing: -0.01em; }
 
 /* ============================================================
@@ -1434,7 +1403,7 @@
 /* setas do dia anterior/seguinte na agenda */
 .b-agenda__nav .botao--p:first-child, .b-agenda__nav .botao--p:nth-child(3) { font-size: 20px; line-height: 1; }
 /* login: título no mesmo desenho dos outros títulos (caixa normal) */
-.b-login__caixa .display-m { text-transform: none; letter-spacing: 0; }
+
 /* código de cupom: o exemplo do campo sem letras espaçadas */
 .bancada .codigo__linha input::placeholder, .b-modal .codigo__linha input::placeholder { letter-spacing: 0; }
 
@@ -1621,7 +1590,7 @@
   .bancada .link-acao, .b-modal .link-acao, .bancada .link-sair, .b-modal .link-sair, .b-dados dd .link-acao, .b-login .link-acao {
     min-height: 40px; display: inline-flex; align-items: center;
   }
-  .b-lateral__site, .b-lateral__sair, .atalhos a { min-height: 40px; display: inline-flex; align-items: center; }
+  .b-lateral__site, .b-lateral__sair{ min-height: 40px; display: inline-flex; align-items: center; }
   .b-chip, .b-segmento button, .b-presenca, .s-pacote, .hr-mais { min-height: 40px; }
   .ag-colunas button { min-height: 40px; min-width: 40px; }
   .b-mes button, .cm-item__tirar, .cm-qtd button, .hr-tirar { width: 40px; height: 40px; }
@@ -1917,7 +1886,7 @@
 .bancada .b-segmento button[aria-selected='true'] { font-weight: 600; }
 .bancada .b-cabecalho__sub { font-size: 15px; line-height: 1.5; }
 /* "Pede atenção" na tela Hoje */
-.bancada .b-atencao span { font-size: 15px; color: var(--b-tinta); }
+
 /* cartões lado a lado não esticam até a altura do vizinho */
 .bancada .b-duas, .bancada .b-duas--larga { align-items: start; }
 /* legendas dos grupos de campos alinhadas com os campos */
@@ -2139,7 +2108,7 @@
   .bg-botao--lateral { display: none; }
   .bg-botao--cel { display: inline-flex; margin-left: 8px; padding: 0 12px; height: 44px; border: 1px solid rgba(47, 56, 33, 0.2); background: var(--branco, #FBF8EF); color: var(--b-tinta); }
   .bg-botao--cel .bg-botao__tecla { display: none; }
-  .b-topo-cel .rotulo { display: none; }
+  
   .b-topo-cel .bg-botao--cel { margin-left: auto; }
 }
 .bg { position: fixed; inset: 0; z-index: 60; display: grid; align-items: start; justify-items: center; padding: 10vh 16px 16px; background: rgba(31, 37, 22, 0.42); }

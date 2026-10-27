@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
-import { Cabecalho, BotaoAcao, Erro, Vazio, plural } from './ui.jsx';
+import './css/shell.css';
+import { Cabecalho, BotaoAcao, Erro, Vazio, Aviso, Ajuda, plural } from './ui.jsx';
+import { Icone } from './icones.jsx';
 import { lerMedidas, limparMedidas } from '../lib/api.js';
 
 // ============================================================
@@ -55,27 +57,49 @@ export function PainelVelocidade() {
     ...linhas.map((l) => `${l.nome}: ${l.vezes}x · total ${seg(l.total)} · servidor ${seg(l.servidor)} · planilha ${l.planilha == null ? '—' : l.planilha.toFixed(1)} · cache ${l.cache == null ? '—' : l.cache.toFixed(1)}`),
   ].join('\n');
 
+  const maxTotal = Math.max(1, ...linhas.map((l) => l.total || 0));
+  // parte do tempo que é do nosso servidor e parte que é internet + Google
+  const fatiaServidor = geral.total && geral.servidor != null ? Math.min(100, Math.round((geral.servidor / geral.total) * 100)) : null;
+  const tom = (ms) => (ms == null ? '' : ms < 2000 ? ' vel-tempo--ok' : ms < 5000 ? ' vel-tempo--aviso' : ' vel-tempo--alerta');
+
   return (
     <div className="vel">
-      <p className="b-suave">Medições deste computador (as últimas {plural(400, 'ida', 'idas')} ao servidor). Cada linha mostra o tempo típico (a mediana): o total é o que a pessoa espera; o servidor é a parte do nosso sistema; o resto é a internet e o Google preparando o pedido.</p>
+      <div className="vel-topo">
+        <span className="b-meta"><span>Neste computador</span><span>{medidas.length} {medidas.length === 1 ? 'pedido medido' : 'pedidos medidos'}</span></span>
+        <Ajuda titulo="Como ler esta tela">
+          Medições deste computador (as últimas {plural(400, 'ida', 'idas')} ao servidor). Cada linha mostra o tempo típico (a mediana): o total é o que a pessoa espera;
+          o servidor é a parte do nosso sistema; o resto é a internet e o Google preparando o pedido.
+        </Ajuda>
+      </div>
       {medidas.length === 0 ? (
         <Vazio titulo="Ainda sem medições">Use a bancada normalmente e volte aqui depois.</Vazio>
       ) : (<>
         <div className="vel-resumo">
-          <div><span className="rotulo">Tempo típico de um pedido</span><strong>{seg(geral.total)}</strong></div>
-          <div><span className="rotulo">No nosso servidor</span><strong>{seg(geral.servidor)}</strong></div>
-          <div><span className="rotulo">Internet e Google</span><strong>{seg(fora)}</strong></div>
+          <div className="vel-cartao vel-cartao--destaque"><span className="vel-cartao__icone"><Icone nome="relogio" tamanho={20} /></span><span className="rotulo">Tempo típico de um pedido</span><strong>{seg(geral.total)}</strong></div>
+          <div className="vel-cartao"><span className="vel-cartao__icone"><Icone nome="velocidade" tamanho={20} /></span><span className="rotulo">No nosso servidor</span><strong>{seg(geral.servidor)}</strong></div>
+          <div className="vel-cartao"><span className="vel-cartao__icone"><Icone nome="externo" tamanho={20} /></span><span className="rotulo">Internet e Google</span><strong>{seg(fora)}</strong></div>
         </div>
-        {textoTrocas && <p className="b-suave">{textoTrocas}. A bancada descartou e buscou de novo; se o número crescer, mande o resumo para o Fábio.</p>}
-        <div className="b-tabela-caixa">
+        {fatiaServidor != null && (
+          <div className="vel-divisao" role="img" aria-label={`${fatiaServidor}% do tempo é do servidor e ${100 - fatiaServidor}% é internet e Google`}>
+            <span className="vel-divisao__servidor" style={{ width: `${fatiaServidor}%` }}>{fatiaServidor >= 14 ? 'Servidor' : ''}</span>
+            <span className="vel-divisao__fora">{100 - fatiaServidor >= 14 ? 'Internet e Google' : ''}</span>
+          </div>
+        )}
+        {textoTrocas && <Aviso tom="aviso" titulo={textoTrocas}>A bancada descartou e buscou de novo; se o número crescer, mande o resumo para o Fábio.</Aviso>}
+        <div className="b-tabela-caixa vel-tabela">
           <table className="b-tabela">
             <thead><tr><th>Ação</th><th>Vezes</th><th>Total</th><th>Servidor</th><th>Abas da planilha</th><th>Abas do cache</th></tr></thead>
             <tbody>
               {linhas.map((l) => (
                 <tr key={l.acao}>
-                  <td data-rotulo="Ação">{l.nome}</td>
+                  <td data-rotulo="Ação"><strong className="vel-nome">{l.nome}</strong></td>
                   <td data-rotulo="Vezes">{l.vezes}</td>
-                  <td data-rotulo="Total"><strong>{seg(l.total)}</strong></td>
+                  <td data-rotulo="Total">
+                    <span className="vel-total">
+                      <strong className={`vel-tempo${tom(l.total)}`}>{seg(l.total)}</strong>
+                      <span className="vel-barra" aria-hidden="true"><i style={{ width: `${Math.round(((l.total || 0) / maxTotal) * 100)}%` }} /></span>
+                    </span>
+                  </td>
                   <td data-rotulo="Servidor">{seg(l.servidor)}</td>
                   <td data-rotulo="Abas da planilha">{l.planilha == null ? '—' : l.planilha.toFixed(1).replace('.', ',')}</td>
                   <td data-rotulo="Abas do cache">{l.cache == null ? '—' : l.cache.toFixed(1).replace('.', ',')}</td>
@@ -86,16 +110,16 @@ export function PainelVelocidade() {
         </div>
       </>)}
       <Erro>{aviso}</Erro>
-      <div className="b-botoes">
+      <div className="b-botoes vel-botoes">
         {medidas.length > 0 && (
           <BotaoAcao className="botao botao--linha botao--p" acao={async () => {
             try { await navigator.clipboard.writeText(texto()); setAviso(''); } catch { setAviso('Não deu para copiar. Tire um print desta tela.'); }
-          }}>Copiar o resumo</BotaoAcao>
+          }}><Icone nome="copiar" tamanho={16} />Copiar o resumo</BotaoAcao>
         )}
-        {medidas.length > 0 && <button type="button" className="botao botao--linha botao--p" onClick={() => { limparMedidas(); setVersao((v) => v + 1); }}>Começar a medir de novo</button>}
+        {medidas.length > 0 && <button type="button" className="botao botao--linha botao--p" onClick={() => { limparMedidas(); setVersao((v) => v + 1); }}><Icone nome="atualizar" tamanho={16} />Começar a medir de novo</button>}
         {pode(membro, 'admin') && (
           <BotaoAcao className="botao botao--linha botao--p" confirmar="Ler a planilha de novo? Use depois de mudar algo direto na planilha (as telas mostram a mudança na hora)."
-            acao={async () => { await chamar('lerPlanilhaDeNovo', {}); setAviso(''); }}>Ler a planilha de novo</BotaoAcao>
+            acao={async () => { await chamar('lerPlanilhaDeNovo', {}); setAviso(''); }}><Icone nome="folha" tamanho={16} />Ler a planilha de novo</BotaoAcao>
         )}
       </div>
     </div>
