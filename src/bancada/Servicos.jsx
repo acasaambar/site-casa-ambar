@@ -48,6 +48,10 @@ const lerLocal = (k, padrao) => { try { return JSON.parse(localStorage.getItem(k
 const gravarLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem armazenamento */ } };
 const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
+import { Passo, ClienteEscolhido } from './AgendaPecas.jsx';
+import { Ajuda as AjudaAg, Aviso as AvisoAg, Esqueleto as EsqueletoAg } from './ui.jsx';
+import './css/agenda.css';
+
 // dados: { atendimentos, folgas, equipe } do dia (vêm da semana carregada pela Agenda; null enquanto carrega).
 // slot: lugar na barra da Agenda onde ficam os botões (agendar, bloquear, lista de espera…).
 // aplicar(atendimento): mostra na hora o que foi salvo e atualiza a semana por trás.
@@ -284,7 +288,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
   if (!dados) {
     return (<>
       {acoes}
-      {erro ? <Erro>{erro}</Erro> : <Carregando texto={`Carregando ${DIAS_LONGOS[diaSemana(dia)].toLowerCase()}, ${Number(dia.slice(8))}`} />}
+      {erro ? <Erro>{erro}</Erro> : <EsqueletoAg linhas={8} altura={46} />}
     </>);
   }
   return (
@@ -300,31 +304,46 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
               </button>
             ))}
           </div>
-          <div className="ag-colunas" role="group" aria-label="Colunas na tela">
-            <span>Colunas</span>
-            {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
+          <div className="ag-barra__fim">
+            <div className="ag-colunas" role="group" aria-label="Colunas na tela">
+              <span>Colunas</span>
+              {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
+            </div>
+            <AjudaAg titulo="Como usar a agenda" alinhar="direita">
+              <span><strong>Agendar:</strong> toque num horário vazio da coluna.</span>
+              <span><strong>Remarcar:</strong> arraste o atendimento até o novo horário. No celular e no iPad, toque, segure e arraste.</span>
+              <span><strong>Listrado:</strong> fora do horário de atendimento.</span>
+            </AjudaAg>
           </div>
         </div>
       )}
 
       {colunas.length === 0 && (balcao ? (
-        <Vazio titulo="Ninguém atende neste dia" forma="presenca">
-          {pode(membro, 'admin') ? 'Cadastre a equipe em Catálogo → Profissionais e as aulas em Catálogo → Grade de aulas.' : 'Peça à administração para cadastrar a equipe em Catálogo.'}
+        <Vazio titulo="Ninguém atende neste dia" forma="presenca" acao={pode(membro, 'admin') ? <Link className="botao botao--linha botao--p" to="/bancada/grade">Abrir o catálogo</Link> : null}>
+          {pode(membro, 'admin') ? 'Cadastre a equipe e as aulas no Catálogo.' : 'Peça à administração para cadastrar a equipe.'}
         </Vazio>
       ) : (
-        <Vazio titulo="Nada na sua agenda neste dia" forma="presenca">Escolha outro dia acima. As aulas e os atendimentos marcados com você aparecem aqui.</Vazio>
+        <Vazio titulo="Nada na sua agenda neste dia" forma="presenca">Escolha outro dia acima.</Vazio>
       ))}
 
       {mostradas.length > 0 && (
         <div className={`ag${arrasto ? ' ag--arrastando' : ''}`} ref={quadro} style={{ '--visiveis': balcao ? Math.min(visiveis, mostradas.length) : mostradas.length }}>
           <div className="ag-grade" style={{ '--n': mostradas.length, '--alt': `${ALT}px` }}>
             <div className="ag-canto" aria-hidden="true" />
-            {mostradas.map((c) => (
-              <div key={c.nome} className={`ag-cab ag-cab--${c.grupo}`} title={`${c.nome} · ${c.detalhe}`}>
-                <span className="ag-cab__foto" aria-hidden="true">{iniciais(c.nome)}</span>
-                <span className="ag-cab__nome"><strong>{c.nome}</strong><small>{c.detalhe}</small></span>
-              </div>
-            ))}
+            {mostradas.map((c) => {
+              const nAtend = lista.filter((a) => a.profissional === c.nome && a.status !== 'cancelado').length;
+              const nAulas = aulas.filter((a) => a.professor === c.nome).length;
+              const total = nAtend + nAulas;
+              return (
+                <div key={c.nome} className={`ag-cab ag-cab--${c.grupo}`} title={`${c.nome} · ${c.detalhe}`}>
+                  <span className="ag-cab__av">
+                    <span className="ag-cab__foto" aria-hidden="true">{iniciais(c.nome)}</span>
+                    {total > 0 && <span className="ag-cab__n" title={[nAtend ? plural(nAtend, 'atendimento', 'atendimentos') : '', nAulas ? plural(nAulas, 'aula', 'aulas') : ''].filter(Boolean).join(' · ')}>{total}</span>}
+                  </span>
+                  <span className="ag-cab__nome"><strong>{c.nome}</strong><small>{c.detalhe}</small></span>
+                </div>
+              );
+            })}
 
             <div className="ag-horas" style={{ height: altura }} aria-hidden="true">
               {Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
@@ -371,10 +390,15 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                   <button key={a.id} type="button" onClick={() => { if (!arrastou.current) setAberto(a); }} onPointerDown={(e) => comecarArrasto(e, a)}
                     className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}`}
                     style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }}>
-                    <span className="ag-bloco__hora">{hora(a.hora)}–{hora(fimDe(a))}{a.status === 'atendido' ? ' · ✓' : pedeRemarcar(a) ? ' · quer remarcar' : a.status === 'confirmado' ? ' · confirmado' : ''}</span>
+                    <span className="ag-bloco__hora">{hora(a.hora)}–{hora(fimDe(a))}{pedeRemarcar(a) ? ' · quer remarcar' : ''}</span>
                     <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" title={a.alertas.join(' · ')} aria-label="Atenção: ver alertas">!</i>}{a.nome}</strong>
                     {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
                     {a.titular && a.duracao >= 60 && <span className="ag-bloco__info ag-bloco__troca">cobrindo {primeiro(a.titular)}</span>}
+                    {a.status === 'atendido' && <i className="ag-bloco__sel ag-sel--atendido" title="Atendido" aria-hidden="true">✓</i>}
+                    {a.status === 'confirmado' && <i className="ag-bloco__sel ag-sel--confirmado" title="Confirmado" aria-hidden="true">✓</i>}
+                    {a.status === 'falta' && <i className="ag-bloco__sel ag-sel--falta" title="Faltou" aria-hidden="true">×</i>}
+                    {(a.status === 'atendido' || a.status === 'confirmado' || a.status === 'falta') && <span className="ag-vh">{STATUS[a.status][0]}</span>}
+                    {a.duracao >= 60 && (a.pagamento === 'pago' || a.pagamento === 'pacote') && <span className={`ag-bloco__pg ag-bloco__pg--${a.pagamento}`}>{PAGAMENTO[a.pagamento]}</span>}
                   </button>
                 ))}
                 {arrasto && arrasto.nome === c.nome && (
@@ -389,7 +413,6 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
           </div>
         </div>
       )}
-      {balcao && lista.some(podeMover) && <p className="ag-dica">Para remarcar, arraste o atendimento até o novo horário (no celular e no iPad, toque, segure e arraste).</p>}
 
       {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={(r) => { setNovo(null); aplicar(r); }} />}
       {aberto && <DetalheAtendimento a={aberto} erroInicial={erroAberto} aoFechar={() => { setAberto(null); setErroAberto(''); }} aoMudar={(r) => { setAberto(null); aplicar(r); }}
@@ -441,26 +464,39 @@ function EsperaServicos({ dia, lista, catalogo, aoFechar, aoMudar }) {
         aoFechar={() => setAgendar(null)} aoSalvar={async () => { await chamar('atualizarEspera', { id: agendar.id, status: 'agendado' }).catch(() => {}); setAgendar(null); aoMudar(); }} />
     );
   }
+  const nDoDia = lista.filter(doDia).length;
   return (
-    <Modal titulo="Lista de espera" rotulo="Serviços · quem quer um horário que estava ocupado" aoFechar={aoFechar} largo>
+    <Modal titulo="Lista de espera" rotulo="Serviços" aoFechar={aoFechar} largo>
       <div className="b-form">
-        {!novo && <button type="button" className="botao botao--cheio botao--p esp-novo" onClick={() => setNovo(true)}>Pôr alguém na lista</button>}
+        <div className="ag-esp-topo">
+          <span className="ag-esp-topo__n">
+            <strong>{lista.length}</strong> {lista.length === 1 ? 'pessoa esperando' : 'pessoas esperando'}
+            {nDoDia > 0 && <Tag tom="ok">{plural(nDoDia, 'para este dia', 'para este dia')}</Tag>}
+            <AjudaAg titulo="Lista de espera">Anote quem quer um horário que estava ocupado. Quando abrir uma vaga, avise pelo WhatsApp e agende por aqui.</AjudaAg>
+          </span>
+          {!novo && <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Pôr alguém na lista</button>}
+        </div>
         {novo && <NovaEspera catalogo={catalogo} dia={dia} aoFechar={() => setNovo(false)} aoSalvar={() => { setNovo(false); aoMudar(); }} />}
         <Erro>{erro}</Erro>
-        {ordenada.length === 0 && !novo && <Vazio titulo="Ninguém esperando" forma="presenca">Quando um horário estiver ocupado, anote aqui quem quer um aviso se abrir uma vaga.</Vazio>}
+        {ordenada.length === 0 && !novo && <Vazio titulo="Ninguém esperando" forma="presenca">Quando um horário estiver ocupado, anote aqui quem quer um aviso.</Vazio>}
         {ordenada.length > 0 && (
-          <ol className="esp-lista esp-lista--servicos">
+          <ol className="ag-esp ag-esp--servicos">
             {ordenada.map((x) => (
-              <li key={x.id} className={doDia(x) ? 'esp-lista--hoje' : ''}>
-                <span className="esp-lista__quem">
+              <li key={x.id} className={doDia(x) ? 'ag-esp--hoje' : ''}>
+                <span className="ag-esp__quem">
                   <strong>{x.nome}</strong>
-                  <span>{x.servico}{x.profissional ? ` · com ${x.profissional}` : ''}</span>
-                  <small>{x.data ? dataBR(x.data) : 'qualquer dia'}{x.periodo ? ` · ${PERIODOS[x.periodo]}` : ''}{x.status === 'avisado' ? ' · aviso enviado' : ''}{x.obs ? ` · ${x.obs}` : ''}</small>
+                  <span className="b-meta"><span>{x.servico}</span>{x.profissional && <span>com {x.profissional}</span>}</span>
+                  <span className="ag-esp__tags">
+                    <Tag tom={x.data ? 'neutro' : 'apagado'}>{x.data ? dataBR(x.data) : 'qualquer dia'}</Tag>
+                    {x.periodo && <Tag>{PERIODOS[x.periodo]}</Tag>}
+                    {x.status === 'avisado' && <Tag tom="ok">aviso enviado</Tag>}
+                  </span>
+                  {x.obs && <small className="ag-esp__obs">{x.obs}</small>}
                 </span>
-                <span className="esp-lista__acoes">
-                  {x.whatsapp && <a className="link-acao com-icone" href={linkWhats(x.whatsapp, texto(x))} target="_blank" rel="noreferrer" onClick={() => x.status !== 'avisado' && mudar(x, 'avisado')}><IconeWhatsapp tamanho={14} /> Avisar</a>}
-                  <button type="button" className="link-acao" onClick={() => setAgendar(x)}>Agendar</button>
-                  <BotaoAcao className="link-sair" confirmar={`Tirar ${x.nome} da lista de espera?`} acao={() => mudar(x, 'desistiu')}>tirar</BotaoAcao>
+                <span className="ag-esp__acoes">
+                  {x.whatsapp && <a className="botao botao--linha botao--p com-icone" href={linkWhats(x.whatsapp, texto(x))} target="_blank" rel="noreferrer" onClick={() => x.status !== 'avisado' && mudar(x, 'avisado')}><IconeWhatsapp tamanho={15} /> Avisar</a>}
+                  <button type="button" className="botao botao--cheio botao--p" onClick={() => setAgendar(x)}>Agendar</button>
+                  <BotaoAcao className="botao botao--fantasma botao--p ag-perigo" confirmar={`Tirar ${x.nome} da lista de espera?`} acao={() => mudar(x, 'desistiu')}>Tirar</BotaoAcao>
                 </span>
               </li>
             ))}
@@ -482,40 +518,44 @@ function NovaEspera({ catalogo, dia, aoFechar, aoSalvar }) {
   const profs = catalogo.profissionais.filter((p) => p.ativo && (!serv || fazServico(p, serv)));
   const campo = (k) => ({ value: f[k], onChange: (e) => setF({ ...f, [k]: e.target.value }) });
   return (
-    <section className="esp-form" aria-label="Pôr na lista de espera">
-      <fieldset className="b-opcoes">
-        <legend className="rotulo">Cliente</legend>
+    <section className="esp-form ag-esp-form" aria-label="Pôr na lista de espera">
+      <Passo n={1} titulo="Cliente">
         {cliente ? (
-          <div className="b-escolhido"><div><strong>{cliente.nome}</strong><span>{telFmt(cliente.whatsapp)}</span></div><button type="button" className="link-sair" onClick={() => setCliente(null)}>trocar</button></div>
+          <ClienteEscolhido nome={cliente.nome} detalhe={telFmt(cliente.whatsapp)} aoTrocar={() => setCliente(null)} />
         ) : sem ? (
-          <div className="b-linha2">
-            <label className="b-campo"><span className="rotulo">Nome e sobrenome</span><input value={sem.nome} onChange={(e) => setSem({ ...sem, nome: e.target.value })} /></label>
-            <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" value={sem.whatsapp} onChange={(e) => setSem({ ...sem, whatsapp: mascaraTelefone(e.target.value) })} /></label>
-          </div>
+          <>
+            <div className="b-linha2">
+              <label className="b-campo"><span className="rotulo">Nome e sobrenome</span><input value={sem.nome} onChange={(e) => setSem({ ...sem, nome: e.target.value })} /></label>
+              <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" value={sem.whatsapp} onChange={(e) => setSem({ ...sem, whatsapp: mascaraTelefone(e.target.value) })} /></label>
+            </div>
+            <button type="button" className="botao botao--fantasma botao--p ag-solto" onClick={() => setSem(null)}>Buscar no cadastro</button>
+          </>
         ) : (
           <>
             <BuscaAluno placeholder="Buscar cliente por nome, CPF ou WhatsApp" aoEscolher={(a) => setCliente(a)} />
-            <button type="button" className="link-acao" onClick={() => setSem({ nome: '', whatsapp: '' })}>Cliente sem cadastro (só nome e WhatsApp)</button>
+            <button type="button" className="botao botao--fantasma botao--p ag-solto" onClick={() => setSem({ nome: '', whatsapp: '' })}>Cliente sem cadastro (só nome e WhatsApp)</button>
           </>
         )}
-      </fieldset>
-      <label className="b-campo"><span className="rotulo">Serviço</span>
-        <select {...campo('servicoId')}>
-          <option value="">Escolha…</option>
-          {catalogo.categorias.map((c) => [c, servicos.filter((s) => s.categoria === c)]).filter(([, l]) => l.length).map(([c, l]) => (
-            <optgroup key={c} label={c}>{l.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</optgroup>
-          ))}
-        </select></label>
-      <div className="b-linha2">
-        <label className="b-campo"><span className="rotulo">Profissional</span>
-          <select {...campo('profissional')}><option value="">Qualquer pessoa</option>{profs.map((p) => <option key={p.nome}>{p.nome}</option>)}</select></label>
-        <label className="b-campo"><span className="rotulo">Dia (vazio = qualquer dia)</span><input type="date" min={hojeIso()} {...campo('data')} /></label>
-      </div>
-      <div className="b-linha2">
-        <label className="b-campo"><span className="rotulo">Período</span>
-          <select {...campo('periodo')}><option value="">Qualquer horário</option>{Object.entries(PERIODOS).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
-        <label className="b-campo"><span className="rotulo">Observação</span><input {...campo('obs')} maxLength={200} placeholder="Ex.: só depois das 17h" /></label>
-      </div>
+      </Passo>
+      <Passo n={2} titulo="O que quer">
+        <label className="b-campo"><span className="rotulo">Serviço</span>
+          <select {...campo('servicoId')}>
+            <option value="">Escolha…</option>
+            {catalogo.categorias.map((c) => [c, servicos.filter((s) => s.categoria === c)]).filter(([, l]) => l.length).map(([c, l]) => (
+              <optgroup key={c} label={c}>{l.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}</optgroup>
+            ))}
+          </select></label>
+        <div className="b-linha2">
+          <label className="b-campo"><span className="rotulo">Profissional</span>
+            <select {...campo('profissional')}><option value="">Qualquer pessoa</option>{profs.map((p) => <option key={p.nome}>{p.nome}</option>)}</select></label>
+          <label className="b-campo"><span className="rotulo">Dia (vazio = qualquer dia)</span><input type="date" min={hojeIso()} {...campo('data')} /></label>
+        </div>
+        <div className="b-linha2">
+          <label className="b-campo"><span className="rotulo">Período</span>
+            <select {...campo('periodo')}><option value="">Qualquer horário</option>{Object.entries(PERIODOS).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
+          <label className="b-campo"><span className="rotulo">Observação</span><input {...campo('obs')} maxLength={200} placeholder="Ex.: só depois das 17h" /></label>
+        </div>
+      </Passo>
       <Erro>{erro}</Erro>
       <div className="b-botoes">
         <BotaoAcao className="botao botao--cheio botao--p" disabled={!f.servicoId || (!cliente && !sem)} acao={async () => {
@@ -525,7 +565,7 @@ function NovaEspera({ catalogo, dia, aoFechar, aoSalvar }) {
             aoSalvar();
           } catch (e) { setErro(e.message); }
         }}>Pôr na lista</BotaoAcao>
-        <button type="button" className="link-acao" onClick={aoFechar}>Voltar</button>
+        <button type="button" className="botao botao--fantasma botao--p" onClick={aoFechar}>Voltar</button>
       </div>
     </section>
   );
@@ -545,7 +585,7 @@ function MoverAtendimento({ m, aoFechar, aoMover }) {
           <span className="ag-mover__seta" aria-hidden="true">→</span>
           <div><span className="rotulo">Fica</span><strong>{hora(m.hora)}</strong><span>com {m.profissional}</span></div>
         </div>
-        <p className="b-suave">{outra ? `Muda de profissional: o tempo do serviço passa a ser o de ${primeiro(m.profissional)}. ` : ''}O pagamento, o pacote e a comanda continuam os mesmos.</p>
+        <AvisoAg tom={outra ? 'aviso' : 'info'}>{outra ? `Muda de profissional: vale o tempo do serviço de ${primeiro(m.profissional)}. ` : ''}Pagamento, pacote e comanda continuam os mesmos.</AvisoAg>
         <Erro>{erro}</Erro>
         <div className="b-botoes">
           <BotaoAcao className="botao botao--cheio" acao={async () => {
@@ -712,13 +752,13 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
   const comboValido = !!comboEscolhido && !re && !pacote;
   if (lote) {
     return (
-      <Modal rotulo={`${cliente?.nome || semCadastro.nome} · ${dataBR(data)}`} titulo={`${plural(lote.criados.length, 'serviço marcado', 'serviços marcados')}, ${plural(lote.falhas.length, 'não coube', 'não couberam')}`} aoFechar={() => aoSalvar(lote.criados[0])}>
+      <Modal rotulo={`${cliente?.nome || semCadastro.nome} · ${dataBR(data)}`} titulo={`${plural(lote.criados.length, 'serviço marcado', 'serviços marcados')}${lote.falhas.length ? `, ${plural(lote.falhas.length, 'não coube', 'não couberam')}` : ''}`} aoFechar={() => aoSalvar(lote.criados[0])}>
         <div className="b-form">
-          <ul className="sv-resumo">
+          <ul className="sv-resumo sr-lista">
             {lote.criados.map((x) => <li key={x.id}><span className="sr-ok" aria-hidden="true">✓</span><strong>{hora(x.hora)} · {x.servico}</strong><small>com {x.profissional}</small></li>)}
-            {lote.falhas.map((x, i) => <li key={i}><span className="sr-nao" aria-hidden="true">×</span><strong>{x.servico}{x.hora ? ` · ${hora(x.hora)}` : ''}</strong><small>{x.motivo}</small></li>)}
+            {lote.falhas.map((x, i) => <li key={i} className="sr-pulado"><span className="sr-nao" aria-hidden="true">×</span><strong>{x.servico}{x.hora ? ` · ${hora(x.hora)}` : ''}</strong><small>{x.motivo}</small></li>)}
           </ul>
-          <p className="b-suave">Os com × não foram marcados. Marque-os de novo pela agenda, em outro horário.</p>
+          <AvisoAg tom="aviso">Os itens com × não foram marcados. Marque-os de novo pela agenda, em outro horário.</AvisoAg>
           <button type="button" className="botao botao--cheio" onClick={() => aoSalvar(lote.criados[0])}>Ok</button>
         </div>
       </Modal>
@@ -733,7 +773,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             {serie.criados.map((x) => <li key={x.id}><span className="sr-ok" aria-hidden="true">✓</span><strong>{DIAS_LONGOS[diaSemana(x.data)]}, {dataBR(x.data)}</strong><small>{nomePg[x.pagamento] || x.pagamento}</small></li>)}
             {serie.pulados.map((x) => <li key={x.data} className="sr-pulado"><span className="sr-nao" aria-hidden="true">×</span><strong>{DIAS_LONGOS[diaSemana(x.data)]}, {dataBR(x.data)}</strong><small>{x.motivo}</small></li>)}
           </ul>
-          {serie.pulados.length > 0 && <p className="b-suave">Os dias com × não foram marcados. Escolha outro horário para eles pela agenda.</p>}
+          {serie.pulados.length > 0 && <AvisoAg tom="aviso">Os dias com × não foram marcados. Escolha outro horário para eles pela agenda.</AvisoAg>}
           <button type="button" className="botao botao--cheio" onClick={aoSalvar}>Ok</button>
         </div>
       </Modal>
@@ -743,92 +783,112 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
 
   return (
     <Modal rotulo={re ? `${re.servico} de ${primeiro(re.nome)}` : 'Estética e fisioterapia'} titulo={re ? 'Reagendar' : 'Agendar serviço'} aoFechar={aoFechar} largo>
-      <div className="b-form">
-        <label className="b-campo">
-          <span className="rotulo">Serviço</span>
-          <select value={servicoId} onChange={(e) => setServicoId(e.target.value)} disabled={!!re}>
-            <option value="">Escolha…</option>
-            {porCategoria.map(([c, l]) => (
-              <optgroup key={c} label={c}>{l.map((s) => <option key={s.id} value={s.id}>{s.nome} · {s.duracao} min · {real(s.preco)}{combosDe(s.id).length ? ` · combo: ${textoCombos(s.id)}` : ''}</option>)}</optgroup>
-            ))}
-          </select>
-        </label>
-        {serv && combos.length > 0 && (
-          <p className="s-combos">
-            Combo deste serviço: {combos.map((p, i) => <span key={p.id}>{i > 0 && ' · '}<strong>{plural(p.sessoes, 'sessão', 'sessões')} por {real(p.preco)}</strong></span>)}
-            {' '}(sessão avulsa: {real(serv.preco)})
-          </p>
-        )}
-        <div className="b-linha2">
+      <div className="b-form ag-form">
+        <Passo n={1} titulo="Serviço">
           <label className="b-campo">
-            <span className="rotulo">Profissional</span>
-            <select value={profissional} onChange={(e) => setProfissional(e.target.value)}>
+            <span className="ag-vh">Serviço</span>
+            <select value={servicoId} onChange={(e) => setServicoId(e.target.value)} disabled={!!re} aria-label="Serviço">
               <option value="">Escolha…</option>
-              {profs.map((p) => <option key={p.nome}>{p.nome}</option>)}
+              {porCategoria.map(([c, l]) => (
+                <optgroup key={c} label={c}>{l.map((s) => <option key={s.id} value={s.id}>{s.nome} · {s.duracao} min · {real(s.preco)}{combosDe(s.id).length ? ` · combo: ${textoCombos(s.id)}` : ''}</option>)}</optgroup>
+              ))}
             </select>
           </label>
-          <label className="b-campo"><span className="rotulo">Dia</span><input type="date" value={data} min={re ? hojeIso() : limitePassado} onChange={(e) => { setData(e.target.value); setHoraSel(''); }} /></label>
-        </div>
-        {passado && (
-          <p className="aviso s-passado">
-            {data < limitePassado ? 'Dá para lançar atendimentos de até 120 dias atrás.'
-              : `Dia que já passou: o atendimento entra como atendido (com a comissão) para organizar o histórico. Se já pagou, a venda entra no caixa de ${dataBR(data)}.`}
-          </p>
-        )}
-        {serv && profs.length === 0 && (
-          <p className="aviso">Ninguém está marcado para fazer {serv.nome}. A administração acerta em Catálogo → Serviços → editar o serviço → "Quem faz este serviço".</p>
-        )}
+          {serv && (
+            <div className="s-combos ag-combos">
+              <Tag tom="neutro">{serv.duracao} min · {real(serv.preco)}</Tag>
+              {combos.map((p) => <Tag key={p.id} tom="ambar">Combo {plural(p.sessoes, 'sessão', 'sessões')} · {real(p.preco)}</Tag>)}
+            </div>
+          )}
+          {serv && profs.length === 0 && (
+            <AvisoAg tom="alerta">Ninguém faz {serv.nome}. Acerte em Catálogo → Serviços → "Quem faz este serviço".</AvisoAg>
+          )}
+        </Passo>
 
-        {serv && profissional && passado && (
-          <label className="b-campo s-hora-passada"><span className="rotulo">Horário em que foi feito</span>
-            <input type="time" step={300} value={horaSel} onChange={(e) => setHoraSel(e.target.value)} /></label>
-        )}
-        {serv && profissional && !passado && (
-          <fieldset className="s-horarios">
-            <legend className="rotulo">Horário · {horarios?.duracao || serv.duracao} min</legend>
-            {!horarios && <span className="b-suave">Procurando horários livres…</span>}
-            {horarios && horarios.horarios.length === 0 && <span className="b-suave">{horarios.motivo || 'Sem horário livre neste dia. Tente outro dia ou profissional.'}</span>}
-            {horarios && horarios.horarios.length > 0 && (
-              <div className="s-horarios__grade">
-                {horarios.horarios.map((h) => (
-                  <button key={h} type="button" aria-pressed={horaSel === h} onClick={() => setHoraSel(h)}>{hora(h)}</button>
-                ))}
-              </div>
-            )}
-          </fieldset>
-        )}
+        <Passo n={2} titulo="Quando e com quem">
+          <div className="b-linha2">
+            <label className="b-campo">
+              <span className="rotulo">Profissional</span>
+              <select value={profissional} onChange={(e) => setProfissional(e.target.value)}>
+                <option value="">Escolha…</option>
+                {profs.map((p) => <option key={p.nome}>{p.nome}</option>)}
+              </select>
+            </label>
+            <label className="b-campo"><span className="rotulo">Dia</span><input type="date" value={data} min={re ? hojeIso() : limitePassado} onChange={(e) => { setData(e.target.value); setHoraSel(''); }} /></label>
+          </div>
+          {passado && (
+            <AvisoAg tom="aviso" titulo={data < limitePassado ? 'Dá para lançar atendimentos de até 120 dias atrás' : 'Dia que já passou'}>
+              {data < limitePassado ? '' : `Entra como atendido, com comissão. Se já pagou, a venda vai para o caixa de ${dataBR(data)}.`}
+            </AvisoAg>
+          )}
 
-        {!re && !passado && serv && profissional && horaSel && (
-          <>
-            {extras.map((x, i) => {
-              const antes = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.slice(0, i).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
-              const fim = antes.reduce((m, y) => Math.max(m, minDe(y.hora) + (y.dur || 0)), 0);
-              const outros = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.filter((y) => y.chave !== x.chave).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
-              return (
-                <ServicoExtra key={x.chave} n={i + 2} item={x} catalogo={catalogo} data={data} outros={outros} depoisDe={fim}
-                  aoMudar={(mud) => setExtras((l) => l.map((y) => (y.chave === x.chave ? { ...y, ...mud } : y)))} aoTirar={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))} />
-              );
-            })}
-            {extras.length < 7 && (
-              <button type="button" className="link-acao vd-mais" onClick={() => { setRepetir({ cadaDias: 0, vezes: 4 }); setPg((x) => { if (!x.formas) return x; const { formas: _f, ...resto } = x; return { ...resto, metodo: x.formas[0].metodo, bandeira: x.formas[0].bandeira }; }); setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), servicoId: '', profissional: '', hora: '', dur: 0 }]); }}>
-                + Outro serviço neste atendimento
-              </button>
-            )}
-          </>
-        )}
+          {serv && profissional && passado && (
+            <label className="b-campo s-hora-passada"><span className="rotulo">Horário em que foi feito</span>
+              <input type="time" step={300} value={horaSel} onChange={(e) => setHoraSel(e.target.value)} /></label>
+          )}
+          {serv && profissional && !passado && (
+            <fieldset className="s-horarios">
+              <legend className="rotulo">Horário livre · {horarios?.duracao || serv.duracao} min</legend>
+              {!horarios && <span className="b-suave">Procurando horários livres…</span>}
+              {horarios && horarios.horarios.length === 0 && <span className="b-suave">{horarios.motivo || 'Sem horário livre neste dia. Tente outro dia ou profissional.'}</span>}
+              {horarios && horarios.horarios.length > 0 && (
+                <div className="s-horarios__grade">
+                  {horarios.horarios.map((h) => (
+                    <button key={h} type="button" aria-pressed={horaSel === h} onClick={() => setHoraSel(h)}>{hora(h)}</button>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+          )}
+
+          {!re && !passado && serv && profissional && horaSel && (
+            <>
+              {extras.map((x, i) => {
+                const antes = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.slice(0, i).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
+                const fim = antes.reduce((m, y) => Math.max(m, minDe(y.hora) + (y.dur || 0)), 0);
+                const outros = [{ hora: horaSel, dur: horarios?.duracao || serv.duracao }, ...extras.filter((y) => y.chave !== x.chave).map((y) => ({ hora: y.hora, dur: y.dur }))].filter((y) => y.hora);
+                return (
+                  <ServicoExtra key={x.chave} n={i + 2} item={x} catalogo={catalogo} data={data} outros={outros} depoisDe={fim}
+                    aoMudar={(mud) => setExtras((l) => l.map((y) => (y.chave === x.chave ? { ...y, ...mud } : y)))} aoTirar={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))} />
+                );
+              })}
+              {extras.length < 7 && (
+                <button type="button" className="botao botao--fantasma botao--p ag-solto vd-mais" onClick={() => { setRepetir({ cadaDias: 0, vezes: 4 }); setPg((x) => { if (!x.formas) return x; const { formas: _f, ...resto } = x; return { ...resto, metodo: x.formas[0].metodo, bandeira: x.formas[0].bandeira }; }); setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), servicoId: '', profissional: '', hora: '', dur: 0 }]); }}>
+                  + Outro serviço neste atendimento
+                </button>
+              )}
+            </>
+          )}
+
+          {!re && serv && !passado && extras.length === 0 && (
+            <div className="b-linha2 sr-repetir">
+              <label className="b-campo"><span className="rotulo">Repetir</span>
+                <select value={repetir.cadaDias} onChange={(e) => setRepetir({ ...repetir, cadaDias: Number(e.target.value) })}>
+                  <option value={0}>Só este dia</option>
+                  <option value={7}>Toda semana</option>
+                  <option value={14}>A cada 2 semanas</option>
+                  <option value={21}>A cada 3 semanas</option>
+                  <option value={28}>A cada 4 semanas</option>
+                </select></label>
+              {repetir.cadaDias > 0 && (
+                <label className="b-campo"><span className="rotulo">Quantas vezes (com esta)</span>
+                  <select value={repetir.vezes} onChange={(e) => setRepetir({ ...repetir, vezes: Number(e.target.value) })}>
+                    {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n} vezes</option>)}
+                  </select></label>
+              )}
+              {repetir.cadaDias > 0 && <p className="b-suave sr-nota">Mesmo horário, com {profissional || 'a mesma pessoa'}. {pagamento === 'pacote' ? 'Cada sessão usa o pacote enquanto houver saldo.' : pagamento === 'pago' ? 'Só a primeira fica paga; as outras ficam para pagar no dia.' : pagamento === 'cortesia' ? 'Todas como cortesia.' : 'Todas para pagar no dia.'} Dias ocupados são pulados e avisados.</p>}
+            </div>
+          )}
+        </Passo>
 
         {!re && (
-          <fieldset className="b-opcoes">
-            <legend className="rotulo">Cliente</legend>
+          <Passo n={3} titulo="Cliente">
             {cliente ? (
-              <div className="b-escolhido">
-                <div><strong>{cliente.nome}</strong><span>{cliente.cpf ? telFmt(cliente.whatsapp) : 'sem cadastro'}</span></div>
-                <button type="button" className="link-sair" onClick={() => setCliente(null)}>trocar</button>
-              </div>
+              <ClienteEscolhido nome={cliente.nome} detalhe={cliente.cpf ? telFmt(cliente.whatsapp) : 'sem cadastro'} aoTrocar={() => setCliente(null)} />
             ) : modoCliente === 'busca' ? (
               <>
                 <BuscaAluno placeholder="Buscar cliente por nome, CPF ou WhatsApp" aoEscolher={(a) => setCliente({ nome: a.nome, cpf: a.cpf, whatsapp: a.whatsapp })} />
-                <button type="button" className="link-acao" onClick={() => setModoCliente('novo')}>Cliente sem cadastro (só nome e WhatsApp)</button>
+                <button type="button" className="botao botao--fantasma botao--p ag-solto" onClick={() => setModoCliente('novo')}>Cliente sem cadastro (só nome e WhatsApp)</button>
               </>
             ) : (
               <>
@@ -836,76 +896,62 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
                   <label className="b-campo"><span className="rotulo">Nome e sobrenome</span><input value={semCadastro.nome} onChange={(e) => setSemCadastro({ ...semCadastro, nome: e.target.value })} /></label>
                   <label className="b-campo"><span className="rotulo">WhatsApp</span><input inputMode="numeric" value={semCadastro.whatsapp} onChange={(e) => setSemCadastro({ ...semCadastro, whatsapp: mascaraTelefone(e.target.value) })} /></label>
                 </div>
-                <button type="button" className="link-acao" onClick={() => setModoCliente('busca')}>Buscar no cadastro</button>
+                <button type="button" className="botao botao--fantasma botao--p ag-solto" onClick={() => setModoCliente('busca')}>Buscar no cadastro</button>
               </>
             )}
-          </fieldset>
+          </Passo>
         )}
 
-        {!re && serv && combos.length > 0 && !pacote && (pagamento === 'no_dia' || pagamento === 'pago') && (
-          <fieldset className="b-opcoes b-opcoes--linha s-leva">
-            <legend className="rotulo">O que vai levar</legend>
-            <label className={!combo ? 'ativo' : ''}>
-              <input type="radio" checked={!combo} onChange={() => setCombo('')} />
-              <span><strong>Só a sessão</strong><small>{real(serv.preco)}</small></span>
-            </label>
-            {combos.map((p) => (
-              <label key={p.id} className={combo === p.id ? 'ativo' : ''}>
-                <input type="radio" checked={combo === p.id} onChange={() => setCombo(p.id)} />
-                <span><strong>{p.nome ? `${p.nome} · ` : 'Combo · '}{plural(p.sessoes, 'sessão', 'sessões')}</strong>
-                  <small>{real(p.preco)}{p.semJurosAte > 1 ? ` · até ${p.semJurosAte}x sem juros` : ''} · esta sessão sai do combo</small></span>
-              </label>
-            ))}
-          </fieldset>
-        )}
         {!re && serv && (
-          <fieldset className="b-opcoes b-opcoes--linha">
-            <legend className="rotulo">Pagamento</legend>
-            {pacote && (
-              <label className={pagamento === 'pacote' ? 'ativo' : ''}>
-                <input type="radio" checked={pagamento === 'pacote'} onChange={() => setPagamento('pacote')} />
-                <span><strong>Usar o pacote</strong><small>{pacote.descricao} · {plural(pacote.restantes, 'sessão restante', 'sessões restantes')} (esta desconta 1) · até {dataBR(pacote.fim)}</small></span>
+          <Passo n={4} titulo="Pagamento">
+            {combos.length > 0 && !pacote && (pagamento === 'no_dia' || pagamento === 'pago') && (
+              <fieldset className="b-opcoes b-opcoes--linha s-leva">
+                <legend className="rotulo">O que vai levar</legend>
+                <label className={!combo ? 'ativo' : ''}>
+                  <input type="radio" checked={!combo} onChange={() => setCombo('')} />
+                  <span><strong>Só a sessão</strong><small>{real(serv.preco)}</small></span>
+                </label>
+                {combos.map((p) => (
+                  <label key={p.id} className={combo === p.id ? 'ativo' : ''}>
+                    <input type="radio" checked={combo === p.id} onChange={() => setCombo(p.id)} />
+                    <span><strong>{p.nome ? `${p.nome} · ` : 'Combo · '}{plural(p.sessoes, 'sessão', 'sessões')}</strong>
+                      <small>{real(p.preco)}{p.semJurosAte > 1 ? ` · até ${p.semJurosAte}x sem juros` : ''} · esta sessão sai do combo</small></span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
+            <fieldset className="b-opcoes b-opcoes--linha">
+              <legend className="ag-vh">Pagamento</legend>
+              {pacote && (
+                <label className={pagamento === 'pacote' ? 'ativo' : ''}>
+                  <input type="radio" checked={pagamento === 'pacote'} onChange={() => setPagamento('pacote')} />
+                  <span><strong>Usar o pacote</strong><small>{pacote.descricao} · {plural(pacote.restantes, 'sessão restante', 'sessões restantes')} (esta desconta 1) · até {dataBR(pacote.fim)}</small></span>
+                </label>
+              )}
+              <label className={pagamento === 'no_dia' ? 'ativo' : ''}>
+                <input type="radio" checked={pagamento === 'no_dia'} onChange={() => setPagamento('no_dia')} />
+                <span><strong>{passado ? 'Ainda não pagou' : 'Paga no dia'}</strong><small>{passado ? 'fica a receber (na agenda ou na comanda)' : comboValido ? `na comanda, que já abre com o combo (${real(comboEscolhido.preco)})` : 'registra o pagamento ao marcar atendido'}</small></span>
               </label>
+              <label className={pagamento === 'pago' ? 'ativo' : ''}>
+                <input type="radio" checked={pagamento === 'pago'} onChange={() => setPagamento('pago')} />
+                <span><strong>Já pagou</strong><small>{passado ? `entra no caixa de ${dataBR(data)}` : 'registra agora'} · {real(comboValido ? comboEscolhido.preco : serv.preco)}{comboValido ? ' (combo)' : ''}</small></span>
+              </label>
+              <label className={pagamento === 'cortesia' ? 'ativo' : ''}>
+                <input type="radio" checked={pagamento === 'cortesia'} onChange={() => setPagamento('cortesia')} />
+                <span><strong>Cortesia</strong><small>sem cobrança</small></span>
+              </label>
+            </fieldset>
+            {pagamento === 'pago' && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas semDividir={extras.length > 0} />}
+            {extras.length > 0 && pagamento === 'pago' && (
+              <AvisoAg tom="info" titulo={`Total ${real(serv.preco + extras.reduce((t, x) => t + (servicos.find((y) => y.id === x.servicoId)?.preco || 0), 0))} · ${plural(extras.length + 1, 'serviço', 'serviços')}`}>
+                Cada serviço é cobrado pelo preço dele. Vale-presente, cupom e valor combinado só com um serviço: receba pela comanda.
+              </AvisoAg>
             )}
-            <label className={pagamento === 'no_dia' ? 'ativo' : ''}>
-              <input type="radio" checked={pagamento === 'no_dia'} onChange={() => setPagamento('no_dia')} />
-              <span><strong>{passado ? 'Ainda não pagou' : 'Paga no dia'}</strong><small>{passado ? 'fica a receber (na agenda ou na comanda)' : comboValido ? `na comanda, que já abre com o combo (${real(comboEscolhido.preco)})` : 'registra o pagamento ao marcar atendido'}</small></span>
-            </label>
-            <label className={pagamento === 'pago' ? 'ativo' : ''}>
-              <input type="radio" checked={pagamento === 'pago'} onChange={() => setPagamento('pago')} />
-              <span><strong>Já pagou</strong><small>{passado ? `entra no caixa de ${dataBR(data)}` : 'registra agora'} · {real(comboValido ? comboEscolhido.preco : serv.preco)}{comboValido ? ' (combo)' : ''}</small></span>
-            </label>
-            <label className={pagamento === 'cortesia' ? 'ativo' : ''}>
-              <input type="radio" checked={pagamento === 'cortesia'} onChange={() => setPagamento('cortesia')} />
-              <span><strong>Cortesia</strong><small>sem cobrança</small></span>
-            </label>
-          </fieldset>
+          </Passo>
         )}
-        {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas semDividir={extras.length > 0} />}
-        {!re && serv && !passado && extras.length === 0 && (
-          <div className="b-linha2 sr-repetir">
-            <label className="b-campo"><span className="rotulo">Repetir</span>
-              <select value={repetir.cadaDias} onChange={(e) => setRepetir({ ...repetir, cadaDias: Number(e.target.value) })}>
-                <option value={0}>Só este dia</option>
-                <option value={7}>Toda semana</option>
-                <option value={14}>A cada 2 semanas</option>
-                <option value={21}>A cada 3 semanas</option>
-                <option value={28}>A cada 4 semanas</option>
-              </select></label>
-            {repetir.cadaDias > 0 && (
-              <label className="b-campo"><span className="rotulo">Quantas vezes (com esta)</span>
-                <select value={repetir.vezes} onChange={(e) => setRepetir({ ...repetir, vezes: Number(e.target.value) })}>
-                  {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => <option key={n} value={n}>{n} vezes</option>)}
-                </select></label>
-            )}
-            {repetir.cadaDias > 0 && <p className="b-suave sr-nota">Mesmo horário, com {profissional || 'a mesma pessoa'}. {pagamento === 'pacote' ? 'Cada sessão usa o pacote enquanto houver saldo.' : pagamento === 'pago' ? 'Só a primeira fica paga; as outras ficam para pagar no dia.' : pagamento === 'cortesia' ? 'Todas como cortesia.' : 'Todas para pagar no dia.'} Dias ocupados são pulados e avisados.</p>}
-          </div>
-        )}
+
         <label className="b-campo"><span className="rotulo">Observação para quem vai atender</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
         <Erro>{erro}</Erro>
-        {extras.length > 0 && pagamento === 'pago' && !re && (
-          <p className="b-suave">Cada serviço é cobrado pelo preço dele: {real(serv.preco + extras.reduce((t, x) => t + (servicos.find((y) => y.id === x.servicoId)?.preco || 0), 0))} no total ({plural(extras.length + 1, 'serviço', 'serviços')}). Vale-presente, cupom e valor combinado só com um serviço: para esses, receba pela comanda.</p>
-        )}
         <button type="button" className="botao botao--cheio" disabled={enviando || !serv || !profissional || !horaSel || (!re && !temCliente) || (pagamento === 'pago' && !re && faltaPagamento(pg)) || (passado && data < limitePassado)
           || (extras.length > 0 && (extras.some((x) => !x.servicoId || !x.profissional || !x.hora) || (pagamento === 'pago' && pg.metodo === 'Vale-presente')))} onClick={salvar}>
           {enviando ? 'Agendando…' : !horaSel ? 'Escolha o horário' : re ? `Mudar para ${dataBR(data)} às ${hora(horaSel)}` : passado ? `Lançar atendimento de ${dataBR(data)} às ${hora(horaSel)}`
@@ -953,8 +999,8 @@ function ServicoExtra({ n, item, catalogo, data, outros, depoisDe, aoMudar, aoTi
   }, [horarios, depoisDe, outros.map((o) => o.hora + o.dur).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="sv-extra">
-      <div className="sv-extra__topo"><strong>Serviço {n}</strong><button type="button" className="link-sair" onClick={aoTirar}>tirar</button></div>
+    <div className="sv-extra ag-extra">
+      <div className="sv-extra__topo"><strong>Serviço {n}</strong><button type="button" className="botao botao--fantasma botao--p ag-perigo" onClick={aoTirar}>Tirar</button></div>
       <label className="b-campo">
         <span className="rotulo">Serviço</span>
         <select value={item.servicoId} onChange={(e) => aoMudar({ servicoId: e.target.value, profissional: '', hora: '', dur: 0 })}>
@@ -971,10 +1017,10 @@ function ServicoExtra({ n, item, catalogo, data, outros, depoisDe, aoMudar, aoTi
           </select>
         </label>
       )}
-      {serv && profs.length === 0 && <p className="aviso">Ninguém está marcado para fazer {serv.nome}. A administração acerta em Catálogo → Serviços.</p>}
+      {serv && profs.length === 0 && <AvisoAg tom="alerta">Ninguém faz {serv.nome}. Acerte em Catálogo → Serviços.</AvisoAg>}
       {serv && item.profissional && (
         <fieldset className="s-horarios">
-          <legend className="rotulo">Horário · {dur} min</legend>
+          <legend className="rotulo">Horário livre · {dur} min</legend>
           {!horarios && <span className="b-suave">Procurando horários livres…</span>}
           {horarios && livres.length === 0 && <span className="b-suave">{horarios.horarios?.length ? 'Os horários livres batem com os outros serviços desta pessoa.' : horarios.motivo || 'Sem horário livre neste dia. Tente outro profissional.'}</span>}
           {livres.length > 0 && (
@@ -1013,9 +1059,12 @@ function BloquearHorario({ inicial, profissionais, aoFechar, aoSalvar }) {
     return (
       <Modal titulo="Horário bloqueado" aoFechar={aoSalvar}>
         <div className="b-form">
-          <p>{aviso.criadas} bloqueio{aviso.criadas > 1 ? 's' : ''} criado{aviso.criadas > 1 ? 's' : ''}.</p>
+          <AvisoAg tom="ok" titulo={plural(aviso.criadas, 'bloqueio criado', 'bloqueios criados')} />
           {aviso.conflitos.length > 0 && (
-            <div className="aviso"><strong>Já havia atendimento marcado nesse horário:</strong><ul>{aviso.conflitos.map((c) => <li key={c}>{c}</li>)}</ul>Reagende esses horários pela agenda.</div>
+            <div className="ag-conflitos">
+              <AvisoAg tom="alerta" titulo="Já havia atendimento marcado nesse horário">Reagende esses horários pela agenda.</AvisoAg>
+              <ul>{aviso.conflitos.map((c) => <li key={c}>{c}</li>)}</ul>
+            </div>
           )}
           <button type="button" className="botao botao--cheio" onClick={aoSalvar}>Ok</button>
         </div>
@@ -1023,26 +1072,30 @@ function BloquearHorario({ inicial, profissionais, aoFechar, aoSalvar }) {
     );
   }
   return (
-    <Modal titulo="Bloquear horário" rotulo="Folga, almoço, curso ou outro compromisso de quem atende" aoFechar={aoFechar}>
+    <Modal titulo="Bloquear horário" rotulo="Folga, almoço, curso ou outro compromisso" aoFechar={aoFechar}>
       <div className="b-form">
-        <div className="b-linha2">
-          <label className="b-campo"><span className="rotulo">Profissional</span>
-            <select {...campo('profissional')}><option value="">Escolha…</option>{profissionais.map((p) => <option key={p}>{p}</option>)}</select></label>
-          <label className="b-campo"><span className="rotulo">Dia</span><input type="date" {...campo('data')} /></label>
-        </div>
-        <label className="b-check"><input type="checkbox" checked={f.diaTodo} onChange={(e) => setF({ ...f, diaTodo: e.target.checked })} /> O dia todo</label>
-        {!f.diaTodo && (
+        <Passo n={1} titulo="Quem e quando">
           <div className="b-linha2">
-            <label className="b-campo"><span className="rotulo">Das</span><input type="time" step={900} {...campo('inicio')} /></label>
-            <label className="b-campo"><span className="rotulo">Até</span><input type="time" step={900} {...campo('fim')} /></label>
+            <label className="b-campo"><span className="rotulo">Profissional</span>
+              <select {...campo('profissional')}><option value="">Escolha…</option>{profissionais.map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label className="b-campo"><span className="rotulo">Dia</span><input type="date" {...campo('data')} /></label>
           </div>
-        )}
-        <label className="b-campo"><span className="rotulo">Motivo</span><input {...campo('motivo')} placeholder="Ex.: almoço, médico, curso" /></label>
-        <label className="b-campo"><span className="rotulo">Repetir</span>
-          <select value={f.repetirSemanas} onChange={(e) => setF({ ...f, repetirSemanas: Number(e.target.value) })}>
-            <option value={0}>Só neste dia</option>
-            {[1, 3, 7, 11, 25].map((n) => <option key={n} value={n}>Toda semana, por {n + 1} semanas</option>)}
-          </select></label>
+          <label className="b-check"><input type="checkbox" checked={f.diaTodo} onChange={(e) => setF({ ...f, diaTodo: e.target.checked })} /> O dia todo</label>
+          {!f.diaTodo && (
+            <div className="b-linha2">
+              <label className="b-campo"><span className="rotulo">Das</span><input type="time" step={900} {...campo('inicio')} /></label>
+              <label className="b-campo"><span className="rotulo">Até</span><input type="time" step={900} {...campo('fim')} /></label>
+            </div>
+          )}
+        </Passo>
+        <Passo n={2} titulo="Motivo">
+          <label className="b-campo"><span className="ag-vh">Motivo</span><input {...campo('motivo')} placeholder="Ex.: almoço, médico, curso" aria-label="Motivo" /></label>
+          <label className="b-campo"><span className="rotulo">Repetir</span>
+            <select value={f.repetirSemanas} onChange={(e) => setF({ ...f, repetirSemanas: Number(e.target.value) })}>
+              <option value={0}>Só neste dia</option>
+              {[1, 3, 7, 11, 25].map((n) => <option key={n} value={n}>Toda semana, por {n + 1} semanas</option>)}
+            </select></label>
+        </Passo>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" disabled={!f.profissional} acao={async () => {
           setErro('');
@@ -1059,7 +1112,14 @@ function DetalheFolga({ f, aoFechar, aoMudar }) {
   return (
     <Modal titulo={f.motivo} rotulo={`${f.profissional} · ${dataBR(f.data)}`} aoFechar={aoFechar}>
       <div className="b-form">
-        <p>{f.diaTodo ? 'Dia todo bloqueado.' : `Bloqueado das ${hora(f.inicio)} às ${hora(f.fim)}.`}</p>
+        <div className="ag-det ag-det--folga">
+          <section className="ag-det__quando">
+            <div className="ag-det__hora">
+              {f.diaTodo ? <strong>Dia todo</strong> : <><strong>{hora(f.inicio)}</strong><span>–{hora(f.fim)}</span></>}
+              <Tag tom="aviso">Bloqueado</Tag>
+            </div>
+          </section>
+        </div>
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--linha botao--perigo" confirmar="Liberar este horário? Ele volta a ficar livre para agendar." acao={async () => { try { await chamar('excluirFolga', { id: f.id }); aoMudar(); } catch (e) { setErro(e.message); } }}>Liberar este horário</BotaoAcao>
       </div>
@@ -1083,45 +1143,40 @@ function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRap
   const lembrete = `Olá, ${primeiro(a.nome)}! Passando para confirmar seu horário na Casa Âmbar: ${a.servico}, ${dataTexto.toLowerCase()} às ${hora(a.hora)}, com ${a.profissional}.`
     + (a.linkConfirmar ? ` Confirme ou peça para remarcar por aqui: ${a.linkConfirmar}` : ' Podemos confirmar?');
   const fechado = a.status === 'atendido' || a.status === 'cancelado';
+  const noDia = a.pagamento === 'no_dia' && balcao;
 
   return (
     <Modal rotulo={a.categoria} titulo={a.servico} aoFechar={aoFechar}>
-      <div className={`s-detalhe s-detalhe--${COR_CATEGORIA[a.categoria] || 'facial'}`}>
-        <div className="s-detalhe__quando">
-          <strong>{hora(a.hora)}<span>–{hora(fimDe(a))}</span></strong>
-          <span>{dataTexto} · com {a.profissional}{a.titular ? ` · no lugar de ${a.titular}` : ''}</span>
-        </div>
-        <Alertas lista={a.alertas} />
-        {pedeRemarcar(a) && (
-          <p className="s-remarcar"><strong>Pediu para remarcar pelo link</strong><span>{a.respostaEm ? `em ${dataBR(a.respostaEm)} às ${hora(a.respostaEm.slice(11, 16))}. ` : ''}Combine um novo horário pelo WhatsApp e use “Reagendar”.</span></p>
-        )}
-        {a.resposta === 'confirmou' && a.status !== 'atendido' && <p className="s-confirmou">Confirmou pelo link{a.respostaEm ? ` em ${dataBR(a.respostaEm)}` : ''}.</p>}
-        <dl className="b-dados">
-          <dt>Cliente</dt><dd>{a.nome}{!a.cpf && balcao ? ' · sem cadastro' : ''}</dd>
-          {a.whatsapp && <><dt>WhatsApp</dt><dd><a href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer">{telFmt(a.whatsapp)}</a></dd></>}
-          <dt>Situação</dt><dd><Tag tom={st[1]}>{st[0]}</Tag></dd>
-          {balcao && <><dt>Pagamento</dt><dd>{PAGAMENTO[a.pagamento] || a.pagamento}{a.combo ? ` · vai levar ${a.combo.nome} (${real(a.combo.preco)})` : a.valor ? ` · ${real(a.valor)}` : ''}</dd></>}
-          {a.obs && <><dt>Observação</dt><dd>{a.obs}</dd></>}
+      <div className={`ag-det s-detalhe--${COR_CATEGORIA[a.categoria] || 'facial'}`}>
+        <section className="ag-det__quando">
+          <div className="ag-det__hora"><strong>{hora(a.hora)}</strong><span>–{hora(fimDe(a))}</span><Tag tom={st[1]}>{st[0]}</Tag></div>
+          <p>{dataTexto} · {a.duracao} min</p>
+        </section>
+        <dl className="ag-fatos">
+          <div><dt>Cliente</dt><dd>{a.nome}{!a.cpf && balcao && <Tag tom="aviso">sem cadastro</Tag>}</dd></div>
+          {a.whatsapp && <div><dt>WhatsApp</dt><dd><a href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer">{telFmt(a.whatsapp)}</a></dd></div>}
+          <div><dt>Profissional</dt><dd>{a.profissional}{a.titular && <small>no lugar de {a.titular}</small>}</dd></div>
+          {balcao && <div><dt>Pagamento</dt><dd>{PAGAMENTO[a.pagamento] || a.pagamento}{a.combo ? <small>vai levar {a.combo.nome} ({real(a.combo.preco)})</small> : a.valor ? <small>{real(a.valor)}</small> : null}</dd></div>}
+          {a.obs && <div className="ag-fatos__largo"><dt>Observação</dt><dd>{a.obs}</dd></div>}
         </dl>
       </div>
+      <Alertas lista={a.alertas} />
+      {pedeRemarcar(a) && (
+        <AvisoAg tom="alerta" titulo="Pediu para remarcar pelo link">{a.respostaEm ? `Em ${dataBR(a.respostaEm)} às ${hora(a.respostaEm.slice(11, 16))}. ` : ''}Combine um novo horário pelo WhatsApp e use “Reagendar”.</AvisoAg>
+      )}
+      {a.resposta === 'confirmou' && a.status !== 'atendido' && <AvisoAg tom="ok">Confirmou pelo link{a.respostaEm ? ` em ${dataBR(a.respostaEm)}` : ''}.</AvisoAg>}
       <Erro>{erro}</Erro>
 
       {balcao && a.status !== 'cancelado' && !(a.status === 'atendido' && a.pagamento === 'pago') && (
-        <button type="button" className="botao botao--cheio s-comanda" onClick={() => aoComanda(a)}>
-          {a.pagamento === 'no_dia' ? 'Receber na comanda' : 'Abrir comanda'}<small>serviço + produtos, pagamento dividido</small>
+        <button type="button" className="ag-comanda" onClick={() => aoComanda(a)}>
+          <span className="ag-comanda__txt"><strong>{a.pagamento === 'no_dia' ? 'Receber na comanda' : 'Abrir comanda'}</strong><small>serviço + produtos, pagamento dividido</small></span>
+          <span className="ag-comanda__seta" aria-hidden="true">›</span>
         </button>
       )}
-      <button type="button" className="link-acao s-prontuario" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
-      {balcao && a.cpf && <Link to={`/bancada/alunos/${a.cpf}`} className="link-acao s-prontuario">Cadastro completo do cliente</Link>}
-      {!balcao && (
-        <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="link-acao s-prontuario">Anamnese e comanda</Link>
-      )}
-      {!balcao && !fechado && !a.titular && a.data >= hojeIso() && (
-        <button type="button" className="link-acao s-prontuario" onClick={() => aoPedir(a)}>Pedir substituição deste horário</button>
-      )}
+
       {!fechado && (
-        <div className="s-acoes">
-          {a.pagamento === 'no_dia' && balcao ? (
+        <Passo titulo="Atendimento" className="ag-passo--acoes">
+          {noDia && (
             <div className="s-receber">
               {a.combo && (
                 <label className="s-receber__combo">
@@ -1130,29 +1185,36 @@ function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRap
                 </label>
               )}
               <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} rotulo="Atendido · recebido por" itemId={a.combo && !semCombo ? a.combo.id : a.servicoId} cpf={a.cpf} data={a.data} parcelas />
+            </div>
+          )}
+          <div className="ag-acoes-det">
+            {noDia ? (
               <BotaoAcao className="botao botao--cheio botao--p" disabled={faltaPagamento(pg)} acao={() => mudar('atendido', { ...pg, semCombo: a.combo ? semCombo : undefined })}>
                 Marcar atendido{a.combo ? ` · ${real(semCombo ? a.valor : a.combo.preco)}` : ''}</BotaoAcao>
-            </div>
-          ) : (
-            <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido')}>Marcar atendido</BotaoAcao>
-          )}
-          <div className="b-botoes">
-            {balcao && a.status === 'agendado' && <BotaoAcao acao={() => mudar('confirmado')}>Cliente confirmou</BotaoAcao>}
+            ) : (
+              <BotaoAcao className="botao botao--cheio botao--p" acao={() => mudar('atendido')}>Marcar atendido</BotaoAcao>
+            )}
+            {balcao && a.status === 'agendado' && <BotaoAcao className="botao botao--linha botao--p" acao={() => mudar('confirmado')}>Cliente confirmou</BotaoAcao>}
             <BotaoAcao className="botao botao--linha botao--p botao--perigo" acao={() => mudar('falta')}>Faltou</BotaoAcao>
           </div>
-        </div>
+        </Passo>
       )}
-      {balcao && (
-        <div className="b-botoes s-rodape">
-          {a.whatsapp && !fechado && (
-            <a className="link-acao com-icone" href={linkWhats(a.whatsapp, lembrete)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={14} /> Enviar lembrete</a>
-          )}
-          {!fechado && <button type="button" className="link-acao" onClick={() => aoReagendar(a)}>Reagendar</button>}
-          {a.status !== 'cancelado' && <button type="button" className="link-acao" onClick={() => aoTrocar(a)}>Trocar profissional</button>}
-          {!fechado && <BotaoAcao className="link-sair" confirmar="Cancelar este atendimento?" acao={() => mudar('cancelado')}>Cancelar</BotaoAcao>}
-          {(a.status === 'falta' || a.status === 'atendido') && <BotaoAcao className="link-acao" acao={() => mudar('agendado')}>Desfazer</BotaoAcao>}
-        </div>
-      )}
+
+      <div className="ag-mais">
+        <button type="button" className="botao botao--fantasma botao--p" onClick={() => aoProntuario(a)}>Ficha de estética e evolução</button>
+        {balcao && a.cpf && <Link to={`/bancada/alunos/${a.cpf}`} className="botao botao--fantasma botao--p">Cadastro do cliente</Link>}
+        {!balcao && <Link to={`/bancada/clientes/${a.id}`} state={{ nome: a.nome }} className="botao botao--fantasma botao--p">Anamnese e comanda</Link>}
+        {!balcao && !fechado && !a.titular && a.data >= hojeIso() && (
+          <button type="button" className="botao botao--fantasma botao--p" onClick={() => aoPedir(a)}>Pedir substituição deste horário</button>
+        )}
+        {balcao && a.whatsapp && !fechado && (
+          <a className="botao botao--fantasma botao--p com-icone" href={linkWhats(a.whatsapp, lembrete)} target="_blank" rel="noreferrer"><IconeWhatsapp tamanho={15} /> Enviar lembrete</a>
+        )}
+        {balcao && !fechado && <button type="button" className="botao botao--fantasma botao--p" onClick={() => aoReagendar(a)}>Reagendar</button>}
+        {balcao && a.status !== 'cancelado' && <button type="button" className="botao botao--fantasma botao--p" onClick={() => aoTrocar(a)}>Trocar profissional</button>}
+        {balcao && (a.status === 'falta' || a.status === 'atendido') && <BotaoAcao className="botao botao--fantasma botao--p" acao={() => mudar('agendado')}>Desfazer</BotaoAcao>}
+        {balcao && !fechado && <BotaoAcao className="botao botao--fantasma botao--p ag-perigo" confirmar="Cancelar este atendimento?" acao={() => mudar('cancelado')}>Cancelar atendimento</BotaoAcao>}
+      </div>
     </Modal>
   );
 }
@@ -1696,29 +1758,33 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
       <span aria-hidden="true">+</span> Agendar serviço
     </button>, slot);
 
-  if (!dados) return <>{acoes}{erro ? <Erro>{erro}</Erro> : <Carregando texto="Carregando a semana" />}</>;
+  if (!dados) return <>{acoes}{erro ? <Erro>{erro}</Erro> : <EsqueletoAg linhas={8} altura={46} />}</>;
   return (
     <>
       {acoes}
       <Erro>{erro}</Erro>
-      <div className="sem-barra">
+      <div className="sem-barra ag-sem-barra">
         {balcao ? (
           <label className="b-campo sem-pessoa"><span className="rotulo">Agenda de</span>
             <select value={pessoa} onChange={(e) => escolher(e.target.value)}>{pessoas.map((n) => <option key={n}>{n}</option>)}</select>
           </label>
         ) : <strong className="sem-pessoa__nome">{pessoa}</strong>}
-        <p className="b-suave">{plural(totalSemana, 'atendimento', 'atendimentos')} · {plural(aulas.length, 'aula', 'aulas')} na semana</p>
+        <span className="b-meta ag-sem-barra__n"><span><strong>{totalSemana}</strong> {totalSemana === 1 ? 'atendimento' : 'atendimentos'}</span><span><strong>{aulas.length}</strong> {aulas.length === 1 ? 'aula' : 'aulas'}</span><span>na semana</span></span>
       </div>
       {!pessoa ? <Vazio titulo="Ninguém para mostrar" forma="presenca">Cadastre a equipe em Catálogo → Profissionais.</Vazio> : (
         <div className="ag ag--semana" ref={quadroSem} style={{ '--visiveis': typeof window !== 'undefined' && window.innerWidth < 600 ? 3 : 7 }}>
           <div className="ag-grade" style={{ '--n': 7, '--alt': `${ALT}px` }}>
             <div className="ag-canto" aria-hidden="true" />
-            {dias.map((d) => (
-              <button key={d} type="button" className={`ag-cab sem-cab${d === hoje ? ' sem-cab--hoje' : ''}`} onClick={() => aoAbrirDia(d)} title="Abrir este dia">
-                <span className="sem-cab__dia">{DIAS_LONGOS[diaSemana(d)].slice(0, 3)}</span>
-                <strong>{Number(d.slice(8))}</strong>
-              </button>
-            ))}
+            {dias.map((d) => {
+              const nDia = atend.filter((a) => a.data === d && a.status !== 'cancelado').length + aulas.filter((a) => a.data === d).length;
+              return (
+                <button key={d} type="button" className={`ag-cab sem-cab${d === hoje ? ' sem-cab--hoje' : ''}`} onClick={() => aoAbrirDia(d)} title="Abrir este dia">
+                  <span className="sem-cab__dia">{DIAS_LONGOS[diaSemana(d)].slice(0, 3)}</span>
+                  <strong>{Number(d.slice(8))}</strong>
+                  <i className={`ag-cab__n${nDia ? '' : ' ag-cab__n--zero'}`} aria-label={nDia ? plural(nDia, 'item', 'itens') : 'nada marcado'}>{nDia || ''}</i>
+                </button>
+              );
+            })}
             <div className="ag-horas" style={{ height: altura }} aria-hidden="true">
               {Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
                 const m = INI + i * SLOT;
@@ -1756,9 +1822,13 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
                   {atend.filter((a) => a.data === d).map((a) => (
                     <button key={a.id} type="button" onClick={() => aoAbrirDia(d)} className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}`}
                       style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }} title={`${a.nome} · ${a.servico}`}>
-                      <span className="ag-bloco__hora">{hora(a.hora)}{a.status === 'confirmado' ? ' · ✓' : ''}</span>
+                      <span className="ag-bloco__hora">{hora(a.hora)}</span>
                       <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" aria-label="Atenção">!</i>}{a.nome}</strong>
                       {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
+                      {a.status === 'atendido' && <i className="ag-bloco__sel ag-sel--atendido" title="Atendido" aria-hidden="true">✓</i>}
+                      {a.status === 'confirmado' && <i className="ag-bloco__sel ag-sel--confirmado" title="Confirmado" aria-hidden="true">✓</i>}
+                      {a.status === 'falta' && <i className="ag-bloco__sel ag-sel--falta" title="Faltou" aria-hidden="true">×</i>}
+                      {(a.status === 'atendido' || a.status === 'confirmado' || a.status === 'falta') && <span className="ag-vh">{STATUS[a.status][0]}</span>}
                     </button>
                   ))}
                 </div>
