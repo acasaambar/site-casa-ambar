@@ -71,6 +71,7 @@ export default function RelatorioProfissional({ mes, profissional, aoFechar }) {
           <div className="rel-quem">
             <h2>{d.profissional}</h2>
             <p>Atendimentos, aulas e comissões · de {per.ini} a {per.fim}</p>
+            {d.liquida && <p className="rel-base">A base de cada comissão é o valor depois da taxa da maquininha.</p>}
           </div>
 
           <section className="rel-resumo" aria-label="Resumo do mês">

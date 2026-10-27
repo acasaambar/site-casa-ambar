@@ -1502,7 +1502,7 @@ function bancada_ajustes() {
   return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes,
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
     wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
-    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, taxas: AJUSTES.taxas,
+    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, comissaoLiquida: AJUSTES.comissaoLiquida !== false, taxas: AJUSTES.taxas,
     ultimosLembretes: PropertiesService.getScriptProperties().getProperty('LEMBRETES_ULTIMO') || '',
     emailsRestantes: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } })() };
 }
@@ -1514,7 +1514,7 @@ function bancada_salvarAjustes(d, m) {
   var salvar = {};
   AJUSTES_EDITAVEIS.forEach(function (k) {
     if (a[k] == null) return;
-    if (k === 'wellhubAtivo' || k === 'wellhubPendentePodeReservar' || k === 'lembreteServicos' || k === 'lembreteAulas') { salvar[k] = !!a[k]; return; }
+    if (k === 'wellhubAtivo' || k === 'wellhubPendentePodeReservar' || k === 'lembreteServicos' || k === 'lembreteAulas' || k === 'comissaoLiquida') { salvar[k] = !!a[k]; return; }
     var n = Number(a[k]);
     if (isNaN(n) || n < limites[k][0] || n > limites[k][1]) throw new Error('Valor fora do limite em ' + k + ' (' + limites[k][0] + ' a ' + limites[k][1] + ').');
     salvar[k] = n;
@@ -1532,7 +1532,12 @@ function bancada_salvarAjustes(d, m) {
       var c = []; for (var i = 0; i < 12; i++) c.push(conferirTaxa(v[i], true));
       return c;
     };
-    var ta = a.taxas, nova = { pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: coluna(ta.link) };
+    var ta = a.taxas, nova = { pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: coluna(ta.link), prazos: {} };
+    ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
+      var n = Number((ta.prazos || AJUSTES.taxas.prazos || {})[k]);
+      if (isNaN(n) || n < 0 || n > 60) throw new Error('O prazo de recebimento vai de 0 a 60 dias.');
+      nova.prazos[k] = Math.round(n);
+    });
     GRUPOS_TAXA.forEach(function (g) {
       nova.debito[g] = conferirTaxa((ta.debito || {})[g], true);
       nova.credito[g] = coluna((ta.credito || {})[g]);

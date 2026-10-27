@@ -262,7 +262,7 @@ console.log('— vale-presente na agenda (sem abrir comanda)');
   const pg2 = ctx.lerAba('Pagamentos').find((p) => p.order_nsu === a2.order_nsu);
   ok(r.ok && a2.status === 'atendido' && Number(a2.valor) === 199 && Number(pg2.valor) === 149 && Number(pg2.vale_usado) === 50 && pg2.metodo === 'Cartão de crédito' && pg2.bandeira === 'Visa',
     'marcar atendido: R$ 50 do vale + R$ 149 no cartão Visa', [a2, pg2]);
-  { const ks = ctx.lerAba('Comissoes').filter((k) => k.id === 'K' + at2); ok(ks.length === 1 && Number(ks[0].base) === 199, 'comissão sobre o valor cheio do serviço', ks); }
+  { const ks = ctx.lerAba('Comissoes').filter((k) => k.id === 'K' + at2); ok(ks.length === 1 && Math.abs(Number(ks[0].base) - (199 - 149 * 0.0315)) < 0.011, 'comissão sobre o valor do serviço sem a taxa do cartão (o vale de R$ 50 não tem taxa)', ks); }
   ok(chamar('b_vales', { token: rec }).dados.find((v) => v.codigo === v50).status === 'usado', 'vale de R$ 50 usado');
 }
 

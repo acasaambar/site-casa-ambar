@@ -2584,3 +2584,13 @@
   .tx-tabela .b-tabela--compacta th:first-child { padding-left: 10px; }
   .tx-tabela .tx-pct input { width: 64px; padding: 0 6px; font-size: 16px; }
 }
+.k-nota { margin: -6px 0 0; }
+.rel-base { font-size: 13px; color: #535647; }
+.tx-dias { width: auto !important; margin-left: 2px; }
+.tx-check { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.4; min-height: 40px; }
+.tx-check input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--b-tinta); flex: none; }
+.fn-cair { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.fn-cair li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--b-linha); font-size: 15px; }
+.fn-cair strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fn-cair__total { border-bottom: 0 !important; border-top: 2px solid var(--b-tinta); margin-top: 4px; font-weight: 600; }
+@media print { .rel-base { color: #1F2616; } }

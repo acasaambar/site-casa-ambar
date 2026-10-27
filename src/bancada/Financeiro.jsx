@@ -73,6 +73,17 @@ function Mes({ mes, irPara }) {
             <p className="b-suave fn-taxas">Sem taxas no mês (ou ainda não cadastradas em Ajustes → Taxas da maquininha).</p>
           )}
         </section>
+        {f.aCair?.length > 0 && (
+          <section className="b-cartao">
+            <header className="b-cartao__topo"><div><h2 className="b-cartao__titulo">A cair na conta</h2><p className="b-suave">Vendas dos últimos dias no Pix, cartão e link, já sem a taxa.</p></div></header>
+            <ul className="fn-cair">
+              {f.aCair.map((x) => (
+                <li key={x.data}><span>{x.data === hojeIso() ? 'Hoje' : dataBR(x.data)}</span><strong>{real(x.valor)}</strong></li>
+              ))}
+              <li className="fn-cair__total"><span>Total</span><strong>{real(f.aCair.reduce((t, x) => t + x.valor, 0))}</strong></li>
+            </ul>
+          </section>
+        )}
         <section className="b-cartao">
           <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Contas dos próximos dias</h2><button type="button" className="link-acao" onClick={() => irPara('despesas')}>Ver despesas</button></header>
           {f.vencendo.length === 0 ? <p className="b-suave">Nada vencendo nos próximos 7 dias.</p> : (
@@ -352,6 +363,8 @@ function Comissoes({ mes }) {
         </section>
       )}
 
+      {todas.length > 0 && dados.liquida && <p className="b-suave k-nota">A base de cada comissão é o valor depois da taxa da maquininha (Pix e dinheiro não têm taxa).</p>}
+
       {todas.length > 0 && lista.length === 0 && (
         <Vazio titulo="Nada com estes filtros">Tire algum filtro para ver mais lançamentos. <button type="button" className="botao botao--linha botao--p" onClick={limpar}>Limpar filtros</button></Vazio>
       )}
@@ -462,6 +475,7 @@ export function MeusGanhos() {
             <div className="b-kpi"><span className="b-kpi__rotulo">Já recebido</span><strong className="b-kpi__valor">{real(g.pago)}</strong></div>
             <div className="b-kpi"><span className="b-kpi__rotulo">Atendimentos</span><strong className="b-kpi__valor">{g.atendidos}</strong><span className="b-kpi__detalhe">{g.agendados} na agenda · {plural(g.faltas, 'falta', 'faltas')}</span></div>
           </section>
+          {g.liquida && <p className="b-suave">A base de cada comissão é o valor depois da taxa da maquininha.</p>}
           <div className="k-relatorio">
             <button type="button" className="botao botao--linha botao--p" onClick={() => setRelatorio(true)}>Imprimir meu relatório de {mesTexto(mes).split(' ')[0].toLowerCase()}</button>
           </div>

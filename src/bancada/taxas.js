@@ -44,3 +44,15 @@ export function aPartirDoLiquido(liquido, pct) {
   const cobrado = pct >= 100 ? liquido : Math.ceil((liquido / (1 - pct / 100)) * 100 - 1e-9) / 100;
   return aPartirDoCobrado(cobrado, pct);
 }
+
+// dias úteis (segunda a sexta; feriados não entram na conta), igual a `somarDiasUteis` do servidor
+export function somarDiasUteis(iso, n) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  for (let i = 0; i < n; i++) {
+    do d.setUTCDate(d.getUTCDate() + 1); while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+// quantos dias úteis até cair na conta: forma = 'pix' | 'debito' | 'credito' | 'link'
+export const prazoDias = (taxas, forma) => Number(taxas?.prazos?.[forma]) || 0;

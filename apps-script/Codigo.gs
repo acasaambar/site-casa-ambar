@@ -65,7 +65,7 @@ var AJUSTES = {
 
 // Ajustes que a bancada pode mudar (ficam nas Propriedades do script)
 var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias', 'wellhubAtivo', 'wellhubReservasPorDia', 'wellhubPendentePodeReservar',
-  'lembreteServicos', 'lembreteAulas'];
+  'lembreteServicos', 'lembreteAulas', 'comissaoLiquida'];
 AJUSTES.valeValidadeDias = 365;
 AJUSTES.lembreteServicos = true; // e-mail na véspera para quem tem serviço agendado
 AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
@@ -76,8 +76,11 @@ AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
 var GRUPOS_TAXA = ['vm', 'elo', 'amex'];
 function colunaTaxa(primeira) { var c = []; for (var i = 0; i < 12; i++) c.push(i === 0 ? primeira : null); return c; }
 function taxasPadrao() {
+  // Visa e Mastercard têm a mesma tabela (app da InfinitePay, 27/10/2026); Elo e Amex só têm o à vista até a Casa informar as parcelas
   return { pix: 0, debito: { vm: 1.37, elo: 2.58, amex: null },
-    credito: { vm: colunaTaxa(3.15), elo: colunaTaxa(4.91), amex: colunaTaxa(4.91) }, link: colunaTaxa(4.2) };
+    credito: { vm: [3.15, 4.22, 4.83, 5.44, 6.05, 6.64, 7.24, 7.82, 8.41, 8.98, 9.56, 10.12], elo: colunaTaxa(4.91), amex: colunaTaxa(4.91) }, link: colunaTaxa(4.2),
+    // dias úteis até o dinheiro cair na conta (InfinitePay: 1 dia útil no cartão e no link; Pix na hora)
+    prazos: { pix: 0, debito: 1, credito: 1, link: 1 } };
 }
 function numeroTaxa(v) {
   if (v === null || v === undefined || v === '') return null;
@@ -105,11 +108,16 @@ function normalizarTaxas(j) {
     var col = []; for (var i = 1; i <= 12; i++) col.push(numeroTaxa(i === 1 ? j.credito1 : i <= 6 ? j.credito2a6 : j.credito7a12));
     GRUPOS_TAXA.forEach(function (g) { t.credito[g] = col.slice(); });
   }
+  if (j.prazos && typeof j.prazos === 'object') ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
+    var n = Number(j.prazos[k]); if (j.prazos[k] !== '' && j.prazos[k] != null && !isNaN(n) && n >= 0 && n <= 60) t.prazos[k] = Math.round(n);
+  });
   if (Array.isArray(j.link)) t.link = colunaDe(j.link, t.link);
   else if (typeof j.link === 'number' || typeof j.link === 'string') { var l = numeroTaxa(j.link); t.link = colunaTaxa(l).map(function (_, i) { return l; }); }
   return t;
 }
 AJUSTES.taxas = taxasPadrao();
+// a comissão das profissionais é sobre o valor que sobra depois da taxa da maquininha (regra da Casa, out/2026)
+AJUSTES.comissaoLiquida = true;
 var _ajustesAplicados = false;
 function aplicarAjustesSalvos() {
   if (_ajustesAplicados) return;
@@ -125,6 +133,7 @@ function aplicarAjustesSalvos() {
   if (j.lembreteServicos != null) AJUSTES.lembreteServicos = !!j.lembreteServicos;
   if (j.lembreteAulas != null) AJUSTES.lembreteAulas = !!j.lembreteAulas;
   if (j.taxas && typeof j.taxas === 'object') AJUSTES.taxas = normalizarTaxas(j.taxas);
+  if (j.comissaoLiquida != null) AJUSTES.comissaoLiquida = !!j.comissaoLiquida;
 }
 
 var ABAS = {

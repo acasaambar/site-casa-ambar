@@ -209,18 +209,19 @@ function cancelarComissao(ref) {
   if (ex && ex.status === 'a_pagar') atualizarLinha('Comissoes', ex._linha, { status: 'cancelada' });
 }
 
-// valor que serve de base para a comissão de um atendimento
+// valor que serve de base para a comissão de um atendimento (sem a taxa da maquininha: AJUSTES.comissaoLiquida)
 function baseDoAtendimento(a) {
   if (a.pagamento === 'cortesia') return 0;
   if (a.pagamento === 'pacote' && a.credito_id) {
     var cred = mapaCreditos()[String(a.credito_id)];
     var pg = lerAba('Pagamentos').filter(function (p) { return 'C' + String(p.order_nsu).slice(1) === String(a.credito_id); })[0];
     var sessoes = cred ? numero(cred.aulas_total) : 0;
-    if (pg && sessoes > 0) return dinheiro((numero(pg.valor) + numero(pg.vale_usado)) / sessoes);
+    if (pg && sessoes > 0) return dinheiro((numero(pg.valor) + numero(pg.vale_usado)) / sessoes * fatorDoPagamento(pg));
     var pac = cred ? listarPacotes(true).filter(function (p) { return p.id === String(cred.plano_id); })[0] : null;
     return pac && pac.sessoes ? dinheiro(pac.preco / pac.sessoes) : 0;
   }
-  return numero(a.valor);
+  var pago = a.order_nsu ? lerAba('Pagamentos').filter(function (p) { return String(p.order_nsu) === String(a.order_nsu); })[0] : null;
+  return dinheiro(numero(a.valor) * (pago ? fatorDoPagamento(pago) : 1));
 }
 
 // atendido → comissão a pagar; desfeito/falta → cancela
@@ -312,8 +313,9 @@ function sincronizarComissoesAulas(de, ate) {
     var agora = Date.now(), hoje = hojeTexto();
     var creditos = mapaCreditos();
     var pagos = {};
+    var memoFatores = {};
     lerAba('Pagamentos').forEach(function (p) {
-      if (p.status === 'pago') pagos['C' + String(p.order_nsu).slice(1)] = numero(p.valor) + numero(p.vale_usado);
+      if (p.status === 'pago') pagos['C' + String(p.order_nsu).slice(1)] = dinheiro((numero(p.valor) + numero(p.vale_usado)) * fatorDoPagamento(p, memoFatores));
     });
     var wellhub = valorWellhubCheckin();
     lerAba('Reservas').forEach(function (r) {
@@ -434,7 +436,7 @@ function bancada_comissoes(d) {
   var de = mes + '-01', ate = mes + '-' + diasNoMes(mes);
   sincronizarComissoesAulas(de, ate);
   var lista = comissoesDoPeriodo(de, ate);
-  return { mes: mes, lista: lista, porProfissional: resumoComissoes(lista),
+  return { mes: mes, lista: lista, liquida: AJUSTES.comissaoLiquida !== false, porProfissional: resumoComissoes(lista),
     profissionais: listarProfissionais(true).map(function (p) { return { nome: p.nome, comissao: p.comissao, comissaoProduto: p.comissaoProduto }; }) };
 }
 
@@ -477,7 +479,7 @@ function bancada_meusGanhos(d, m) {
     var dt = dataTexto(a.data);
     return a.id && dt >= de && dt <= ate && mesmaProfessora(a.profissional, m);
   });
-  return { mes: mes, lista: lista, total: dinheiro(lista.reduce(function (s, c) { return s + c.valor; }, 0)),
+  return { mes: mes, liquida: AJUSTES.comissaoLiquida !== false, lista: lista, total: dinheiro(lista.reduce(function (s, c) { return s + c.valor; }, 0)),
     aPagar: dinheiro(lista.filter(function (c) { return c.status === 'a_pagar'; }).reduce(function (s, c) { return s + c.valor; }, 0)),
     pago: dinheiro(lista.filter(function (c) { return c.status === 'pago'; }).reduce(function (s, c) { return s + c.valor; }, 0)),
     atendidos: atend.filter(function (a) { return a.status === 'atendido'; }).length,
@@ -537,7 +539,7 @@ function bancada_relatorioProfissional(d, m) {
   });
   var todasLinhas = doMes.map(linha);
   return {
-    mes: mes, profissional: nome, geradoEm: agoraTexto(), geradoPor: String(m.nome || m.email || ''),
+    mes: mes, liquida: AJUSTES.comissaoLiquida !== false, profissional: nome, geradoEm: agoraTexto(), geradoPor: String(m.nome || m.email || ''),
     resumo: {
       atendimentos: atendLista.filter(function (a) { return a.status === 'atendido'; }).length,
       agendados: atendLista.filter(function (a) { return a.status !== 'cancelado'; }).length,
@@ -783,10 +785,83 @@ function taxaPctDaParte(x) {
 
 function taxaDaParte(x) { return dinheiro(numero(x.valor) * taxaPctDaParte(x).pct / 100); }
 
+// ---- valor líquido (depois da taxa da maquininha) ----
+// Fator (0 a 1) do que sobra de uma venda: 1 − taxas ÷ total pago (vale-presente e cortesia não têm taxa, mas contam no total).
+function fatorDePartes(partes, totalPago) {
+  if (AJUSTES.comissaoLiquida === false) return 1;
+  var taxa = 0, bruto = 0;
+  (partes || []).forEach(function (x) {
+    bruto += numero(x.valor);
+    if (x.metodo === 'Vale-presente' || x.metodo === 'Cortesia') return;
+    taxa += numero(x.valor) * taxaPctDaParte(x).pct / 100;
+  });
+  var base = totalPago > 0 ? totalPago : bruto;
+  return base > 0 ? Math.max(0, Math.min(1, 1 - taxa / base)) : 1;
+}
+
+// comanda sendo fechada agora (ainda não está gravada como fechada) → fator já calculado; `memo` evita reler a comanda para cada venda
+var _fatoresComanda = {};
+function fatorDaComanda(id, memo) {
+  id = String(id);
+  if (_fatoresComanda[id] != null) return _fatoresComanda[id];
+  if (memo && memo[id] != null) return memo[id];
+  var cm = lerAba('Comandas').filter(function (x) { return String(x.id) === id; })[0];
+  var partes = cm ? parseJson(cm.pagamentos, []) : [];
+  var f = fatorDePartes(partes, partes.reduce(function (s, x) { return s + numero(x.valor); }, 0));
+  if (memo) memo[id] = f;
+  return f;
+}
+
+// fator de uma linha de Pagamentos (venda do balcão, do site ou de comanda)
+function fatorDoPagamento(p, memo) {
+  if (!p || AJUSTES.comissaoLiquida === false) return 1;
+  if (p.comanda) return fatorDaComanda(p.comanda, memo);
+  return fatorDePartes(partesRecebidas([p]), numero(p.valor) + numero(p.vale_usado));
+}
+
+// ---- prazo de recebimento ----
+// dias úteis (segunda a sexta; feriados não entram na conta) depois de uma data AAAA-MM-DD
+function somarDiasUteis(dataISO, n) {
+  var d = dataISO;
+  for (var i = 0; i < n; i++) {
+    d = somarDias(d, 1);
+    var dow = new Date(d + 'T12:00:00Z').getUTCDay();
+    while (dow === 0 || dow === 6) { d = somarDias(d, 1); dow = new Date(d + 'T12:00:00Z').getUTCDay(); }
+  }
+  return d;
+}
+
+// dia previsto para o dinheiro cair na conta (Pix e dinheiro: no dia)
+function diaQueCai(x, dataVenda) {
+  var t = AJUSTES.taxas || {};
+  var k = x.metodo === 'Pix' ? 'pix' : x.metodo === 'Cartão de débito' ? 'debito' : x.metodo === 'Link InfinitePay' ? 'link' : x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão' ? 'credito' : '';
+  if (!k) return '';
+  return somarDiasUteis(dataVenda, numero(t.prazos && t.prazos[k]));
+}
+
 var FORMAS_MAQUININHA = ['Pix', 'Cartão de débito', 'Cartão de crédito', 'Link InfinitePay'];
 
+// o que ainda vai cair na conta (líquido, depois da taxa), por dia previsto: vendas dos últimos dias no Pix, cartão e link
+function aCairNaConta(hoje) {
+  var desde = somarDias(hoje, -15);
+  var porDia = {};
+  var comandas = {};
+  lerAba('Pagamentos').forEach(function (p) {
+    if (p.status !== 'pago') return;
+    var dia = dataTexto(p.pago_em);
+    if (!dia || dia < desde || dia > hoje) return;
+    if (p.comanda) { if (comandas[String(p.comanda)]) return; comandas[String(p.comanda)] = 1; }
+    partesRecebidas([p]).forEach(function (x) {
+      var cai = diaQueCai(x, dia);
+      if (!cai || cai < hoje) return;
+      porDia[cai] = dinheiro((porDia[cai] || 0) + numero(x.valor) - taxaDaParte(x));
+    });
+  });
+  return Object.keys(porDia).sort().map(function (d) { return { data: d, valor: porDia[d] }; });
+}
+
 // o que conferir com o extrato (maquininha, link e Pix): total por forma e por bandeira
-function conferirPorForma(pags) {
+function conferirPorForma(pags, data) {
   var r = {};
   FORMAS_MAQUININHA.forEach(function (f) { r[f] = { forma: f, valor: 0, taxa: 0, bandeiras: {} }; });
   partesRecebidas(pags).forEach(function (x) {
@@ -798,7 +873,7 @@ function conferirPorForma(pags) {
   });
   return FORMAS_MAQUININHA.map(function (f) {
     var b = r[f].bandeiras;
-    return { forma: f, valor: r[f].valor, taxa: r[f].taxa, liquido: dinheiro(r[f].valor - r[f].taxa), bandeiras: Object.keys(b).map(function (k) { return { nome: k, valor: b[k] }; }).sort(function (x, y) { return y.valor - x.valor; }) };
+    return { forma: f, valor: r[f].valor, taxa: r[f].taxa, liquido: dinheiro(r[f].valor - r[f].taxa), cai: data ? diaQueCai({ metodo: f }, data) : '', bandeiras: Object.keys(b).map(function (k) { return { nome: k, valor: b[k] }; }).sort(function (x, y) { return y.valor - x.valor; }) };
   });
 }
 
@@ -867,7 +942,7 @@ function bancada_financeiro(d) {
   });
   var taxasConfiguradas = true;
   return {
-    taxas: taxas, taxasPorForma: lista(taxasPorForma), taxasPorBandeira: lista(taxasPorBandeira), semTaxa: semTaxa, taxasConfiguradas: taxasConfiguradas, liquido: dinheiro(entradas - taxas - totalSaidas),
+    taxas: taxas, taxasPorForma: lista(taxasPorForma), taxasPorBandeira: lista(taxasPorBandeira), semTaxa: semTaxa, aCair: aCairNaConta(hojeTexto()), taxasConfiguradas: taxasConfiguradas, liquido: dinheiro(entradas - taxas - totalSaidas),
     mes: mes, entradas: entradas, saidas: totalSaidas, resultado: dinheiro(entradas - totalSaidas),
     entradasAnterior: soma(vendasAnt, function (p) { return numero(p.valor); }), saidasAnterior: soma(saidasAnt, function (x) { return x.valor; }),
     aPagar: soma(aPagar, function (x) { return x.valor; }), aPagarQtd: aPagar.length,
@@ -908,7 +983,7 @@ function resumoCaixa(data) {
     contado: c && c.contado !== '' ? dinheiro(c.contado) : null, diferenca: c && c.diferenca !== '' ? dinheiro(c.diferenca) : null,
     fechadoPor: c ? String(c.fechado_por || '').split('@')[0] : '', fechadoEm: c ? String(c.fechado_em || '') : '', obs: c ? String(c.obs || '') : '',
     // conferir com o extrato da maquininha: o sistema por forma/bandeira e o que foi informado ao fechar
-    conferir: conferirPorForma(pags), conferencia: c ? parseJson(c.conferencia, []) : [],
+    conferir: conferirPorForma(pags, data), conferencia: c ? parseJson(c.conferencia, []) : [],
     // cada venda do dia: de quem, o quê, como pagou e quem registrou
     lancamentos: pags.slice().sort(function (a, b) { return String(a.pago_em).localeCompare(String(b.pago_em)); }).map(function (p) {
       var obs = String(p.observacao || '');
@@ -1671,6 +1746,9 @@ function bancada_fecharComanda(d, m) {
     var valesCriados = [];
     var usadosNaComanda = {};
     calc.forEach(function (i) { if (i.atendimentoId) usadosNaComanda[i.atendimentoId] = 1; });
+    // a comissão desta comanda é sobre o que sobra depois da taxa da maquininha de cada parte paga
+    var fatorComanda = fatorDePartes(pags, pags.reduce(function (s, p) { return s + numero(p.valor); }, 0));
+    _fatoresComanda[String(cm.id)] = fatorComanda;
     // pacotes primeiro: a sessão do mesmo serviço vendida junto usa o crédito que o pacote acabou de criar
     var creditosNaComanda = {};
     var aulasLigadas = {};
@@ -1758,7 +1836,7 @@ function bancada_fecharComanda(d, m) {
         try { movimentarEstoque(it.id, -it.qtd, 'venda', 'Comanda ' + cm.id + ' · ' + cm.nome, 'comanda:' + cm.id, m.email); } catch (e) { Logger.log('estoque: ' + e.message); }
         if (it.profissional) {
           var pr = profissionalPorNome(it.profissional);
-          if (pr && pr.comissaoProduto > 0) gravarComissao({ ref: cm.id + '-' + idx, data: hoje, profissional: pr.nome, origem: 'produto', item: it.nome + ' · ' + cm.nome, base: it.total, pct: pr.comissaoProduto });
+          if (pr && pr.comissaoProduto > 0) gravarComissao({ ref: cm.id + '-' + idx, data: hoje, profissional: pr.nome, origem: 'produto', item: it.nome + ' · ' + cm.nome, base: dinheiro(it.total * fatorComanda), pct: pr.comissaoProduto });
         }
       } else if (it.tipo === 'servico') {
         if (a) {
@@ -1768,7 +1846,7 @@ function bancada_fecharComanda(d, m) {
           aplicarConsumo(a3.servico_id, 'atend:' + a3.id, a3.nome, true, m.email);
         } else {
           // serviço feito na hora, sem agendamento (a profissional é obrigatória, conferida acima)
-          gravarComissao({ ref: cm.id + '-' + idx, data: hoje, profissional: it.profissional, origem: 'comanda', item: it.nome + ' · ' + cm.nome, base: it.total,
+          gravarComissao({ ref: cm.id + '-' + idx, data: hoje, profissional: it.profissional, origem: 'comanda', item: it.nome + ' · ' + cm.nome, base: dinheiro(it.total * fatorComanda),
             pct: pctComissao(it.profissional, it.id) });
           aplicarConsumo(it.id, 'comanda:' + cm.id + '-' + idx, cm.nome, true, m.email);
         }
@@ -1786,6 +1864,7 @@ function bancada_fecharComanda(d, m) {
     SpreadsheetApp.flush();
     registrar(m, 'fechou comanda', cm.nome + ' · ' + brl(total) + ' · ' + pags.map(function (p) { return p.metodo; }).join(' + '));
   } finally {
+    delete _fatoresComanda[String(c.id)];
     soltarTrava(trava);
   }
   // vales vendidos: e-mail para quem recebe (se pedido) e o texto pronto do WhatsApp

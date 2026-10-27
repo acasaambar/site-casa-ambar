@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Abas, BotaoAcao, Tag, BANDEIRAS, real, numBR, plural } from './ui.jsx';
-import { FORMAS_TAXA, taxaPct, aPartirDoCobrado, aPartirDoLiquido } from './taxas.js';
+import { useDados, Carregando, Erro, Cabecalho, Abas, BotaoAcao, Tag, BANDEIRAS, real, numBR, plural, hojeIso, dataBR } from './ui.jsx';
+import { FORMAS_TAXA, taxaPct, aPartirDoCobrado, aPartirDoLiquido, prazoDias, somarDiasUteis } from './taxas.js';
 import { PainelVelocidade } from './Velocidade.jsx';
 
 const CAMPOS = [
@@ -79,6 +79,7 @@ function Regras() {
 
 // taxas da InfinitePay (maquininha e link): o Financeiro e o Caixa desconta de cada venda a taxa da bandeira e das parcelas
 const PARCELAS = Array.from({ length: 12 }, (_, i) => i + 1);
+const PRAZOS = [['pix', 'Pix'], ['debito', 'Débito'], ['credito', 'Crédito'], ['link', 'Link e site']];
 const GRUPOS = [['vm', 'Visa e Mastercard', 'Visa / Master'], ['elo', 'Elo', 'Elo'], ['amex', 'American Express', 'Amex']];
 const pctTxt = (v) => (v == null || v === '' ? '' : String(v).replace('.', ','));
 const pctNum = (v) => { const n = Number(String(v ?? '').replace(',', '.')); return String(v ?? '').trim() === '' || Number.isNaN(n) ? null : n; };
@@ -89,6 +90,7 @@ const comoTexto = (tx) => ({
   debito: Object.fromEntries(GRUPOS.map(([g]) => [g, pctTxt(tx?.debito?.[g])])),
   credito: Object.fromEntries(GRUPOS.map(([g]) => [g, colunaTxt(tx?.credito?.[g])])),
   link: colunaTxt(tx?.link),
+  prazos: Object.fromEntries(PRAZOS.map(([k]) => [k, String(tx?.prazos?.[k] ?? 0)])),
 });
 // completa as parcelas em branco entre duas informadas (ex.: 2x e 12x), em passos iguais
 function completarMeio(col) {
@@ -102,7 +104,7 @@ function completarMeio(col) {
 }
 const faltando = (t) => {
   const falta = (c, quem) => (c.slice(1).some((v) => pctNum(v) == null) ? [quem] : []);
-  return [...falta(t.credito.vm, 'crédito Visa e Mastercard'), ...falta(t.link, 'link')];
+  return [...falta(t.credito.vm, 'crédito Visa e Mastercard'), ...falta(t.credito.elo, 'crédito Elo'), ...falta(t.credito.amex, 'crédito American Express'), ...falta(t.link, 'link')];
 };
 
 function CampoPct({ valor, aoMudar, rotulo, vazio }) {
@@ -118,9 +120,10 @@ function Taxas() {
   const { chamar } = useBancada();
   const { dados, erro, carregando, setDados } = useDados('ajustes', {});
   const [t, setT] = useState(null);
+  const [liquida, setLiquida] = useState(true);
   const [aviso, setAviso] = useState('');
   const [erroS, setErroS] = useState('');
-  useEffect(() => { if (dados) setT(comoTexto(dados.taxas)); }, [dados]);
+  useEffect(() => { if (dados) { setT(comoTexto(dados.taxas)); setLiquida(dados.comissaoLiquida !== false); } }, [dados]);
   if (carregando && !t) return <Carregando />;
   if (!t) return <Erro>{erro}</Erro>;
   const mudaCredito = (g, i, v) => setT({ ...t, credito: { ...t.credito, [g]: t.credito[g].map((x, k) => (k === i ? v : x)) } });
@@ -128,8 +131,8 @@ function Taxas() {
   const pendentes = faltando(t);
   return (
     <div className="tx">
-      <p className="b-suave tx-intro">As taxas da InfinitePay (maquininha e link). Em cada venda o sistema usa a taxa da <strong>bandeira</strong> e do <strong>número de parcelas</strong>, e o Financeiro e o Caixa mostram quanto realmente cai na conta. Os valores já preenchidos são os que a Casa usa hoje; confira no app da InfinitePay (Taxas) e complete as parcelas de 2x a 12x.</p>
-      {pendentes.length > 0 && <p className="aviso">Faltam as taxas de 2x a 12x do {pendentes.join(' e do ')}. Enquanto isso, uma venda parcelada usa a última taxa informada, e o Financeiro avisa quantas vendas ficaram assim.</p>}
+      <p className="b-suave tx-intro">As taxas da InfinitePay (maquininha e link). Em cada venda o sistema usa a taxa da <strong>bandeira</strong> e do <strong>número de parcelas</strong>, e o Financeiro e o Caixa mostram quanto realmente cai na conta. Visa e Mastercard têm a mesma tabela. Os valores já preenchidos vêm do app da InfinitePay; falta só completar o que estiver em branco.</p>
+      {pendentes.length > 0 && <p className="aviso">Faltam as taxas de 2x a 12x de: {pendentes.join(', ')}. Enquanto isso, uma venda parcelada usa a última taxa informada, e o Financeiro avisa quantas vendas ficaram assim.</p>}
 
       <div className="tx-linha">
         <section className="b-cartao tx-cartao">
@@ -181,6 +184,21 @@ function Taxas() {
         </div>
       </section>
 
+      <div className="tx-linha">
+        <section className="b-cartao tx-cartao">
+          <header className="b-cartao__topo"><div><h2 className="b-cartao__titulo">Prazo de recebimento</h2><p className="b-suave">Dias úteis até o dinheiro cair na conta. Aparece no Caixa, no Financeiro ("a cair na conta") e na calculadora.</p></div></header>
+          {PRAZOS.map(([k, nome]) => (
+            <label key={k} className="tx-campo"><span>{nome}</span>
+              <span className="tx-pct"><input inputMode="numeric" value={t.prazos[k]} aria-label={`Prazo de ${nome}`} onChange={(e) => setT({ ...t, prazos: { ...t.prazos, [k]: e.target.value.replace(/\D/g, '').slice(0, 2) } })} /><small className="tx-dias">dias</small></span></label>
+          ))}
+        </section>
+        <section className="b-cartao tx-cartao">
+          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Comissão das profissionais</h2></header>
+          <label className="b-check tx-check"><input type="checkbox" checked={liquida} onChange={(e) => setLiquida(e.target.checked)} /> Calcular a comissão sobre o valor líquido, sem a taxa da maquininha</label>
+          <p className="b-suave">Ligado: a comissão de atendimentos, aulas de Pilates, produtos e vendas na comanda é sobre o que sobra depois da taxa de cada forma de pagamento (Pix e dinheiro não têm taxa; vale-presente não conta como taxa). Vale para o que for lançado daqui para a frente; o que já está a pagar continua como estava.</p>
+        </section>
+      </div>
+
       <section className="b-cartao tx-cartao">
         <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Como entra na conta</h2></header>
         <ul className="b-lista-simples">
@@ -198,8 +216,8 @@ function Taxas() {
           setAviso(''); setErroS('');
           try {
             const taxas = { pix: pctNum(t.pix) ?? 0, debito: Object.fromEntries(GRUPOS.map(([g]) => [g, pctNum(t.debito[g])])),
-              credito: Object.fromEntries(GRUPOS.map(([g]) => [g, colunaNum(t.credito[g])])), link: colunaNum(t.link) };
-            const r = await chamar('salvarAjustes', { ajustes: { taxas } });
+              credito: Object.fromEntries(GRUPOS.map(([g]) => [g, colunaNum(t.credito[g])])), link: colunaNum(t.link), prazos: Object.fromEntries(PRAZOS.map(([k]) => [k, Number(t.prazos[k]) || 0])) };
+            const r = await chamar('salvarAjustes', { ajustes: { taxas, comissaoLiquida: liquida } });
             setDados(r); setAviso('Taxas salvas. O Financeiro e o Caixa já usam a nova tabela.');
           } catch (e) { setErroS(e.message); }
         }}>Salvar taxas</BotaoAcao>
@@ -231,6 +249,9 @@ function CalculadoraTaxas() {
   const r = calcular(usaParcelas ? Number(parcelas) : 1);
   const todas = usaParcelas && valor > 0 ? Array.from({ length: 12 }, (_, i) => calcular(i + 1)) : [];
   const quando = (n) => (n === 1 ? 'à vista' : `em ${n}x`);
+  const dias = prazoDias(taxas, forma);
+  const diaCai = somarDiasUteis(hojeIso(), dias);
+  const nomeDia = new Date(`${diaCai}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long' });
   return (
     <div className="tx">
       <section className="b-cartao tx-cartao">
@@ -259,6 +280,7 @@ function CalculadoraTaxas() {
                   {usaParcelas && r.parcelas > 1 && <small>{modo === 'cobrei' ? `${r.parcelas}x de ${real(r.valorParcela)} para o cliente` : `${r.parcelas}x de ${real(r.valorParcela)}`}</small>}</div>
                 <div className="tx-res"><span>Taxa</span><strong>{String(r.pct).replace('.', ',')}%</strong><small>{real(r.taxa)} {quando(r.parcelas)}</small></div>
                 <div className="tx-res"><span>{modo === 'cobrei' ? 'Cobrado' : 'Fica na conta'}</span><strong>{real(modo === 'cobrei' ? r.cobrado : r.liquido)}</strong></div>
+                <div className="tx-res"><span>Quando cai na conta</span><strong>{dias === 0 ? 'No mesmo dia' : `${dias} ${dias === 1 ? 'dia útil' : 'dias úteis'}`}</strong><small>se for hoje: {nomeDia}, {dataBR(diaCai)}</small></div>
                 {r.falta && <p className="aviso tx-res__aviso">A taxa {quando(r.parcelas)} ainda não está na tabela; usamos a última informada. Complete em "Taxas da maquininha".</p>}
               </>
             ) : <p className="b-suave">Digite um valor para ver a taxa e quanto cai na conta.</p>}
@@ -283,7 +305,7 @@ function CalculadoraTaxas() {
               </tbody>
             </table>
           </div>
-          <p className="b-suave">{plural(todas.filter((x) => x.falta).length, 'parcelamento', 'parcelamentos')} sem taxa na tabela usa(m) a última informada.</p>
+          {todas.some((x) => x.falta) && <p className="b-suave">{plural(todas.filter((x) => x.falta).length, 'parcelamento está', 'parcelamentos estão')} sem taxa na tabela; usamos a última informada. Complete em "Taxas da maquininha".</p>}
         </section>
       )}
     </div>

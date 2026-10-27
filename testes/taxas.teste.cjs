@@ -25,7 +25,9 @@ ok(pct('Cartão de débito', 'Visa', 1).pct === 1.37 && pct('Cartão de débito'
 ok(pct('Cartão de débito', 'Elo', 1).pct === 2.58, 'débito Elo 2,58%');
 ok(pct('Cartão de crédito', 'Visa', 1).pct === 3.15 && pct('Cartão de crédito', 'Elo', 1).pct === 4.91 && pct('Cartão de crédito', 'American Express', 1).pct === 4.91, 'crédito à vista: Visa 3,15% · Elo e Amex 4,91%');
 ok(pct('Link InfinitePay', '', 1).pct === 4.2 && pct('Link InfinitePay', 'Visa', 1).pct === 4.2, 'link 4,2% em qualquer bandeira');
-ok(pct('Cartão de crédito', 'Visa', 3).falta === true && pct('Cartão de crédito', 'Visa', 3).pct === 3.15, 'parcela sem taxa informada: usa a anterior e avisa que falta');
+ok([2, 3, 6, 12].map((n) => pct('Cartão de crédito', 'Visa', n).pct).join() === '4.22,4.83,6.64,10.12', 'Visa parcelado: 2x 4,22 · 3x 4,83 · 6x 6,64 · 12x 10,12');
+ok(pct('Cartão de crédito', 'Mastercard', 5).pct === 6.05 && !pct('Cartão de crédito', 'Mastercard', 5).falta, 'Mastercard tem a mesma tabela da Visa');
+ok(pct('Cartão de crédito', 'Elo', 3).falta === true && pct('Cartão de crédito', 'Elo', 3).pct === 4.91, 'Elo 3x sem taxa informada: usa a anterior e avisa que falta');
 ok(pct('Pix', '', 1).pct === 0 && pct('Dinheiro', '', 1).pct === 0, 'Pix e dinheiro sem taxa');
 
 console.log('— salvar a tabela');
@@ -67,6 +69,56 @@ const cred = r.dados.conferir.find((f) => f.forma === 'Cartão de crédito');
 ok(cred.taxa === Math.round((300 * 0.0613 + 200 * 0.08) * 100) / 100 && cred.liquido === Math.round((cred.valor - cred.taxa) * 100) / 100, 'caixa (administração): taxa e líquido do crédito', cred);
 r = chamar('b_caixa', { token: rec });
 ok(r.ok && r.dados.conferir.every((f) => f.taxa === undefined && f.liquido === undefined), 'caixa (recepção) não mostra taxa nem líquido');
+
+console.log('— comissão sobre o valor líquido (sem a taxa da maquininha)');
+const comissoesDe = (ref) => ctx.lerAba('Comissoes').filter((c) => String(c.id).indexOf('K' + ref) === 0);
+const fecharServico = (metodo, extra) => {
+  const c = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Cliente Comissão', whatsapp: '85990002222' }, itens: [{ tipo: 'servico', id: 'drenagem', profissional: 'Lia Esteticista' }] } }).dados;
+  const f = chamar('b_fecharComanda', { token: rec, id: c.id, pagamentos: [{ metodo, valor: c.total, ...extra }] });
+  return { ok: f.ok, total: c.total, id: c.id, erro: f.erro, com: comissoesDe(c.id + '-0')[0] };
+};
+const v3 = fecharServico('Cartão de crédito', { parcelas: 3, bandeira: 'Visa' });
+const esperadoBase = Math.round(v3.total * (1 - 0.0613) * 100) / 100;
+ok(v3.ok && v3.com && Math.abs(Number(v3.com.base) - esperadoBase) < 0.011, `crédito 3x Visa: base da comissão = ${esperadoBase} (valor ${v3.total} − taxa de 6,13%)`, v3.com);
+ok(v3.com && Math.abs(Number(v3.com.valor) - Math.round(esperadoBase * 0.4 * 100) / 100) < 0.011, 'comissão de 40% sobre o valor líquido');
+const vp = fecharServico('Pix', {});
+ok(vp.ok && vp.com && Number(vp.com.base) === vp.total, 'Pix não tem taxa: base = valor cheio', vp.com);
+const vd = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Cliente Dividido', whatsapp: '85990003333' }, itens: [{ tipo: 'servico', id: 'drenagem', profissional: 'Lia Esteticista' }] } }).dados;
+const metade = Math.round(vd.total / 2 * 100) / 100;
+chamar('b_fecharComanda', { token: rec, id: vd.id, pagamentos: [{ metodo: 'Dinheiro', valor: metade }, { metodo: 'Cartão de débito', valor: Math.round((vd.total - metade) * 100) / 100, bandeira: 'Elo' }] });
+const cd = comissoesDe(vd.id + '-0')[0];
+const baseDiv = Math.round(vd.total * (1 - (vd.total - metade) * 0.0258 / vd.total) * 100) / 100;
+ok(cd && Math.abs(Number(cd.base) - baseDiv) < 0.02, 'comanda dividida: só a parte no débito Elo (2,58%) perde taxa', [cd && cd.base, baseDiv]);
+ok(chamar('b_salvarAjustes', { token: adm, ajustes: { comissaoLiquida: false } }).ok, 'administração desliga a regra do líquido');
+const vc = fecharServico('Cartão de crédito', { parcelas: 3, bandeira: 'Visa' });
+ok(vc.com && Number(vc.com.base) === vc.total, 'regra desligada: base volta a ser o valor cheio', vc.com);
+chamar('b_salvarAjustes', { token: adm, ajustes: { comissaoLiquida: true } });
+ok(chamar('b_ajustes', { token: adm }).dados.comissaoLiquida === true, 'regra do líquido ligada de novo');
+const pgBal = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Cartão de crédito', parcelas: 3, bandeira: 'Visa' });
+const pgLinha = pgBal.ok && ctx.lerAba('Pagamentos').find((p) => p.order_nsu === pgBal.dados.orderNsu);
+ok(pgLinha && Math.abs(ctx.fatorDoPagamento(pgLinha) - (1 - 0.0613)) < 0.0001, 'venda do balcão no crédito 3x Visa: fator líquido 93,87%', pgLinha && ctx.fatorDoPagamento(pgLinha));
+
+let ontem = ctx.somarDias(hoje, -1); if (new Date(ontem + 'T12:00:00Z').getUTCDay() === 0) ontem = ctx.somarDias(ontem, -1);
+const ag = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: ontem, hora: '10:00', cpf: '52998224725', pagamento: 'pago', metodo: 'Cartão de crédito', parcelas: 3, bandeira: 'Visa' });
+const atLinha = ag.ok && ctx.lerAba('Atendimentos').find((a) => a.id === ag.dados.id);
+const cAg = atLinha && comissoesDe(atLinha.id)[0];
+ok(ag.ok && cAg && Math.abs(Number(cAg.base) - Math.round(Number(atLinha.valor) * (1 - 0.0613) * 100) / 100) < 0.011, 'atendimento pago na agenda no crédito 3x: base da comissão sem a taxa', [ag.erro, atLinha && atLinha.valor, cAg && cAg.base]);
+
+console.log('— prazo de recebimento');
+ok(ctx.somarDiasUteis('2026-10-30', 1) === '2026-11-02', 'sexta + 1 dia útil = segunda');
+ok(ctx.somarDiasUteis('2026-10-27', 1) === '2026-10-28' && ctx.somarDiasUteis('2026-10-27', 0) === '2026-10-27', 'terça + 1 = quarta; prazo 0 = no dia');
+ok(ctx.diaQueCai({ metodo: 'Pix' }, '2026-10-30') === '2026-10-30' && ctx.diaQueCai({ metodo: 'Cartão de débito' }, '2026-10-30') === '2026-11-02' && ctx.diaQueCai({ metodo: 'Dinheiro' }, '2026-10-30') === '', 'Pix cai no dia, cartão em 1 dia útil, dinheiro não entra');
+ok(chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: { ...tabela, prazos: { pix: 0, debito: 1, credito: 2, link: 3 } } } }).ok && ctx.diaQueCai({ metodo: 'Link InfinitePay' }, '2026-10-26') === '2026-10-29', 'prazos editáveis (link 3 dias úteis)');
+ok(!chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: { ...tabela, prazos: { pix: 0, debito: 1, credito: 99, link: 1 } } } }).ok, 'prazo acima de 60 dias é recusado');
+chamar('b_salvarAjustes', { token: adm, ajustes: { taxas: { ...tabela, prazos: { pix: 0, debito: 1, credito: 1, link: 1 } } } });
+r = chamar('b_financeiro', { token: adm, mes: hoje.slice(0, 7) });
+const aCair = (r.dados.aCair || []).reduce((s, x) => s + x.valor, 0);
+// as vendas de hoje + as de ontem que ainda não caíram (a venda lançada na agenda de ontem entra no caixa de ontem)
+const liquidoQueFalta = (dia) => chamar('b_caixa', { token: adm, data: dia }).dados.conferir.filter((f) => f.cai >= hoje).reduce((s, f) => s + (f.liquido || 0), 0);
+const caixaHoje = liquidoQueFalta(hoje) + liquidoQueFalta(ontem);
+ok(r.ok && aCair > 0 && Math.abs(aCair - caixaHoje) < 0.05, 'Financeiro lista o que ainda vai cair na conta (líquido, igual à soma dos caixas)', [aCair, caixaHoje, r.dados.aCair]);
+const cx = chamar('b_caixa', { token: adm }).dados.conferir.find((f) => f.forma === 'Cartão de crédito');
+ok(cx && cx.cai >= hoje, 'o caixa mostra o dia previsto para cair', cx);
 
 console.log('— a calculadora da tela dá a mesma taxa que o servidor');
 import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'src', 'bancada', 'taxas.js')).href).then((tela) => {
