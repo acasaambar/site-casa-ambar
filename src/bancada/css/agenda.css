@@ -147,6 +147,12 @@
   .ag-sem-barra__n { margin-left: 0; }
 }
 
+/* aviso curto: ícone e texto na mesma linha (só quebra quando tem botão) */
+.bancada .b-aviso:not(:has(.b-aviso__acao)) { flex-wrap: nowrap; align-items: flex-start; }
+.b-modal .b-aviso:has(.b-aviso__acao) { flex-wrap: wrap; align-items: flex-start; }
+.b-modal .b-aviso:has(.b-aviso__acao) .b-aviso__acao { width: 100%; padding-left: 36px; flex-wrap: wrap; }
+.bancada .ag-extra { border: 0; box-shadow: inset 0 0 0 1px rgba(111, 120, 77, 0.22); }
+
 /* esqueleto da agenda */
 .bancada .ag-esqueleto { padding: 8px 0; }
 
@@ -415,6 +421,8 @@
 .tr-item__hora { font-size: 20px; }
 .tr-item__troca { align-items: end; }
 .tr-bloquear { border-radius: var(--r-m); background: rgba(47, 56, 33, 0.03); }
+.tr-bloquear > p { margin: 0; display: grid; gap: 2px; flex: 1 1 240px; }
+.tr-bloquear .b-aviso { flex: 1; }
 @media (max-width: 560px) {
   .tr-ausencia__form { grid-template-columns: 1fr; }
   .tr-item__troca { grid-template-columns: 1fr auto; }
