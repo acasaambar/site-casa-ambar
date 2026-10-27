@@ -105,7 +105,8 @@ export default function MeuPlano() {
   }
 
   const catalogo = dados?.catalogo || [];
-  const ativos = (dados?.creditos || []).filter((c) => c.tipo !== 'avulsa' || c.restantes > 0);
+  // só Yoga e Pilates (o servidor já filtra; aqui por garantia, caso venha crédito de serviço/combo)
+  const ativos = (dados?.creditos || []).filter((c) => (c.modalidade === 'Yoga' || c.modalidade === 'Pilates') && (c.tipo !== 'avulsa' || c.restantes > 0));
   const daModalidade = catalogo.filter((p) => p.modalidade === modalidade);
   const avulsa = daModalidade.find((p) => p.tipo === 'avulsa');
   const frequencias = [...new Set(daModalidade.filter((p) => p.tipo !== 'avulsa').map((p) => p.aulasSemana))].sort((a, b) => a - b);

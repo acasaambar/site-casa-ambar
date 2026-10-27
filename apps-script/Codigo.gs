@@ -1219,13 +1219,17 @@ function hojeTexto() {
   return Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyyy-MM-dd');
 }
 
+// modalidades que existem no site e na área do aluno
+var MODALIDADES_DO_SITE = ['Yoga', 'Pilates'];
+
 function meuPlano(d) {
   var aluno = alunoDaSessao(d.token);
   var cpf = normCpf(aluno.cpf);
   var reservas = reservasAtivas();
   var hoje = hojeTexto();
+  // a área do aluno é só de Yoga e Pilates: combo e serviço (estética, fisioterapia) são da bancada e nunca aparecem aqui
   var creditos = creditosDo(cpf)
-    .filter(function (c) { return c.fim >= hoje; })
+    .filter(function (c) { return c.fim >= hoje && MODALIDADES_DO_SITE.indexOf(String(c.modalidade)) >= 0; })
     .map(function (c) {
       var limite = c.aulas_semana > 0 ? c.aulas_semana : c.aulas_total;
       var usadas = usoDoCredito(c, reservas, hoje);
@@ -1246,6 +1250,7 @@ function meuPlano(d) {
       continue;
     }
     if (p.status === 'expirado' || p.status === 'descartado') continue;
+    if (['servico', 'pacote', 'produto'].indexOf(String(p.tipo_item)) >= 0) continue; // compra de serviço/produto feita na bancada
     pagamentos.push({ orderNsu: String(p.order_nsu), descricao: p.descricao, valor: numero(p.valor), status: p.status, criadoEm: String(p.criado_em),
       pagoEm: String(p.pago_em || ''), metodo: p.metodo, parcelas: p.parcelas, recibo: p.recibo, link: p.status === 'pendente' ? p.link : '' });
   }

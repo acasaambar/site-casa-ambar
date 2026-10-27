@@ -22,7 +22,7 @@ O sistema leva a assinatura **"FR · Feito por Fábio Ranyeri · frnr.mv@icloud.
 | Parte | Onde | Observação |
 |---|---|---|
 | Site (React 19 + Vite) | `src/` | HashRouter. Fontes: Italiana (títulos), IBM Plex Mono (texto do site), IBM Plex Sans (texto da bancada), Pinyon Script (detalhe). |
-| Área do aluno | `src/pages/` | Só **Yoga e Pilates**: reserva com escolha de tapete, check-in, planos, Wellhub, ficha de saúde, **Minha conta** (`MinhaConta.jsx`). Cadastro exige endereço (`EnderecoSite.jsx`). |
+| Área do aluno | `src/pages/` | Só **Yoga e Pilates**: reserva com escolha de tapete, check-in, planos, Wellhub, ficha de saúde, **Minha conta** (`MinhaConta.jsx`). Cadastro exige endereço (`EnderecoSite.jsx`). **Nunca mostra serviço, combo ou produto**: `meuPlano` (Codigo.gs) só devolve crédito de `MODALIDADES_DO_SITE` (Yoga e Pilates) e esconde de "Meus pagamentos" o que for `servico`/`pacote`/`produto` (teste em `testes/aluno.teste.cjs`); a tela `MeuPlano.jsx` filtra de novo por garantia. |
 | Bancada interna | `src/bancada/` | Carregada à parte (lazy). Papéis: `admin`, `recepcao`, `professora` (também cobre profissional de estética/fisio). |
 | Backend | `apps-script/*.gs` | Google Apps Script + Google Sheets (a planilha é o banco). Um único `doPost`; ações da bancada começam com `b_`. |
 | Configuração do site | `src/config.js` | URL da API, WhatsApp, e-mail. `VITE_API_URL` troca a API (para testes locais). |
