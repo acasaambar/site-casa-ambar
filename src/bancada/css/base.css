@@ -137,3 +137,15 @@ a.b-item:hover, button.b-item:hover { background: rgba(47, 56, 33, 0.035); }
 /* botões: o principal é cheio; o resto, contorno; o "editar" de listas, fantasma */
 .bancada .botao--fantasma { background: transparent; border-color: transparent; color: var(--b-terracota); text-decoration: none; }
 .bancada .botao--fantasma:hover { background: rgba(126, 55, 23, 0.08); color: var(--b-terracota); }
+
+/* ---------- acertos de base (juntados da revisão) ---------- */
+ul.b-itens, ol.b-itens { margin: 0; padding: 0; list-style: none; }
+ul.b-itens > li + li > .b-item, ul.b-itens > li + li { border-top: 1px solid var(--b-linha); }
+ul.b-itens > li > .b-item { border-top: 0; }
+@media (max-width: 560px) {
+  /* em linha quebrada o ponto não fica no começo da linha */
+  .b-meta { gap: 2px 0; }
+  .b-meta > * { margin-right: 8px; }
+  .b-meta > * + *::before { content: none; }
+  .b-meta > *:not(:last-child)::after { content: '·'; margin-left: 8px; color: rgba(47, 56, 33, 0.35); }
+}
