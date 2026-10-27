@@ -105,7 +105,9 @@ var ABAS = {
   Planos: ['id', 'ativo', 'modalidade', 'tipo', 'nome', 'aulas_semana', 'aulas_total', 'validade_dias', 'preco', 'descricao', 'sem_juros_ate'],
   Pagamentos: ['order_nsu', 'cpf', 'nome', 'plano_id', 'descricao', 'valor', 'status', 'link', 'criado_em', 'pago_em', 'metodo', 'parcelas',
     'valor_pago', 'transaction_nsu', 'slug', 'recibo', 'reserva_id', 'aula_id', 'tapete', 'observacao',
-    'valor_original', 'desconto', 'cupom', 'vale', 'vale_usado', 'origem', 'registrado_por', 'promocao', 'comanda', 'tipo_item', 'profissional', 'bandeira'],
+    'valor_original', 'desconto', 'cupom', 'vale', 'vale_usado', 'origem', 'registrado_por', 'promocao', 'comanda', 'tipo_item', 'profissional', 'bandeira',
+    // pagamento dividido em mais de uma forma (fora da comanda): JSON [{ metodo, valor, parcelas, bandeira }]; vazio = uma forma só (coluna metodo)
+    'formas'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
   // ---- bancada interna ----

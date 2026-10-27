@@ -458,6 +458,7 @@ function bancada_agendarServicos(d, m) {
   if (String(d.data) < hojeTexto()) throw new Error('Vários serviços de uma vez são só para hoje em diante.');
   if (d.reagendarId) throw new Error('Para mudar o horário, remarque um serviço de cada vez.');
   if (lista.length > 1 && (codigoLimpo(d.codigo) || d.metodo === 'Vale-presente')) throw new Error('Cupom ou vale-presente só com um serviço. Para vários, receba pela comanda.');
+  if (lista.length > 1 && Array.isArray(d.formas) && d.formas.length > 1) throw new Error('Dividir o pagamento em formas só com um serviço. Para vários, receba pela comanda.');
   var grupo = novoId('G');
   var base = Object.assign({}, d, { grupo: grupo, servicos: undefined, repetir: undefined, valor: lista.length > 1 ? undefined : d.valor, codigo: lista.length > 1 ? '' : d.codigo });
   var primeiro = bancada_agendarServico(Object.assign({}, base, lista[0]), m);
@@ -516,7 +517,7 @@ function criarAtendimento(d, m, serv, prof, dur, cliente, data, forma) {
   // "paga no dia" guarda a escolha e a comanda já abre com o combo
   var combo = d.combo && data === d.data && (forma === 'pago' || forma === 'no_dia') ? comboDoServico(d.combo, serv) : null;
   if (combo && forma === 'pago') {
-    var vc = registrarVenda(cliente, combo, { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, codigo: d.codigo, resto: d.resto, inicio: data,
+    var vc = registrarVenda(cliente, combo, { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, parcelas: d.parcelas, codigo: d.codigo, resto: d.resto, inicio: data,
       obs: 'combo · ' + serv.nome, dataVenda: passado ? data : '' }, m);
     linha.pagamento = 'pacote';
     linha.credito_id = vc.creditoId;
@@ -528,7 +529,7 @@ function criarAtendimento(d, m, serv, prof, dur, cliente, data, forma) {
     linha.credito_id = cred.id;
     linha.valor = 0;
   } else if (forma === 'pago') {
-    var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: data,
+    var venda = registrarVenda(cliente, buscarItemVenda(serv.id), { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, parcelas: d.parcelas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: data,
       obs: 'serviço ' + serv.nome, dataVenda: passado ? data : '' }, m);
     linha.order_nsu = venda.orderNsu;
     linha.credito_id = venda.creditoId || '';
@@ -639,13 +640,13 @@ function bancada_atualizarAtendimento(d, m) {
       // combo escolhido no agendamento: vende o combo e a sessão de hoje sai dele ("só a sessão" = semCombo)
       var comboA = a.combo && a.cpf && !d.semCombo ? buscarItemVenda(a.combo) : null;
       if (comboA && comboA.tipo === 'pacote') {
-        var vc = registrarVenda(cliente, comboA, { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'combo · ' + a.servico }, m);
+        var vc = registrarVenda(cliente, comboA, { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, parcelas: d.parcelas, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'combo · ' + a.servico }, m);
         mud.pagamento = 'pacote';
         mud.credito_id = vc.creditoId;
         mud.valor = 0;
       } else {
       var venda = registrarVenda(cliente, buscarItemVenda(a.servico_id) || { id: a.servico_id, nome: a.servico, modalidade: 'Serviço', tipo: 'servico', aulas_total: 1, aulas_semana: 0, validade_dias: 90, preco: numero(a.valor) },
-        { metodo: d.metodo, bandeira: d.bandeira, parcelas: d.parcelas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
+        { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, parcelas: d.parcelas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: dataTexto(a.data), obs: 'serviço ' + a.servico }, m);
       mud.pagamento = 'pago';
       mud.order_nsu = venda.orderNsu;
       mud.credito_id = venda.creditoId || '';

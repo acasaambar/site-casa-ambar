@@ -1,0 +1,105 @@
+// Pagamento dividido em mais de uma forma: venda do balcão, agenda ("já pagou"), correção de venda e correção da comanda fechada
+const { criar } = require('./simulador.cjs');
+const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
+const R = require('path').join(__dirname, '..', 'apps-script');
+const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs', R + '/Espera.gs', R + '/Contrato.gs']);
+const { ctx, chamar, emails } = m;
+let falhas = 0;
+const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 600) : ''); } else console.log('  ✓', msg); };
+const linkDe = (e) => (e.body.match(/t=([a-f0-9]+)/) || [])[1];
+const hoje = ctx.hojeTexto();
+ctx.configurarPlanilha();
+ctx.autorizarEmails(); chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'ambar2026adm' });
+const adm = chamar('b_entrar', { email: 'contato@acasaambar.com.br', senha: 'ambar2026adm' }).dados.token;
+chamar('b_salvarMembro', { token: adm, membro: { email: 'bia@acasaambar.com.br', nome: 'Bia Santos', papel: 'recepcao' } });
+chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'recep2026ok' });
+const rec = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
+chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Lia Esteticista', categorias: ['Estética facial', 'Estética corporal'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', comissao: 40 } });
+chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', email: 'maria@gmail.com', senha: 'abc12345' });
+let r;
+const preco = (id) => ctx.buscarItemVenda(id).preco;
+const caixa = () => Object.fromEntries(ctx.resumoCaixa(hoje).porForma.map((f) => [f.nome, f.valor]));
+const pg = (nsu) => ctx.lerAba('Pagamentos').find((p) => p.order_nsu === nsu);
+const yoga = preco('yoga-avulsa');
+
+console.log('— venda do balcão em duas formas');
+r = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: 30 }, { metodo: 'Dinheiro', valor: yoga - 30 }] });
+const v1 = r.ok && r.dados.orderNsu;
+ok(r.ok && r.dados.metodo === 'Misto' && r.dados.valor === yoga, 'venda aceita, valor inteiro e forma "Misto"', r);
+const p1 = v1 && pg(v1);
+ok(p1 && p1.status === 'pago' && p1.metodo === 'Misto' && JSON.parse(p1.formas).length === 2, 'a venda guarda as duas partes', p1 && p1.formas);
+ok(caixa()['Pix'] === 30 && caixa()['Dinheiro'] === yoga - 30 && !caixa()['Misto'], 'o caixa conta cada parte na sua forma', caixa());
+ok(ctx.lerAba('Creditos').filter((c) => c.id === 'C' + v1.slice(1)).length === 1, 'um crédito só (a venda não se duplica)');
+r = chamar('b_caixa', { token: adm });
+ok(r.ok && r.dados.lancamentos.some((l) => l.metodo === 'Misto' && /Pix R\$ 30,00 \+ Dinheiro/.test(l.divisao)), 'o lançamento do caixa mostra a divisão', r.dados && r.dados.lancamentos);
+ok(ctx.partesRecebidas(ctx.lerAba('Pagamentos').filter((p) => p.status === 'pago')).some((x) => x.metodo === 'Pix' && x.valor === 30), 'conferência com o extrato e taxas usam as partes');
+
+console.log('— a última parte sem valor leva o que sobrar; erros');
+r = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: 20 }, { metodo: 'Cartão de débito', bandeira: 'Visa', valor: '' }] });
+const p2 = r.ok && pg(r.dados.orderNsu);
+ok(r.ok && p2 && JSON.parse(p2.formas)[1].valor === yoga - 20 && p2.bandeira === 'Visa', 'parte sem valor fica com o resto (e a bandeira)', p2 && p2.formas);
+const antes = ctx.lerAba('Pagamentos').length;
+r = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: 10 }, { metodo: 'Dinheiro', valor: 10 }] });
+ok(!r.ok && /somam/.test(r.erro) && ctx.lerAba('Pagamentos').length === antes, 'soma errada: recusa e não lança nada', r.erro);
+r = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: 10 }, { metodo: 'Vale-presente', valor: yoga - 10 }] });
+ok(!r.ok, 'vale-presente não entra na divisão', r.erro);
+r = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Cortesia', formas: [{ metodo: 'Pix', valor: 10 }, { metodo: 'Dinheiro', valor: yoga - 10 }] });
+ok(!r.ok, 'cortesia não se divide', r.erro);
+r = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'yoga-avulsa', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: yoga }, { metodo: 'Dinheiro', valor: '' }] });
+ok(!r.ok && /já cobrem/.test(r.erro), 'parte do resto sem nada para cobrir: recusa', r.erro);
+
+console.log('— corrigir venda: dividir e voltar para uma forma só');
+const base = chamar('b_vender', { token: rec, cpf: '52998224725', planoId: 'pilates-avulsa', metodo: 'Pix' }).dados;
+const pilates = preco('pilates-avulsa');
+const cx0 = caixa()['Pix'];
+r = chamar('b_corrigirVenda', { token: rec, orderNsu: base.orderNsu, metodo: 'Pix', valor: pilates, formas: [{ metodo: 'Cartão de débito', bandeira: 'Visa', valor: 40 }, { metodo: 'Dinheiro', valor: pilates - 40 }], motivo: 'pagou metade em cada' });
+const pc = pg(base.orderNsu);
+ok(r.ok && pc.metodo === 'Misto' && JSON.parse(pc.formas).length === 2 && pc.bandeira === 'Visa', 'venda corrigida para duas formas', r.erro || pc);
+ok(caixa()['Cartão de débito'] >= 40 && caixa()['Pix'] === cx0 - pilates, 'o caixa acompanha a correção', caixa());
+r = chamar('b_corrigirVenda', { token: rec, orderNsu: base.orderNsu, metodo: 'Pix', valor: pilates, formas: [{ metodo: 'Pix', valor: 1 }, { metodo: 'Dinheiro', valor: 1 }], motivo: 'teste' });
+ok(!r.ok && /somam/.test(r.erro), 'correção com soma errada: recusada', r.erro);
+r = chamar('b_corrigirVenda', { token: rec, orderNsu: base.orderNsu, metodo: 'Dinheiro', valor: pilates, motivo: 'foi tudo no dinheiro' });
+const pd = pg(base.orderNsu);
+ok(r.ok && pd.metodo === 'Dinheiro' && !pd.formas && pd.bandeira === '', 'corrigir para uma forma só limpa a divisão', pd);
+r = chamar('b_pagamentos', { token: rec, de: hoje, ate: hoje });
+ok(r.ok && r.dados.find((p) => p.orderNsu === v1).formas.length === 2, 'a lista de vendas traz as partes', r.dados && r.dados.find((p) => p.orderNsu === v1));
+
+console.log('— agenda: serviço pago em duas formas');
+let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+const serv = preco('drenagem');
+r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '10:00', cpf: '52998224725', pagamento: 'pago', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: 50 }, { metodo: 'Dinheiro', valor: '' }] });
+const pa = r.ok && pg(r.dados.orderNsu);
+ok(r.ok && pa && pa.metodo === 'Misto' && JSON.parse(pa.formas)[1].valor === dinheiro2(serv - 50), 'já pagou em duas formas: venda dividida e atendimento pago', r.erro || pa);
+r = chamar('b_agendarServicos', { token: rec, data: dia, pagamento: 'pago', metodo: 'Pix', cpf: '52998224725', formas: [{ metodo: 'Pix', valor: 50 }, { metodo: 'Dinheiro', valor: '' }],
+  servicos: [{ servicoId: 'drenagem', profissional: 'Lia Esteticista', hora: '14:00' }, { servicoId: 'limpeza-pele', profissional: 'Lia Esteticista', hora: '16:00' }] });
+ok(!r.ok && /um serviço/.test(r.erro), 'dividir forma com vários serviços de uma vez: recusado (use a comanda)', r.erro);
+function dinheiro2(v) { return Math.round(v * 100) / 100; }
+
+console.log('— comanda fechada: corrigir como foi pago');
+const cm = chamar('b_salvarComanda', { token: rec, comanda: { cpf: '52998224725', itens: [{ tipo: 'plano', id: 'yoga-avulsa', qtd: 1 }, { tipo: 'plano', id: 'pilates-avulsa', qtd: 1 }] } }).dados;
+const totalC = cm.total;
+r = chamar('b_fecharComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: totalC }] });
+ok(r.ok && r.dados.status === 'fechada', 'comanda fechada no Pix', r.erro);
+const pixAntes = caixa()['Pix'], dinAntes = caixa()['Dinheiro'] || 0;
+r = chamar('b_corrigirFormasComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: 100 }, { metodo: 'Dinheiro', valor: totalC - 100 }], motivo: 'pagou parte em dinheiro' });
+ok(r.ok && r.dados.pagamentos.length === 2 && r.dados.historico.some((h) => /corrigiu a forma de pagamento/.test(h.t)), 'forma corrigida e anotada no histórico', r.erro || r.dados);
+ok(caixa()['Pix'] === pixAntes - totalC + 100 && caixa()['Dinheiro'] === dinAntes + totalC - 100, 'o caixa passa a contar cada parte', caixa());
+ok(ctx.lerAba('Pagamentos').filter((p) => p.comanda === cm.id).every((p) => p.metodo === 'Misto' && /Corrigido em/.test(p.observacao)), 'as vendas da comanda ficam como "Misto", com a nota da correção');
+r = chamar('b_corrigirFormasComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: 5 }], motivo: 'teste' });
+ok(!r.ok && /somam/.test(r.erro), 'soma diferente do que foi pago: recusado', r.erro);
+r = chamar('b_corrigirFormasComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Vale-presente', valor: totalC }], motivo: 'teste' });
+ok(!r.ok, 'vale-presente não entra na correção', r.erro);
+r = chamar('b_corrigirFormasComanda', { token: rec, id: cm.id, pagamentos: [{ metodo: 'Pix', valor: totalC }] });
+ok(!r.ok && /motivo/.test(r.erro), 'sem motivo: recusado', r.erro);
+r = chamar('b_corrigirFormasComanda', { token: adm, id: cm.id, pagamentos: [{ metodo: 'Cartão de crédito', valor: totalC, parcelas: 3 }], motivo: 'foi tudo no crédito' });
+ok(!r.ok && /bandeira/i.test(r.erro), 'cartão sem bandeira: recusado', r.erro);
+r = chamar('b_corrigirFormasComanda', { token: adm, id: cm.id, pagamentos: [{ metodo: 'Cartão de crédito', valor: totalC, parcelas: 3, bandeira: 'Visa' }], motivo: 'foi tudo no crédito' });
+ok(r.ok && r.dados.pagamentos.length === 1 && ctx.lerAba('Pagamentos').filter((p) => p.comanda === cm.id).every((p) => p.metodo === 'Cartão de crédito' && Number(p.parcelas) === 3), 'voltar para uma forma só (crédito 3x)', r.erro || r.dados);
+const aberta = chamar('b_salvarComanda', { token: rec, comanda: { cpf: '52998224725', itens: [{ tipo: 'plano', id: 'yoga-avulsa', qtd: 1 }] } }).dados;
+r = chamar('b_corrigirFormasComanda', { token: rec, id: aberta.id, pagamentos: [{ metodo: 'Pix', valor: aberta.total }], motivo: 'teste' });
+ok(!r.ok && /fechada/.test(r.erro), 'comanda aberta: recusado', r.erro);
+r = chamar('b_corrigirFormasComanda', { token: 'x'.repeat(40), id: cm.id, pagamentos: [{ metodo: 'Pix', valor: totalC }], motivo: 'teste' });
+ok(!r.ok, 'sem login: recusado');
+
+console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
+process.exit(falhas ? 1 : 0);

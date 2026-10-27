@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Alertas, BANDEIRAS, ehCartao, pedeBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
+import { useDados, Alertas, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, BuscaAluno, Segmento, real, hora, hojeIso, somarDias, dataBR, linkWhats, primeiro,
   telFmt, numBR, plural, METODOS, useEsquecerPedidoDaRota } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
@@ -201,6 +201,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [pagar, setPagar] = useState(false);
+  const [corrigindoForma, setCorrigindoForma] = useState(false);
   const [editando, setEditando] = useState(null); // índice do item no editor
   const [vale, setVale] = useState(null); // { idx? } folha do vale-presente
   const [tirando, setTirando] = useState(null); // índice do item que vai sair
@@ -403,6 +404,9 @@ export function ComandaModal({ id, inicial, aoFechar }) {
           {fechada && c.pagamentos.length > 0 && (
             <p className="cm-papel__pago">Pago com {c.pagamentos.map((p) => `${p.metodo}${p.bandeira ? ` ${p.bandeira}` : ''}${p.parcelas > 1 ? ` ${p.parcelas}x` : ''} ${real(p.valor)}`).join(' + ')} · {dataBR(c.fechadaEm)} por {c.fechadaPor}</p>
           )}
+          {c?.status === 'fechada' && balcao && c.pagamentos.some((p) => p.metodo !== 'Vale-presente') && !corrigindoForma && (
+            <button type="button" className="link-acao cm-corrigir-forma" onClick={() => setCorrigindoForma(true)}>Corrigir a forma de pagamento (ex.: dividir em duas formas)</button>
+          )}
         </div>
 
         {!fechada && c && (
@@ -451,6 +455,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
           </section>
         )}
 
+        {corrigindoForma && c?.status === 'fechada' && <CorrigirFormas c={c} aoCancelar={() => setCorrigindoForma(false)} aoCorrigir={(r) => { setC(r); setCorrigindoForma(false); setAviso('Forma de pagamento corrigida. O caixa e os relatórios já acompanham.'); }} />}
         {pagar && c && !fechada && <Pagamento c={c} semVale={temVale} aoVoltar={() => setPagar(false)} aoFechar={terminou} />}
         {valesCriados.length > 0 && <ValesCriados lista={valesCriados} />}
         {fechada && c.status === 'fechada' && <Recibo c={c} />}
@@ -824,60 +829,58 @@ function ValesCriados({ lista }) {
 
 function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
   const { chamar } = useBancada();
-  const [linhas, setLinhas] = useState([{ metodo: 'Pix', valor: String(c.total.toFixed(2)).replace('.', ','), parcelas: 1, codigo: '', bandeira: '' }]);
+  const [linhas, setLinhas] = useState([{ ...LINHA_PAGAMENTO, valor: String(c.total.toFixed(2)).replace('.', ',') }]);
   const [erro, setErro] = useState('');
-  const soma = linhas.reduce((s, l) => s + numBR(l.valor), 0);
-  const falta = Math.round((c.total - soma) * 100) / 100;
-  const mudar = (i, mud) => setLinhas(linhas.map((l, k) => (k === i ? { ...l, ...mud } : l)));
+  const { falta, semBandeira } = resumoLinhas(linhas, c.total);
   const troco = linhas.find((l) => l.metodo === 'Dinheiro');
   // um vale-presente vendido não se paga com outro vale
   const formas = semVale ? METODOS : METODOS.concat(['Vale-presente']);
   return (
     <section className="cm-pagar" aria-label="Pagamento">
       <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
-      {linhas.map((l, i) => (
-        <div key={i} className={`cm-pagar__linha${linhas.length > 1 ? ' cm-pagar__linha--tirar' : ''}${/Cartão de crédito|Link/.test(l.metodo) ? ' cm-pagar__linha--parcelas' : ''}${pedeBandeira(l.metodo) || l.metodo === 'Vale-presente' ? ' cm-pagar__linha--extra' : ''}`}>
-          <select className="cm-pagar__metodo" value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label="Forma">
-            {formas.map((m) => <option key={m}>{m}</option>)}
-          </select>
-          <input className="cm-pagar__valor" inputMode="decimal" value={l.valor} onChange={(e) => mudar(i, { valor: e.target.value.replace(/[^\d,.]/g, '') })} aria-label="Valor" />
-          {/Cartão de crédito|Link/.test(l.metodo) && (
-            <select className="cm-pagar__extra cm-pagar__parcelas" value={l.parcelas} onChange={(e) => mudar(i, { parcelas: Number(e.target.value) })} aria-label="Parcelas">
-              {Array.from({ length: 12 }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}x</option>)}
-            </select>
-          )}
-          {pedeBandeira(l.metodo) && (
-            <select className="cm-pagar__extra cm-pagar__bandeira" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={faltaBandeira(l.metodo, l.bandeira)}>
-              <option value="">{ehCartao(l.metodo) ? 'Bandeira…' : 'Bandeira'}</option>
-              {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
-            </select>
-          )}
-          {l.metodo === 'Vale-presente' && <input className="cm-pagar__extra" value={l.codigo} onChange={(e) => mudar(i, { codigo: e.target.value.toUpperCase() })} placeholder="AMBAR-XXXX-XXXX" aria-label="Código do vale" />}
-          {linhas.length > 1 && <button type="button" className="cm-item__tirar cm-pagar__tirar" aria-label="Tirar forma" onClick={() => setLinhas(linhas.filter((_, k) => k !== i))}>×</button>}
-        </div>
-      ))}
-      <div className="cm-pagar__resumo">
-        {Math.abs(falta) > 0.009 ? (
-          <span className={falta > 0 ? 'b-alerta-txt' : 'b-suave'}>{falta > 0 ? `Faltam ${real(falta)}` : `Passou ${real(-falta)}`}</span>
-        ) : <span className="b-suave">Valores conferem.</span>}
-        {falta > 0.009 && (
-          <button type="button" className="link-acao" onClick={() => setLinhas([...linhas, { metodo: linhas[0].metodo === 'Pix' ? 'Cartão de crédito' : 'Pix', valor: String(falta.toFixed(2)).replace('.', ','), parcelas: 1, codigo: '', bandeira: '' }])}>
-            + dividir: outra forma com {real(falta)}
-          </button>
-        )}
-      </div>
+      <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={c.total} formas={formas} />
       {semVale && <p className="b-suave cm-pagar__nota">Esta comanda vende um vale-presente: não dá para pagar com outro vale.</p>}
       {troco && <TrocoCalc valor={numBR(troco.valor)} />}
       <Erro>{erro}</Erro>
       <div className="cm-acoes">
-        {linhas.some((l) => faltaBandeira(l.metodo, l.bandeira)) && <span className="b-alerta-txt">Escolha a bandeira do cartão.</span>}
-        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || linhas.some((l) => faltaBandeira(l.metodo, l.bandeira))} acao={async () => {
+        {semBandeira && <span className="b-alerta-txt">Escolha a bandeira do cartão.</span>}
+        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || semBandeira} acao={async () => {
           setErro('');
           try {
             aoFechar(await chamar('fecharComanda', { id: c.id, pagamentos: linhas.map((l) => ({ ...l, valor: numBR(l.valor) })) }));
           } catch (e) { setErro(e.message); }
         }}>Fechar comanda</BotaoAcao>
         <button type="button" className="link-acao" onClick={aoVoltar}>Voltar</button>
+      </div>
+    </section>
+  );
+}
+
+// Comanda fechada: corrigir COMO foi pago (a divisão em Pix, dinheiro, cartão…), sem reabrir. O total pago não muda.
+function CorrigirFormas({ c, aoCorrigir, aoCancelar }) {
+  const { chamar } = useBancada();
+  const reais = (c.pagamentos || []).filter((p) => p.metodo !== 'Vale-presente');
+  const vale = (c.pagamentos || []).filter((p) => p.metodo === 'Vale-presente').reduce((t, p) => t + Number(p.valor || 0), 0);
+  const total = Math.round(reais.reduce((t, p) => t + Number(p.valor || 0), 0) * 100) / 100;
+  const [linhas, setLinhas] = useState(() => reais.map((p) => ({ ...LINHA_PAGAMENTO, metodo: p.metodo, valor: String(p.valor).replace('.', ','), parcelas: p.parcelas || 1, bandeira: p.bandeira || '' })));
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+  const { falta, semBandeira } = resumoLinhas(linhas, total);
+  return (
+    <section className="cm-pagar cm-pagar--corrigir" aria-label="Corrigir forma de pagamento">
+      <h3 className="cm-pagar__titulo">Corrigir como foi pago</h3>
+      <p className="b-suave">Total pago em dinheiro, cartão ou Pix: <strong>{real(total)}</strong>{vale > 0 ? ` (mais ${real(vale)} em vale-presente, que não muda)` : ''}. Mude a divisão: o caixa e os relatórios acompanham.</p>
+      <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={total} formas={METODOS} />
+      <label className="b-campo"><span className="rotulo">Motivo da correção</span>
+        <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: pagou metade no dinheiro" /></label>
+      <Erro>{erro}</Erro>
+      <div className="cm-acoes">
+        {semBandeira && <span className="b-alerta-txt">Escolha a bandeira do cartão.</span>}
+        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || semBandeira || motivo.trim().length < 3} acao={async () => {
+          setErro('');
+          try { aoCorrigir(await chamar('corrigirFormasComanda', { id: c.id, motivo, pagamentos: linhas.map((l) => ({ ...l, valor: numBR(l.valor) })) })); } catch (e) { setErro(e.message); }
+        }}>Salvar correção</BotaoAcao>
+        <button type="button" className="link-acao" onClick={aoCancelar}>Cancelar</button>
       </div>
     </section>
   );

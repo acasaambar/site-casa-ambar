@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useEsquecerPedidoDaRota, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, CampoBandeira, METODOS, ehCartao, faltaBandeira,
+import { useDados, useEsquecerPedidoDaRota, Carregando, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, CampoBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, METODOS, ehCartao, faltaBandeira,
   real, realCurto, hojeIso, somarDias, dataBR, cpfFmt, baixarCSV, plural, numBR } from './ui.jsx';
 import { VenderModal, ListaPagamentos } from './Alunos.jsx';
 import { ListaVales } from './Vales.jsx';
@@ -103,7 +103,7 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
   const podeMexer = p.status === 'pago' && doBalcao && (admin || deHoje);
   const comVale = p.metodo === 'Vale-presente';
   const [vista, setVista] = useState(podeMexer && !comVale ? 'corrigir' : podeMexer ? 'excluir' : 'estorno');
-  const forma = (p.metodo || '—') + (p.bandeira ? ' ' + p.bandeira : '') + (Number(p.parcelas) > 1 ? ' ' + p.parcelas + 'x' : '');
+  const forma = p.formas?.length > 1 ? p.formas.map((x) => `${x.metodo}${x.bandeira ? ' ' + x.bandeira : ''}${x.parcelas > 1 ? ' ' + x.parcelas + 'x' : ''} ${real(x.valor)}`).join(' + ') : (p.metodo || '—') + (p.bandeira ? ' ' + p.bandeira : '') + (Number(p.parcelas) > 1 ? ' ' + p.parcelas + 'x' : '');
   const opcoes = [!comVale && ['corrigir', 'Corrigir'], ['excluir', 'Excluir'], ['estorno', 'Estorno']].filter(Boolean);
   return (
     <Modal rotulo={`${p.nome} · ${dataBR(p.pagoEm || p.criadoEm)}`} titulo="Venda" aoFechar={aoFechar}>
@@ -118,7 +118,7 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
         <p className="b-suave">Esta venda está como “{SITUACAO[p.status] || p.status}”: não há o que corrigir.</p>
       ) : p.comanda ? (
         <div className="b-form">
-          <p className="aviso">Esta venda é de uma comanda. Para corrigir ou desfazer, a administração abre a comanda e usa “Reabrir para corrigir”: assim o estoque, as comissões e os outros itens acompanham.</p>
+          <p className="aviso">Esta venda é de uma comanda. Para só mudar como foi pago (a divisão entre Pix, dinheiro e cartão), abra a comanda e use “Corrigir a forma de pagamento”. Para desfazer ou mudar os itens, a administração usa “Reabrir para corrigir”: assim o estoque, as comissões e os outros itens acompanham.</p>
           <button type="button" className="botao botao--linha" onClick={() => navegar('/bancada/comandas', { state: { abrir: p.comanda } })}>Abrir a comanda</button>
         </div>
       ) : !doBalcao ? (
@@ -146,21 +146,40 @@ function CorrigirVenda({ p, aoSalvar }) {
   const [obs, setObs] = useState(p.observacao.replace(/^(EXCLUÍDA|ESTORNADO)[^.]*\.\s*/, '').split(' · Corrigida em ')[0]);
   const [motivo, setMotivo] = useState('');
   const [erro, setErro] = useState('');
+  // dividida em mais de uma forma: linhas { metodo, valor, parcelas, bandeira } (null = uma forma só)
+  const [formas, setFormas] = useState(() => (p.formas?.length > 1 ? p.formas.map((x) => ({ ...LINHA_PAGAMENTO, metodo: x.metodo, valor: String(x.valor).replace('.', ','), parcelas: x.parcelas || 1, bandeira: x.bandeira || '' })) : null));
   const cortesia = metodo === 'Cortesia';
   const parcela = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay';
   const valorNum = cortesia ? 0 : numBR(valor);
   const valorRuim = !cortesia && (valor.trim() === '' || isNaN(valorNum) || valorNum < 0);
+  const somaFormas = resumoLinhas(formas || [], valorNum);
+  const formasRuins = !!formas && (!somaFormas.ok || cortesia);
   return (
     <div className="b-form">
-      <label className="b-campo"><span className="rotulo">Forma de pagamento</span>
-        <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{FORMAS_CORRIGIR.map((m) => <option key={m}>{m}</option>)}</select></label>
-      <div className="vd-linha">
-        <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
-        {parcela && (
-          <label className="b-campo"><span className="rotulo">Parcelas</span>
-            <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
-        )}
-      </div>
+      {formas ? (
+        <div className="b-campo">
+          <span className="rotulo">Formas de pagamento · soma {real(somaFormas.soma)} de {real(valorNum)}</span>
+          <LinhasDePagamento linhas={formas} aoMudar={(l) => setFormas(l)} total={valorNum} formas={FORMAS_CORRIGIR.filter((m) => m !== 'Cortesia')} minimo={2} />
+          <button type="button" className="link-acao" onClick={() => { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }}>Voltar para uma forma só</button>
+        </div>
+      ) : (
+        <>
+          <label className="b-campo"><span className="rotulo">Forma de pagamento</span>
+            <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{FORMAS_CORRIGIR.map((m) => <option key={m}>{m}</option>)}</select></label>
+          <div className="vd-linha">
+            <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
+            {parcela && (
+              <label className="b-campo"><span className="rotulo">Parcelas</span>
+                <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
+            )}
+          </div>
+          {!cortesia && (
+            <button type="button" className="link-acao" onClick={() => setFormas([{ ...LINHA_PAGAMENTO, metodo, bandeira, parcelas, valor: '' }, { ...LINHA_PAGAMENTO, metodo: metodo === 'Pix' ? 'Dinheiro' : 'Pix' }])}>
+              Dividir em mais de uma forma (ex.: metade no débito, metade no dinheiro)
+            </button>
+          )}
+        </>
+      )}
       <div className="vd-linha">
         {!cortesia && (
           <label className="b-campo"><span className="rotulo">Valor recebido (R$)</span>
@@ -175,9 +194,9 @@ function CorrigirVenda({ p, aoSalvar }) {
         <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: foi no débito, não no crédito" /></label>
       <p className="b-suave">Fica anotado na venda quem corrigiu, quando e como estava antes. Para trocar a cliente ou o item, exclua e registre de novo.</p>
       <Erro>{erro}</Erro>
-      <BotaoAcao className="botao botao--cheio" disabled={valorRuim || motivo.trim().length < 3 || (ehCartao(metodo) && faltaBandeira(metodo, bandeira))} acao={async () => {
+      <BotaoAcao className="botao botao--cheio" disabled={valorRuim || formasRuins || motivo.trim().length < 3 || (!formas && ehCartao(metodo) && faltaBandeira(metodo, bandeira))} acao={async () => {
         setErro('');
-        try { await chamar('corrigirVenda', { orderNsu: p.orderNsu, metodo, bandeira: ehCartao(metodo) || metodo === 'Link InfinitePay' ? bandeira : '', parcelas: parcela ? parcelas : 1, valor: valorNum, dataVenda, obs, motivo }); aoSalvar(); } catch (e) { setErro(e.message); }
+        try { await chamar('corrigirVenda', { orderNsu: p.orderNsu, metodo: formas ? formas[0].metodo : metodo, bandeira: ehCartao(metodo) || metodo === 'Link InfinitePay' ? bandeira : '', parcelas: parcela ? parcelas : 1, valor: valorNum, formas: formas ? formas.map((l) => ({ ...l, valor: numBR(l.valor) })) : undefined, dataVenda, obs, motivo }); aoSalvar(); } catch (e) { setErro(e.message); }
       }}>Salvar correção</BotaoAcao>
     </div>
   );

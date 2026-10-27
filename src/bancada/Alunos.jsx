@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
-import { useDados, Alertas, CampoBandeira, faltaBandeira, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
+import { useDados, Alertas, CampoBandeira, faltaBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Carregando, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota, lembrarResultado, incluirNaListaDeClientes } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
@@ -691,6 +691,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const [obs, setObs] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [formas, setFormas] = useState(null); // pago em mais de uma forma: linhas { metodo, valor, parcelas, bandeira } (null = uma forma só)
   const plano = itens?.achar(planoId);
   const varios = extras.length > 0;
 
@@ -714,7 +715,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     setErro('');
     setEnviando(true);
     try {
-      const comum = { cpf: aluno.cpf, metodo, bandeira, parcelas, inicio, dataVenda, obs };
+      const comum = { cpf: aluno.cpf, metodo: formas ? formas[0].metodo : metodo, bandeira, parcelas, inicio, dataVenda, obs, formas: formas || undefined };
       if (varios) {
         await chamar('vender', { ...comum, itens: [{ planoId, valor: valor === '' ? undefined : numBR(valor) }, ...extras.map((x) => ({ planoId: x.planoId, valor: x.valor === '' ? undefined : numBR(x.valor) }))] });
       } else {
@@ -779,30 +780,51 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
           </div>
         ))}
         {extras.length < 11 && (
-          <button type="button" className="link-acao vd-mais" disabled={!itens || !planoId} onClick={() => { setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), planoId: '', valor: '' }]); setCodigo(''); setSimulado(null); }}>
+          <button type="button" className="link-acao vd-mais" disabled={!itens || !planoId} onClick={() => { setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), planoId: '', valor: '' }]); setCodigo(''); setSimulado(null); if (formas) { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); } }}>
             + Adicionar outro item nesta venda
           </button>
         )}
-        <div className="b-linha2">
-          <label className="b-campo">
-            <span className="rotulo">Recebido por</span>
-            <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
-          </label>
+        {formas ? (
+          <div className="b-campo">
+            <span className="rotulo">Recebido por · dividido em {formas.length} formas</span>
+            <LinhasDePagamento linhas={formas} aoMudar={(l) => setFormas(l)} formas={METODOS} minimo={2} />
+            <button type="button" className="link-acao" onClick={() => { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }}>Voltar para uma forma só</button>
+          </div>
+        ) : (
+          <>
+            <div className="b-linha2">
+              <label className="b-campo">
+                <span className="rotulo">Recebido por</span>
+                <select value={metodo} onChange={(e) => setMetodo(e.target.value)}>{METODOS.map((m) => <option key={m}>{m}</option>)}</select>
+              </label>
+              <label className="b-campo">
+                <span className="rotulo">Começa em</span>
+                <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+              </label>
+            </div>
+            {/* no cartão, parcelas e bandeira ficam juntas (antes o "Começa em" sumia e o plano sempre começava hoje) */}
+            <div className="b-linha2">
+              {/Cartão de crédito|Link/.test(metodo) && (
+                <label className="b-campo">
+                  <span className="rotulo">Parcelas</span>
+                  <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select>
+                </label>
+              )}
+              <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
+            </div>
+            {!varios && metodo !== 'Cortesia' && (
+              <button type="button" className="link-acao" onClick={() => setFormas([{ ...LINHA_PAGAMENTO, metodo, bandeira, parcelas }, { ...LINHA_PAGAMENTO, metodo: metodo === 'Pix' ? 'Dinheiro' : 'Pix' }])}>
+                Dividir em mais de uma forma (ex.: metade no débito, metade no dinheiro)
+              </button>
+            )}
+          </>
+        )}
+        {formas && (
           <label className="b-campo">
             <span className="rotulo">Começa em</span>
             <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
           </label>
-        </div>
-        {/* no cartão, parcelas e bandeira ficam juntas (antes o "Começa em" sumia e o plano sempre começava hoje) */}
-        <div className="b-linha2">
-          {/Cartão de crédito|Link/.test(metodo) && (
-            <label className="b-campo">
-              <span className="rotulo">Parcelas</span>
-              <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select>
-            </label>
-          )}
-          <CampoBandeira metodo={metodo} valor={bandeira} aoMudar={setBandeira} />
-        </div>
+        )}
         {plano && metodo !== 'Cortesia' && !varios && (
           <>
             <div className="b-linha2">
@@ -839,7 +861,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
           </div>
         )}
         <Erro>{erro}</Erro>
-        <button type="button" className="botao botao--cheio" disabled={!aluno || !completo || enviando || faltaBandeira(metodo, bandeira)} onClick={confirmar}>
+        <button type="button" className="botao botao--cheio" disabled={!aluno || !completo || enviando || (formas ? !resumoLinhas(formas).ok : faltaBandeira(metodo, bandeira))} onClick={confirmar}>
           {enviando ? 'Registrando…' : varios ? `Registrar venda dos ${extras.length + 1} itens` : 'Registrar venda'}
         </button>
         <p className="b-suave b-nota">O plano entra na hora no cadastro. Pagamentos pelo site entram sozinhos — não precisa registrar aqui.</p>

@@ -579,6 +579,58 @@ function bancada_excluirDespesa(d, m) {
   return bancada_despesas({ mes: d.mes || dataTexto(ex.data).slice(0, 7) });
 }
 
+// ---------- pagamento dividido em mais de uma forma ----------
+var FORMAS_DIVIDIDAS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay'];
+
+// "1.200,50" e "99.90" (a tela manda como foi digitado)
+function valorBR(v) {
+  var t = String(v == null ? '' : v).trim();
+  if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.');
+  return Number(t.replace(/[^\d.-]/g, '')) || 0;
+}
+
+// lista = [{ metodo, valor, parcelas, bandeira }]. Uma linha sem valor leva o que sobrar. A soma tem que fechar com o total.
+// Devolve { formas (só se houver mais de uma), metodo ('Misto' se mais de uma), bandeira, parcelas }.
+function normalizarFormas(lista, total, exigirBandeira) {
+  var itens = (lista || []).map(function (x) {
+    var metodo = FORMAS_DIVIDIDAS.indexOf(x && x.metodo) >= 0 ? x.metodo : '';
+    if (!metodo) throw new Error('Escolha a forma de pagamento de cada parte (vale-presente e cortesia não entram na divisão).');
+    var vazio = x.valor === '' || x.valor == null;
+    var valor = vazio ? null : dinheiro(valorBR(x.valor));
+    if (valor != null && (isNaN(valor) || valor <= 0)) throw new Error('Cada parte precisa ter um valor maior que zero.');
+    var parcelas = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Math.round(Number(x.parcelas) || 1), 1), 12) : 1;
+    return { metodo: metodo, valor: valor, parcelas: parcelas, bandeira: bandeiraDe(metodo, x.bandeira, !!exigirBandeira) };
+  });
+  if (!itens.length) throw new Error('Informe como foi pago.');
+  var vazias = itens.filter(function (x) { return x.valor == null; });
+  if (vazias.length > 1) throw new Error('Só uma parte pode ficar sem valor (ela leva o que sobrar).');
+  var soma = dinheiro(itens.reduce(function (t, x) { return t + (x.valor || 0); }, 0));
+  if (vazias.length) {
+    var resto = dinheiro(total - soma);
+    if (resto <= 0.009) throw new Error('As outras partes já cobrem o valor todo (' + brl(total) + ').');
+    vazias[0].valor = resto;
+    soma = dinheiro(total);
+  }
+  if (Math.abs(soma - dinheiro(total)) > 0.01) throw new Error('As formas somam ' + brl(soma) + ', mas o valor é ' + brl(total) + '.');
+  var metodos = itens.map(function (x) { return x.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
+  var bandeiras = itens.map(function (x) { return x.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
+  var parcelas = Math.max.apply(null, itens.map(function (x) { return x.parcelas; }));
+  var uma = itens.length === 1;
+  return { formas: uma ? [] : itens, metodo: uma ? itens[0].metodo : 'Misto', bandeira: bandeiras, parcelas: parcelas };
+}
+
+// as partes de um pagamento dividido (null = uma forma só)
+function partesDoPagamento(p) {
+  var f = parseJson(p.formas, []);
+  if (!Array.isArray(f) || f.length < 2) return null;
+  return f.map(function (x) { return { metodo: String(x.metodo), bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) }; });
+}
+
+// "Pix R$ 100,00 + Dinheiro R$ 50,00"
+function textoDivisao(partes) {
+  return partes.map(function (x) { return x.metodo + (x.bandeira ? ' ' + x.bandeira : '') + (x.parcelas > 1 ? ' ' + x.parcelas + 'x' : '') + ' ' + brl(x.valor); }).join(' + ');
+}
+
 // formas de pagamento das vendas (comandas com pagamento dividido entram com cada forma)
 function formasDasVendas(pags) {
   var r = {};
@@ -586,6 +638,8 @@ function formasDasVendas(pags) {
   var soma = function (k, v) { r[k] = dinheiro((r[k] || 0) + v); };
   pags.forEach(function (p) {
     if (p.comanda) { comandas[String(p.comanda)] = 1; return; }
+    var div = partesDoPagamento(p);
+    if (div) { div.forEach(function (x) { soma(x.metodo, x.valor); }); return; }
     soma(String(p.metodo || 'não informado'), numero(p.valor));
   });
   if (Object.keys(comandas).length) {
@@ -603,6 +657,8 @@ function partesRecebidas(pags) {
   var comandas = {};
   pags.forEach(function (p) {
     if (p.comanda) { comandas[String(p.comanda)] = 1; return; }
+    var div = partesDoPagamento(p);
+    if (div) { div.forEach(function (x) { partes.push(x); }); return; }
     // pagamento pelo site (checkout da InfinitePay): cartão é cobrado como link
     var metodo = String(p.metodo || 'não informado');
     if (metodo === 'Cartão' && String(p.origem || 'site') !== 'balcão') metodo = 'Link InfinitePay';
@@ -753,7 +809,7 @@ function resumoCaixa(data) {
         bandeira: String(p.bandeira || ''), parcelas: Number(p.parcelas) || 1, valor: dinheiro(p.valor), origem: String(p.origem || ''),
         comanda: String(p.comanda || ''), por: String(p.registrado_por || '').split('@')[0],
         // comanda paga de mais de um jeito: "Pix R$ 100 + Dinheiro R$ 50"
-        divisao: p.metodo === 'Misto' && obs.indexOf(' · ') > 0 ? obs.split(' · ').slice(1).join(' · ').slice(0, 160) : '' };
+        divisao: partesDoPagamento(p) ? textoDivisao(partesDoPagamento(p)).slice(0, 160) : p.metodo === 'Misto' && obs.indexOf(' · ') > 0 ? obs.split(' · ').slice(1).join(' · ').slice(0, 160) : '' };
     }),
   };
 }
@@ -1262,6 +1318,58 @@ function bancada_comandaDoAtendimento(d, m) {
   }
   var cli = a.cpf ? { cpf: normCpf(a.cpf) } : { cliente: { nome: a.nome, whatsapp: a.whatsapp } };
   return bancada_salvarComanda({ comanda: Object.assign(cli, { itens: novos }) }, m);
+}
+
+// Comanda já fechada: corrige COMO foi pago (ex.: era tudo no Pix e foi metade no débito, metade no dinheiro), sem reabrir.
+// O valor total pago em dinheiro/cartão/Pix não muda: só a divisão. A parte paga com vale-presente continua como está.
+// d = { id, pagamentos: [{ metodo, valor, parcelas, bandeira }], motivo }. Recepção: só comanda fechada hoje, com o caixa de hoje aberto; administração: qualquer dia.
+function bancada_corrigirFormasComanda(d, m) {
+  var motivo = String(d.motivo || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (motivo.length < 3) throw new Error('Diga o motivo da correção.');
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    var c = acharComanda(d.id);
+    if (!c) throw new Error('Comanda não encontrada.');
+    if (c.status !== 'fechada') throw new Error('Só dá para corrigir a forma de pagamento de uma comanda fechada.');
+    var atuais = parseJson(c.pagamentos, []);
+    var vales = atuais.filter(function (x) { return x.metodo === 'Vale-presente'; });
+    var reais = atuais.filter(function (x) { return x.metodo !== 'Vale-presente'; });
+    var dia = String(c.fechada_em || '').slice(0, 10);
+    if (m.papel !== 'admin') {
+      if (dia !== hojeTexto()) throw new Error('A recepção corrige só comandas fechadas hoje. Para as outras, peça à administração.');
+      var cx = caixaDoDia(dia);
+      if (cx && String(cx.status) === 'fechado') throw new Error('O caixa de hoje já foi fechado. Peça à administração para corrigir.');
+    }
+    var totalReais = dinheiro(reais.reduce(function (t, x) { return t + numero(x.valor); }, 0));
+    if (totalReais <= 0.009) throw new Error('Esta comanda não teve pagamento em dinheiro, cartão ou Pix para corrigir.');
+    var novas = (d.pagamentos || []).map(function (p) {
+      var metodo = FORMAS_DIVIDIDAS.indexOf(p.metodo) >= 0 ? p.metodo : '';
+      if (!metodo) throw new Error('Forma de pagamento inválida (vale-presente não entra aqui).');
+      return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
+        codigo: '', bandeira: bandeiraDe(metodo, p.bandeira, true) };
+    }).filter(function (p) { return p.valor > 0; });
+    if (!novas.length) throw new Error('Informe como foi pago.');
+    var soma = dinheiro(novas.reduce(function (t, x) { return t + x.valor; }, 0));
+    if (Math.abs(soma - totalReais) > 0.01) throw new Error('As formas somam ' + brl(soma) + ', mas foram pagos ' + brl(totalReais) + ' (sem contar o vale-presente).');
+    var metodos = novas.map(function (x) { return x.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
+    var metodo = metodos.length === 1 ? metodos[0] : 'Misto';
+    var parcelas = Math.max.apply(null, [1].concat(novas.map(function (x) { return x.parcelas; })));
+    var bandeiras = novas.map(function (x) { return x.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
+    var todas = vales.concat(novas);
+    var antes = textoDivisao(reais.map(function (x) { return { metodo: x.metodo, bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) }; }));
+    var obsPag = 'Comanda ' + c.id + (todas.length > 1 ? ' · ' + todas.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '')
+      + ' · Corrigido em ' + agoraTexto() + ' por ' + m.email + ' (antes: ' + antes + '): ' + motivo;
+    lerAba('Pagamentos').filter(function (p) { return String(p.comanda) === String(c.id) && p.status === 'pago'; }).forEach(function (p) {
+      atualizarLinha('Pagamentos', p._linha, { metodo: metodo, parcelas: parcelas, bandeira: bandeiras, observacao: obsPag.slice(0, 500) });
+    });
+    atualizarLinha('Comandas', c._linha, { pagamentos: JSON.stringify(todas),
+      historico: anotarComanda(c, m.email, 'corrigiu a forma de pagamento: ' + antes + ' → ' + textoDivisao(novas) + ' (' + motivo + ')') });
+    registrar(m, 'corrigiu forma de pagamento da comanda', c.nome + ' · ' + c.id + ' · ' + antes + ' → ' + textoDivisao(novas) + ' · ' + motivo);
+  } finally {
+    soltarTrava(trava);
+  }
+  return comandaPublica(acharComanda(d.id));
 }
 
 function bancada_cancelarComanda(d, m) {

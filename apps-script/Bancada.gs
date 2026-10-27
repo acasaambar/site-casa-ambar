@@ -129,6 +129,7 @@ var PERMISSOES = {
   // lista de espera e retornos (Espera.gs)
   b_espera: ['admin', 'recepcao'],
   b_receberAula: ['admin', 'recepcao'],
+  b_corrigirFormasComanda: ['admin', 'recepcao'],
   b_corrigirVenda: ['admin', 'recepcao'],
   b_excluirVenda: ['admin', 'recepcao'],
   b_entrarEspera: ['admin', 'recepcao'],
@@ -563,7 +564,7 @@ function bancada_agendar(d, m) {
     } else if (forma === 'avulsa') {
       var avulsa = buscarPlano(aula.modalidade.toLowerCase() + '-avulsa');
       if (!avulsa) throw new Error('Não há aula avulsa de ' + aula.modalidade + ' no catálogo.');
-      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: aula.data, obs: 'aula ' + aula.id }, m);
+      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: aula.data, obs: 'aula ' + aula.id }, m);
       creditoId = venda.creditoId; descricao = avulsa.nome + ' · ' + venda.metodo;
     } else {
       throw new Error('Forma inválida.');
@@ -592,7 +593,7 @@ function bancada_receberAula(d, m) {
     if (!aluno) throw new Error('Aluno não encontrado.');
     var avulsa = buscarPlano(String(r.modalidade).toLowerCase() + '-avulsa');
     if (!avulsa) throw new Error('Não há aula avulsa de ' + r.modalidade + ' no catálogo.');
-    var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: r.data, obs: 'aula ' + r.aula_id }, m);
+    var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: r.data, obs: 'aula ' + r.aula_id }, m);
     atualizarLinha('Reservas', r._linha, { credito_id: venda.creditoId });
     esquecerComissoesAulas();
     registrar(m, 'recebeu aula', aluno.nome + ' · ' + r.aula_id + ' · ' + venda.metodo);
@@ -944,7 +945,8 @@ function pagamentoPublico(p) {
     valorOriginal: numero(p.valor_original) || numero(p.valor), desconto: numero(p.desconto), cupom: String(p.cupom || ''), vale: String(p.vale || ''),
     status: p.status, criadoEm: String(p.criado_em || ''), pagoEm: String(p.pago_em || ''), metodo: String(p.metodo || ''), parcelas: p.parcelas,
     valorPago: numero(p.valor_pago), origem: String(p.origem || 'site'), observacao: String(p.observacao || ''), recibo: String(p.recibo || ''),
-    registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado) };
+    registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado),
+    formas: partesDoPagamento(p) || [] };
 }
 
 // Data da venda escolhida no balcão (migração do Avec, venda esquecida): vazio ou hoje = agora.
@@ -987,15 +989,23 @@ function registrarVenda(aluno, plano, o, membro) {
     if (valor !== calc.valorFinal) promocao = '';
   }
   if (metodo === 'Cortesia') { desconto = plano.preco; valor = 0; }
+  // pago de mais de um jeito (ex.: metade no débito, metade no dinheiro): uma venda só, com as partes
+  var divisao = null, parcelasVenda = Number(o.parcelas) || 1;
+  if (Array.isArray(o.formas) && o.formas.length > 1) {
+    if (comVale) throw new Error('Com vale-presente, o resto vai em uma forma só.');
+    if (metodo === 'Cortesia') throw new Error('Cortesia não se divide em formas de pagamento.');
+    divisao = normalizarFormas(o.formas, valor, false);
+    metodo = divisao.metodo; bandeira = divisao.bandeira; parcelasVenda = divisao.parcelas;
+  }
   var pagoEm = momentoDaVenda(o.dataVenda);
   var nsu = novoNsu('B');
   adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cpf, nome: aluno.nome, plano_id: plano.id, descricao: plano.nome, valor: valor, status: 'pendente',
     criado_em: agoraTexto(), valor_original: plano.preco, desconto: desconto, cupom: calc.cupom, vale: calc.vale, vale_usado: calc.valeUsado,
     origem: 'balcão', registrado_por: membro.email, observacao: String(o.obs || '').slice(0, 300), promocao: promocao, tipo_item: plano.tipo === 'servico' || plano.tipo === 'pacote' ? plano.tipo : 'plano',
-    bandeira: bandeira });
+    bandeira: bandeira, formas: divisao && divisao.formas.length ? JSON.stringify(divisao.formas) : '' });
   SpreadsheetApp.flush();
   var inicioC = /^\d{4}-\d{2}-\d{2}$/.test(String(o.inicio)) ? o.inicio : hojeTexto();
-  var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: Number(o.parcelas) || 1, valor_pago: valor, inicio: inicioC,
+  var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: parcelasVenda, valor_pago: valor, inicio: inicioC,
     origemCredito: 'balcão', observacao: String(o.obs || '').slice(0, 300), pagoEm: pagoEm });
   // valeUsado: parte paga com vale-presente (conta na comissão do atendimento, como na comanda)
   return { orderNsu: nsu, creditoId: creditoId, valor: valor, metodo: metodo, valeUsado: numero(calc.valeUsado) };
@@ -1114,6 +1124,7 @@ function vendaQueDaParaMexer(d, m) {
 }
 
 function textoDaVenda(pg) {
+  if (partesDoPagamento(pg)) return textoDivisao(partesDoPagamento(pg));
   return String(pg.metodo || '') + (pg.bandeira ? ' ' + pg.bandeira : '') + (Number(pg.parcelas) > 1 ? ' ' + pg.parcelas + 'x' : '') + ' · ' + brl(numero(pg.valor));
 }
 
@@ -1133,7 +1144,13 @@ function bancada_corrigirVenda(d, m) {
     valor = dinheiro(valor);
     var parcelas = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(12, Math.max(1, Math.round(Number(d.parcelas) || 1))) : 1;
     var antes = textoDaVenda(pg);
-    mud = { metodo: metodo, bandeira: bandeiraDe(metodo, d.bandeira, true), parcelas: parcelas, valor: valor, valor_pago: valor };
+    mud = { metodo: metodo, bandeira: bandeiraDe(metodo, d.bandeira, true), parcelas: parcelas, valor: valor, valor_pago: valor, formas: '' };
+    // dividida em mais de uma forma: as partes têm que fechar com o valor da venda
+    if (Array.isArray(d.formas) && d.formas.length > 1) {
+      if (metodo === 'Cortesia') throw new Error('Cortesia não se divide em formas de pagamento.');
+      var div = normalizarFormas(d.formas, valor, true);
+      mud.metodo = div.metodo; mud.bandeira = div.bandeira; mud.parcelas = div.parcelas; mud.formas = JSON.stringify(div.formas);
+    }
     var diaAntes = String(pg.pago_em).slice(0, 10);
     if (d.dataVenda && d.dataVenda !== diaAntes) {
       mud.pago_em = momentoDaVenda(d.dataVenda) || hojeTexto() + String(pg.pago_em).slice(10);

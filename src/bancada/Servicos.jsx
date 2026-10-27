@@ -810,7 +810,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
               );
             })}
             {extras.length < 7 && (
-              <button type="button" className="link-acao vd-mais" onClick={() => { setRepetir({ cadaDias: 0, vezes: 4 }); setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), servicoId: '', profissional: '', hora: '', dur: 0 }]); }}>
+              <button type="button" className="link-acao vd-mais" onClick={() => { setRepetir({ cadaDias: 0, vezes: 4 }); setPg((x) => { if (!x.formas) return x; const { formas: _f, ...resto } = x; return { ...resto, metodo: x.formas[0].metodo, bandeira: x.formas[0].bandeira }; }); setExtras((l) => [...l, { chave: Math.random().toString(36).slice(2), servicoId: '', profissional: '', hora: '', dur: 0 }]); }}>
                 + Outro serviço neste atendimento
               </button>
             )}
@@ -881,7 +881,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             </label>
           </fieldset>
         )}
-        {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas />}
+        {pagamento === 'pago' && !re && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas semDividir={extras.length > 0} />}
         {!re && serv && !passado && extras.length === 0 && (
           <div className="b-linha2 sr-repetir">
             <label className="b-campo"><span className="rotulo">Repetir</span>

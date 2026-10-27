@@ -26,13 +26,76 @@ export function CampoBandeira({ metodo, valor, aoMudar, className = 'b-campo' })
   );
 }
 
+// Pagamento dividido em mais de uma forma: linhas { metodo, valor, parcelas, bandeira, codigo }.
+// total (número): mostra "faltam / passou"; sem total, a última linha pode ficar sem valor e leva o que sobrar.
+export const LINHA_PAGAMENTO = { metodo: 'Pix', valor: '', parcelas: 1, codigo: '', bandeira: '' };
+export function resumoLinhas(linhas, total) {
+  const soma = linhas.reduce((s, l) => s + numBR(l.valor), 0);
+  const falta = total == null ? 0 : Math.round((total - soma) * 100) / 100;
+  const semBandeira = linhas.some((l) => faltaBandeira(l.metodo, l.bandeira));
+  const vazias = linhas.filter((l) => String(l.valor).trim() === '').length;
+  const ok = !semBandeira && (total == null ? vazias <= 1 && linhas.length > 1 && linhas.every((l) => String(l.valor).trim() === '' || numBR(l.valor) > 0) : Math.abs(falta) <= 0.009);
+  return { soma, falta, semBandeira, ok };
+}
+export function LinhasDePagamento({ linhas, aoMudar, total, formas = METODOS, minimo = 1 }) {
+  const mudar = (i, mud) => {
+    const novas = linhas.map((l, k) => (k === i ? { ...l, ...mud } : l));
+    // duas formas e total conhecido: ao digitar uma, a outra leva o que sobra
+    if (total != null && linhas.length === 2 && 'valor' in mud) {
+      const sobra = Math.round((total - numBR(mud.valor)) * 100) / 100;
+      novas[1 - i] = { ...novas[1 - i], valor: sobra > 0 ? String(sobra.toFixed(2)).replace('.', ',') : '' };
+    }
+    aoMudar(novas);
+  };
+  const { falta } = resumoLinhas(linhas, total);
+  const outra = formas.find((f) => !linhas.some((l) => l.metodo === f)) || formas[0];
+  return (
+    <div className="cm-pagar__linhas">
+      {linhas.map((l, i) => (
+        <div key={i} className={`cm-pagar__linha${linhas.length > minimo ? ' cm-pagar__linha--tirar' : ''}${/Cartão de crédito|Link/.test(l.metodo) ? ' cm-pagar__linha--parcelas' : ''}${pedeBandeira(l.metodo) || l.metodo === 'Vale-presente' ? ' cm-pagar__linha--extra' : ''}`}>
+          <select className="cm-pagar__metodo" value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label="Forma">
+            {formas.map((m) => <option key={m}>{m}</option>)}
+          </select>
+          <input className="cm-pagar__valor" inputMode="decimal" value={l.valor} placeholder={total == null && i === linhas.length - 1 ? 'o que sobrar' : ''} onChange={(e) => mudar(i, { valor: e.target.value.replace(/[^\d,.]/g, '') })} aria-label="Valor" />
+          {/Cartão de crédito|Link/.test(l.metodo) && (
+            <select className="cm-pagar__extra cm-pagar__parcelas" value={l.parcelas} onChange={(e) => mudar(i, { parcelas: Number(e.target.value) })} aria-label="Parcelas">
+              {Array.from({ length: 12 }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}x</option>)}
+            </select>
+          )}
+          {pedeBandeira(l.metodo) && (
+            <select className="cm-pagar__extra cm-pagar__bandeira" value={l.bandeira} onChange={(e) => mudar(i, { bandeira: e.target.value })} aria-label="Bandeira do cartão" aria-invalid={faltaBandeira(l.metodo, l.bandeira)}>
+              <option value="">{ehCartao(l.metodo) ? 'Bandeira…' : 'Bandeira'}</option>
+              {BANDEIRAS.map((b) => <option key={b}>{b}</option>)}
+            </select>
+          )}
+          {l.metodo === 'Vale-presente' && <input className="cm-pagar__extra" value={l.codigo} onChange={(e) => mudar(i, { codigo: e.target.value.toUpperCase() })} placeholder="AMBAR-XXXX-XXXX" aria-label="Código do vale" />}
+          {linhas.length > minimo && <button type="button" className="cm-item__tirar cm-pagar__tirar" aria-label="Tirar forma" onClick={() => aoMudar(linhas.filter((_, k) => k !== i))}>×</button>}
+        </div>
+      ))}
+      <div className="cm-pagar__resumo">
+        {total == null ? (
+          <span className="b-suave">Deixe o valor da última forma em branco para ela levar o que sobrar.</span>
+        ) : Math.abs(falta) > 0.009 ? (
+          <span className={falta > 0 ? 'b-alerta-txt' : 'b-suave'}>{falta > 0 ? `Faltam ${real(falta)}` : `Passou ${real(-falta)}`}</span>
+        ) : <span className="b-suave">Valores conferem.</span>}
+        {(total == null || falta > 0.009 || linhas.length === 1) && (
+          <button type="button" className="link-acao" onClick={() => aoMudar([...linhas, { ...LINHA_PAGAMENTO, metodo: outra, valor: total == null || falta <= 0.009 ? '' : String(falta.toFixed(2)).replace('.', ',') }])}>
+            {total == null ? '+ outra forma' : falta > 0.009 ? `+ dividir: outra forma com ${real(falta)}` : '+ dividir em mais de uma forma'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Forma de pagamento do balcão (agenda, aula avulsa). "Vale-presente" pede o código; se o vale não cobrir
 // tudo, o resto vai na forma escolhida. itemId (serviço/plano) permite conferir o saldo antes de salvar.
+// "Dividir em mais de uma forma": p.formas = linhas (a venda é uma só, com as partes).
 export const PAGAMENTO_INICIAL = { metodo: 'Pix', bandeira: '', codigo: '', resto: 'Pix' };
-export const faltaPagamento = (p) => (p.metodo === 'Vale-presente' ? !p.codigo.trim() : faltaBandeira(p.metodo, p.bandeira));
+export const faltaPagamento = (p) => (p.formas ? !resumoLinhas(p.formas).ok : p.metodo === 'Vale-presente' ? !p.codigo.trim() : faltaBandeira(p.metodo, p.bandeira));
 
 // parcelas: mostra "Parcelas" no cartão de crédito / link (combo parcelado)
-export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', itemId, cpf, data, parcelas }) {
+export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', itemId, cpf, data, parcelas, semDividir }) {
   const { chamar } = useBancada();
   const [conferido, setConferido] = useState(null);
   const [erro, setErro] = useState('');
@@ -49,6 +112,16 @@ export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', 
     } catch (e) { setConferido(null); setErro(e.message); }
   }
   const cobreTudo = conferido && conferido.valorFinal <= 0.009;
+  if (p.formas) {
+    return (
+      <div className="b-pagar b-pagar--dividido">
+        <span className="rotulo">{rotulo} · dividido em {p.formas.length} formas</span>
+        <LinhasDePagamento linhas={p.formas} aoMudar={(l) => (l.length > 1 ? aoMudar({ ...p, formas: l }) : (() => { const { formas: _f, ...resto } = p; aoMudar({ ...resto, metodo: l[0].metodo, bandeira: l[0].bandeira }); })())}
+          formas={formasResto.filter((m) => m !== 'Vale-presente')} minimo={2} />
+        <button type="button" className="link-acao" onClick={() => { const { formas: _f, ...resto } = p; aoMudar({ ...resto, metodo: p.formas[0].metodo, bandeira: p.formas[0].bandeira }); }}>Voltar para uma forma só</button>
+      </div>
+    );
+  }
   return (
     <div className="b-pagar">
       <label className="b-campo"><span className="rotulo">{rotulo}</span>
@@ -74,6 +147,11 @@ export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', 
       {parcelas && !(vale && cobreTudo) && ['Cartão de crédito', 'Link InfinitePay'].includes(vale ? p.resto : p.metodo) && (
         <label className="b-campo"><span className="rotulo">Parcelas</span>
           <select value={p.parcelas || 1} onChange={(e) => mudar({ parcelas: Number(e.target.value) })}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
+      )}
+      {!vale && !semDividir && (
+        <button type="button" className="link-acao" onClick={() => mudar({ formas: [{ ...LINHA_PAGAMENTO, metodo: p.metodo, bandeira: p.bandeira || '', parcelas: p.parcelas || 1 }, { ...LINHA_PAGAMENTO, metodo: p.metodo === 'Pix' ? 'Dinheiro' : 'Pix' }] })}>
+          Dividir em mais de uma forma (ex.: metade no débito, metade no dinheiro)
+        </button>
       )}
     </div>
   );

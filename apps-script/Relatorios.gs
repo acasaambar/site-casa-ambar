@@ -311,6 +311,8 @@ function partesDasVendas(vendas) {
   var comandas = {};
   vendas.forEach(function (p) {
     if (p.comanda) { comandas[String(p.comanda)] = 1; return; }
+    var div = partesDoPagamento(p);
+    if (div) { div.forEach(function (x) { partes.push({ metodo: x.metodo, bandeira: x.bandeira.trim(), parcelas: x.parcelas, valor: x.valor }); }); return; }
     partes.push({ metodo: String(p.metodo || 'não informado'), bandeira: String(p.bandeira || '').trim(), parcelas: Number(p.parcelas) || 1, valor: numero(p.valor) });
   });
   if (Object.keys(comandas).length) {
