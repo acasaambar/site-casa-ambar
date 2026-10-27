@@ -1,0 +1,139 @@
+/* ============================================================
+   DESENHO 10 · base moderna e enxuta (revisão visual de out/2026)
+   Carrega depois de bancada.css e antes dos estilos de cada tela
+   (src/bancada/css/<area>.css). Guia: docs/design-bancada.md
+
+   Ideia: menos texto, mais estrutura. Título + uma linha; o resto vai em
+   "?" (Ajuda), em Aviso curto ou em Secao. Cartões leves, listas com
+   hierarquia clara, números em destaque, muito respiro.
+   ============================================================ */
+
+.bancada {
+  /* escala de cantos, sombras e espaços (use estes, não números soltos) */
+  --r-p: 10px;
+  --r-m: 14px;
+  --r-g: 20px;
+  --sombra-1: 0 1px 2px rgba(47, 56, 33, 0.06), 0 6px 18px -12px rgba(47, 56, 33, 0.28);
+  --sombra-2: 0 2px 4px rgba(47, 56, 33, 0.06), 0 22px 44px -26px rgba(47, 56, 33, 0.5);
+  --e-1: 6px;
+  --e-2: 10px;
+  --e-3: 16px;
+  --e-4: 24px;
+  --e-5: 36px;
+  /* tons de apoio */
+  --b-ok: #E1E6CF;
+  --b-ok-tinta: #3C4628;
+  --b-aviso-fundo: #F6EBD0;
+  --b-aviso-tinta: #6B4512;
+  --b-alerta-fundo: #F5DDD2;
+  --b-alerta-tinta: #7A2C10;
+  --b-info-fundo: #E9EEE0;
+  --b-info-tinta: #3C4628;
+}
+
+/* ---------- página: título + UMA linha ---------- */
+.bancada .b-cabecalho { align-items: flex-end; gap: var(--e-3); padding-bottom: 0; }
+.bancada .b-titulo { font-size: clamp(30px, 3.6vw, 42px); }
+.bancada .b-cabecalho__sub {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 0; max-width: 72ch;
+  font-size: 14px; line-height: 1.45; color: var(--b-suave);
+}
+
+/* ---------- Ajuda: o "?" que guarda a explicação longa ---------- */
+.b-ajuda { position: relative; display: inline-flex; vertical-align: middle; }
+.b-ajuda__botao {
+  width: 24px; height: 24px; padding: 0; border-radius: 50%; display: inline-grid; place-items: center; cursor: pointer;
+  font: 600 13px/1 var(--bancada-texto, 'IBM Plex Sans', system-ui, sans-serif); color: var(--b-suave); background: transparent;
+  border: 1px solid rgba(47, 56, 33, 0.28); transition: background var(--rapido), color var(--rapido), border-color var(--rapido);
+}
+.b-ajuda__botao:hover, .b-ajuda__botao[aria-expanded='true'] { background: var(--b-tinta); color: var(--b-linho); border-color: var(--b-tinta); }
+.b-ajuda__texto {
+  position: absolute; z-index: 60; top: calc(100% + 8px); width: min(340px, 78vw); padding: 14px 16px; border-radius: var(--r-m);
+  background: var(--b-linho); border: 1px solid var(--b-linha); box-shadow: var(--sombra-2);
+  font: 400 14px/1.5 'IBM Plex Sans', system-ui, sans-serif; color: var(--b-tinta); text-align: left; letter-spacing: 0; text-transform: none; font-weight: 400;
+  display: grid; gap: 6px; animation: ajuda-entra 140ms ease-out;
+}
+.b-ajuda__texto strong { font-size: 14px; font-weight: 600; }
+.b-ajuda__texto--esquerda { left: -8px; }
+.b-ajuda__texto--direita { right: -8px; }
+@keyframes ajuda-entra { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 560px) {
+  .b-ajuda__texto, .b-ajuda__texto--esquerda, .b-ajuda__texto--direita { position: fixed; left: 16px; right: 16px; top: auto; bottom: 16px; width: auto; z-index: 90; }
+}
+@media (prefers-reduced-motion: reduce) { .b-ajuda__texto { animation: none; } }
+
+/* ---------- Aviso: frase curta em cartão (no lugar de texto solto) ---------- */
+.b-aviso {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-m); font-size: 14px; line-height: 1.45;
+  background: var(--b-info-fundo); color: var(--b-info-tinta);
+}
+.b-aviso__icone {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  background: currentColor; color: inherit; position: relative;
+}
+.b-aviso__icone { color: transparent; }
+.b-aviso--info .b-aviso__icone { background: rgba(60, 70, 40, 0.16); color: var(--b-info-tinta); }
+.b-aviso--ok { background: var(--b-ok); color: var(--b-ok-tinta); }
+.b-aviso--ok .b-aviso__icone { background: rgba(60, 70, 40, 0.18); color: var(--b-ok-tinta); }
+.b-aviso--aviso { background: var(--b-aviso-fundo); color: var(--b-aviso-tinta); }
+.b-aviso--aviso .b-aviso__icone { background: rgba(107, 69, 18, 0.16); color: var(--b-aviso-tinta); }
+.b-aviso--alerta { background: var(--b-alerta-fundo); color: var(--b-alerta-tinta); }
+.b-aviso--alerta .b-aviso__icone { background: rgba(122, 44, 16, 0.16); color: var(--b-alerta-tinta); }
+.b-aviso__texto { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.b-aviso__texto strong { font-weight: 600; }
+.b-aviso__texto span { opacity: 0.92; }
+.b-aviso__acao { flex: none; display: flex; gap: 8px; align-items: center; }
+@media (max-width: 560px) { .b-aviso { flex-wrap: wrap; } .b-aviso__acao { width: 100%; padding-left: 36px; } }
+
+/* ---------- Secao: título (Plex Sans) + ações + conteúdo ---------- */
+.b-secao { display: flex; flex-direction: column; gap: var(--e-3); min-width: 0; }
+.b-secao__topo { display: flex; align-items: center; justify-content: space-between; gap: var(--e-3); flex-wrap: wrap; }
+.b-secao__titulo { margin: 0; display: flex; align-items: center; gap: 8px; font: 600 18px/1.25 'IBM Plex Sans', system-ui, sans-serif; color: var(--b-tinta); letter-spacing: 0; text-transform: none; }
+.b-secao__acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---------- cartões mais leves ---------- */
+.bancada .b-cartao { border-radius: var(--r-g); box-shadow: var(--sombra-1); }
+.bancada .b-cartao__titulo { font: 600 17px/1.25 'IBM Plex Sans', system-ui, sans-serif; text-transform: none; letter-spacing: 0; }
+.bancada .b-vazio { border-radius: var(--r-g); border-color: rgba(47, 56, 33, 0.16); background: rgba(251, 248, 239, 0.5); }
+.bancada .b-vazio strong { font: 600 17px/1.3 'IBM Plex Sans', system-ui, sans-serif; text-transform: none; }
+.b-vazio__acao { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+/* ---------- carregando com esqueleto ---------- */
+.b-esqueleto { display: grid; gap: 12px; padding: 6px 0; }
+.b-esqueleto span {
+  display: block; border-radius: 8px; max-width: 100%;
+  background: linear-gradient(90deg, rgba(47, 56, 33, 0.06) 25%, rgba(47, 56, 33, 0.12) 50%, rgba(47, 56, 33, 0.06) 75%);
+  background-size: 200% 100%; animation: esqueleto 1.4s ease-in-out infinite;
+}
+@keyframes esqueleto { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .b-esqueleto span { animation: none; } }
+
+/* ---------- peças de apoio ---------- */
+/* ícone num quadradinho tingido (listas, atalhos, cabeçalhos de cartão) */
+.b-icone-chip { flex: none; width: 40px; height: 40px; border-radius: var(--r-m); display: grid; place-items: center; background: rgba(111, 120, 77, 0.14); color: var(--b-oliva); }
+.b-icone-chip--terracota { background: rgba(126, 55, 23, 0.1); color: var(--b-terracota); }
+.b-icone-chip--caramelo { background: rgba(166, 132, 94, 0.18); color: #7D5F3B; }
+/* linha de informações miúdas com ponto no meio: "90 min · R$ 199,00 · 2 pacotes" */
+.b-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 13px; color: var(--b-suave); }
+.b-meta > * + *::before { content: '·'; margin-right: 8px; color: rgba(47, 56, 33, 0.35); }
+/* lista de itens: avatar/ícone | principal + detalhe | meta | ações */
+.b-itens { display: flex; flex-direction: column; background: var(--b-linho); border: 1px solid var(--b-linha); border-radius: var(--r-g); box-shadow: var(--sombra-1); overflow: hidden; }
+.b-item { display: flex; align-items: center; gap: var(--e-3); padding: 14px 18px; border-top: 1px solid var(--b-linha); transition: background var(--rapido); min-width: 0; }
+.b-item:first-child { border-top: 0; }
+a.b-item, button.b-item { color: inherit; text-decoration: none; text-align: left; font: inherit; background: none; border-left: 0; border-right: 0; border-bottom: 0; width: 100%; cursor: pointer; }
+a.b-item:hover, button.b-item:hover { background: rgba(47, 56, 33, 0.035); }
+.b-item__corpo { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.b-item__titulo { font-weight: 600; font-size: 15px; line-height: 1.3; color: var(--b-tinta); overflow-wrap: anywhere; }
+.b-item__lado { flex: none; display: flex; align-items: center; gap: var(--e-2); }
+@media (max-width: 560px) { .b-item { padding: 12px 14px; gap: 12px; } .b-item__lado--tira { flex-wrap: wrap; justify-content: flex-end; } }
+
+/* grade de cartões que se acomoda sozinha */
+.b-grade-cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--e-3); }
+
+/* barra de filtros/ações que acompanha a rolagem */
+.b-barra-fixa { position: sticky; top: 0; z-index: 12; padding: 10px 0; background: linear-gradient(var(--b-papel) 78%, rgba(244, 239, 223, 0)); }
+@media (max-width: 900px) { .b-barra-fixa { top: 69px; } }
+
+/* botões: o principal é cheio; o resto, contorno; o "editar" de listas, fantasma */
+.bancada .botao--fantasma { background: transparent; border-color: transparent; color: var(--b-terracota); text-decoration: none; }
+.bancada .botao--fantasma:hover { background: rgba(126, 55, 23, 0.08); color: var(--b-terracota); }

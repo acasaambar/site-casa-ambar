@@ -110,4 +110,4 @@ http.createServer((req, res) => {
     // DEMORA=1500 npm run simulador → imita a demora do Google (em milissegundos)
     setTimeout(() => res.end(out), Number(process.env.DEMORA) || 0);
   });
-}).listen(8787);
+}).listen(Number(process.env.PORTA) || 8787);

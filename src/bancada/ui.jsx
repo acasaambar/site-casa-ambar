@@ -413,25 +413,94 @@ export function Carregando({ texto = 'Carregando' }) {
   );
 }
 
-export function Vazio({ titulo, children, forma = 'sutileza' }) {
+export function Vazio({ titulo, children, forma = 'sutileza', acao }) {
   return (
     <div className="b-vazio">
       <Forma nome={forma} tamanho={46} cor="var(--caramelo)" />
       <strong>{titulo}</strong>
       {children && <p>{children}</p>}
+      {acao && <div className="b-vazio__acao">{acao}</div>}
     </div>
   );
 }
 
-export function Cabecalho({ rotulo, titulo, children, acoes }) {
+// título da página: subtítulo de UMA linha; o que for mais longo vai em `ajuda` (botão "?")
+export function Cabecalho({ rotulo, titulo, children, acoes, ajuda }) {
   return (
     <header className="b-cabecalho" data-secao={rotulo || undefined}>
       <div>
         <h1 className="b-titulo">{titulo}</h1>
-        {children && <p className="b-cabecalho__sub">{children}</p>}
+        {(children || ajuda) && (
+          <p className="b-cabecalho__sub">
+            {children}
+            {ajuda && <Ajuda titulo={typeof titulo === 'string' ? titulo : undefined}>{ajuda}</Ajuda>}
+          </p>
+        )}
       </div>
       {acoes && <div className="b-cabecalho__acoes">{acoes}</div>}
     </header>
+  );
+}
+
+// botão "?" que abre um cartãozinho com a explicação: no lugar de parágrafos longos soltos na tela
+export function Ajuda({ titulo, children, alinhar = 'esquerda' }) {
+  const ref = useRef(null);
+  const [aberta, setAberta] = useState(false);
+  useEffect(() => {
+    if (!aberta) return undefined;
+    const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberta(false); };
+    const esc = (e) => { if (e.key === 'Escape') setAberta(false); };
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('touchstart', fora);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('touchstart', fora); document.removeEventListener('keydown', esc); };
+  }, [aberta]);
+  return (
+    <span className="b-ajuda" ref={ref}>
+      <button type="button" className="b-ajuda__botao" aria-label={titulo ? `Como funciona: ${titulo}` : 'Como funciona'} aria-expanded={aberta} onClick={() => setAberta((a) => !a)}>?</button>
+      {aberta && (
+        <span className={`b-ajuda__texto b-ajuda__texto--${alinhar}`} role="note">
+          {titulo && <strong>{titulo}</strong>}
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// aviso curto em cartão (no lugar de frase solta): tom = info | ok | aviso | alerta
+export function Aviso({ tom = 'info', titulo, children, acao }) {
+  return (
+    <div className={`b-aviso b-aviso--${tom}`} role={tom === 'alerta' ? 'alert' : 'note'}>
+      <span className="b-aviso__icone" aria-hidden="true">{tom === 'ok' ? '✓' : tom === 'info' ? 'i' : '!'}</span>
+      <div className="b-aviso__texto">
+        {titulo && <strong>{titulo}</strong>}
+        {children && <span>{children}</span>}
+      </div>
+      {acao && <div className="b-aviso__acao">{acao}</div>}
+    </div>
+  );
+}
+
+// bloco com título, ações e ajuda: a base de toda seção da bancada
+export function Secao({ titulo, ajuda, acoes, children, className = '' }) {
+  return (
+    <section className={`b-secao ${className}`.trim()}>
+      <header className="b-secao__topo">
+        <h2 className="b-secao__titulo">{titulo}{ajuda && <Ajuda titulo={typeof titulo === 'string' ? titulo : undefined}>{ajuda}</Ajuda>}</h2>
+        {acoes && <div className="b-secao__acoes">{acoes}</div>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+// carregando com "esqueleto": blocos cinza no lugar do círculo girando
+export function Esqueleto({ linhas = 4, altura = 18 }) {
+  return (
+    <div className="b-esqueleto" role="status" aria-label="Carregando">
+      {Array.from({ length: linhas }, (_, i) => <span key={i} style={{ height: altura, width: `${100 - ((i * 13) % 38)}%` }} />)}
+    </div>
   );
 }
 
