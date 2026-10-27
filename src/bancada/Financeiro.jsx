@@ -1,12 +1,16 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import RelatorioProfissional from './RelatorioProfissional.jsx';
 import { useBancada } from './sessao.jsx';
-import { useDados, Carregando, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Kpi, Abas, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
-  METODOS, mesTexto, plural } from './ui.jsx';
+import { useDados, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Kpi, Abas, Aviso, Secao, Ajuda, Esqueleto, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
+  METODOS, MESES, mesTexto, plural } from './ui.jsx';
 import { BarrasH } from './Graficos.jsx';
+import { Ic, KpiG, BotaoCsv, CartaoG, VazioG, DiaChip } from './GestaoPecas.jsx';
+import './css/gestao.css';
 
 const mesAtual = () => hojeIso().slice(0, 7);
+const diaDe = (iso) => String(Number(String(iso).slice(8, 10)));
+const mesAbrev = (iso) => MESES[Number(String(iso).slice(5, 7)) - 1] || '';
 
 export default function Financeiro() {
   const local = useLocation();
@@ -14,8 +18,9 @@ export default function Financeiro() {
   const [mes, setMes] = useState(mesAtual());
   return (
     <>
-      <Cabecalho titulo="Financeiro" acoes={<SeletorMes mes={mes} aoMudar={setMes} />}>
-        Entradas, despesas, comissões e caixas. As vendas entram sozinhas (site, balcão e comandas).
+      <Cabecalho titulo="Financeiro" acoes={<SeletorMes mes={mes} aoMudar={setMes} />}
+        ajuda="As vendas entram sozinhas (site, balcão e comandas). Aqui você lança despesas, paga comissões e confere os caixas.">
+        Entradas, despesas, comissões e caixas do mês.
       </Cabecalho>
       <Abas atual={aba} aoMudar={setAba} itens={[['mes', 'Visão do mês'], ['despesas', 'Despesas'], ['comissoes', 'Comissões'], ['caixas', 'Caixas']]} />
       {aba === 'mes' && <Mes mes={mes} irPara={setAba} />}
@@ -29,74 +34,90 @@ export default function Financeiro() {
 // ---------- visão do mês ----------
 function Mes({ mes, irPara }) {
   const { dados: f, erro, carregando } = useDados('financeiro', { mes });
-  if (carregando && !f) return <Carregando />;
+  if (carregando && !f) return <Esqueleto linhas={6} altura={26} />;
   if (!f) return <Erro>{erro}</Erro>;
   const varia = f.entradasAnterior > 0 ? Math.round(((f.entradas - f.entradasAnterior) / f.entradasAnterior) * 1000) / 10 : null;
+  const hoje = hojeIso();
+  const totalACair = (f.aCair || []).reduce((t, x) => t + x.valor, 0);
   return (
     <>
-      <section className="b-kpis">
-        <div className="b-kpi"><span className="b-kpi__rotulo">Entradas</span><strong className="b-kpi__valor">{realCurto(f.entradas)}</strong>
-          <span className="b-kpi__detalhe">{varia == null ? 'sem mês anterior' : `${varia >= 0 ? '▲' : '▼'} ${String(Math.abs(varia)).replace('.', ',')}% vs mês anterior`}</span></div>
-        <div className="b-kpi"><span className="b-kpi__rotulo">Saídas pagas</span><strong className="b-kpi__valor">{realCurto(f.saidas)}</strong><span className="b-kpi__detalhe">mês anterior {realCurto(f.saidasAnterior)}</span></div>
+      <section className="gs-kpis gs-kpis--hero" aria-label="Resumo do mês">
+        <KpiG icone="entra" rotulo="Entradas" valor={realCurto(f.entradas)}
+          etiqueta={varia == null ? null : `${varia >= 0 ? '▲' : '▼'} ${String(Math.abs(varia)).replace('.', ',')}%`} etiquetaTom={varia == null ? undefined : varia >= 0 ? 'ok' : 'alerta'}
+          detalhe={varia == null ? 'sem mês anterior' : 'vs mês anterior'} />
+        <KpiG icone="sai" rotulo="Saídas pagas" valor={realCurto(f.saidas)} detalhe={`mês anterior ${realCurto(f.saidasAnterior)}`} />
         {f.taxasConfiguradas ? (
-          <div className={`b-kpi b-kpi--destaque${f.liquido < 0 ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Resultado líquido</span><strong className="b-kpi__valor">{realCurto(f.liquido)}</strong>
-            <span className="b-kpi__detalhe">entradas − taxas da maquininha ({realCurto(f.taxas)}) − saídas</span></div>
+          <KpiG destaque icone="moeda" tom={f.liquido < 0 ? 'alerta' : undefined} rotulo="Resultado líquido" valor={realCurto(f.liquido)}
+            ajuda={`Entradas − taxas da maquininha (${realCurto(f.taxas)}) − saídas pagas.`} detalhe={`depois de ${realCurto(f.taxas)} em taxas e das saídas`} />
         ) : (
-          <div className={`b-kpi b-kpi--destaque${f.resultado < 0 ? ' b-kpi--alerta' : ''}`}><span className="b-kpi__rotulo">Resultado</span><strong className="b-kpi__valor">{realCurto(f.resultado)}</strong><span className="b-kpi__detalhe">entradas − saídas pagas</span></div>
+          <KpiG destaque icone="moeda" tom={f.resultado < 0 ? 'alerta' : undefined} rotulo="Resultado" valor={realCurto(f.resultado)}
+            ajuda="Entradas − saídas pagas." detalhe="entradas menos saídas pagas" />
         )}
-        <div className={`b-kpi${f.aPagar + f.comissoesAPagar > 0 ? ' b-kpi--aviso' : ''}`}><span className="b-kpi__rotulo">Ainda a pagar</span><strong className="b-kpi__valor">{realCurto(f.aPagar + f.comissoesAPagar)}</strong>
-          <span className="b-kpi__detalhe">{plural(f.aPagarQtd, 'conta', 'contas')} · comissões {realCurto(f.comissoesAPagar)}</span></div>
+        <KpiG icone="relogio" tom={f.aPagar + f.comissoesAPagar > 0 ? 'aviso' : undefined} rotulo="Ainda a pagar" valor={realCurto(f.aPagar + f.comissoesAPagar)}
+          detalhe={`${plural(f.aPagarQtd, 'conta', 'contas')} · comissões ${realCurto(f.comissoesAPagar)}`} />
       </section>
-      <section className="b-cartao b-grafico">
-        <header className="b-cartao__topo">
-          <div><h2 className="b-cartao__titulo">O mês dia a dia</h2><p className="b-suave">Para cima, o que entrou. Para baixo, o que saiu.</p></div>
-          <button type="button" className="link-acao" onClick={() => baixarCSV(`fluxo-${mes}`, [['chave', 'Dia'], [(s) => String(s.entradas).replace('.', ','), 'Entradas'], [(s) => String(s.saidas).replace('.', ','), 'Saídas']], f.serie)}>CSV</button>
-        </header>
+
+      <CartaoG titulo="O mês dia a dia" ajuda="Para cima, o que entrou. Para baixo, o que saiu. Toque ou passe o mouse num dia para ver os valores."
+        csv={() => baixarCSV(`fluxo-${mes}`, [['chave', 'Dia'], [(s) => String(s.entradas).replace('.', ','), 'Entradas'], [(s) => String(s.saidas).replace('.', ','), 'Saídas']], f.serie)}>
         <Fluxo serie={f.serie} />
-      </section>
-      <div className="b-duas">
-        <section className="b-cartao b-grafico"><header className="b-cartao__topo"><h2 className="b-cartao__titulo">De onde veio</h2></header>
-          <BarrasH itens={f.porGrupo} formato={realCurto} /></section>
-        <section className="b-cartao b-grafico"><header className="b-cartao__topo"><h2 className="b-cartao__titulo">Para onde foi</h2></header>
-          <BarrasH itens={f.porCategoria} formato={realCurto} vazio="Nenhuma despesa paga neste mês." /></section>
+      </CartaoG>
+
+      <div className="gs-duas">
+        <CartaoG titulo="De onde veio"><BarrasH itens={f.porGrupo} formato={realCurto} participacao /></CartaoG>
+        <CartaoG titulo="Para onde foi"><BarrasH itens={f.porCategoria} formato={realCurto} tom="terracota" participacao vazio="Nenhuma despesa paga neste mês." /></CartaoG>
       </div>
-      <div className="b-duas">
-        <section className="b-cartao b-grafico"><header className="b-cartao__topo"><h2 className="b-cartao__titulo">Formas de pagamento</h2></header>
-          <BarrasH itens={f.porForma} formato={realCurto} />
+
+      <div className="gs-duas">
+        <CartaoG titulo="Formas de pagamento">
+          <BarrasH itens={f.porForma} formato={realCurto} participacao />
           {f.taxas > 0 ? (
-            <div className="fn-taxas">
-              <p className="b-suave">Taxas da InfinitePay neste mês (estimativa): <strong>{real(f.taxas)}</strong></p>
-              {f.taxasPorBandeira?.length > 0 && <ul className="fn-taxas__lista">{f.taxasPorBandeira.map((x) => <li key={x.nome}><span>{x.nome}</span><strong>{real(x.valor)}</strong></li>)}</ul>}
-              {f.semTaxa > 0 && <p className="aviso">{plural(f.semTaxa, 'venda parcelada está', 'vendas parceladas estão')} sem taxa cadastrada para as parcelas; usamos a última informada. Complete em Ajustes → Taxas da maquininha.</p>}
+            <div className="gs-taxas">
+              <div className="gs-taxas__topo">
+                <span className="gs-taxas__rotulo"><Ic nome="percentual" tam={18} />Taxas da InfinitePay<Ajuda titulo="Taxas da InfinitePay">Estimativa do mês pela tabela de Ajustes → Taxas da maquininha.</Ajuda></span>
+                <strong className="gs-taxas__valor">{real(f.taxas)}</strong>
+              </div>
+              {f.taxasPorBandeira?.length > 0 && <BarrasH itens={f.taxasPorBandeira.map((x) => ({ nome: x.nome, valor: x.valor }))} formato={real} tom="caramelo" />}
+              {f.semTaxa > 0 && (
+                <Aviso tom="aviso" acao={<Link to="/bancada/ajustes" className="botao botao--linha botao--p">Abrir Ajustes</Link>}>
+                  {plural(f.semTaxa, 'venda parcelada está', 'vendas parceladas estão')} sem taxa cadastrada nas parcelas (usamos a última informada). Complete em Ajustes → Taxas da maquininha.
+                </Aviso>
+              )}
             </div>
           ) : (
-            <p className="b-suave fn-taxas">Sem taxas no mês (ou ainda não cadastradas em Ajustes → Taxas da maquininha).</p>
+            <div className="gs-taxas gs-taxas--vazia">
+              <span className="gs-taxas__rotulo"><Ic nome="percentual" tam={18} />Sem taxas neste mês<Ajuda titulo="Taxas da maquininha">Ou ainda não cadastradas em Ajustes → Taxas da maquininha.</Ajuda></span>
+            </div>
           )}
-        </section>
-        {f.aCair?.length > 0 && (
-          <section className="b-cartao">
-            <header className="b-cartao__topo"><div><h2 className="b-cartao__titulo">A cair na conta</h2><p className="b-suave">Vendas dos últimos dias no Pix, cartão e link, já sem a taxa.</p></div></header>
-            <ul className="fn-cair">
-              {f.aCair.map((x) => (
-                <li key={x.data}><span>{x.data === hojeIso() ? 'Hoje' : dataBR(x.data)}</span><strong>{real(x.valor)}</strong></li>
-              ))}
-              <li className="fn-cair__total"><span>Total</span><strong>{real(f.aCair.reduce((t, x) => t + x.valor, 0))}</strong></li>
-            </ul>
-          </section>
-        )}
-        <section className="b-cartao">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Contas dos próximos dias</h2><button type="button" className="link-acao" onClick={() => irPara('despesas')}>Ver despesas</button></header>
-          {f.vencendo.length === 0 ? <p className="b-suave">Nada vencendo nos próximos 7 dias.</p> : (
-            <ul className="b-lista-simples">{f.vencendo.map((x) => (
-              <li key={x.id}><strong>{x.descricao} · {real(x.valor)}</strong>
-                {x.data < hojeIso() ? <span className="b-alerta-txt">venceu {dataBR(x.data)}</span> : <span>vence {dataBR(x.data)}</span>}</li>
-            ))}</ul>
+        </CartaoG>
+        <div className="gs-coluna">
+          {f.aCair?.length > 0 && (
+            <CartaoG titulo="A cair na conta" ajuda="Vendas dos últimos dias no Pix, cartão e link, já sem a taxa.">
+              <BarrasH itens={f.aCair.map((x) => ({ nome: x.data === hoje ? 'Hoje' : dataBR(x.data), valor: x.valor }))} formato={real} limite={31} />
+              <div className="gs-total"><span>Total a cair</span><strong>{real(totalACair)}</strong></div>
+            </CartaoG>
           )}
-        </section>
+          <CartaoG titulo="Contas dos próximos dias" acoes={<button type="button" className="botao botao--fantasma botao--p" onClick={() => irPara('despesas')}>Ver despesas</button>}>
+            {f.vencendo.length === 0 ? <VazioG icone="check" titulo="Nada vencendo" >Nenhuma conta nos próximos 7 dias.</VazioG> : (
+              <ul className="gs-contas">{f.vencendo.map((x) => {
+                const atrasada = x.data < hoje;
+                return (
+                  <li key={x.id}>
+                    <DiaChip dia={diaDe(x.data)} mes={mesAbrev(x.data)} tom={atrasada ? 'alerta' : undefined} />
+                    <span className="gs-contas__nome"><strong>{x.descricao}</strong>
+                      <span>{atrasada ? <Tag tom="alerta">venceu {dataBR(x.data)}</Tag> : <>vence {dataBR(x.data)}</>}</span></span>
+                    <strong className="gs-contas__valor">{real(x.valor)}</strong>
+                  </li>
+                );
+              })}</ul>
+            )}
+          </CartaoG>
+        </div>
       </div>
     </>
   );
 }
+
+const compactoR = (v) => (v >= 1000 ? (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : Math.round(v).toLocaleString('pt-BR'));
 
 // gráfico espelhado: entradas para cima (oliva), saídas para baixo (terracota)
 function Fluxo({ serie }) {
@@ -110,24 +131,40 @@ function Fluxo({ serie }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  // tocar fora fecha a dica
+  useEffect(() => {
+    if (!dica) return undefined;
+    const fora = (e) => { if (caixa.current && !caixa.current.contains(e.target)) setDica(null); };
+    document.addEventListener('touchstart', fora, { passive: true });
+    document.addEventListener('mousedown', fora);
+    return () => { document.removeEventListener('touchstart', fora); document.removeEventListener('mousedown', fora); };
+  }, [dica]);
   const max = Math.max(1, ...serie.map((s) => Math.max(s.entradas, s.saidas)));
-  const A = 240, meio = 120, util = 100, esq = 8;
-  const larg = (L - esq * 2) / serie.length;
+  const A = 260, meio = 122, util = 100, esq = 44;
+  const larg = (L - esq - 6) / serie.length;
   const barra = Math.max(3, Math.min(16, larg - 3));
   const hoje = hojeIso();
+  const iHoje = serie.findIndex((s) => s.chave === hoje);
   return (
     <div className="fluxo" ref={caixa} onMouseLeave={() => setDica(null)}>
       <svg viewBox={`0 0 ${L} ${A}`} width={L} height={A} role="img" aria-label="Entradas e saídas por dia">
-        <line x1={esq} x2={L - esq} y1={meio} y2={meio} className="fluxo__eixo" />
+        <line x1={esq} x2={L - 6} y1={meio - util} y2={meio - util} className="g-grade" />
+        <line x1={esq} x2={L - 6} y1={meio + util} y2={meio + util} className="g-grade" />
+        <text x={esq - 8} y={meio - util + 4} textAnchor="end" className="g-eixo">{compactoR(max)}</text>
+        <text x={esq - 8} y={meio + util + 4} textAnchor="end" className="g-eixo">{compactoR(max)}</text>
+        <text x={esq - 8} y={meio + 4} textAnchor="end" className="g-eixo">0</text>
+        <line x1={esq} x2={L - 6} y1={meio} y2={meio} className="fluxo__eixo" />
         {serie.map((s, i) => {
           const x = esq + i * larg + (larg - barra) / 2;
           const he = (s.entradas / max) * util, hs = (s.saidas / max) * util;
+          const aqui = () => setDica({ s, x: x + barra / 2, i });
           return (
-            <g key={s.chave} onMouseMove={() => setDica({ s, x: x + barra / 2 })} onTouchStart={() => setDica({ s, x: x + barra / 2 })}>
+            <g key={s.chave} onMouseMove={aqui} onTouchStart={aqui}>
+              {dica?.i === i && <rect x={esq + i * larg} y={6} width={larg} height={A - 30} rx="4" className="g-faixa" />}
               <rect x={esq + i * larg} y={0} width={larg} height={A} fill="transparent" />
-              {he > 0 && <rect x={x} y={meio - he - 1} width={barra} height={he} rx={Math.min(3, barra / 2)} className="fluxo__entra" />}
-              {hs > 0 && <rect x={x} y={meio + 1} width={barra} height={hs} rx={Math.min(3, barra / 2)} className="fluxo__sai" />}
-              {(i === 0 || (i + 1) % 5 === 0) && <text x={x + barra / 2} y={A - 2} textAnchor="middle" className="g-eixo">{Number(s.chave.slice(8))}</text>}
+              {he > 0 && <rect x={x} y={meio - he - 1} width={barra} height={he} rx={Math.min(4, barra / 2)} className="fluxo__entra" />}
+              {hs > 0 && <rect x={x} y={meio + 1} width={barra} height={hs} rx={Math.min(4, barra / 2)} className="fluxo__sai" />}
+              {(((i === 0 || (i + 1) % 5 === 0) && (iHoje < 0 || Math.abs(i - iHoje) > 1)) || i === iHoje) && <text x={x + barra / 2} y={A - 4} textAnchor="middle" className={`g-eixo${s.chave === hoje ? ' g-eixo--hoje' : ''}`}>{Number(s.chave.slice(8))}</text>}
               {s.chave === hoje && <circle cx={x + barra / 2} cy={meio} r={3.5} className="fluxo__hoje" />}
             </g>
           );
@@ -140,7 +177,7 @@ function Fluxo({ serie }) {
           <span>saiu {real(dica.s.saidas)}</span>
         </div>
       )}
-      <p className="fluxo__legenda"><i className="fluxo__entra" /> entradas <i className="fluxo__sai" /> saídas</p>
+      <p className="g-legenda"><span><i className="g-legenda__cor" />Entradas</span><span><i className="g-legenda__cor g-legenda__cor--sai" />Saídas</span><span><i className="g-legenda__ponto" />Hoje</span></p>
     </div>
   );
 }
@@ -151,43 +188,66 @@ function Despesas({ mes }) {
   const { dados, erro, carregando, setDados } = useDados('despesas', { mes });
   const [editar, setEditar] = useState(null);
   const [erroA, setErroA] = useState('');
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={6} altura={26} />;
   if (!dados) return <Erro>{erro}</Erro>;
   const aPagar = dados.lista.filter((x) => x.status === 'a_pagar');
   const pagas = dados.lista.filter((x) => x.status === 'pago');
+  const somaAPagar = aPagar.reduce((t, x) => t + x.valor, 0);
   const acao = async (nome, d) => { setErroA(''); try { setDados(await chamar(nome, { ...d, mes })); } catch (e) { setErroA(e.message); } };
   const Linha = ({ x }) => (
-    <li className={`desp desp--${x.status}`}>
-      <span className="desp__dia"><strong>{Number(x.data.slice(8))}</strong><small>{x.data.slice(0, 7) !== mes ? dataCurta(x.data) : ''}</small></span>
-      <button type="button" className="desp__nome" onClick={() => setEditar(x)}>
+    <li className={`gs-desp gs-desp--${x.status}${x.status === 'a_pagar' && x.data < hojeIso() ? ' gs-desp--atrasada' : ''}`}>
+      <DiaChip dia={diaDe(x.data)} mes={mesAbrev(x.data)} tom={x.status === 'a_pagar' ? 'terracota' : undefined} />
+      <button type="button" className="gs-desp__nome" onClick={() => setEditar(x)} aria-label={`Editar ${x.descricao}`}>
         <strong>{x.descricao}</strong>
-        <span className="b-suave">{x.categoria}{x.fornecedor ? ` · ${x.fornecedor}` : ''}{x.forma ? ` · ${x.forma}` : ''}{x.automatica ? ' · fixa (mensal)' : x.recorrente ? ' · repete todo mês' : ''}</span>
+        <span className="b-meta">
+          <span>{x.categoria}</span>
+          {x.fornecedor && <span>{x.fornecedor}</span>}
+          {x.forma && <span>{x.forma}</span>}
+          {(x.automatica || x.recorrente) && <span>{x.automatica ? 'fixa (mensal)' : 'repete todo mês'}</span>}
+        </span>
       </button>
-      <strong className="desp__valor">{real(x.valor)}</strong>
-      {x.status === 'a_pagar' ? (
-        <BotaoAcao className="botao botao--linha botao--p" acao={() => acao('pagarDespesa', { id: x.id })}>{x.data < hojeIso() ? 'Paguei (atrasada)' : 'Paguei'}</BotaoAcao>
-      ) : <Tag tom="ok">paga {x.pagoEm ? dataCurta(x.pagoEm) : ''}</Tag>}
+      <strong className="gs-desp__valor">{real(x.valor)}</strong>
+      <span className="gs-desp__acao">
+        {x.status === 'a_pagar' ? (
+          <BotaoAcao className="botao botao--linha botao--p" acao={() => acao('pagarDespesa', { id: x.id })}>{x.data < hojeIso() ? 'Paguei (atrasada)' : 'Paguei'}</BotaoAcao>
+        ) : <Tag tom="ok">paga {x.pagoEm ? dataCurta(x.pagoEm) : ''}</Tag>}
+      </span>
     </li>
   );
   return (
     <>
-      <div className="b-barra-acoes">
-        <p className="b-suave">{mesTexto(mes)}: {real(dados.total)} em contas · {real(dados.pago)} pagas</p>
-        <button type="button" className="botao botao--linha botao--p" disabled={!dados.lista.length} onClick={() => baixarCSV(`despesas-${mes}`, [
+      <div className="gs-acoes">
+        <BotaoCsv rotulo="Exportar CSV" desabilitado={!dados.lista.length} aoClicar={() => baixarCSV(`despesas-${mes}`, [
           [(x) => dataBR(x.data), 'Data'], ['descricao', 'Descrição'], ['categoria', 'Categoria'], [(x) => String(x.valor).replace('.', ','), 'Valor'], ['forma', 'Forma'],
-          [(x) => (x.status === 'pago' ? 'paga' : 'a pagar'), 'Situação'], [(x) => dataBR(x.pagoEm), 'Paga em'], ['fornecedor', 'Fornecedor']], dados.lista)}>Exportar CSV</button>
+          [(x) => (x.status === 'pago' ? 'paga' : 'a pagar'), 'Situação'], [(x) => dataBR(x.pagoEm), 'Paga em'], ['fornecedor', 'Fornecedor']], dados.lista)} />
         <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ data: hojeIso(), categoria: 'Outros', status: 'pago', forma: 'Pix' })}>Nova despesa</button>
       </div>
+      <section className="gs-kpis gs-kpis--3" aria-label={`Despesas de ${mesTexto(mes)}`}>
+        <KpiG compacto icone="recibo" rotulo="Em contas" valor={real(dados.total)} detalhe={mesTexto(mes)} />
+        <KpiG compacto icone="check" tom={dados.pago > 0 ? 'ok' : undefined} rotulo="Já pagas" valor={real(dados.pago)} detalhe={plural(pagas.length, 'conta', 'contas')} />
+        <KpiG compacto icone="relogio" tom={somaAPagar > 0 ? 'aviso' : undefined} rotulo="A pagar" valor={real(somaAPagar)} detalhe={plural(aPagar.length, 'conta', 'contas')} />
+      </section>
       <Erro>{erroA}</Erro>
       {dados.atrasadas.length > 0 && (
-        <section className="b-cartao desp-atrasadas">
-          <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Atrasadas de meses anteriores</h2></header>
-          <ul className="desp-lista">{dados.atrasadas.map((x) => <Linha key={x.id} x={x} />)}</ul>
-        </section>
+        <Secao titulo="Atrasadas de meses anteriores" acoes={<Tag tom="alerta">{plural(dados.atrasadas.length, 'conta', 'contas')}</Tag>}>
+          <ul className="gs-lista gs-lista--alerta">{dados.atrasadas.map((x) => <Linha key={x.id} x={x} />)}</ul>
+        </Secao>
       )}
-      {dados.lista.length === 0 && <Vazio titulo="Nenhuma despesa neste mês" forma="presenca">Lance aluguel, contas, fornecedores e salários. Marque “repete todo mês” nas contas fixas.</Vazio>}
-      {aPagar.length > 0 && <><h2 className="b-subtitulo">A pagar</h2><ul className="desp-lista">{aPagar.map((x) => <Linha key={x.id} x={x} />)}</ul></>}
-      {pagas.length > 0 && <><h2 className="b-subtitulo">Pagas</h2><ul className="desp-lista">{pagas.map((x) => <Linha key={x.id} x={x} />)}</ul></>}
+      {dados.lista.length === 0 && (
+        <Vazio titulo="Nenhuma despesa neste mês" forma="presenca" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ data: hojeIso(), categoria: 'Outros', status: 'pago', forma: 'Pix' })}>Lançar a primeira despesa</button>}>
+          Aluguel, contas, fornecedores e salários. Marque “repete todo mês” nas contas fixas.
+        </Vazio>
+      )}
+      {aPagar.length > 0 && (
+        <Secao titulo="A pagar" acoes={<span className="gs-secao-total"><Tag tom="aviso">{plural(aPagar.length, 'conta', 'contas')}</Tag><strong>{real(somaAPagar)}</strong></span>}>
+          <ul className="gs-lista">{aPagar.map((x) => <Linha key={x.id} x={x} />)}</ul>
+        </Secao>
+      )}
+      {pagas.length > 0 && (
+        <Secao titulo="Pagas" acoes={<span className="gs-secao-total"><Tag tom="ok">{plural(pagas.length, 'conta', 'contas')}</Tag><strong>{real(dados.pago)}</strong></span>}>
+          <ul className="gs-lista">{pagas.map((x) => <Linha key={x.id} x={x} />)}</ul>
+        </Secao>
+      )}
       {editar && <EditarDespesa x={editar} categorias={dados.categorias} aoFechar={() => setEditar(null)} aoSalvar={(d) => { setDados(d); setEditar(null); }} mes={mes} />}
     </>
   );
@@ -274,7 +334,7 @@ function Comissoes({ mes }) {
   const q = semAcentoJs(busca.trim());
   const lista = useMemo(() => todas.filter((c) => passa(c, { prof, situacao, tipo, busca: q })), [todas, prof, situacao, tipo, q]); // eslint-disable-line react-hooks/exhaustive-deps
   const contar = (f) => todas.filter((c) => passa(c, { prof, situacao, tipo, busca: q, ...f })).length;
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={6} altura={26} />;
   if (!dados) return <Erro>{erro}</Erro>;
   const inicioMes = `${mes}-01`;
   const aPagarLista = lista.filter((c) => c.status === 'a_pagar');
@@ -298,7 +358,7 @@ function Comissoes({ mes }) {
   ], lista);
   return (
     <div className="k-comissoes">
-      {semRegra.length > 0 && <p className="aviso">Sem porcentagem de comissão: {semRegra.map((p) => p.nome).join(', ')}. Defina em Catálogo → Profissionais.</p>}
+      {semRegra.length > 0 && <Aviso tom="aviso" titulo="Sem porcentagem de comissão" acao={<Link to="/bancada/grade" className="botao botao--linha botao--p">Definir</Link>}>{semRegra.map((p) => p.nome).join(', ')}. Defina em Catálogo → Profissionais.</Aviso>}
 
       {dados.porProfissional.length > 0 && (
         <section className="k-equipe" aria-label="Comissões por pessoa">
@@ -341,10 +401,11 @@ function Comissoes({ mes }) {
           <Segmentos rotulo="Tipo" valor={tipo} aoMudar={setTipo} itens={TIPOS_COMISSAO.map(([id, t]) => [id, t, contar({ tipo: id })])} />
         </div>
         <div className="k-filtros__rodape">
-          <span className="b-suave">{filtrando ? `${plural(lista.length, 'lançamento', 'lançamentos')} com estes filtros` : `${plural(lista.length, 'lançamento', 'lançamentos')} em ${mesTexto(mes)}`}</span>
+          <span className="b-suave k-contagem">{filtrando ? `${plural(lista.length, 'lançamento', 'lançamentos')} com estes filtros` : `${plural(lista.length, 'lançamento', 'lançamentos')} em ${mesTexto(mes)}`}
+            {dados.liquida && <Ajuda titulo="Base da comissão">A base de cada comissão é o valor depois da taxa da maquininha (Pix e dinheiro não têm taxa).</Ajuda>}</span>
           <span className="k-filtros__acoes">
             {filtrando && <button type="button" className="botao botao--linha botao--p" onClick={limpar}>Limpar filtros</button>}
-            <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={exportar}>Baixar planilha</button>
+            <BotaoCsv rotulo="Baixar planilha" desabilitado={!lista.length} aoClicar={exportar} />
             <button type="button" className="botao botao--cheio botao--p" disabled={!pessoasRel.length} onClick={() => setRelatorio(prof || pessoasRel[0])}>
               Relatório {prof ? `de ${prof.split(' ')[0]}` : 'para imprimir'}
             </button>
@@ -362,8 +423,6 @@ function Comissoes({ mes }) {
           <Kpi rotulo="Já paga" valor={real(totalPago)} tom={totalPago > 0 ? 'ok' : undefined} detalhe={plural(lista.length - aPagarLista.length, 'lançamento', 'lançamentos')} />
         </section>
       )}
-
-      {todas.length > 0 && dados.liquida && <p className="b-suave k-nota">A base de cada comissão é o valor depois da taxa da maquininha (Pix e dinheiro não têm taxa).</p>}
 
       {todas.length > 0 && lista.length === 0 && (
         <Vazio titulo="Nada com estes filtros">Tire algum filtro para ver mais lançamentos. <button type="button" className="botao botao--linha botao--p" onClick={limpar}>Limpar filtros</button></Vazio>
@@ -429,29 +488,44 @@ function Caixas() {
   const nav = useNavigate();
   const { dados, erro, carregando } = useDados('caixa', {});
   const abrir = (dia) => nav('/bancada/comandas', { state: { vista: 'caixa', dia } });
-  if (carregando && !dados) return <Carregando />;
+  if (carregando && !dados) return <Esqueleto linhas={6} altura={26} />;
   if (!dados) return <Erro>{erro}</Erro>;
   const lista = dados.anteriores || [];
+  const bateram = lista.filter((c) => c.diferenca != null && Math.abs(c.diferenca) < 0.01).length;
+  const comDiferenca = lista.filter((c) => c.diferenca != null && Math.abs(c.diferenca) >= 0.01).length;
+  const abertos = lista.filter((c) => c.diferenca == null).length;
   return (
     <>
-      <p className="b-suave">O caixa de hoje fica em Comandas → Caixa do dia. Aqui estão os últimos fechamentos: toque num dia para abrir, corrigir ou lançar algo que faltou.</p>
-      {lista.length === 0 ? <Vazio titulo="Nenhum caixa fechado ainda" /> : (
-        <div className="b-tabela-caixa">
-          <table className="b-tabela b-tabela--clicavel">
-            <thead><tr><th>Dia</th><th className="num">Esperado</th><th className="num">Contado</th><th className="num">Diferença</th><th>Fechado por</th></tr></thead>
-            <tbody>
-              {lista.map((c) => (
-                <tr key={c.data} onClick={() => abrir(c.data)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && abrir(c.data)}>
-                  <td data-rotulo="Dia">{dataBR(c.data)}</td>
-                  <td data-rotulo="Esperado" className="num">{real(c.esperado)}</td>
-                  <td data-rotulo="Contado" className="num">{c.contado == null ? '—' : real(c.contado)}</td>
-                  <td data-rotulo="Diferença" className="num">{c.diferenca == null ? <Tag tom="aviso">não fechado</Tag> : Math.abs(c.diferenca) < 0.01 ? <Tag tom="ok">bateu</Tag> : <Tag tom="alerta">{real(c.diferenca)}</Tag>}</td>
-                  <td data-rotulo="Fechado por">{c.fechadoPor || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Aviso tom="info" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => nav('/bancada/comandas', { state: { vista: 'caixa' } })}>Abrir caixa de hoje</button>}>
+        O caixa de hoje fica em Comandas → Caixa do dia. Toque num dia para abrir ou corrigir.
+      </Aviso>
+      {lista.length === 0 ? (
+        <Vazio titulo="Nenhum caixa fechado ainda" forma="presenca">Feche o caixa do dia em Comandas → Caixa do dia e ele aparece aqui.</Vazio>
+      ) : (
+        <>
+          <section className="gs-kpis gs-kpis--3" aria-label="Resumo dos caixas">
+            <KpiG compacto icone="check" tom={bateram ? 'ok' : undefined} rotulo="Bateram" valor={bateram} detalhe={`de ${plural(lista.length, 'fechamento', 'fechamentos')}`} />
+            <KpiG compacto icone="alerta" tom={comDiferenca ? 'alerta' : undefined} rotulo="Com diferença" valor={comDiferenca} detalhe="contado ≠ esperado" />
+            <KpiG compacto icone="relogio" tom={abertos ? 'aviso' : undefined} rotulo="Não fechados" valor={abertos} detalhe="ainda sem contagem" />
+          </section>
+          <div className="b-tabela-caixa gs-tabela">
+            <table className="b-tabela b-tabela--clicavel">
+              <thead><tr><th>Dia</th><th className="num">Esperado</th><th className="num">Contado</th><th>Situação</th><th>Fechado por</th><th aria-hidden="true" /></tr></thead>
+              <tbody>
+                {lista.map((c) => (
+                  <tr key={c.data} onClick={() => abrir(c.data)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && abrir(c.data)}>
+                    <td data-rotulo="Dia"><span className="gs-dia-linha"><DiaChip dia={diaDe(c.data)} mes={mesAbrev(c.data)} /><span className="gs-dia-linha__texto">{dataBR(c.data)}</span></span></td>
+                    <td data-rotulo="Esperado" className="num">{real(c.esperado)}</td>
+                    <td data-rotulo="Contado" className="num">{c.contado == null ? '—' : real(c.contado)}</td>
+                    <td data-rotulo="Situação">{c.diferenca == null ? <Tag tom="aviso">não fechado</Tag> : Math.abs(c.diferenca) < 0.01 ? <Tag tom="ok">bateu</Tag> : <Tag tom="alerta">{c.diferenca > 0 ? 'sobrou' : 'faltou'} {real(Math.abs(c.diferenca))}</Tag>}</td>
+                    <td data-rotulo="Fechado por">{c.fechadoPor || '—'}</td>
+                    <td className="gs-seta" aria-hidden="true">›</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </>
   );
@@ -462,29 +536,43 @@ export function MeusGanhos() {
   const [mes, setMes] = useState(mesAtual());
   const [relatorio, setRelatorio] = useState(false);
   const { dados: g, erro, carregando } = useDados('meusGanhos', { mes });
+  const nomeMes = mesTexto(mes).split(' ')[0].toLowerCase();
   return (
     <>
-      <Cabecalho titulo="Meus ganhos" acoes={<SeletorMes mes={mes} aoMudar={setMes} />}>Sua comissão de cada atendimento e venda. A administração registra quando paga.</Cabecalho>
+      <Cabecalho titulo="Meus ganhos" acoes={<SeletorMes mes={mes} aoMudar={setMes} />}
+        ajuda={`A administração registra quando paga.${g?.liquida ? ' A base de cada comissão é o valor depois da taxa da maquininha.' : ''}`}>
+        Sua comissão de cada atendimento e venda.
+      </Cabecalho>
       <Erro>{erro}</Erro>
-      {carregando && !g && <Carregando />}
+      {carregando && !g && <Esqueleto linhas={5} altura={26} />}
       {g && (
         <>
-          <section className="b-kpis">
-            <div className="b-kpi b-kpi--destaque"><span className="b-kpi__rotulo">Ganhos em {mesTexto(mes).split(' ')[0]}</span><strong className="b-kpi__valor">{real(g.total)}</strong></div>
-            <div className="b-kpi"><span className="b-kpi__rotulo">A receber</span><strong className="b-kpi__valor">{real(g.aPagar)}</strong></div>
-            <div className="b-kpi"><span className="b-kpi__rotulo">Já recebido</span><strong className="b-kpi__valor">{real(g.pago)}</strong></div>
-            <div className="b-kpi"><span className="b-kpi__rotulo">Atendimentos</span><strong className="b-kpi__valor">{g.atendidos}</strong><span className="b-kpi__detalhe">{g.agendados} na agenda · {plural(g.faltas, 'falta', 'faltas')}</span></div>
+          <section className="gs-kpis gs-kpis--hero" aria-label={`Ganhos de ${nomeMes}`}>
+            <KpiG destaque icone="moeda" rotulo={`Ganhos em ${nomeMes}`} valor={real(g.total)} detalhe={plural(g.lista.length, 'lançamento', 'lançamentos')} />
+            <KpiG icone="relogio" tom={g.aPagar > 0 ? 'aviso' : undefined} rotulo="A receber" valor={real(g.aPagar)} />
+            <KpiG icone="check" tom={g.pago > 0 ? 'ok' : undefined} rotulo="Já recebido" valor={real(g.pago)} />
+            <KpiG icone="presenca" rotulo="Atendimentos" valor={g.atendidos} detalhe={`${g.agendados} na agenda · ${plural(g.faltas, 'falta', 'faltas')}`} />
           </section>
-          {g.liquida && <p className="b-suave">A base de cada comissão é o valor depois da taxa da maquininha.</p>}
-          <div className="k-relatorio">
-            <button type="button" className="botao botao--linha botao--p" onClick={() => setRelatorio(true)}>Imprimir meu relatório de {mesTexto(mes).split(' ')[0].toLowerCase()}</button>
-          </div>
-          {relatorio && <RelatorioProfissional mes={mes} aoFechar={() => setRelatorio(false)} />}
-          {g.lista.length === 0 ? <Vazio titulo="Nada neste mês ainda" forma="presenca" /> : (
-            <ul className="b-lista-simples ganhos">
-              {g.lista.map((c) => <li key={c.id}><strong>{real(c.valor)} · {c.item}</strong><span>{dataBR(c.data)} · {c.origem === 'aula_fixa' ? 'valor da aula' : `${String(c.pct).replace('.', ',')}% de ${real(c.base)}`} · {c.status === 'pago' ? 'recebido' : 'a receber'}</span></li>)}
-            </ul>
-          )}
+          <Secao titulo="Lançamentos" acoes={
+            <button type="button" className="botao botao--linha botao--p gs-botao-icone" onClick={() => setRelatorio(true)}><Ic nome="imprimir" tam={16} />Imprimir relatório de {nomeMes}</button>
+          }>
+            {relatorio && <RelatorioProfissional mes={mes} aoFechar={() => setRelatorio(false)} />}
+            {g.lista.length === 0 ? <Vazio titulo="Nada neste mês ainda" forma="presenca">Cada atendimento marcado como atendido e cada aula dada aparecem aqui com a sua comissão.</Vazio> : (
+              <ul className="gs-lista gs-ganhos">
+                {g.lista.map((c) => (
+                  <li key={c.id}>
+                    <DiaChip dia={diaDe(c.data)} mes={mesAbrev(c.data)} tom={c.status === 'pago' ? undefined : 'terracota'} />
+                    <span className="gs-ganhos__corpo">
+                      <strong>{c.item}</strong>
+                      <span className="b-meta"><span>{c.origem === 'aula_fixa' ? 'valor da aula' : `${String(c.pct).replace('.', ',')}% de ${real(c.base)}`}</span></span>
+                    </span>
+                    <strong className="gs-ganhos__valor">{real(c.valor)}</strong>
+                    <Tag tom={c.status === 'pago' ? 'ok' : 'aviso'}>{c.status === 'pago' ? 'recebido' : 'a receber'}</Tag>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Secao>
         </>
       )}
     </>

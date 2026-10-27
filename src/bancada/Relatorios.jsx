@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useDados, Carregando, Erro, Cabecalho, Kpi, Abas, Vazio, real, realCurto, dataBR, dataCurta, hojeIso, somarDias, MESES, linkWhats, primeiro,
+import { useDados, Erro, Cabecalho, Abas, Segmento, Vazio, Aviso, Esqueleto, real, realCurto, dataBR, dataCurta, hojeIso, somarDias, MESES, linkWhats, primeiro,
   telFmt, baixarCSV, plural } from './ui.jsx';
 import { BarrasH, Colunas, MapaCalor } from './Graficos.jsx';
+import { Ic, KpiG, CartaoG, VazioG } from './GestaoPecas.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
+import './css/gestao.css';
 
 function periodoPreset(id) {
   const h = hojeIso();
@@ -23,6 +25,8 @@ function periodoPreset(id) {
 
 const TIPOS = { avulsa: 'Aula avulsa', mensal: 'Plano mensal', trimestral: 'Plano trimestral', servico: 'Serviço avulso', pacote: 'Pacote de serviço', outro: 'Outros' };
 const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
+const iniciaisDe = (nome) => String(nome || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+const PERIODOS = [['mes', 'Este mês'], ['mes-passado', 'Mês passado'], ['30', '30 dias'], ['90', '90 dias'], ['ano', 'Este ano'], ['livre', 'Escolher']];
 
 export default function Relatorios() {
   const local = useLocation();
@@ -39,24 +43,28 @@ export default function Relatorios() {
 
   return (
     <>
-      <Cabecalho titulo="Relatórios">Financeiro, aulas, serviços e marketing do período escolhido.</Cabecalho>
-      <div className="b-periodo">
-        <div className="b-filtros">
-          {[['mes', 'Este mês'], ['mes-passado', 'Mês passado'], ['30', '30 dias'], ['90', '90 dias'], ['ano', 'Este ano'], ['livre', 'Escolher']].map(([id, t]) => (
-            <button key={id} type="button" className={`b-chip${preset === id ? ' b-chip--ativo' : ''}`} onClick={() => escolher(id)}>{t}</button>
-          ))}
+      <Cabecalho titulo="Relatórios" ajuda="Todos os números respeitam o período escolhido. Cada gráfico tem o botão CSV para baixar a planilha.">
+        Financeiro, aulas, serviços e marketing do período.
+      </Cabecalho>
+      <div className="b-barra-fixa gs-barra-fixa">
+        <div className="gs-periodo">
+          <div className="gs-periodo__chips" role="group" aria-label="Período">
+            {PERIODOS.map(([id, t]) => (
+              <button key={id} type="button" aria-pressed={preset === id} className={`b-chip${preset === id ? ' b-chip--ativo' : ''}`} onClick={() => escolher(id)}>{t}</button>
+            ))}
+          </div>
+          <span className="gs-periodo__faixa"><Ic nome="calendario" tam={16} />{dataBR(de)} a {dataBR(ate)}</span>
+          {preset === 'livre' && (
+            <div className="gs-periodo__datas">
+              <label className="b-campo"><span className="rotulo">De</span><input type="date" value={de} onChange={(e) => e.target.value && setPeriodo([e.target.value, ate])} /></label>
+              <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setPeriodo([de, e.target.value])} /></label>
+            </div>
+          )}
         </div>
-        {preset === 'livre' && (
-          <>
-            <label className="b-campo"><span className="rotulo">De</span><input type="date" value={de} onChange={(e) => e.target.value && setPeriodo([e.target.value, ate])} /></label>
-            <label className="b-campo"><span className="rotulo">Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setPeriodo([de, e.target.value])} /></label>
-          </>
-        )}
-        <span className="b-suave">{dataBR(de)} a {dataBR(ate)}</span>
       </div>
       <Abas atual={aba} aoMudar={setAba} itens={[['financeiro', 'Financeiro'], ['aulas', 'Aulas e horários'], ['servicos', 'Serviços'], ['alunos', 'Alunos e marketing'], ['vales', 'Vales e cupons']]} />
       <Erro>{erro}</Erro>
-      {carregando && !atual && <Carregando texto="Calculando" />}
+      {carregando && !atual && <Esqueleto linhas={6} altura={28} />}
       {r && atual && (
         <>
           {aba === 'financeiro' && <Financeiro f={r.financeiro} de={de} ate={ate} />}
@@ -64,26 +72,16 @@ export default function Relatorios() {
           {aba === 'alunos' && <Alunos a={r.alunos} />}
           {aba === 'vales' && <ValesCupons v={r.vales} f={r.financeiro} />}
           {aba === 'servicos' && r.servicos && <ServicosRel s={r.servicos} />}
-          <p className="b-suave b-nota">Atualizado em {r.geradoEm.slice(0, 16).split(' ').map((x, i) => (i ? x : x.split('-').reverse().join('/'))).join(' às ')}.</p>
+          <p className="gs-atualizado"><Ic nome="relogio" tam={15} />Atualizado em {r.geradoEm.slice(0, 16).split(' ').map((x, i) => (i ? x : x.split('-').reverse().join('/'))).join(' às ')}</p>
         </>
       )}
     </>
   );
 }
 
-function Grafico({ titulo, sub, children, csv }) {
-  return (
-    <section className="b-cartao b-grafico">
-      <header className="b-cartao__topo">
-        <div>
-          <h2 className="b-cartao__titulo">{titulo}</h2>
-          {sub && <p className="b-suave">{sub}</p>}
-        </div>
-        {csv && <button type="button" className="link-acao" onClick={csv}>CSV</button>}
-      </header>
-      {children}
-    </section>
-  );
+// cartão de gráfico dos relatórios (título, "?", CSV)
+function Grafico({ titulo, sub, ajuda, children, csv }) {
+  return <CartaoG titulo={titulo} sub={sub} ajuda={ajuda} csv={csv}>{children}</CartaoG>;
 }
 
 const rotuloSerie = (porMes) => (k, completo) => {
@@ -93,48 +91,58 @@ const rotuloSerie = (porMes) => (k, completo) => {
 
 function Financeiro({ f, de, ate }) {
   const csvItens = (nome, itens) => () => baixarCSV(nome, [['nome', 'Item'], ['qtd', 'Quantidade'], [(i) => String(i.valor).replace('.', ','), 'Valor (R$)']], itens);
+  const vendasDe = (i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') });
   return (
     <>
-      <section className="b-kpis">
-        <Kpi rotulo="Faturamento" valor={realCurto(f.receita)}
-          detalhe={f.variacao == null ? 'sem período anterior para comparar' : `${f.variacao >= 0 ? '▲' : '▼'} ${pct(Math.abs(f.variacao))} vs período anterior (${realCurto(f.receitaAnterior)})`}
-          tom={f.variacao == null ? '' : f.variacao >= 0 ? 'ok' : 'alerta'} />
-        <Kpi rotulo="Vendas" valor={f.vendas} detalhe={`ticket médio ${real(f.ticketMedio)}`} />
-        <Kpi rotulo="Conversão no site" valor={pct(f.conversaoSite)} detalhe={`${f.linksSite} pagamentos iniciados · ${f.abandonados} não concluídos`} />
-        <Kpi rotulo="Descontos com cupom" valor={realCurto(f.descontosCupom)} detalhe={f.estornos ? `${f.estornos} estornos (${real(f.valorEstornado)})` : 'nenhum estorno'} />
+      <section className="gs-kpis" aria-label="Resumo financeiro">
+        <KpiG icone="moeda" rotulo="Faturamento" valor={realCurto(f.receita)}
+          etiqueta={f.variacao == null ? null : `${f.variacao >= 0 ? '▲' : '▼'} ${pct(Math.abs(f.variacao))}`} etiquetaTom={f.variacao == null ? undefined : f.variacao >= 0 ? 'ok' : 'alerta'}
+          detalhe={f.variacao == null ? 'sem período anterior para comparar' : `vs período anterior (${realCurto(f.receitaAnterior)})`} />
+        <KpiG icone="recibo" rotulo="Vendas" valor={f.vendas} detalhe={`ticket médio ${real(f.ticketMedio)}`} />
+        <KpiG icone="link" rotulo="Conversão no site" valor={pct(f.conversaoSite)} detalhe={`${f.linksSite} pagamentos iniciados · ${f.abandonados} não concluídos`} />
+        <KpiG icone="cupom" rotulo="Descontos com cupom" valor={realCurto(f.descontosCupom)} detalhe={f.estornos ? `${f.estornos} estornos (${real(f.valorEstornado)})` : 'nenhum estorno'} />
       </section>
-      <Grafico titulo={f.seriePorMes ? 'Faturamento por mês' : 'Faturamento por dia'} sub="A coluna terracota é o melhor momento do período."
+      <Grafico titulo={f.seriePorMes ? 'Faturamento por mês' : 'Faturamento por dia'} ajuda="Passe o mouse (ou toque) numa coluna para ver o valor e o número de vendas. A coluna terracota é o melhor momento do período."
         csv={() => baixarCSV(`faturamento-${de}-a-${ate}`, [['chave', 'Data'], [(s) => String(s.valor).replace('.', ','), 'Valor (R$)'], ['qtd', 'Vendas']], f.serie)}>
-        <Colunas serie={f.serie} rotuloX={rotuloSerie(f.seriePorMes)} formato={real} dicaExtra={(d) => ` · ${d.qtd} venda${d.qtd === 1 ? '' : 's'}`} />
+        <Colunas serie={f.serie} rotuloX={rotuloSerie(f.seriePorMes)} formato={real} legenda="Faturamento" dicaExtra={(d) => ` · ${d.qtd} venda${d.qtd === 1 ? '' : 's'}`} />
       </Grafico>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Por modalidade" csv={csvItens('faturamento-modalidade', f.porModalidade)}>
-          <BarrasH itens={f.porModalidade.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
+          <BarrasH itens={f.porModalidade.map(vendasDe)} formato={realCurto} participacao />
         </Grafico>
         <Grafico titulo="Por tipo de plano" csv={csvItens('faturamento-tipo', f.porTipo)}>
-          <BarrasH itens={f.porTipo.map((i) => ({ ...i, nome: TIPOS[i.nome] || i.nome, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
+          <BarrasH itens={f.porTipo.map((i) => ({ ...vendasDe(i), nome: TIPOS[i.nome] || i.nome }))} formato={realCurto} participacao />
         </Grafico>
       </div>
       <Grafico titulo="Planos que mais vendem" sub="Ordenado pelo faturamento" csv={csvItens('planos-mais-vendidos', f.porPlano)}>
-        <BarrasH itens={f.porPlano.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} limite={12} />
+        <BarrasH itens={f.porPlano.map(vendasDe)} formato={realCurto} limite={12} />
       </Grafico>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Formas de pagamento" csv={csvItens('formas-pagamento', f.porForma)}>
-          <BarrasH itens={f.porForma.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
+          <BarrasH itens={f.porForma.map(vendasDe)} formato={realCurto} participacao />
           {f.porBandeira?.length > 0 && (
-            <>
-              <h3 className="b-subtitulo">Cartões por bandeira</h3>
-              <BarrasH itens={f.porBandeira.map((i) => ({ ...i, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
-            </>
+            <div className="gs-subbloco">
+              <h3 className="gs-subbloco__titulo">Cartões por bandeira</h3>
+              <BarrasH itens={f.porBandeira.map(vendasDe)} formato={realCurto} tom="caramelo" participacao />
+            </div>
           )}
         </Grafico>
-        <Grafico titulo="Site × balcão" sub={f.porParcelas.length ? 'Cartão: ' + f.porParcelas.map((p) => `${p.nome} (${p.qtd})`).join(' · ') : ''}>
-          <BarrasH itens={f.porOrigem.map((i) => ({ ...i, nome: i.nome === 'site' ? 'Pelo site' : 'No balcão', detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
+        <Grafico titulo="Site × balcão">
+          <BarrasH itens={f.porOrigem.map((i) => ({ ...i, nome: i.nome === 'site' ? 'Pelo site' : 'No balcão', detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} participacao />
+          {f.porParcelas.length > 0 && (
+            <div className="gs-subbloco">
+              <h3 className="gs-subbloco__titulo">Parcelas no cartão</h3>
+              <ul className="gs-chips">{f.porParcelas.map((p) => <li key={p.nome}><span>{p.nome}</span><strong>{p.qtd}</strong></li>)}</ul>
+            </div>
+          )}
         </Grafico>
       </div>
       {f.jurosDevolver.length > 0 && (
-        <Grafico titulo="Juros para devolver" sub="Parcelou dentro do sem juros e a InfinitePay cobrou juros. Devolva e marque em Vendas.">
-          <ul className="b-lista-simples">{f.jurosDevolver.map((p) => <li key={p.orderNsu}><strong>{p.nome}</strong><span>{p.observacao}</span></li>)}</ul>
+        <Grafico titulo="Juros para devolver" ajuda="Parcelou dentro do sem juros e a InfinitePay cobrou juros. Devolva à pessoa e marque em Vendas.">
+          <Aviso tom="aviso" titulo={plural(f.jurosDevolver.length, 'venda para conferir', 'vendas para conferir')} acao={<Link to="/bancada/vendas" className="botao botao--linha botao--p">Abrir Vendas</Link>}>Devolva os juros e marque em Vendas.</Aviso>
+          <ul className="b-itens gs-itens">{f.jurosDevolver.map((p) => (
+            <li key={p.orderNsu} className="b-item"><span className="b-item__corpo"><span className="b-item__titulo">{p.nome}</span><span className="b-suave">{p.observacao}</span></span></li>
+          ))}</ul>
         </Grafico>
       )}
     </>
@@ -144,18 +152,18 @@ function Financeiro({ f, de, ate }) {
 function Aulas({ a }) {
   const nomes = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const [mod, setMod] = useState('Yoga');
-  if (!a.geral.aulas) return <Vazio titulo="Ainda sem aulas realizadas no período">Os números aparecem conforme as aulas acontecem.</Vazio>;
+  if (!a.geral.aulas) return <Vazio titulo="Ainda sem aulas realizadas no período" forma="presenca">Os números aparecem conforme as aulas acontecem. Tente um período maior.</Vazio>;
   const passadas = a.presencas + a.faltas + a.semRegistro;
   const csvGrupo = (nome, itens) => () => baixarCSV(nome, [['nome', 'Grupo'], ['aulas', 'Aulas'], ['reservas', 'Reservas'], ['capacidade', 'Vagas'], [(i) => String(i.ocupacao).replace('.', ','), 'Ocupação %']], itens);
   return (
     <>
-      <section className="b-kpis">
-        <Kpi rotulo="Ocupação média" valor={pct(a.geral.ocupacao)} detalhe={`${plural(a.geral.reservas, 'reserva', 'reservas')} em ${plural(a.geral.aulas, 'aula', 'aulas')}`} />
-        <Kpi rotulo="Presença" valor={passadas ? pct(Math.round((a.presencas / passadas) * 1000) / 10) : '—'} detalhe={`${plural(a.presencas, 'presente', 'presentes')} · ${plural(a.faltas, 'falta', 'faltas')} · ${a.semRegistro} sem registro`} />
-        <Kpi rotulo="Cancelamentos" valor={a.cancelamentos} />
-        <Kpi rotulo="Pelo Wellhub" valor={a.wellhub} detalhe="reservas no período" />
+      <section className="gs-kpis" aria-label="Resumo das aulas">
+        <KpiG icone="barras" rotulo="Ocupação média" valor={pct(a.geral.ocupacao)} detalhe={`${plural(a.geral.reservas, 'reserva', 'reservas')} em ${plural(a.geral.aulas, 'aula', 'aulas')}`} />
+        <KpiG icone="presenca" rotulo="Presença" valor={passadas ? pct(Math.round((a.presencas / passadas) * 1000) / 10) : '—'} detalhe={`${plural(a.presencas, 'presente', 'presentes')} · ${plural(a.faltas, 'falta', 'faltas')} · ${a.semRegistro} sem registro`} />
+        <KpiG icone="fechar" rotulo="Cancelamentos" valor={a.cancelamentos} />
+        <KpiG icone="pessoa" rotulo="Pelo Wellhub" valor={a.wellhub} detalhe="reservas no período" />
       </section>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Ocupação por modalidade" csv={csvGrupo('ocupacao-modalidade', a.porModalidade)}>
           <BarrasH itens={a.porModalidade.map((g) => ({ nome: g.nome, valor: g.ocupacao, detalhe: `${g.reservas}/${g.capacidade} vagas` }))} formato={pct} max={100} />
         </Grafico>
@@ -163,40 +171,48 @@ function Aulas({ a }) {
           <BarrasH itens={a.porDiaSemana.map((g) => ({ nome: g.nome, valor: g.ocupacao, detalhe: plural(g.aulas, 'aula', 'aulas') }))} formato={pct} max={100} />
         </Grafico>
       </div>
-      <Grafico titulo="Mapa de ocupação" sub="Cada quadrado é um horário da semana. Quanto mais escuro, mais cheio — bom para decidir abrir ou fechar turmas.">
-        <div className="b-filtros">{['Yoga', 'Pilates'].map((m) => <button key={m} type="button" className={`b-chip${mod === m ? ' b-chip--ativo' : ''}`} onClick={() => setMod(m)}>{m}</button>)}</div>
+      <Grafico titulo="Mapa de ocupação" ajuda="Cada quadrado é um horário da semana. Quanto mais escuro, mais cheio. Bom para decidir abrir ou fechar turmas.">
+        <Segmento itens={[['Yoga', 'Yoga'], ['Pilates', 'Pilates']]} atual={mod} aoMudar={setMod} rotulo="Modalidade" />
         <MapaCalor celulas={a.mapaCalor.filter((c) => c.modalidade === mod)} nomesDias={nomes} />
       </Grafico>
       <Grafico titulo="Horários mais procurados" csv={csvGrupo('horarios', a.porHorario)}>
         <BarrasH itens={a.porHorario.map((g) => ({ nome: g.nome.replace(':00', 'h').replace(':', 'h'), valor: g.ocupacao, detalhe: `${plural(g.reservas, 'reserva', 'reservas')} em ${plural(g.aulas, 'aula', 'aulas')}` }))} formato={pct} max={100} limite={12} />
       </Grafico>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Por profissional" sub="Reservas no período" csv={csvGrupo('profissionais', a.porProfessora)}>
           <BarrasH itens={a.porProfessora.map((g) => ({ nome: g.nome, valor: g.reservas, detalhe: `${plural(g.aulas, 'aula', 'aulas')} · ${pct(g.ocupacao)} de ocupação` }))} />
         </Grafico>
         <Grafico titulo="Como as aulas foram pagas">
-          <BarrasH itens={a.porForma.map((g) => ({ nome: g.nome, valor: g.qtd }))} />
+          <BarrasH itens={a.porForma.map((g) => ({ nome: g.nome, valor: g.qtd }))} participacao />
         </Grafico>
       </div>
     </>
   );
 }
 
-function ListaContatos({ titulo, sub, itens, extra, mensagem, nomeCsv }) {
+function ListaContatos({ titulo, sub, ajuda, itens, extra, mensagem, nomeCsv }) {
+  const mostrados = itens.slice(0, 30);
   return (
-    <Grafico titulo={`${titulo} (${itens.length})`} sub={sub}
+    <Grafico titulo={`${titulo} (${itens.length})`} sub={sub} ajuda={ajuda}
       csv={itens.length ? () => baixarCSV(nomeCsv, [['nome', 'Nome'], [(i) => telFmt(i.whatsapp), 'WhatsApp'], ['email', 'E-mail'], [(i) => extra(i), 'Detalhe']], itens) : null}>
-      {itens.length === 0 ? <p className="g-vazio">Ninguém nesta lista agora.</p> : (
-        <ul className="b-contatos">
-          {itens.slice(0, 30).map((i) => (
-            <li key={i.cpf}>
-              <div><strong>{i.cpf ? <Link to={`/bancada/alunos/${i.cpf}`}>{i.nome}</Link> : i.nome}</strong><span className="b-suave">{extra(i)}</span></div>
-              {i.whatsapp && (
-                <a className="link-acao" href={linkWhats(i.whatsapp, mensagem(i))} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${i.nome}`}><IconeWhatsapp tamanho={16} /></a>
-              )}
-            </li>
-          ))}
-        </ul>
+      {itens.length === 0 ? <VazioG icone="check" titulo="Ninguém nesta lista agora" /> : (
+        <>
+          <ul className="gs-contatos">
+            {mostrados.map((i) => (
+              <li key={i.cpf || i.nome}>
+                <span className="gs-contatos__ini" aria-hidden="true">{iniciaisDe(i.nome)}</span>
+                <span className="gs-contatos__corpo">
+                  <strong>{i.cpf ? <Link to={`/bancada/alunos/${i.cpf}`}>{i.nome}</Link> : i.nome}</strong>
+                  <span>{extra(i)}</span>
+                </span>
+                {i.whatsapp && (
+                  <a className="gs-contatos__whats" href={linkWhats(i.whatsapp, mensagem(i))} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${i.nome}`} title="Chamar no WhatsApp"><IconeWhatsapp tamanho={18} /></a>
+                )}
+              </li>
+            ))}
+          </ul>
+          {itens.length > mostrados.length && <p className="gs-mais">Mostrando {mostrados.length} de {itens.length}. A lista completa está no CSV.</p>}
+        </>
       )}
     </Grafico>
   );
@@ -204,44 +220,45 @@ function ListaContatos({ titulo, sub, itens, extra, mensagem, nomeCsv }) {
 
 function Alunos({ a }) {
   const mesAtual = MESES[new Date().getMonth()];
+  const responderam = a.comoConheceramTodos.filter((c) => c.nome !== 'Não informado').reduce((s, c) => s + c.qtd, 0);
   return (
     <>
-      <section className="b-kpis">
-        <Kpi rotulo="Alunos com plano ou aula" valor={a.ativos} detalhe={`${a.comPlano} com plano mensal/trimestral`} />
-        <Kpi rotulo="Novos no período" valor={a.novosNoPeriodo} detalhe={`${a.total} cadastrados no total`} />
-        <Kpi rotulo="Renovação" valor={pct(a.renovacao.taxa)} detalhe={`${a.renovacao.renovaram} de ${a.renovacao.terminaram} planos que venceram`} />
-        <Kpi rotulo="Sem ficha de saúde" valor={a.semFicha} tom={a.semFicha ? 'aviso' : ''} detalhe={`${a.wellhub} usam Wellhub`} />
+      <section className="gs-kpis" aria-label="Resumo de clientes">
+        <KpiG icone="pessoa" rotulo="Alunos com plano ou aula" valor={a.ativos} detalhe={`${a.comPlano} com plano mensal/trimestral`} />
+        <KpiG icone="novos" rotulo="Novos no período" valor={a.novosNoPeriodo} detalhe={`${a.total} cadastrados no total`} />
+        <KpiG icone="renovar" rotulo="Renovação" valor={pct(a.renovacao.taxa)} detalhe={`${a.renovacao.renovaram} de ${a.renovacao.terminaram} planos que venceram`} />
+        <KpiG icone="alerta" tom={a.semFicha ? 'aviso' : undefined} rotulo="Sem ficha de saúde" valor={a.semFicha} detalhe={`${a.wellhub} usam Wellhub`} />
       </section>
-      <div className="b-duas">
-        <Grafico titulo="Como nos conheceram" sub={`Clientes novos no período · ${a.comoConheceramTodos.filter((c) => c.nome !== 'Não informado').reduce((s, c) => s + c.qtd, 0)} de ${a.total} já responderam`}>
+      <div className="gs-duas">
+        <Grafico titulo="Como nos conheceram" sub="Clientes novos no período" ajuda={`${responderam} de ${a.total} clientes já responderam como conheceram a Casa.`}>
           {a.comoConheceram.length
-            ? <BarrasH itens={a.comoConheceram.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} />
-            : <p className="b-suave">Nenhum cliente novo no período.</p>}
+            ? <BarrasH itens={a.comoConheceram.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} participacao />
+            : <VazioG icone="vazio" titulo="Nenhum cliente novo no período" />}
         </Grafico>
-        <Grafico titulo="Vendas por canal" sub="Quanto cada canal trouxe no período (pela resposta no cadastro)">
+        <Grafico titulo="Vendas por canal" sub="Quanto cada canal trouxe" ajuda="Soma das vendas do período, separadas pela resposta de “Como nos conheceu?” no cadastro.">
           {a.vendasPorCanal.length
-            ? <BarrasH itens={a.vendasPorCanal.map((c) => ({ nome: c.nome, valor: c.valor }))} formato={realCurto} />
-            : <p className="b-suave">Sem vendas no período.</p>}
+            ? <BarrasH itens={a.vendasPorCanal.map((c) => ({ nome: c.nome, valor: c.valor }))} formato={realCurto} participacao />
+            : <VazioG icone="vazio" titulo="Sem vendas no período" />}
         </Grafico>
       </div>
-      <Grafico titulo="Bairros dos clientes" sub={`${a.comEndereco} de ${a.total} clientes com endereço completo`}>
+      <Grafico titulo="Bairros dos clientes" sub={`${a.comEndereco} de ${a.total} com endereço completo`}>
         {a.bairros.length
-          ? <BarrasH itens={a.bairros.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} limite={15} />
-          : <p className="b-suave">Ainda ninguém com bairro cadastrado. Preencha o endereço em Clientes → editar.</p>}
+          ? <BarrasH itens={a.bairros.map((c) => ({ nome: c.nome, valor: c.qtd }))} formato={(v) => `${v} cliente${v === 1 ? '' : 's'}`} limite={15} participacao />
+          : <VazioG icone="vazio" titulo="Ainda ninguém com bairro cadastrado">Preencha o endereço em Clientes → editar.</VazioG>}
       </Grafico>
       <Grafico titulo="Novos cadastros por mês" sub="Últimos 12 meses">
-        <Colunas serie={a.novosPorMes.map((m) => ({ chave: m.chave, valor: m.qtd }))} rotuloX={rotuloSerie(true)} formato={(v) => `${v} aluno${v === 1 ? '' : 's'}`} altura={190} />
+        <Colunas serie={a.novosPorMes.map((m) => ({ chave: m.chave, valor: m.qtd }))} rotuloX={rotuloSerie(true)} formato={(v) => `${v} aluno${v === 1 ? '' : 's'}`} altura={190} legenda="Novos cadastros" />
       </Grafico>
-      <div className="b-duas">
-        <ListaContatos titulo="Planos vencendo" sub="Nos próximos 10 dias: hora de lembrar da renovação" itens={a.vencendo} nomeCsv="planos-vencendo"
+      <div className="gs-duas">
+        <ListaContatos titulo="Planos vencendo" sub="Nos próximos 10 dias" ajuda="Hora de lembrar da renovação. O botão de WhatsApp já leva a mensagem pronta." itens={a.vencendo} nomeCsv="planos-vencendo"
           extra={(i) => `${i.plano} · até ${dataCurta(i.fim)}`}
           mensagem={(i) => `Olá, ${primeiro(i.nome)}! Seu plano ${i.plano} na Casa Âmbar vence em ${dataBR(i.fim)}. Quer renovar para seguir sua prática?`} />
         <ListaContatos titulo={`Aniversariantes de ${mesAtual}`} sub="Que tal um vale-presente?" itens={a.aniversariantes} nomeCsv="aniversariantes"
           extra={(i) => `dia ${i.dia}`}
           mensagem={(i) => `Feliz aniversário, ${primeiro(i.nome)}! 🎂 A Casa Âmbar deseja um novo ciclo leve e cheio de presença.`} />
       </div>
-      <div className="b-duas">
-        <ListaContatos titulo="Quem sumiu" sub="Fizeram aula nos últimos 4 meses, mas não vêm há 3 semanas e estão sem plano" itens={a.sumidos} nomeCsv="alunos-sumidos"
+      <div className="gs-duas">
+        <ListaContatos titulo="Quem sumiu" sub="Sem aula há 3 semanas e sem plano" ajuda="Fizeram aula nos últimos 4 meses, mas não vêm há 3 semanas e estão sem plano." itens={a.sumidos} nomeCsv="alunos-sumidos"
           extra={(i) => `última aula ${dataCurta(i.ultimaAula)}`}
           mensagem={(i) => `Olá, ${primeiro(i.nome)}! Sentimos sua falta na Casa Âmbar. Que tal voltar à sua prática esta semana?`} />
         <ListaContatos titulo="Só fizeram aula avulsa" sub="Oportunidade de oferecer um plano" itens={a.soAvulsa} nomeCsv="so-avulsa"
@@ -258,18 +275,18 @@ function Alunos({ a }) {
 function ValesCupons({ v, f }) {
   return (
     <>
-      <section className="b-kpis">
-        <Kpi rotulo="Vales vendidos" valor={v.gerados} detalhe={`${realCurto(v.valorGerado)} em vales`} />
-        <Kpi rotulo="Vales usados" valor={v.resgatados} detalhe={`${realCurto(v.valorResgatado)} usados no período`} />
-        <Kpi rotulo="Vales em aberto" valor={v.abertos} detalhe="ainda podem ser usados" />
-        <Kpi rotulo="Aulas cortesia" valor={v.aulasCortesia} detalhe="agendadas pela bancada" />
+      <section className="gs-kpis" aria-label="Resumo de vales e cupons">
+        <KpiG icone="presente" rotulo="Vales vendidos" valor={v.gerados} detalhe={`${realCurto(v.valorGerado)} em vales`} />
+        <KpiG icone="check" rotulo="Vales usados" valor={v.resgatados} detalhe={`${realCurto(v.valorResgatado)} usados no período`} />
+        <KpiG icone="relogio" rotulo="Vales em aberto" valor={v.abertos} detalhe="ainda podem ser usados" />
+        <KpiG icone="pessoa" rotulo="Aulas cortesia" valor={v.aulasCortesia} detalhe="agendadas pela bancada" />
       </section>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Vales vendidos por tipo">
-          <BarrasH itens={v.porTipo.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n} vale${n === 1 ? '' : 's'}`} />
+          <BarrasH itens={v.porTipo.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n} vale${n === 1 ? '' : 's'}`} vazio="Nenhum vale vendido no período." />
         </Grafico>
         <Grafico titulo="Cupons mais usados" sub={`Desconto total: ${real(f.descontosCupom)}`}>
-          <BarrasH itens={f.cupons.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: 'desconto ' + real(i.valor) }))} formato={(n) => `${n} uso${n === 1 ? '' : 's'}`} />
+          <BarrasH itens={f.cupons.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: 'desconto ' + real(i.valor) }))} formato={(n) => `${n} uso${n === 1 ? '' : 's'}`} vazio="Nenhum cupom usado no período." />
         </Grafico>
       </div>
       {v.porCampanha.length > 0 && (
@@ -281,30 +298,29 @@ function ValesCupons({ v, f }) {
   );
 }
 
-
 function ServicosRel({ s }) {
-  if (!s.agendados && !s.receita) return <Vazio titulo="Ainda sem serviços no período">Os números aparecem conforme a recepção agenda estética e fisioterapia.</Vazio>;
+  if (!s.agendados && !s.receita) return <Vazio titulo="Ainda sem serviços no período" forma="presenca">Os números aparecem conforme a recepção agenda estética e fisioterapia. Tente um período maior.</Vazio>;
   return (
     <>
-      <section className="b-kpis">
-        <Kpi rotulo="Faturamento com serviços" valor={realCurto(s.receita)} detalhe={`${s.pacotesVendidos} pacote${s.pacotesVendidos === 1 ? '' : 's'} vendido${s.pacotesVendidos === 1 ? '' : 's'}`} />
-        <Kpi rotulo="Atendimentos" valor={s.agendados} detalhe={`${s.atendidos} já atendidos`} />
-        <Kpi rotulo="Faltas" valor={pct(s.taxaFalta)} detalhe={`${plural(s.faltas, 'falta', 'faltas')} · ${plural(s.cancelados, 'cancelado', 'cancelados')}`} tom={s.taxaFalta > 15 ? 'alerta' : ''} />
+      <section className="gs-kpis" aria-label="Resumo dos serviços">
+        <KpiG icone="moeda" rotulo="Faturamento com serviços" valor={realCurto(s.receita)} detalhe={`${s.pacotesVendidos} pacote${s.pacotesVendidos === 1 ? '' : 's'} vendido${s.pacotesVendidos === 1 ? '' : 's'}`} />
+        <KpiG icone="calendario" rotulo="Atendimentos" valor={s.agendados} detalhe={`${s.atendidos} já atendidos`} />
+        <KpiG icone="alerta" rotulo="Faltas" valor={pct(s.taxaFalta)} detalhe={`${plural(s.faltas, 'falta', 'faltas')} · ${plural(s.cancelados, 'cancelado', 'cancelados')}`} tom={s.taxaFalta > 15 ? 'alerta' : undefined} />
       </section>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Serviços mais agendados">
           <BarrasH itens={s.porServico.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} limite={12} />
         </Grafico>
         <Grafico titulo="Por área de cuidado">
-          <BarrasH itens={s.porCategoria.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} />
+          <BarrasH itens={s.porCategoria.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} participacao />
         </Grafico>
       </div>
-      <div className="b-duas">
+      <div className="gs-duas">
         <Grafico titulo="Por profissional" sub="Atendimentos no período">
           <BarrasH itens={s.porProfissional.map((i) => ({ nome: i.nome, valor: i.qtd, detalhe: realCurto(i.valor) }))} formato={(n) => `${n}×`} />
         </Grafico>
         <Grafico titulo="Faturamento por área">
-          <BarrasH itens={s.receitaPorCategoria.map((i) => ({ nome: i.nome, valor: i.valor, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} />
+          <BarrasH itens={s.receitaPorCategoria.map((i) => ({ nome: i.nome, valor: i.valor, detalhe: plural(i.qtd, 'venda', 'vendas') }))} formato={realCurto} participacao />
         </Grafico>
       </div>
     </>
