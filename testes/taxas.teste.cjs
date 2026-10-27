@@ -29,8 +29,10 @@ ok(seq('Mastercard') === seq('Visa'), 'Mastercard tem a mesma tabela da Visa');
 ok(seq('Elo') === '4.91 6.47 7.2 7.92 8.63 9.33 10.03 10.72 11.41 12.08 12.75 13.41', 'Elo de 1x a 12x', seq('Elo'));
 ok(seq('American Express') === seq('Elo'), 'American Express tem a mesma tabela da Elo');
 ok([1, 2, 3, 12].map((n) => pct('Cartão de crédito', 'Visa', n).falta).every((f) => f === false) && pct('Cartão de crédito', 'Elo', 12).falta === false, 'nenhuma parcela da maquininha está faltando');
-ok(pct('Link InfinitePay', '', 1).pct === 4.2 && pct('Link InfinitePay', 'Visa', 1).pct === 4.2, 'link à vista 4,2% em qualquer bandeira');
-ok(pct('Link InfinitePay', '', 3).falta === true && pct('Link InfinitePay', '', 3).pct === 4.2, 'link 3x sem taxa informada: usa a anterior e avisa que falta');
+const linkSeq = (b) => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => pct('Link InfinitePay', b, n).pct).join(' ');
+ok(linkSeq('') === '4.2 6.09 7.01 7.91 8.8 9.67 12.59 13.42 14.25 15.06 15.87 16.66', 'link de 1x a 12x (tabela do app)', linkSeq(''));
+ok(linkSeq('Elo') === linkSeq('Visa') && linkSeq('American Express') === linkSeq(''), 'link: a mesma taxa para qualquer bandeira');
+ok([1, 7, 12].every((n) => pct('Link InfinitePay', '', n).falta === false), 'nenhuma parcela do link está faltando');
 ok(pct('Pix', '', 1).pct === 0 && pct('Dinheiro', '', 1).pct === 0, 'Pix e dinheiro sem taxa');
 
 console.log('— salvar a tabela');
@@ -50,9 +52,9 @@ ok(pct('Cartão de débito', 'Amex', 1).pct === 1.37, 'débito de bandeira sem l
 ok(pct('Cartão de crédito', 'Hipercard', 1).pct === 3.15, 'bandeira sem linha própria usa a coluna Visa/Mastercard');
 
 console.log('— tabela salva antes dos números do app');
-const velho = ctx.normalizarTaxas({ pix: 0.5, debito: 1.5, credito: { vm: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9] }, link: [4.2, 5], prazos: { link: 3 } });
-ok(velho.debito.vm === 1.37 && velho.credito.vm[2] === 6.12 && velho.pix === 0.5 && velho.link[1] === 5 && velho.prazos.link === 3,
-  'sem versão: débito e crédito voltam ao padrão do app; Pix, link e prazos salvos ficam', velho);
+const velho = ctx.normalizarTaxas({ versao: 2, pix: 0.5, debito: 1.5, credito: { vm: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9] }, link: [4.2, null], prazos: { link: 3 } });
+ok(velho.debito.vm === 1.37 && velho.credito.vm[2] === 6.12 && velho.link[1] === 6.09 && velho.pix === 0.5 && velho.prazos.link === 3,
+  'versão antiga: débito, crédito e link voltam ao padrão do app; Pix e prazos salvos ficam', velho);
 const novoSalvo = ctx.normalizarTaxas({ versao: ctx.TABELA_VERSAO, debito: { vm: 1.5, elo: 2.5 }, credito: { vm: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] } });
 ok(novoSalvo.debito.vm === 1.5 && novoSalvo.credito.vm[2] === 5, 'com a versão atual: o que foi salvo vale');
 

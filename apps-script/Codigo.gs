@@ -75,9 +75,9 @@ AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
 // Os valores de partida são os que a Casa já usava (débito, crédito à vista e link); as parcelas de 2x a 12x ficam para conferir no app da InfinitePay.
 var GRUPOS_TAXA = ['vm', 'elo', 'amex'];
 function colunaTaxa(primeira) { var c = []; for (var i = 0; i < 12; i++) c.push(i === 0 ? primeira : null); return c; }
-// Tabela do app da InfinitePay (calculadora, plano "1 Dia Útil", vídeo de 26/10/2026). Mudou a tabela? Troque os números e some 1 em TABELA_VERSAO:
-// quem salvou uma tabela de versão antiga volta a usar os números novos de débito e crédito (pix, link e prazos salvos ficam).
-var TABELA_VERSAO = 2;
+// Tabela do app da InfinitePay (calculadora, plano "1 Dia Útil", vídeos de 26/10/2026: aba Maquininha e aba Link). Mudou a tabela? Troque os números e some 1 em TABELA_VERSAO:
+// quem salvou uma tabela de versão antiga volta a usar os números novos de débito, crédito e link (pix e prazos salvos ficam).
+var TABELA_VERSAO = 3;
 function taxasPadrao() {
   return { versao: TABELA_VERSAO, pix: 0,
     // débito: Visa e Mastercard (mesma tabela) e Elo; a American Express não tem débito
@@ -86,8 +86,8 @@ function taxasPadrao() {
     credito: { vm: [3.15, 5.39, 6.12, 6.85, 7.57, 8.28, 8.99, 9.69, 10.38, 11.06, 11.74, 12.4],
       elo: [4.91, 6.47, 7.2, 7.92, 8.63, 9.33, 10.03, 10.72, 11.41, 12.08, 12.75, 13.41],
       amex: [4.91, 6.47, 7.2, 7.92, 8.63, 9.33, 10.03, 10.72, 11.41, 12.08, 12.75, 13.41] },
-    // link: só a taxa à vista é conhecida (prints do Avec); as parcelas ficam para a Casa informar
-    link: colunaTaxa(4.2),
+    // link (qualquer bandeira: a aba Link do app nem pergunta a bandeira); o salto de 6x para 7x é da própria tabela
+    link: [4.2, 6.09, 7.01, 7.91, 8.8, 9.67, 12.59, 13.42, 14.25, 15.06, 15.87, 16.66],
     // dias úteis até o dinheiro cair na conta (InfinitePay: 1 dia útil no cartão e no link; Pix na hora)
     prazos: { pix: 0, debito: 1, credito: 1, link: 1 } };
 }
@@ -123,7 +123,8 @@ function normalizarTaxas(j) {
   if (j.prazos && typeof j.prazos === 'object') ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
     var n = Number(j.prazos[k]); if (j.prazos[k] !== '' && j.prazos[k] != null && !isNaN(n) && n >= 0 && n <= 60) t.prazos[k] = Math.round(n);
   });
-  if (Array.isArray(j.link)) t.link = colunaDe(j.link, t.link);
+  if (antiga) { /* link: padrão novo */ }
+  else if (Array.isArray(j.link)) t.link = colunaDe(j.link, t.link);
   else if (typeof j.link === 'number' || typeof j.link === 'string') { var l = numeroTaxa(j.link); t.link = colunaTaxa(l).map(function (_, i) { return l; }); }
   return t;
 }

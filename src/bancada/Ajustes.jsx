@@ -131,7 +131,7 @@ function Taxas() {
   const pendentes = faltando(t);
   return (
     <div className="tx">
-      <p className="b-suave tx-intro">As taxas da InfinitePay (maquininha e link). Em cada venda o sistema usa a taxa da <strong>bandeira</strong> e do <strong>número de parcelas</strong>, e o Financeiro e o Caixa mostram quanto realmente cai na conta. Os valores da maquininha são os do app da InfinitePay (plano de 1 dia útil): Visa e Mastercard têm a mesma tabela, e Elo e American Express também. Falta só completar o que estiver em branco.</p>
+      <p className="b-suave tx-intro">As taxas da InfinitePay (maquininha e link). Em cada venda o sistema usa a taxa da <strong>bandeira</strong> e do <strong>número de parcelas</strong>, e o Financeiro e o Caixa mostram quanto realmente cai na conta. Os valores são os do app da InfinitePay (calculadora, plano de 1 dia útil): na maquininha, Visa e Mastercard têm a mesma tabela, e Elo e American Express também; o link tem uma tabela só, para qualquer bandeira. Se a InfinitePay mudar uma taxa, é só editar aqui.</p>
       {pendentes.length > 0 && <p className="aviso">Faltam as taxas de 2x a 12x de: {pendentes.join(', ')}. Enquanto isso, uma venda parcelada usa a última taxa informada, e o Financeiro avisa quantas vendas ficaram assim.</p>}
 
       <div className="tx-linha">
