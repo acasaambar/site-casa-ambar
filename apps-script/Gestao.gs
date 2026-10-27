@@ -63,8 +63,10 @@ function acharProduto(id) {
   return lerAba('Produtos').filter(function (p) { return String(p.id) === String(id); })[0] || null;
 }
 
-function bancada_produtos() {
+function bancada_produtos(d, m) {
   var lista = listarProdutos(true);
+  // custo de compra: só a administração (a recepção vende e dá entrada, mas não precisa saber a margem)
+  if (m && m.papel !== 'admin') lista = lista.map(function (p) { return Object.assign({}, p, { custo: null }); });
   return { produtos: lista, categorias: CATEGORIAS_PRODUTO,
     baixo: lista.filter(function (p) { return p.ativo && p.minimo > 0 && p.estoque <= p.minimo; }).length };
 }
@@ -142,11 +144,11 @@ function bancada_movimentarEstoque(d, m) {
   return bancada_produtos();
 }
 
-function bancada_movimentos(d) {
+function bancada_movimentos(d, m) {
   var lista = lerAba('MovEstoque').filter(function (x) { return x.produto_id && (!d.produtoId || String(x.produto_id) === String(d.produtoId)); });
   return lista.slice(-300).reverse().map(function (x) {
     return { quando: String(x.quando), produtoId: String(x.produto_id), produto: String(x.produto), tipo: String(x.tipo), qtd: numero(x.qtd),
-      valor: dinheiro(x.valor), motivo: String(x.motivo || ''), quem: String(x.quem || '').split('@')[0] };
+      valor: m && m.papel !== 'admin' ? null : dinheiro(x.valor), motivo: String(x.motivo || ''), quem: String(x.quem || '').split('@')[0] };
   });
 }
 

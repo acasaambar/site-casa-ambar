@@ -158,7 +158,10 @@ function bytesDaAssinatura(dataUrl) {
   var m = t.match(/^data:image\/png;base64,([A-Za-z0-9+\/=]+)$/);
   if (!m || t.length > 400000) throw new Error('Desenhe sua assinatura no quadro antes de continuar.');
   var bytes = Utilities.base64Decode(m[1]);
-  if (bytes.length < 200 || (bytes[0] & 255) !== 137 || (bytes[1] & 255) !== 80 || (bytes[2] & 255) !== 78 || (bytes[3] & 255) !== 71) {
+  var texto = function (de, ate) { var s = ''; for (var i = de; i < ate; i++) s += String.fromCharCode(bytes[i] & 255); return s; };
+  // PNG de verdade: assinatura de 8 bytes, bloco IHDR logo no começo e bloco IEND no fim
+  var pngOk = bytes.length >= 200 && (bytes[0] & 255) === 137 && texto(1, 4) === 'PNG' && texto(12, 16) === 'IHDR' && texto(bytes.length - 8, bytes.length - 4) === 'IEND';
+  if (!pngOk) {
     throw new Error('Não deu para ler o desenho da assinatura. Limpe o quadro e assine de novo.');
   }
   return { base64: m[1], bytes: bytes };

@@ -60,11 +60,17 @@ function iguais(a, b) {
   return dif === 0;
 }
 
+// gasta o mesmo tempo de uma conferência de senha (quando o usuário não existe), para o tempo de resposta não revelar quem tem cadastro
+function gastarTempoDeSenha(senha) {
+  try { hashSenhaV2(String(senha || '').slice(0, 128), 'sal-que-nao-existe'); } catch (e) { /* ignora */ }
+  return { ok: false };
+}
+
 function validarSenhaNova(senha) {
   senha = String(senha || '');
   if (senha.length < 8) throw new Error('A senha precisa ter pelo menos 8 caracteres.');
   if (!/[A-Za-z]/.test(senha) || !/\d/.test(senha)) throw new Error('Use letras e números na senha.');
-  if (/^(\d)\1+$/.test(senha) || /12345678|abcdefgh|senha123/i.test(senha)) throw new Error('Essa senha é fácil de adivinhar. Escolha outra.');
+  if (/^(\d)\1+$/.test(senha) || /12345678|abcdefgh|senha123|qwerty|password|123456789/i.test(senha)) throw new Error('Essa senha é fácil de adivinhar. Escolha outra.');
 }
 
 // grava senha nova (sal novo) em Alunos ou Equipe
@@ -74,7 +80,10 @@ function gravarSenha(nomeAba, linha, senha) {
 }
 
 function emailValido(e) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(e || '').trim());
+  var t = String(e || '').trim();
+  // o tamanho é conferido ANTES da expressão regular: um e-mail enorme custaria tempo demais (derrubaria o sistema sem login)
+  if (t.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t);
 }
 
 function mascararEmail(e) {
@@ -103,10 +112,21 @@ function registrarFalha(chave) {
 
 // limite de pedidos de um tipo no sistema todo (ex.: cadastros em sequência)
 function limitarPorMinutos(chave, max, minutos) {
+  if (contarJanela('lim_' + chave, max, minutos * 60)) throw new Error('Muitos pedidos agora. Tente de novo em alguns minutos.');
+}
+
+// Janela FIXA de contagem: a validade começa no primeiro pedido e NÃO é renovada pelos pedidos seguintes
+// (antes, cada pedido bloqueado renovava o prazo e um terceiro mantinha a pessoa bloqueada para sempre).
+// Devolve true quando passou do máximo (bloqueado).
+function contarJanela(chave, max, segundos) {
   var c = CacheService.getScriptCache();
-  var n = Number(c.get('lim_' + chave) || 0) + 1;
-  c.put('lim_' + chave, String(n), minutos * 60);
-  if (n > max) throw new Error('Muitos pedidos agora. Tente de novo em alguns minutos.');
+  var agora = Date.now();
+  var o = null;
+  try { o = JSON.parse(c.get(chave) || 'null'); } catch (e) { o = null; }
+  if (!o || typeof o.ate !== 'number' || o.ate <= agora) o = { n: 0, ate: agora + segundos * 1000 };
+  o.n++;
+  if (o.n <= max + 1) c.put(chave, JSON.stringify(o), Math.max(1, Math.ceil((o.ate - agora) / 1000)));
+  return o.n > max;
 }
 function limparFalhas(chave) {
   try { CacheService.getScriptCache().remove('falha_' + chave); } catch (e) { /* ignora */ }
@@ -186,11 +206,8 @@ function esqueciSenha(d) {
   var cpf = normCpf(d.cpf);
   if (!cpfValido(cpf)) throw new Error('Confira o CPF.');
   conferirHumano(d);
-  var cache = CacheService.getScriptCache();
-  var chave = 'esq_' + cpf;
-  var pedidos = Number(cache.get(chave) || 0);
-  cache.put(chave, String(pedidos + 1), 3600);
-  if (pedidos >= 3) return { enviado: true };
+  // no máximo 3 por hora por CPF e 30 a cada 10 min no sistema todo (a resposta é sempre a mesma)
+  if (contarJanela('esq_' + cpf, 3, 3600) || contarJanela('esq_global', 30, 600)) return { enviado: true };
   var aluno = buscarAluno(cpf);
   if (!aluno || aluno.ativo === 'NÃO' || !emailValido(aluno.email)) {
     Utilities.sleep(700);

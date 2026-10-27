@@ -1420,7 +1420,8 @@ function EditarPacote({ p, servicos, aoFechar, aoSalvar }) {
 // Uma pessoa, um cadastro: quem atende serviços (estética e fisioterapia), quem dá aula (Pilates e Yoga) ou as duas coisas.
 // Os dois lados se juntam pelo NOME (igual, sem contar acento): é o mesmo nome que a agenda usa para pôr tudo na mesma coluna.
 export function Profissionais() {
-  const { chamar } = useBancada();
+  const { chamar, membro } = useBancada();
+  const verComissao = pode(membro, 'admin'); // comissão é só da administração
   const { dados, erro, carregando, setDados } = useDados('catalogoServicos', {});
   const { dados: aulas, recarregar: recarregarAulas } = useDados('pagamentoAulas', {});
   const [editar, setEditar] = useState(null);
@@ -1493,7 +1494,7 @@ export function Profissionais() {
         <ul className="b-itens cg-equipe">
           {pessoas.map(({ nome, servico: p, aula: a }) => {
             const inativo = p ? !p.ativo && !a : false;
-            const comissao = [p && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean);
+            const comissao = [p && verComissao && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean);
             return (
               <li key={nome} className={`b-item cg-pessoa${inativo ? ' cg-inativo' : ''}`}>
                 <Avatar nome={nome} />

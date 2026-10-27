@@ -253,7 +253,7 @@ if (r.ok) {
 } else console.log('    (amanhã sem atendimento: ' + r.erro + ', dia ' + diaAmanha + ')');
 
 console.log('— ficha de estética, evolução e fotos');
-const png = 'data:image/png;base64,' + Buffer.from('fototeste').toString('base64');
+const png = 'data:image/png;base64,' + Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), Buffer.from('fototeste')]).toString('base64');
 r = chamar('b_prontuario', { token: lia, cpf: '11144477735' });
 ok(!r.ok, 'profissional não abre ficha pelo CPF');
 r = chamar('b_prontuario', { token: rosa, atendimentoId: at1.id });

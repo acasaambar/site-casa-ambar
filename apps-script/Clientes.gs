@@ -232,6 +232,15 @@ function transferirCpf(de, para) {
   });
 }
 
+// dados pessoais que ficam numa linha de Alunos que já não vale (cadastro unificado com outro, ou excluído)
+var CAMPOS_PESSOAIS_ALUNO = ['whatsapp', 'email', 'senha_hash', 'sal', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'nascimento', 'cep', 'endereco', 'numero',
+  'complemento', 'bairro', 'cidade', 'uf', 'como_conheceu', 'alerta'];
+function limparLinhaDeAluno(linha, nome, origem) {
+  var limpo = { nome: nome, ativo: 'NÃO', origem_cadastro: origem, marketing: 'NÃO' };
+  CAMPOS_PESSOAIS_ALUNO.forEach(function (c) { limpo[c] = ''; });
+  atualizarLinha('Alunos', linha, limpo);
+}
+
 function informarCpf(a, cpfNovo, m, juntar) {
   var cpf = soDigitos(cpfNovo);
   if (!cpfValido(cpf)) throw new Error('CPF inválido.');
@@ -253,7 +262,8 @@ function informarCpf(a, cpfNovo, m, juntar) {
     if (a.obs_internas) mud.obs_internas = (String(outro.obs_internas || '') + ' ' + a.obs_internas).trim().slice(0, 1000);
     if (Object.keys(mud).length) atualizarLinha('Alunos', outro._linha, mud);
     var velho = lerAba('Alunos').filter(function (x) { return x._linha === a._linha; })[0];
-    if (velho) atualizarLinha('Alunos', a._linha, { ativo: 'NÃO', origem_cadastro: 'unificado em ' + cpf });
+    // a linha antiga não vale mais: nome, contatos e observações saem dela (e o CPF novo não fica escrito ao lado do nome antigo)
+    if (velho) limparLinhaDeAluno(a._linha, 'Cadastro unificado', 'unificado');
     registrar(m, 'unificou cadastro (confirmado)', a.nome + ' → cadastro de ' + outro.nome + ' (CPF final ' + cpf.slice(-3) + ')');
   } else {
     atualizarLinha('Alunos', a._linha, { cpf: cpf });
@@ -379,6 +389,7 @@ function linhaFichaEstetica(cpf) {
 function bancada_prontuario(d, m) {
   var cpf = cpfComAcesso(d, m);
   var a = buscarAluno(cpf);
+  registrarLeitura(m, 'o prontuário', a ? a.nome : '');
   var ficha = mapaAnamneses()[cpf];
   return { nome: a ? a.nome : '', cpf: m.papel === 'professora' ? '' : cpf, fichaEstetica: fichaEsteticaPublica(linhaFichaEstetica(cpf)),
     condicoes: CONDICOES_ESTETICA, evolucoes: evolucoesDe(cpf), alertaSaude: ficha ? String(ficha.parq_algum_sim) === 'SIM' : false,
@@ -419,7 +430,14 @@ function salvarFoto(dataUrl, nome) {
   var m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
   if (!m) throw new Error('Foto inválida. Use JPG ou PNG.');
   if (m[2].length > 3000000) throw new Error('Foto muito grande.');
-  var blob = Utilities.newBlob(Utilities.base64Decode(m[2]), 'image/' + m[1], nome + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]));
+  var bytes = Utilities.base64Decode(m[2]);
+  var b = function (i) { return (bytes[i] || 0) & 255; };
+  // o conteúdo precisa ser mesmo do tipo declarado (JPEG, PNG ou WEBP), não só ter o nome
+  var tipoOk = m[1] === 'jpeg' ? (b(0) === 0xFF && b(1) === 0xD8 && b(2) === 0xFF)
+    : m[1] === 'png' ? (b(0) === 0x89 && b(1) === 0x50 && b(2) === 0x4E && b(3) === 0x47)
+    : (b(0) === 0x52 && b(1) === 0x49 && b(2) === 0x46 && b(3) === 0x46 && b(8) === 0x57 && b(9) === 0x45 && b(10) === 0x42 && b(11) === 0x50);
+  if (!tipoOk) throw new Error('Foto inválida. Use JPG ou PNG.');
+  var blob = Utilities.newBlob(bytes, 'image/' + m[1], nome + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]));
   return pastaFotos().createFile(blob).getId();
 }
 
@@ -464,6 +482,8 @@ function bancada_foto(d, m) {
   var e = lerAba('Evolucoes').filter(temFoto)[0] || lerAba('AnamnesesProf').filter(temFoto)[0];
   if (!e) throw new Error('Foto não encontrada.');
   if (m.papel === 'professora' && !profissionalAtende(e.cpf, m)) throw new Error('Esta cliente não é sua.');
+  var dona = buscarAluno(e.cpf);
+  registrarLeitura(m, 'fotos do cliente', dona ? dona.nome : '');
   var b = DriveApp.getFileById(id).getBlob();
   return 'data:' + b.getContentType() + ';base64,' + Utilities.base64Encode(b.getBytes());
 }
@@ -516,6 +536,7 @@ function anamnesesProfDe(cpf) {
 function bancada_anamnesesProf(d, m) {
   var cpf = cpfComAcesso(d, m);
   var a = buscarAluno(cpf);
+  registrarLeitura(m, 'as anamneses', a ? a.nome : '');
   return { nome: a ? a.nome : '', anotacoes: anamnesesProfDe(cpf).map(function (x) { return anamneseProfPublica(x, m, false); })
     .sort(function (x, y) { return y.criadoEm.localeCompare(x.criadoEm); }) };
 }
@@ -525,6 +546,8 @@ function bancada_anamneseProf(d, m) {
   var x = lerAba('AnamnesesProf').filter(function (y) { return String(y.id) === String(d.id); })[0];
   if (!x) throw new Error('Anamnese não encontrada.');
   if (m.papel === 'professora' && !profissionalAtende(x.cpf, m)) throw new Error('Esta cliente não é sua.');
+  var dona = buscarAluno(x.cpf);
+  registrarLeitura(m, 'a anamnese', dona ? dona.nome : '');
   return anamneseProfPublica(x, m, true);
 }
 
@@ -697,13 +720,17 @@ function anonimizarNaAba(nomeAba, cpf, novo) {
   var v = s.getDataRange().getValues();
   if (v.length < 2) return 0;
   var k = indiceColunas(v[0]);
-  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo, nome_digitado: NOME_EXCLUIDO, dispositivo: '', pdf: '', pdf_id: '', assinatura: '' };
+  // obs (anotações livres da equipe: saúde, telefones de terceiros) e hash do contrato (confirmaria um palpite de nome/CPF) também saem
+  var trocar = { cpf: novo, nome: NOME_EXCLUIDO, whatsapp: '', email: '', resgatado_cpf: novo, nome_digitado: NOME_EXCLUIDO, dispositivo: '', pdf: '', pdf_id: '', assinatura: '', obs: '', hash: '' };
   var cols = Object.keys(trocar).filter(function (c) { return k[c] != null; });
+  var itensDaComanda = nomeAba === 'Comandas' && k.itens != null;
+  if (itensDaComanda) cols.push('itens');
   var n = 0;
   for (var i = 1; i < v.length; i++) {
     if (!v[i][k.cpf] || normCpf(v[i][k.cpf]) !== cpf) continue;
     n++;
-    cols.forEach(function (c) { v[i][k[c]] = trocar[c]; });
+    cols.forEach(function (c) { if (c !== 'itens') v[i][k[c]] = trocar[c]; });
+    if (itensDaComanda) v[i][k.itens] = limparItensDaComanda(v[i][k.itens]);
   }
   if (!n) return 0;
   cols.forEach(function (c) {
@@ -714,8 +741,17 @@ function anonimizarNaAba(nomeAba, cpf, novo) {
   return n;
 }
 
-// o nome da cliente também sai dos textos de outras abas (comissões, trocas, estoque, registro)
-var TEXTOS_COM_NOME = [['Comissoes', 'item'], ['Substituicoes', 'titulo'], ['MovEstoque', 'motivo'], ['Registro', 'detalhe']];
+// itens da comanda: sai o que é texto livre ou dado de quem recebeu o vale; ficam serviço, quantidade e valores (o financeiro não muda)
+function limparItensDaComanda(texto) {
+  var lista = parseJson(texto, null);
+  if (!Array.isArray(lista)) return texto;
+  lista.forEach(function (i) { if (i && typeof i === 'object') { delete i.obs; delete i.vale; delete i.dadosVale; delete i.motivoDesconto; } });
+  return JSON.stringify(lista);
+}
+
+// o nome da cliente também sai dos textos de outras abas (comissões, trocas, estoque, registro, vales, caixa, despesas, comandas de outras pessoas)
+var TEXTOS_COM_NOME = [['Comissoes', 'item'], ['Substituicoes', 'titulo'], ['MovEstoque', 'motivo'], ['Registro', 'detalhe'],
+  ['Vales', 'motivo'], ['Vales', 'mensagem'], ['Caixa', 'movimentos'], ['Despesas', 'obs'], ['Atendimentos', 'obs'], ['Comandas', 'obs'], ['Comandas', 'historico']];
 function apagarNomeDosTextos(nome) {
   nome = String(nome || '').trim();
   if (nome.length < 5 || nome.split(' ').length < 2) return; // nome curto demais: trocaria pedaços de outros textos
@@ -764,15 +800,17 @@ function bancada_excluirCliente(d, m) {
     } else {
       var novo = idSemCpf();
       ABAS_COM_HISTORICO.forEach(function (n) { anonimizarNaAba(n, cpf, novo); });
-      var limpo = { cpf: novo, nome: NOME_EXCLUIDO, ativo: 'NÃO', origem_cadastro: 'excluído em ' + hojeTexto(), marketing: 'NÃO' };
-      ['whatsapp', 'email', 'senha_hash', 'sal', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'nascimento', 'cep', 'endereco', 'numero', 'complemento',
-        'bairro', 'cidade', 'uf', 'como_conheceu', 'alerta'].forEach(function (c) { limpo[c] = ''; });
       var s = aba('Alunos');
       s.getRange(a._linha, coluna('Alunos', 'cpf')).setNumberFormat('@');
-      atualizarLinha('Alunos', a._linha, limpo);
+      limparLinhaDeAluno(a._linha, NOME_EXCLUIDO, 'excluído em ' + hojeTexto());
+      atualizarLinha('Alunos', a._linha, { cpf: novo });
       apagarNomeDosTextos(a.nome);
       resultado = { anonimizado: true, codigo: novo };
     }
+    // linhas antigas de cadastros que foram unificados com este (guardavam o CPF no texto "unificado em <cpf>", ao lado de nome e telefone)
+    lerAba('Alunos').forEach(function (x) {
+      if (String(x.origem_cadastro || '') === 'unificado em ' + cpf) limparLinhaDeAluno(x._linha, 'Cadastro unificado', 'unificado');
+    });
     esquecerListaClientes();
     esquecerAlertas();
     SpreadsheetApp.flush();

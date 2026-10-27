@@ -207,9 +207,11 @@ function gerarCodigoVale() {
   lerAba('Vales').forEach(function (v) { existentes[codigoLimpo(v.codigo)] = 1; });
   for (var t = 0; t < 20; t++) {
     var c = 'AMBAR-';
+    // bits do identificador aleatório do Google (não do Math.random, que é previsível); 256 é múltiplo de 32: sem viés
+    var u = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
     for (var i = 0; i < 8; i++) {
       if (i === 4) c += '-';
-      c += letras[Math.floor(Math.random() * letras.length)];
+      c += letras[parseInt(u.substr(i * 2, 2), 16) % letras.length];
     }
     if (!existentes[c]) return c;
   }

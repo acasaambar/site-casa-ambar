@@ -341,8 +341,8 @@ function bancada_agendaSemana(d, m) {
 function bancada_catalogoServicos(d, m) {
   var profs = listarProfissionais(true);
   var servicos = listarServicos(true);
-  // profissional não vê a comissão das colegas nem a dos serviços
-  if (m && m.papel === 'professora') {
+  // só a administração vê comissão (a profissional e a recepção não veem a das colegas nem a dos serviços)
+  if (m && m.papel !== 'admin') {
     profs = profs.map(function (p) { return Object.assign({}, p, { comissao: null, comissaoProduto: null, servicos: p.servicos.map(function (c) { return { id: c.id, duracao: c.duracao }; }) }); });
     servicos = servicos.map(function (s) { return Object.assign({}, s, { comissao: null }); });
   }

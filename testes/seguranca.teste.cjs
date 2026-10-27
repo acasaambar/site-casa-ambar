@@ -288,5 +288,115 @@ console.log('— sessões');
   ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', 'saiu da bancada: a sessão para de valer na hora', r);
 }
 
+
+// ---------- revisão de out/2026 (finecomb): pedidos grandes, limites, caches, links e dados que sobravam ----------
+console.log('— cadastro público: tamanho e custo');
+const adm2 = chamar('b_entrar', { email: 'contato@acasaambar.com.br', senha: 'ambar2026adm' }).dados.token;
+const rec2 = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
+{
+  const quantas = () => ctx.lerAba('Alunos').length;
+  const antes = quantas();
+  const t0 = Date.now();
+  r = chamar('cadastrar', { endereco: END_TESTE, cpf: '390.533.447-05', nome: 'Carla Prado', whatsapp: '85988887777', email: 'a@' + '.'.repeat(90000) + ' x', senha: 'abc12345' });
+  ok(!r.ok && Date.now() - t0 < 1500 && quantas() === antes, 'e-mail gigante: recusado na hora (sem custo quadrático) e sem criar conta', { ms: Date.now() - t0, r });
+  r = chamar('cadastrar', { endereco: END_TESTE, cpf: '390.533.447-05', nome: '[ ' + 'x'.repeat(44000), whatsapp: '85988887777', email: 'carla@gmail.com', senha: 'abc12345' });
+  ok(!r.ok && quantas() === antes, 'nome enorme: recusado', r);
+  r = chamar('cadastrar', { endereco: END_TESTE, cpf: '390.533.447-05', nome: 'Carla Prado', whatsapp: '8'.repeat(40), email: 'carla@gmail.com', senha: 'abc12345' });
+  ok(!r.ok && quantas() === antes, 'WhatsApp enorme: recusado', r);
+  ok(ctx.seguro('[' + 'x'.repeat(5000)).length <= 2001, 'texto qualquer que começa com "[" volta ao teto normal');
+  ok(ctx.seguro(JSON.stringify(Array.from({ length: 400 }, (_, i) => ({ item: 'serviço ' + i, valor: i })))).length > 2000, 'JSON de verdade (itens da comanda) continua cabendo');
+  ok(ctx.emailValido('maria@gmail.com') && !ctx.emailValido('a'.repeat(260) + '@gmail.com'), 'e-mail normal vale; acima de 254 caracteres não');
+}
+
+console.log('— limites com janela fixa (bloqueio não se renova sozinho)');
+{
+  const cache = ctx.CacheService.getScriptCache();
+  const barras = [];
+  for (let i = 0; i < 6; i++) { try { ctx.limitarPorMinutos('teste_janela', 2, 10); barras.push(false); } catch (e) { barras.push(true); } }
+  ok(barras.join() === 'false,false,true,true,true,true', 'passou do máximo: bloqueia', barras);
+  const o1 = JSON.parse(cache.get('lim_teste_janela'));
+  for (let i = 0; i < 5; i++) { try { ctx.limitarPorMinutos('teste_janela', 2, 10); } catch (e) { /* esperado */ } }
+  const o2 = JSON.parse(cache.get('lim_teste_janela'));
+  ok(o1.ate === o2.ate, 'pedidos bloqueados NÃO prolongam o prazo da janela', { o1, o2 });
+  for (let i = 0; i < 5; i++) chamar('esqueciSenha', { cpf: '52998224725' });
+  const e1 = JSON.parse(cache.get('esq_52998224725'));
+  chamar('esqueciSenha', { cpf: '52998224725' });
+  ok(e1.ate === JSON.parse(cache.get('esq_52998224725')).ate, '"esqueci minha senha": o bloqueio de 1 h não é renovado a cada pedido');
+}
+
+console.log('— link de senha deixa de valer quando a recepção troca o e-mail');
+{
+  const antes = emails.length;
+  r = chamar('b_salvarAluno', { token: adm2, cpf: '52998224725', dados: { email: 'maria.antigo@gmail.com' } });
+  chamar('b_enviarLinkSenha', { token: adm2, cpf: '52998224725' });
+  const link = emails.slice(antes).map(linkDe).filter(Boolean).pop();
+  r = chamar('b_salvarAluno', { token: adm2, cpf: '52998224725', dados: { email: 'maria.novo@gmail.com' } });
+  ok(r.ok, 'recepção/administração troca o e-mail', r);
+  if (link) { r = chamar('novaSenha', { t: link, senha: 'nova12345' }); ok(!r.ok, 'o link enviado ao e-mail antigo não troca mais a senha', r); }
+  else console.log('  · (ação de link da recepção sem e-mail neste simulador: conferido só a troca)');
+}
+
+console.log('— o que a recepção NÃO vê (comissão e custo) e o que a profissional não pode');
+{
+  r = chamar('b_catalogoServicos', { token: rec2 });
+  ok(r.ok && r.dados.profissionais.every((p) => p.comissao === null && p.comissaoProduto === null), 'recepção: catálogo sem comissão de ninguém', r.ok && r.dados.profissionais.map((p) => p.comissao));
+  r = chamar('b_catalogoServicos', { token: adm2 });
+  ok(r.ok && r.dados.profissionais.some((p) => p.comissao != null), 'administração continua vendo a comissão');
+  chamar('b_salvarProduto', { token: adm2, produto: { nome: 'Produto Teste Custo', vende: true, preco: 50, custo: 20, categoria: 'Outros' } });
+  r = chamar('b_produtos', { token: rec2 });
+  ok(r.ok && r.dados.produtos.every((p) => p.custo === null), 'recepção: produtos sem custo de compra', r.ok && r.dados.produtos.map((p) => p.custo));
+  r = chamar('b_produtos', { token: adm2 });
+  ok(r.ok && r.dados.produtos.some((p) => p.custo === 20), 'administração vê o custo');
+}
+
+console.log('— valores de lista aceitam só o que existe (nada de "constructor")');
+{
+  r = chamar('b_atualizarEspera', { token: rec2, id: 'x', status: 'constructor' });
+  ok(!r.ok && /inválida/.test(String(r.erro)), 'lista de espera: situação de protótipo recusada', r);
+  r = chamar('b_salvarAluno', { token: rec2, cpf: '52998224725', dados: { wellhub: 'constructor' } });
+  ok(!r.ok, 'Wellhub: valor de protótipo recusado', r);
+}
+
+console.log('— arquivos: conteúdo conferido pelos bytes');
+{
+  const b64 = (buf) => buf.toString('base64');
+  const lixoPng = Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47]), Buffer.from('x'.repeat(300))]);
+  let erro = ''; try { ctx.bytesDaAssinatura('data:image/png;base64,' + b64(lixoPng)); } catch (e) { erro = e.message; }
+  ok(/assinatura/i.test(erro), '"PNG" que é só lixo depois dos 4 primeiros bytes: recusado como assinatura', erro);
+  erro = ''; try { ctx.salvarFoto('data:image/jpeg;base64,' + b64(Buffer.from('isto não é uma foto')), 'x'); } catch (e) { erro = e.message; }
+  ok(/inválida/i.test(erro), 'foto que não é JPEG de verdade: recusada', erro);
+  let id = ''; try { id = ctx.salvarFoto('data:image/jpeg;base64,' + b64(Buffer.concat([Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]), Buffer.from('jfif...')])), 'x'); } catch (e) { id = 'ERRO ' + e.message; }
+  ok(id && !/^ERRO/.test(id), 'JPEG com o cabeçalho certo: aceito', id);
+}
+
+console.log('— trilha de leitura de ficha de saúde');
+{
+  const quantas = () => ctx.lerAba('Registro').filter((x) => /^leu /.test(String(x.acao))).length;
+  const antes = quantas();
+  chamar('b_aluno', { token: rec2, cpf: '52998224725' });
+  chamar('b_aluno', { token: rec2, cpf: '52998224725' });
+  ok(quantas() === antes + 1, 'abrir a ficha do cliente fica no Registro (uma linha por hora, não uma por clique)', { antes, depois: quantas() });
+  chamar('b_alunos', { token: rec2 });
+  ok(ctx.lerAba('Registro').some((x) => /lista de todos os clientes/.test(String(x.acao))), 'baixar a lista inteira de clientes também fica registrado');
+}
+
+console.log('— excluir cliente apaga também as anotações livres');
+{
+  chamar('b_salvarProfissional', { token: adm2, profissional: { nome: 'Lia Esteticista', categorias: ['Estética facial'], dias: [1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', comissao: 40 } });
+  chamar('cadastrar', { endereco: END_TESTE, cpf: '390.533.447-05', nome: 'Carla Prado', whatsapp: '85988887777', email: 'carla.prado@gmail.com', senha: 'abc12345' });
+  const dia = proxDiaUtil(hoje, 2);
+  r = chamar('b_agendarServico', { token: adm2, servicoId: 'limpeza-pele', profissional: 'Lia Esteticista', data: dia, hora: '10:00', cpf: '39053344705', pagamento: 'no_dia' });
+  if (r.ok) {
+    const lin = ctx.lerAba('Atendimentos').filter((a) => a.id === r.dados.id)[0];
+    ctx.atualizarLinha('Atendimentos', lin._linha, { obs: 'Carla Prado é diabética; filha 85970001111' });
+    r = chamar('b_atualizarAtendimento', { token: adm2, id: lin.id, status: 'cancelado' });
+    r = chamar('b_excluirCliente', { token: adm2, cpf: '39053344705', confirmacao: 'Carla' });
+    ok(r.ok && r.dados.anonimizado, 'cliente com histórico: anonimizado', r);
+    ok(ctx.lerAba('Atendimentos').every((a) => !/diabética|85970001111/.test(String(a.obs))), 'a anotação do atendimento (saúde, telefone de terceiro) saiu');
+    const sobra = ctx.lerAba('Alunos').filter((a) => /Carla Prado/.test(String(a.nome)) || (/^excluído/.test(String(a.origem_cadastro)) && (a.whatsapp || a.email)));
+    ok(sobra.length === 0, 'nome e WhatsApp saíram de Alunos', sobra.map((a) => ({ nome: a.nome, whatsapp: a.whatsapp, cpf: a.cpf })));
+  } else console.log('  · (agendamento de teste indisponível neste simulador: ' + r.erro + ')');
+}
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S) DE SEGURANÇA' : '\nSEGURANÇA OK');
 process.exit(falhas ? 1 : 0);

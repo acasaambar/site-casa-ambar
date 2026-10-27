@@ -156,6 +156,19 @@ function registrar(membro, acao, detalhe) {
   } catch (e) { Logger.log('registro: ' + e.message); }
 }
 
+// Trilha de LEITURA de dados sensíveis (ficha de saúde, prontuário, anamnese, fotos, lista de clientes): quem abriu o quê.
+// Uma linha por pessoa, por cliente e por tipo a cada hora (senão o Registro encheria só de leituras). Serve para investigar um vazamento.
+function registrarLeitura(membro, oQue, quem) {
+  if (!membro) return;
+  try {
+    var chave = 'lido_' + hashToken(String(membro.email) + '|' + oQue + '|' + quem).slice(0, 40);
+    var c = CacheService.getScriptCache();
+    if (c.get(chave)) return;
+    c.put(chave, '1', 3600);
+    registrar(membro, 'leu ' + oQue, quem);
+  } catch (e) { /* a trilha nunca derruba a leitura */ }
+}
+
 // ============================================================
 //  LOGIN DA EQUIPE (e-mail + senha)
 // ============================================================
@@ -173,7 +186,7 @@ function bancadaEntrar(d) {
   var email = String(d.email || '').trim().toLowerCase();
   limitarTentativas('e_' + email);
   var m = buscarMembro(email);
-  var v = m && String(m.ativo).toUpperCase() !== 'NÃO' ? verificarSenha(d.senha, m.senha_hash, m.sal) : { ok: false };
+  var v = m && String(m.ativo).toUpperCase() !== 'NÃO' ? verificarSenha(d.senha, m.senha_hash, m.sal) : gastarTempoDeSenha(d.senha);
   if (!v.ok) {
     registrarFalha('e_' + email);
     Utilities.sleep(600);
@@ -518,7 +531,8 @@ function bancada_presenca(d, m) {
     var ini = inicio(r).getTime();
     if (Date.now() < ini - 3600000 || Date.now() > ini + 24 * 3600000) throw new Error('A presença desta aula só pode ser mudada pela recepção agora.');
   }
-  var st = { 'check-in': 'check-in', falta: 'falta', reservado: 'reservado' }[d.status];
+  var STATUS_PRESENCA = { 'check-in': 'check-in', falta: 'falta', reservado: 'reservado' };
+  var st = Object.prototype.hasOwnProperty.call(STATUS_PRESENCA, d.status) ? STATUS_PRESENCA[d.status] : '';
   if (!st) throw new Error('Situação inválida.');
   if (r.status === 'cancelado' || r.status === 'pendente') throw new Error('Esta reserva não está confirmada.');
   atualizarLinha('Reservas', r._linha, { status: st, checkin_em: st === 'check-in' ? agoraTexto() : '' });
@@ -741,10 +755,10 @@ function esquecerListaClientes() {
 }
 
 // busca (Agenda, Comandas, Vales…): só os primeiros resultados
-function bancada_alunos(d) {
+function bancada_alunos(d, m) {
   var lista = listaClientes();
   var busca = String(d.busca || '').trim().toLowerCase();
-  if (!busca) return lista;
+  if (!busca) { registrarLeitura(m, 'a lista de todos os clientes', plural(lista.length, 'cliente', 'clientes')); return lista; }
   var dig = soDigitos(busca);
   return lista.filter(function (a) {
     return a.nome.toLowerCase().indexOf(busca) >= 0 || (dig.length >= 3 && (a.cpf.indexOf(dig) >= 0 || soDigitos(a.whatsapp).indexOf(dig) >= 0)) ||
@@ -765,10 +779,11 @@ function linhasDoCpf(nomeAba, cpf) {
 }
 
 // ficha completa de uma cliente: cada aba lida uma vez, só as linhas dela
-function bancada_aluno(d) {
+function bancada_aluno(d, m) {
   var a = buscarAluno(d.cpf);
   if (!a) throw new Error('Aluno não encontrado.');
   var cpf = normCpf(a.cpf);
+  registrarLeitura(m, 'a ficha do cliente', a.nome);
   var hoje = hojeTexto();
   var resumo = listaClientes().filter(function (x) { return x.cpf === cpf; })[0];
   var r = resumo ? Object.assign({}, resumo) : { cpf: cpf, nome: a.nome, whatsapp: String(a.whatsapp || ''), email: String(a.email || ''),
@@ -839,6 +854,7 @@ function bancada_ficha(d, m) {
     cpf = normCpf(acharReservaPorId(d.reservaId).cpf);
   }
   var a = buscarAluno(cpf);
+  registrarLeitura(m, 'a ficha de saúde', a ? a.nome : '');
   var f = fichaPublica(mapaAnamneses()[cpf]);
   // professora: a ficha vem sem CPF e sem o link do PDF
   if (f && m.papel === 'professora') { delete f.cpf; delete f.pdf; }
@@ -859,9 +875,18 @@ function bancada_salvarAluno(d, m) {
     if (soDigitos(x.whatsapp).length < 10) throw new Error('WhatsApp com DDD.');
     mud.whatsapp = soDigitos(x.whatsapp);
   }
-  if (x.email != null) { if (x.email && !emailValido(x.email)) throw new Error('E-mail inválido.'); mud.email = String(x.email).trim().toLowerCase(); }
+  if (x.email != null) {
+    if (x.email && !emailValido(x.email)) throw new Error('E-mail inválido.');
+    mud.email = String(x.email).trim().toLowerCase();
+    // e-mail novo: links de senha que já foram enviados ao e-mail antigo deixam de valer
+    if (mud.email !== String(a.email || '').trim().toLowerCase()) anularLinksSenha('aluno', a.cpf);
+  }
   if (x.ativo != null) mud.ativo = x.ativo ? 'SIM' : 'NÃO';
-  if (x.wellhub != null) mud.wellhub = { confirmado: 'SIM', bloqueado: 'NÃO', pendente: 'pendente', nao_informado: '' }[x.wellhub];
+  if (x.wellhub != null) {
+    var WELLHUB = { confirmado: 'SIM', bloqueado: 'NÃO', pendente: 'pendente', nao_informado: '' };
+    if (!Object.prototype.hasOwnProperty.call(WELLHUB, x.wellhub)) throw new Error('Situação do Wellhub inválida.');
+    mud.wellhub = WELLHUB[x.wellhub];
+  }
   if (x.wellhubId != null) mud.wellhub_id = soDigitos(x.wellhubId);
   if (x.obs != null) mud.obs_internas = String(x.obs).slice(0, 1000);
   if (x.nascimento != null) mud.nascimento = /^\d{4}-\d{2}-\d{2}$/.test(String(x.nascimento)) ? x.nascimento : '';

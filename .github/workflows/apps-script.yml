@@ -24,6 +24,8 @@ concurrency:
 
 jobs:
   publicar:
+    # só publica o que está na main (um disparo manual em outra branch não alcança o backend de produção)
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4

@@ -445,7 +445,9 @@ function doPost(e) {
     } else if (/lock|timeout|too many times|quota|Exception:|Service .*(unavailable|error)|limit exceeded/i.test(msg)) {
       Logger.log('Google ocupado em ' + (corpo && corpo.acao) + ': ' + msg);
       msg = 'O sistema está muito ocupado agora. Tente de novo em alguns segundos.';
-    } else if (err instanceof TypeError || err instanceof ReferenceError || /is not a function|undefined|null|Cannot read/i.test(msg)) {
+    } else if (err instanceof TypeError || err instanceof ReferenceError || /is not a function|undefined|null|Cannot read/i.test(msg)
+        || (err && err.name && err.name !== 'Error' && !err.codigo)) {
+      // (qualquer exceção que não seja um Error comum do nosso código também é tratada como interna: o texto do Google não vai para a tela)
       // erro interno: registra para a equipe e mostra mensagem neutra
       Logger.log('Erro interno em ' + (corpo && corpo.acao) + ': ' + msg + '\n' + (err.stack || ''));
       msg = 'Algo deu errado do nosso lado. Tente de novo em instantes.';
@@ -482,10 +484,13 @@ function responder(ok, dados, erro, codigo) {
 //  3) ALUNOS E LOGIN (CPF + senha)
 // ============================================================
 function cadastrar(d) {
+  // tamanhos primeiro (antes de qualquer outra conta): o cadastro é aberto a qualquer pessoa, sem login
+  if (String(d.cpf || '').length > 20 || String(d.nome || '').length > 100 || String(d.email || '').length > 254
+      || String(d.whatsapp || '').length > 30 || String(d.senha || '').length > 128) throw new Error('Confira os dados: algum campo está grande demais.');
   var cpf = soDigitos(d.cpf);
   if (!cpfValido(cpf)) throw new Error('CPF inválido.');
   if (!d.nome || String(d.nome).trim().split(' ').length < 2) throw new Error('Informe nome e sobrenome.');
-  if (soDigitos(d.whatsapp).length < 10) throw new Error('Informe um WhatsApp com DDD.');
+  if (soDigitos(d.whatsapp).length < 10 || soDigitos(d.whatsapp).length > 15) throw new Error('Informe um WhatsApp com DDD.');
   if (!emailValido(d.email)) throw new Error('Informe um e-mail válido. É por ele que você recupera a senha.');
   validarSenhaNova(d.senha);
   var endereco = exigirEndereco(enderecoDe(d.endereco || {}));
@@ -513,7 +518,7 @@ function entrar(d) {
   var cpf = normCpf(d.cpf);
   limitarTentativas('a_' + cpf);
   var aluno = buscarAluno(cpf);
-  var v = aluno && aluno.ativo !== 'NÃO' ? verificarSenha(d.senha, aluno.senha_hash, aluno.sal) : { ok: false };
+  var v = aluno && aluno.ativo !== 'NÃO' ? verificarSenha(d.senha, aluno.senha_hash, aluno.sal) : gastarTempoDeSenha(d.senha);
   if (!v.ok) {
     registrarFalha('a_' + cpf);
     Utilities.sleep(600); // dificulta tentativas em massa
@@ -879,6 +884,7 @@ function salvarAnamnese(d) {
   var aluno = alunoDaSessao(d.token);
   var f = d.ficha || {};
   var cpf = normCpf(aluno.cpf);
+  limitarPorMinutos('ficha_' + cpf, 10, 60); // a ficha gera um PDF no Drive a cada envio
 
   if (!f.emergencia_nome || soDigitos(f.emergencia_telefone).length < 10) throw new Error('Informe o contato de emergência com telefone.');
   for (var i = 1; i <= 7; i++) {
@@ -1783,7 +1789,9 @@ function seguro(v) {
   if (v && typeof v === 'object' && !ehData(v)) v = JSON.stringify(v);
   if (typeof v !== 'string') return v;
   // listas em JSON (itens de comanda, movimentos de caixa) podem ser longas; nunca começam com fórmula
-  var lim = /^[\[{]/.test(v) ? 45000 : 2000;
+  // (só vale se for JSON de verdade: um texto qualquer que comece com "[" ou "{" volta ao teto normal)
+  var lim = 2000;
+  if (v.length > 2000 && /^[\[{]/.test(v)) { try { JSON.parse(v); lim = 45000; } catch (e) { lim = 2000; } }
   var t = v.length > lim ? v.slice(0, lim) : v;
   return /^[=+\-@\t\r]/.test(t) ? "'" + t : t;
 }

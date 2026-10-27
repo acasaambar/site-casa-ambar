@@ -1,3 +1,4 @@
+import { cacheFotos } from './fotos.js';
 // Memória das telas da bancada.
 // Ao voltar para uma tela, ela aparece na hora com o que já foi carregado e se atualiza por trás.
 // Pedidos iguais feitos ao mesmo tempo (ex.: o catálogo, usado por várias telas) viram um só.
@@ -98,6 +99,13 @@ export function esquecerTudo() {
     for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i); if (k && k.startsWith(PREFIXO_ABA)) apagar.push(k); }
     apagar.forEach((k) => sessionStorage.removeItem(k));
   } catch { /* sem armazenamento */ }
+  // computador compartilhado: nada de comissão, catálogo ou marca de sessão fica no navegador depois de sair
+  try {
+    const fixos = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && (k.startsWith(PREFIXO_FIXO) || k.startsWith('ambar_eu|'))) fixos.push(k); }
+    fixos.forEach((k) => localStorage.removeItem(k));
+  } catch { /* sem armazenamento */ }
+  cacheFotos.clear();
 }
 
 // busca e guarda; "novo" ignora um pedido igual já em andamento (usado depois de salvar algo);

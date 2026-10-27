@@ -9,6 +9,7 @@ export function abrirAbaPagamento() {
   try {
     aba = window.open('', '_blank');
     if (aba) {
+      try { aba.opener = null; } catch { /* sem acesso */ } // a aba do pagamento (outro site) não alcança esta
       aba.document.write(
         '<!doctype html><meta charset="utf-8"><title>Casa Âmbar · pagamento</title>' +
           '<body style="margin:0;display:grid;place-items:center;height:100vh;background:#F4EFDF;color:#2F3821;' +

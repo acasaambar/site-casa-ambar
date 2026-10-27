@@ -25,7 +25,7 @@ export default class ErroTela extends Component {
           {String(this.state.erro?.message || this.state.erro)}
           {'\n'}
           {/* a tela onde aconteceu (sem o que vem depois do "?", que pode ter código de link) */}
-          {'Tela: ' + (window.location.hash.split('?')[0] || '#/')}
+          {'Tela: ' + (window.location.hash.split('?')[0] || '#/').replace(/\d{6,}/g, '…').replace(/[A-Za-z0-9_.-]{20,}/g, '…')}
           {'\n'}
           {navigator.userAgent}
         </pre>

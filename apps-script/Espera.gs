@@ -90,7 +90,7 @@ function bancada_entrarEspera(d, m) {
     linha.servico = serv.nome;
     linha.profissional = prof;
     linha.data = data;
-    linha.periodo = PERIODOS_ESPERA[d.periodo] ? d.periodo : '';
+    linha.periodo = Object.prototype.hasOwnProperty.call(PERIODOS_ESPERA, d.periodo) ? d.periodo : '';
   }
   adicionarLinha('Espera', linha);
   registrar(m, 'lista de espera', cliente.nome + ' · ' + linha.servico);
@@ -99,7 +99,7 @@ function bancada_entrarEspera(d, m) {
 
 // esperando → avisado (mandou WhatsApp) · agendado (conseguiu o horário) · desistiu
 function bancada_atualizarEspera(d, m) {
-  var st = { esperando: 1, avisado: 1, agendado: 1, desistiu: 1 }[d.status] ? d.status : '';
+  var st = ['esperando', 'avisado', 'agendado', 'desistiu'].indexOf(d.status) >= 0 ? d.status : '';
   if (!st) throw new Error('Situação inválida.');
   var x = lerAba('Espera').filter(function (y) { return String(y.id) === String(d.id); })[0];
   if (!x) throw new Error('Pedido não encontrado na lista de espera.');

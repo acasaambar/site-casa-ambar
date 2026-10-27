@@ -43,7 +43,7 @@ const emMoldura = (() => { try { return window.top !== window.self; } catch { re
 (function contarVisitas() {
   if (!EXTERNOS.analyticsToken || emMoldura) return;
   const rota = window.location.hash.replace(/^#/, '').split('?')[0] || '/';
-  if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar)/.test(rota)) return;
+  if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar|entrar|ficha-saude|minha-conta|meu-plano)/.test(rota)) return;
   const s = document.createElement('script');
   s.type = 'module'; // igual ao código oficial da Cloudflare (módulo já carrega sem atrasar a página)
   s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
@@ -52,7 +52,7 @@ const emMoldura = (() => { try { return window.top !== window.self; } catch { re
   // do site para a bancada (ou um link com código) na mesma aba: recarrega uma vez, e o contador fica de fora
   window.addEventListener('hashchange', () => {
     const nova = window.location.hash.replace(/^#/, '').split('?')[0];
-    if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar)/.test(nova)) window.location.reload();
+    if (/^\/(bancada|nova-senha|confirmar|pagamento|descadastrar|entrar|ficha-saude|minha-conta|meu-plano)/.test(nova)) window.location.reload();
   });
 })();
 

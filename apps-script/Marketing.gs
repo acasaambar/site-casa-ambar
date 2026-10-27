@@ -483,7 +483,12 @@ function responderConfirmacao(d) {
   var recado = String(d.recado || '').replace(/\s+/g, ' ').trim().slice(0, 200);
   var mud = { resposta: remarcar ? 'remarcar' : 'confirmou', resposta_em: agoraTexto(), atualizado_em: agoraTexto() };
   if (!remarcar && x.status === 'agendado') mud.status = 'confirmado';
-  if (remarcar && recado) mud.obs = ('Pediu para remarcar: ' + recado + '. ' + String(a.obs || '')).slice(0, 500);
+  if (remarcar && recado) {
+    // o recado entra na frente, com tamanho próprio, e a anotação interna da equipe continua inteira depois dele
+    // (um recado anterior do mesmo link é trocado, não empilhado: quem tem o link não consegue apagar a observação)
+    var resto = String(a.obs || '').replace(/^Pediu para remarcar: .{0,130}?\. /, '');
+    mud.obs = ('Pediu para remarcar: ' + recado.slice(0, 120) + '. ' + resto).slice(0, 500);
+  }
   atualizarLinha('Atendimentos', a._linha, mud);
   registrar(null, remarcar ? 'cliente pediu para remarcar' : 'cliente confirmou pelo link', a.nome + ' · ' + a.servico + ' · ' + x.data + ' ' + x.hora);
   return confirmacaoPublica(lerAba('Atendimentos').filter(function (y) { return y.id === a.id; })[0]);

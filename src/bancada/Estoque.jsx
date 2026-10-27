@@ -34,7 +34,7 @@ export default function Estoque() {
     return { todos: todos.filter((p) => p.ativo).length, revenda: todos.filter((p) => p.ativo && p.vende).length, insumos: todos.filter((p) => p.ativo && !p.vende).length,
       falta: todos.filter((p) => p.ativo && p.minimo > 0 && p.estoque <= p.minimo).length, inativos: todos.filter((p) => !p.ativo).length };
   }, [dados]);
-  const valorEstoque = (dados?.produtos || []).filter((p) => p.ativo && p.estoque > 0).reduce((s, p) => s + p.estoque * p.custo, 0);
+  const valorEstoque = (dados?.produtos || []).filter((p) => p.ativo && p.estoque > 0).reduce((s, p) => s + p.estoque * (p.custo || 0), 0);
 
   return (
     <>
@@ -42,7 +42,7 @@ export default function Estoque() {
         <>
           <button type="button" className="botao botao--linha botao--p" disabled={!lista.length} onClick={() => baixarCSV('estoque-casa-ambar', [
             ['nome', 'Produto'], ['marca', 'Marca'], ['categoria', 'Categoria'], [(p) => String(p.estoque).replace('.', ','), 'Saldo'], ['unidade', 'Unidade'],
-            [(p) => String(p.minimo).replace('.', ','), 'Mínimo'], [(p) => String(p.custo).replace('.', ','), 'Custo'], [(p) => String(p.preco).replace('.', ','), 'Preço de venda']], lista)}>Exportar CSV</button>
+            [(p) => String(p.minimo).replace('.', ','), 'Mínimo'], ...(admin ? [[(p) => String(p.custo).replace('.', ','), 'Custo']] : []), [(p) => String(p.preco).replace('.', ','), 'Preço de venda']], lista)}>Exportar CSV</button>
           {admin && <button type="button" className="botao botao--cheio botao--p" onClick={() => setEditar({ ativo: true, vende: true, categoria: 'Revenda (home care)', unidade: 'un' })}>Novo produto</button>}
         </>
       } ajuda="A venda na comanda e o uso em cada serviço baixam o saldo sozinhos. Use “Entrada” quando chegar mercadoria, “Contar” para acertar o saldo e “Baixa” para perda ou vencido.">
@@ -52,7 +52,7 @@ export default function Estoque() {
         <section className="b-kpis">
           <Kpi rotulo="Produtos ativos" valor={dados.produtos.filter((p) => p.ativo).length} />
           <Kpi rotulo="Em falta ou acabando" valor={dados.baixo} tom={dados.baixo ? 'alerta' : ''} detalhe="no mínimo ou abaixo" />
-          <Kpi rotulo="Valor em estoque" valor={real(valorEstoque)} detalhe="pelo custo" />
+          {admin && <Kpi rotulo="Valor em estoque" valor={real(valorEstoque)} detalhe="pelo custo" />}
         </section>
       )}
       <div className="b-barra-fixa es-filtros">
