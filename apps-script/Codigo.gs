@@ -75,10 +75,19 @@ AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
 // Os valores de partida são os que a Casa já usava (débito, crédito à vista e link); as parcelas de 2x a 12x ficam para conferir no app da InfinitePay.
 var GRUPOS_TAXA = ['vm', 'elo', 'amex'];
 function colunaTaxa(primeira) { var c = []; for (var i = 0; i < 12; i++) c.push(i === 0 ? primeira : null); return c; }
+// Tabela do app da InfinitePay (calculadora, plano "1 Dia Útil", vídeo de 26/10/2026). Mudou a tabela? Troque os números e some 1 em TABELA_VERSAO:
+// quem salvou uma tabela de versão antiga volta a usar os números novos de débito e crédito (pix, link e prazos salvos ficam).
+var TABELA_VERSAO = 2;
 function taxasPadrao() {
-  // Visa e Mastercard têm a mesma tabela (app da InfinitePay, 27/10/2026); Elo e Amex só têm o à vista até a Casa informar as parcelas
-  return { pix: 0, debito: { vm: 1.37, elo: 2.58, amex: null },
-    credito: { vm: [3.15, 4.22, 4.83, 5.44, 6.05, 6.64, 7.24, 7.82, 8.41, 8.98, 9.56, 10.12], elo: colunaTaxa(4.91), amex: colunaTaxa(4.91) }, link: colunaTaxa(4.2),
+  return { versao: TABELA_VERSAO, pix: 0,
+    // débito: Visa e Mastercard (mesma tabela) e Elo; a American Express não tem débito
+    debito: { vm: 1.37, elo: 2.58, amex: null },
+    // crédito de 1x a 12x. Elo e American Express têm a mesma tabela
+    credito: { vm: [3.15, 5.39, 6.12, 6.85, 7.57, 8.28, 8.99, 9.69, 10.38, 11.06, 11.74, 12.4],
+      elo: [4.91, 6.47, 7.2, 7.92, 8.63, 9.33, 10.03, 10.72, 11.41, 12.08, 12.75, 13.41],
+      amex: [4.91, 6.47, 7.2, 7.92, 8.63, 9.33, 10.03, 10.72, 11.41, 12.08, 12.75, 13.41] },
+    // link: só a taxa à vista é conhecida (prints do Avec); as parcelas ficam para a Casa informar
+    link: colunaTaxa(4.2),
     // dias úteis até o dinheiro cair na conta (InfinitePay: 1 dia útil no cartão e no link; Pix na hora)
     prazos: { pix: 0, debito: 1, credito: 1, link: 1 } };
 }
@@ -96,13 +105,16 @@ function colunaDe(v, padrao) {
 function normalizarTaxas(j) {
   var t = taxasPadrao();
   if (!j || typeof j !== 'object') return t;
+  var antiga = Number(j.versao) !== TABELA_VERSAO; // tabela salva antes dos números do app: débito e crédito vêm do padrão novo
   if (j.pix != null) t.pix = numeroTaxa(j.pix) || 0;
-  if (typeof j.debito === 'number' || typeof j.debito === 'string') {
+  if (antiga) { /* débito e crédito: padrão novo */ }
+  else if (typeof j.debito === 'number' || typeof j.debito === 'string') {
     var d = numeroTaxa(j.debito); t.debito = { vm: d, elo: d, amex: null };
   } else if (j.debito && typeof j.debito === 'object') {
     GRUPOS_TAXA.forEach(function (g) { if (j.debito[g] !== undefined) t.debito[g] = numeroTaxa(j.debito[g]); });
   }
-  if (j.credito && typeof j.credito === 'object' && !Array.isArray(j.credito)) {
+  if (antiga) { /* idem */ }
+  else if (j.credito && typeof j.credito === 'object' && !Array.isArray(j.credito)) {
     GRUPOS_TAXA.forEach(function (g) { if (j.credito[g]) t.credito[g] = colunaDe(j.credito[g], t.credito[g]); });
   } else if (j.credito1 != null || j.credito2a6 != null || j.credito7a12 != null) {
     var col = []; for (var i = 1; i <= 12; i++) col.push(numeroTaxa(i === 1 ? j.credito1 : i <= 6 ? j.credito2a6 : j.credito7a12));

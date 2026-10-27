@@ -20,14 +20,17 @@ let r;
 const pct = (metodo, bandeira, parcelas) => ctx.taxaPctDaParte({ metodo, bandeira, parcelas, valor: 100 });
 const col = (v1, mapa = {}) => Array.from({ length: 12 }, (_, i) => (i === 0 ? v1 : mapa[i + 1] != null ? mapa[i + 1] : null));
 
-console.log('— valores de partida (os da Casa na InfinitePay)');
+console.log('— valores de partida (tabela do app da InfinitePay, plano 1 dia útil)');
+const seq = (b, g) => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => pct('Cartão de crédito', b, n).pct).join(' ');
 ok(pct('Cartão de débito', 'Visa', 1).pct === 1.37 && pct('Cartão de débito', 'Mastercard', 1).pct === 1.37, 'débito Visa e Mastercard 1,37%');
 ok(pct('Cartão de débito', 'Elo', 1).pct === 2.58, 'débito Elo 2,58%');
-ok(pct('Cartão de crédito', 'Visa', 1).pct === 3.15 && pct('Cartão de crédito', 'Elo', 1).pct === 4.91 && pct('Cartão de crédito', 'American Express', 1).pct === 4.91, 'crédito à vista: Visa 3,15% · Elo e Amex 4,91%');
-ok(pct('Link InfinitePay', '', 1).pct === 4.2 && pct('Link InfinitePay', 'Visa', 1).pct === 4.2, 'link 4,2% em qualquer bandeira');
-ok([2, 3, 6, 12].map((n) => pct('Cartão de crédito', 'Visa', n).pct).join() === '4.22,4.83,6.64,10.12', 'Visa parcelado: 2x 4,22 · 3x 4,83 · 6x 6,64 · 12x 10,12');
-ok(pct('Cartão de crédito', 'Mastercard', 5).pct === 6.05 && !pct('Cartão de crédito', 'Mastercard', 5).falta, 'Mastercard tem a mesma tabela da Visa');
-ok(pct('Cartão de crédito', 'Elo', 3).falta === true && pct('Cartão de crédito', 'Elo', 3).pct === 4.91, 'Elo 3x sem taxa informada: usa a anterior e avisa que falta');
+ok(seq('Visa') === '3.15 5.39 6.12 6.85 7.57 8.28 8.99 9.69 10.38 11.06 11.74 12.4', 'Visa de 1x a 12x', seq('Visa'));
+ok(seq('Mastercard') === seq('Visa'), 'Mastercard tem a mesma tabela da Visa');
+ok(seq('Elo') === '4.91 6.47 7.2 7.92 8.63 9.33 10.03 10.72 11.41 12.08 12.75 13.41', 'Elo de 1x a 12x', seq('Elo'));
+ok(seq('American Express') === seq('Elo'), 'American Express tem a mesma tabela da Elo');
+ok([1, 2, 3, 12].map((n) => pct('Cartão de crédito', 'Visa', n).falta).every((f) => f === false) && pct('Cartão de crédito', 'Elo', 12).falta === false, 'nenhuma parcela da maquininha está faltando');
+ok(pct('Link InfinitePay', '', 1).pct === 4.2 && pct('Link InfinitePay', 'Visa', 1).pct === 4.2, 'link à vista 4,2% em qualquer bandeira');
+ok(pct('Link InfinitePay', '', 3).falta === true && pct('Link InfinitePay', '', 3).pct === 4.2, 'link 3x sem taxa informada: usa a anterior e avisa que falta');
 ok(pct('Pix', '', 1).pct === 0 && pct('Dinheiro', '', 1).pct === 0, 'Pix e dinheiro sem taxa');
 
 console.log('— salvar a tabela');
@@ -46,9 +49,12 @@ ok(pct('Link InfinitePay', '', 2).pct === 6, 'link 2x = 6%');
 ok(pct('Cartão de débito', 'Amex', 1).pct === 1.37, 'débito de bandeira sem linha própria usa Visa/Mastercard');
 ok(pct('Cartão de crédito', 'Hipercard', 1).pct === 3.15, 'bandeira sem linha própria usa a coluna Visa/Mastercard');
 
-console.log('— formato antigo ainda é entendido');
-const velho = ctx.normalizarTaxas({ pix: 0.5, debito: 1.5, credito1: 3, credito2a6: 4, credito7a12: 6, link: 5 });
-ok(velho.debito.vm === 1.5 && velho.credito.elo[0] === 3 && velho.credito.vm[3] === 4 && velho.credito.vm[8] === 6 && velho.link[11] === 5 && velho.pix === 0.5, 'taxas do formato antigo viram a tabela nova', velho);
+console.log('— tabela salva antes dos números do app');
+const velho = ctx.normalizarTaxas({ pix: 0.5, debito: 1.5, credito: { vm: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9] }, link: [4.2, 5], prazos: { link: 3 } });
+ok(velho.debito.vm === 1.37 && velho.credito.vm[2] === 6.12 && velho.pix === 0.5 && velho.link[1] === 5 && velho.prazos.link === 3,
+  'sem versão: débito e crédito voltam ao padrão do app; Pix, link e prazos salvos ficam', velho);
+const novoSalvo = ctx.normalizarTaxas({ versao: ctx.TABELA_VERSAO, debito: { vm: 1.5, elo: 2.5 }, credito: { vm: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] } });
+ok(novoSalvo.debito.vm === 1.5 && novoSalvo.credito.vm[2] === 5, 'com a versão atual: o que foi salvo vale');
 
 console.log('— Financeiro e caixa');
 const vender = (metodo, valor, extra = {}) => {

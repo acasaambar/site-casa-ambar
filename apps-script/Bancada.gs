@@ -1532,7 +1532,7 @@ function bancada_salvarAjustes(d, m) {
       var c = []; for (var i = 0; i < 12; i++) c.push(conferirTaxa(v[i], true));
       return c;
     };
-    var ta = a.taxas, nova = { pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: coluna(ta.link), prazos: {} };
+    var ta = a.taxas, nova = { versao: TABELA_VERSAO, pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: coluna(ta.link), prazos: {} };
     ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
       var n = Number((ta.prazos || AJUSTES.taxas.prazos || {})[k]);
       if (isNaN(n) || n < 0 || n > 60) throw new Error('O prazo de recebimento vai de 0 a 60 dias.');
