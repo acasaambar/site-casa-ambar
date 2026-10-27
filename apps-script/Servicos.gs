@@ -816,3 +816,40 @@ function bancada_salvarProfissional(d, m) {
   registrar(m, ex ? 'editou profissional' : 'cadastrou profissional', nome + (movidos ? ' · ' + movidos + ' horários com o nome novo' : ''));
   return bancada_catalogoServicos();
 }
+
+// Apaga o cadastro de uma pessoa da equipe (a administração). O histórico fica: atendimentos passados, vendas e comissões
+// continuam com o nome dela escrito. Não apaga enquanto houver horário marcado daqui para a frente, bloqueio futuro, item em comanda aberta
+// ou aula na Grade (o horário de alguém não pode ficar sem dono). O acesso em Equipe é separado (desative lá, se for o caso).
+function bancada_excluirProfissional(d, m) {
+  var nome = String(d.nome || '').trim();
+  if (!nome) throw new Error('Escolha quem apagar.');
+  var chave = semAcento(nome);
+  var hoje = hojeTexto();
+  var cad = lerAba('Profissionais').filter(function (p) { return semAcento(p.nome) === chave; })[0];
+  var pagto = lerAba('Professoras').filter(function (p) { return semAcento(p.nome) === chave; })[0];
+  if (!cad && !pagto) throw new Error('Cadastro não encontrado.');
+  var futuros = lerAba('Atendimentos').filter(function (a) {
+    return a.id && semAcento(a.profissional) === chave && dataTexto(a.data) >= hoje && (a.status === 'agendado' || a.status === 'confirmado');
+  }).length;
+  if (futuros) throw new Error(nome + ' ainda tem ' + (futuros === 1 ? '1 horário marcado' : futuros + ' horários marcados') + ' daqui para a frente. Passe para outra pessoa (Agenda → Trocas) ou cancele antes de apagar.');
+  var folgas = lerAba('Folgas').filter(function (f) { return f.id && semAcento(f.profissional) === chave && dataTexto(f.data) >= hoje; }).length;
+  if (folgas) throw new Error(nome + ' tem ' + (folgas === 1 ? '1 bloqueio de horário' : folgas + ' bloqueios de horário') + ' daqui para a frente. Apague os bloqueios na Agenda antes.');
+  var emComanda = lerAba('Comandas').filter(function (c) {
+    return c.status === 'aberta' && parseJson(c.itens, []).some(function (i) { return semAcento(i.profissional) === chave; });
+  }).length;
+  if (emComanda) throw new Error(nome + ' está em ' + (emComanda === 1 ? 'uma comanda aberta' : emComanda + ' comandas abertas') + '. Feche ou troque a profissional da comanda antes.');
+  var naGrade = lerAba('Grade').some(function (g) { return String(g.ativo).toUpperCase() !== 'NÃO' && semAcento(g.professor) === chave; });
+  if (naGrade) throw new Error(nome + ' ainda é professor(a) de aulas na Grade de aulas. Troque o(a) professor(a) dessas aulas (Catálogo → Grade de aulas) e depois apague.');
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    // apaga de baixo para cima (a linha de cima não muda de lugar)
+    [cad, pagto].filter(Boolean).sort(function (x, y) { return y._linha - x._linha; }).forEach(function (x) {
+      aba(x === cad ? 'Profissionais' : 'Professoras').deleteRow(x._linha);
+    });
+  } finally {
+    soltarTrava(trava);
+  }
+  registrar(m, 'apagou profissional', nome + (cad ? ' · serviços' : '') + (pagto ? ' · valores de aula' : ''));
+  return bancada_catalogoServicos();
+}

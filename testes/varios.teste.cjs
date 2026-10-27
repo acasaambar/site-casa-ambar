@@ -99,5 +99,24 @@ const maria = atsDe('52998224725').filter((a) => a.pagamento === 'pago');
 r = chamar('b_comandaDoAtendimento', { token: rec, atendimentoId: maria[0].id });
 ok(r.ok && r.dados.itens.every((i) => i.atendimentoId === maria[0].id || i.pago !== undefined), 'serviço já pago não arrasta os outros', r.dados && r.dados.itens.length);
 
+console.log('— apagar o cadastro de uma profissional');
+chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Teste Apagar', categorias: ['Estética facial'], dias: [1, 2, 3, 4, 5], inicio: '08:00', fim: '17:00', comissao: 30 } });
+chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Kalliny', categorias: ['Estética facial'], dias: [1, 2, 3, 4, 5], inicio: '08:00', fim: '17:00', comissao: 30 } });
+const temCad = (n) => chamar('b_catalogoServicos', { token: adm }).dados.profissionais.some((p) => p.nome === n);
+r = chamar('b_excluirProfissional', { token: rec, nome: 'Teste Apagar' });
+ok(!r.ok && temCad('Teste Apagar'), 'recepção não apaga', r.erro);
+const marcado = chamar('b_agendarServico', { token: rec, servicoId: 'limpeza-pele', profissional: 'Teste Apagar', data: dia, hora: '10:00', cpf: '52998224725', pagamento: 'no_dia' });
+ok(marcado.ok, 'horário marcado para ela', marcado.erro);
+r = chamar('b_excluirProfissional', { token: adm, nome: 'Teste Apagar' });
+ok(!r.ok && /horário marcado/.test(r.erro) && temCad('Teste Apagar'), 'com horário marcado daqui para a frente: não apaga', r.erro);
+chamar('b_atualizarAtendimento', { token: rec, id: marcado.dados.id, status: 'cancelado' });
+r = chamar('b_excluirProfissional', { token: adm, nome: 'Teste Apagar' });
+ok(r.ok && !r.dados.profissionais.some((p) => p.nome === 'Teste Apagar'), 'sem pendências: o cadastro some da lista', r.erro);
+ok(ctx.lerAba('Atendimentos').some((a) => a.profissional === 'Teste Apagar'), 'o histórico continua com o nome dela');
+r = chamar('b_excluirProfissional', { token: adm, nome: 'Kalliny' });
+ok(!r.ok && /Grade de aulas/.test(r.erro) && temCad('Kalliny'), 'quem dá aula na grade: não apaga (troque o professor primeiro)', r.erro);
+r = chamar('b_excluirProfissional', { token: adm, nome: 'Não Existe' });
+ok(!r.ok, 'cadastro que não existe', r.erro);
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);

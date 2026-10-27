@@ -1409,7 +1409,13 @@ export function Profissionais() {
               <span className="b-suave">
                 {[p && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean).join(' · ')}
               </span>
-              <button type="button" className="link-acao" onClick={() => setEditar({ p: p ? { ...p, nomeOriginal: p.nome } : { nome, categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: a, soAula: !p })}>editar</button>
+              <span className="pf-acoes">
+                <button type="button" className="link-acao" onClick={() => setEditar({ p: p ? { ...p, nomeOriginal: p.nome } : { nome, categorias: [], dias: [1, 2, 3, 4, 5], inicio: '', fim: '', ativo: true }, aula: a, soAula: !p })}>editar</button>
+                {(p || (a && !a.daGrade?.length)) && (
+                  <BotaoAcao className="link-sair" confirmar={`Apagar o cadastro de ${nome}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
+                    acao={async () => { setErroW(''); try { setDados(await chamar('excluirProfissional', { nome })); recarregarAulas(); } catch (e) { setErroW(e.message); } }}>apagar</BotaoAcao>
+                )}
+              </span>
             </li>
           );
         })}
@@ -1570,6 +1576,17 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
         )}
         <Erro>{erro}</Erro>
         <BotaoAcao className="botao botao--cheio" acao={salvar}>Salvar</BotaoAcao>
+        {(temServico || (aula && !daGrade.length)) && (
+          <>
+            <div className="b-separador" />
+            <BotaoAcao className="link-sair" confirmar={`Apagar o cadastro de ${p.nomeOriginal || nomeAula}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
+              acao={async () => { setErro(''); try { aoSalvar(await chamar('excluirProfissional', { nome: p.nomeOriginal || nomeAula })); } catch (e) { setErro(e.message); } }}>
+              apagar este cadastro
+            </BotaoAcao>
+            <p className="b-suave">Só apaga se não houver horário marcado daqui para a frente, bloqueio, comanda aberta ou aula na Grade. Para só parar de agendar, desmarque "Atendendo".</p>
+          </>
+        )}
+        {!temServico && daGrade.length > 0 && <p className="b-suave">Esta pessoa aparece aqui porque dá aula na Grade de aulas. Para tirar, troque o(a) professor(a) dessas aulas na Grade (Catálogo → Grade de aulas).</p>}
       </div>
     </Modal>
   );

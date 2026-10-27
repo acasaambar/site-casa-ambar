@@ -2362,3 +2362,4 @@
 .b-pagar--dividido { display: grid; gap: 10px; }
 .cm-pagar--corrigir { margin-top: 14px; }
 .cm-corrigir-forma { margin-top: 8px; }
+.pf-acoes { display: inline-flex; gap: 14px; align-items: baseline; }

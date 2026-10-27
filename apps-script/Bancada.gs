@@ -60,6 +60,7 @@ var PERMISSOES = {
   b_salvarServico: ['admin'],
   b_salvarPacote: ['admin'],
   b_salvarProfissional: ['admin'],
+  b_excluirProfissional: ['admin'],
   // clientes: histórico, ficha de estética, evolução e fotos, importação
   b_prontuario: ['admin', 'recepcao', 'professora'],
   b_salvarFichaEstetica: ['admin', 'recepcao', 'professora'],
