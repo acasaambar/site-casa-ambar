@@ -150,7 +150,7 @@ export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', 
       )}
       {!vale && !semDividir && (
         <button type="button" className="link-acao" onClick={() => mudar({ formas: [{ ...LINHA_PAGAMENTO, metodo: p.metodo, bandeira: p.bandeira || '', parcelas: p.parcelas || 1 }, { ...LINHA_PAGAMENTO, metodo: p.metodo === 'Pix' ? 'Dinheiro' : 'Pix' }] })}>
-          Dividir em mais de uma forma (ex.: metade no débito, metade no dinheiro)
+          Dividir em mais de uma forma
         </button>
       )}
     </div>

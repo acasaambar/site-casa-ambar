@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBancada } from './sessao.jsx';
+import { useEscFoto } from './agendaUtil.js';
 import { Esqueleto, Erro, Modal, BotaoAcao, Tag, Aviso, Secao, dataBR, hojeIso } from './ui.jsx';
 import './css/clientes.css';
 import { cacheFotos, reduzirFoto } from './fotos.js';
@@ -26,6 +27,7 @@ export function ProntuarioConteudo({ alvo, editavel = true }) {
   const [erro, setErro] = useState('');
   const [editarFicha, setEditarFicha] = useState(false);
   const [ampliada, setAmpliada] = useState('');
+  useEscFoto(ampliada, () => setAmpliada(''));
   const chave = JSON.stringify(alvo);
   useEffect(() => {
     let vivo = true;

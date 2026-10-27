@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
+import { useEscFoto } from './agendaUtil.js';
 import { useDados, Carregando, Esqueleto, Erro, Cabecalho, Abas, BotaoAcao, Vazio, Tag, Secao, MESES, real, dataBR, plural } from './ui.jsx';
 import './css/clientes.css';
 import { Avatar } from './CamposCliente.jsx';
@@ -21,6 +22,7 @@ export function AnamneseConteudo({ alvo }) {
   const [erro, setErro] = useState('');
   const [editando, setEditando] = useState(null); // null | 'nova' | anotação
   const [ampliada, setAmpliada] = useState('');
+  useEscFoto(ampliada, () => setAmpliada(''));
   useEffect(() => {
     let vivo = true;
     chamar('anamnesesProf', alvo).then((r) => vivo && setDados(r)).catch((e) => vivo && setErro(e.message));
@@ -113,6 +115,7 @@ function EditorAnamnese({ alvo, anotacao, aoCancelar, aoSalvar }) {
   const [remover, setRemover] = useState([]);
   const [erro, setErro] = useState('');
   const [ampliada, setAmpliada] = useState('');
+  useEscFoto(ampliada, () => setAmpliada(''));
   const input = useRef(null);
   const area = useRef(null);
   const [original, setOriginal] = useState(texto);

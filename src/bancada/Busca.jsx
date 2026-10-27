@@ -108,7 +108,7 @@ export function Busca({ aoFechar }) {
 
   const ir = (it) => { aoFechar(); it.ir(); };
   const tecla = (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); aoFechar(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); aoFechar(); } // não fecha também a folha que estava embaixo
     else if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, itens.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
     else if (e.key === 'Enter' && itens[sel]) { e.preventDefault(); ir(itens[sel]); }

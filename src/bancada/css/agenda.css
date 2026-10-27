@@ -120,9 +120,14 @@
   background: rgba(255, 253, 246, 0.85); color: #3C4628; box-shadow: inset 0 0 0 1px rgba(47, 56, 33, 0.18);
 }
 .ag-bloco__pg--pacote { color: #5A3A10; }
+/* atendimento curto (menos de 30 min): hora e nome na mesma linha, para o nome não ficar cortado */
+.bancada .ag-bloco--curto { display: flex; flex-direction: row; justify-content: flex-start; text-align: left; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 2px; overflow: hidden; white-space: nowrap; }
+.bancada .ag-bloco--curto .ag-bloco__hora { flex: none; padding-right: 0; }
+.bancada .ag-bloco--curto strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-right: 22px; }
 .bancada .ag-bloco--aula { border-left-width: 4px; background: color-mix(in srgb, var(--cor) 11%, #FFFDF6); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cor) 45%, transparent); }
 .bancada .ag-bloco--aula strong { color: var(--b-tinta); }
 .bancada .ag--semana .ag-bloco { padding: 5px 8px 5px 9px; }
+.bancada .ag--semana .ag-bloco--curto { padding-top: 2px; padding-bottom: 2px; }
 .bancada .ag--semana .ag-bloco__hora { padding-right: 18px; }
 .bancada .ag-folga, .bancada .s-folga { border-radius: 12px; }
 

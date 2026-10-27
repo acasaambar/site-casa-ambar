@@ -390,9 +390,9 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                 })}
                 {lista.filter((a) => a.profissional === c.nome).map((a) => (
                   <button key={a.id} type="button" onClick={() => { if (!arrastou.current) setAberto(a); }} onPointerDown={(e) => comecarArrasto(e, a)}
-                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}`}
+                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}${a.duracao < 30 ? ' ag-bloco--curto' : ''}`}
                     style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }}>
-                    <span className="ag-bloco__hora">{hora(a.hora)}–{hora(fimDe(a))}{pedeRemarcar(a) ? ' · quer remarcar' : ''}</span>
+                    <span className="ag-bloco__hora" title={`${hora(a.hora)}–${hora(fimDe(a))}`}>{a.duracao < 30 ? hora(a.hora) : `${hora(a.hora)}–${hora(fimDe(a))}`}{pedeRemarcar(a) ? ' · quer remarcar' : ''}</span>
                     <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" title={a.alertas.join(' · ')} aria-label="Atenção: ver alertas">!</i>}{a.nome}</strong>
                     {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
                     {a.titular && a.duracao >= 60 && <span className="ag-bloco__info ag-bloco__troca">cobrindo {primeiro(a.titular)}</span>}
@@ -1852,7 +1852,7 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
                     );
                   })}
                   {atend.filter((a) => a.data === d).map((a) => (
-                    <button key={a.id} type="button" onClick={() => aoAbrirDia(d)} className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}`}
+                    <button key={a.id} type="button" onClick={() => aoAbrirDia(d)} className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${a.duracao < 30 ? ' ag-bloco--curto' : ''}`}
                       style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }} title={`${a.nome} · ${a.servico}`}>
                       <span className="ag-bloco__hora">{hora(a.hora)}</span>
                       <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" aria-label="Atenção">!</i>}{a.nome}</strong>
