@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 // Gráficos simples em SVG/HTML, nas cores da Casa Âmbar.
 // Uma série por gráfico (cor única) — o título diz o que está plotado.
@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from 'react';
 
 const COR = { serie: '#6F784D', destaque: '#7E3717', grade: 'rgba(47,56,33,0.10)', tinta: '#2F3821', suave: '#6B6E58' };
 
-function useDica() {
+function useDica(aoFechar) {
   const caixa = useRef(null);
   const [dica, setDica] = useState(null);
+  const fechar = useRef(aoFechar);
+  useEffect(() => { fechar.current = aoFechar; });
   const mostrar = (e, conteudo) => {
     const r = caixa.current?.getBoundingClientRect();
     if (!r) return;
@@ -16,7 +18,15 @@ function useDica() {
     const y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
     setDica({ x, y, conteudo, largura: r.width });
   };
-  const esconder = () => setDica(null);
+  const esconder = () => { setDica(null); fechar.current?.(); };
+  // no toque, tocar fora do gráfico fecha a dica
+  useEffect(() => {
+    if (!dica) return undefined;
+    const fora = (e) => { if (caixa.current && !caixa.current.contains(e.target)) { setDica(null); fechar.current?.(); } };
+    document.addEventListener('touchstart', fora, { passive: true });
+    document.addEventListener('mousedown', fora);
+    return () => { document.removeEventListener('touchstart', fora); document.removeEventListener('mousedown', fora); };
+  }, [dica]);
   const el = dica && (
     <div className="g-dica" style={{ left: Math.min(Math.max(dica.x, 70), dica.largura - 70), top: dica.y }} role="status">
       {dica.conteudo}
@@ -26,24 +36,36 @@ function useDica() {
 }
 
 // Barras horizontais (ranking): itens = [{ nome, valor, detalhe }]
-export function BarrasH({ itens, formato = (v) => v, max: maxFixo, vazio = 'Sem dados no período.', limite = 10 }) {
+// tom: 'oliva' (padrão) | 'terracota' | 'caramelo'; participacao: mostra a fatia de cada item no total
+export function BarrasH({ itens, formato = (v) => v, max: maxFixo, vazio = 'Sem dados no período.', limite = 10, tom = 'oliva', participacao = false }) {
   const { caixa, mostrar, esconder, el } = useDica();
-  const lista = (itens || []).slice(0, limite);
+  const todos = itens || [];
+  const lista = todos.slice(0, limite);
   if (!lista.length) return <p className="g-vazio">{vazio}</p>;
   const max = maxFixo || Math.max(...lista.map((i) => i.valor), 1);
+  const soma = todos.reduce((t, i) => t + (Number(i.valor) || 0), 0);
+  const fatia = (v) => {
+    if (!participacao || soma <= 0) return null;
+    const p = (v / soma) * 100;
+    return p > 0 && p < 1 ? '<1%' : `${Math.round(p)}%`;
+  };
   return (
-    <div className="g-barras" ref={caixa} onMouseLeave={esconder}>
-      {lista.map((i) => (
-        <div key={i.nome} className="g-barras__linha"
-          onMouseMove={(e) => mostrar(e, <><strong>{i.nome}</strong><span>{formato(i.valor)}{i.detalhe ? ' · ' + i.detalhe : ''}</span></>)}
-          onTouchStart={(e) => mostrar(e, <><strong>{i.nome}</strong><span>{formato(i.valor)}{i.detalhe ? ' · ' + i.detalhe : ''}</span></>)}>
-          <span className="g-barras__nome" title={i.nome}>{i.nome}</span>
-          <span className="g-barras__trilho">
-            <span className="g-barras__barra" style={{ width: `${Math.max(1.5, (i.valor / max) * 100)}%` }} />
-          </span>
-          <span className="g-barras__valor">{formato(i.valor)}</span>
-        </div>
-      ))}
+    <div className={`g-barras g-barras--${tom}`} ref={caixa} onMouseLeave={esconder} style={{ '--g-val': participacao ? '136px' : '104px' }}>
+      {lista.map((i, n) => {
+        const parte = fatia(i.valor);
+        const conteudo = <><strong>{i.nome}</strong><span>{formato(i.valor)}{parte ? ' · ' + parte : ''}{i.detalhe ? ' · ' + i.detalhe : ''}</span></>;
+        return (
+          <div key={`${i.nome}-${n}`} className="g-barras__linha"
+            onMouseMove={(e) => mostrar(e, conteudo)}
+            onTouchStart={(e) => mostrar(e, conteudo)}>
+            <span className="g-barras__nome" title={i.nome}>{i.nome}{i.detalhe && <small>{i.detalhe}</small>}</span>
+            <span className="g-barras__trilho">
+              <span className="g-barras__barra" style={{ width: `${Math.max(1.5, (i.valor / max) * 100)}%` }} />
+            </span>
+            <span className="g-barras__valor">{formato(i.valor)}{parte && <small>{parte}</small>}</span>
+          </div>
+        );
+      })}
       {el}
     </div>
   );
@@ -75,9 +97,11 @@ function useLargura(ref) {
 }
 
 // Colunas ao longo do tempo: serie = [{ chave, valor }]
-export function Colunas({ serie, rotuloX = (k) => k, formato = (v) => v, altura = 220, dicaExtra }) {
-  const { caixa, mostrar, esconder, el } = useDica();
+export function Colunas({ serie, rotuloX = (k) => k, formato = (v) => v, altura = 220, dicaExtra, legenda }) {
+  const [ativo, setAtivo] = useState(null);
+  const { caixa, mostrar, esconder, el } = useDica(() => setAtivo(null));
   const L = useLargura(caixa);
+  const idGrad = useId().replace(/:/g, '');
   const dados = serie || [];
   if (!dados.length) return <p className="g-vazio">Sem dados no período.</p>;
   const max = Math.max(...dados.map((d) => d.valor), 0);
@@ -85,7 +109,7 @@ export function Colunas({ serie, rotuloX = (k) => k, formato = (v) => v, altura 
   const topo = Math.max(passo, Math.ceil(max / passo) * passo);
   const A = altura, esq = 46, base = A - 26, alturaUtil = base - 10;
   const larg = (L - esq - 6) / dados.length;
-  const barra = Math.min(24, Math.max(3, larg - 2));
+  const barra = Math.min(larg > 44 ? 40 : 24, Math.max(3, larg - 2));
   const ticks = [];
   for (let v = 0; v <= topo + 0.001; v += passo) ticks.push(v);
   const cada = Math.ceil(dados.length / Math.max(3, Math.floor(L / 70))); // rótulos do eixo X sem encavalar
@@ -93,11 +117,15 @@ export function Colunas({ serie, rotuloX = (k) => k, formato = (v) => v, altura 
   return (
     <div className="g-colunas" ref={caixa} onMouseLeave={esconder}>
       <svg viewBox={`0 0 ${L} ${A}`} width={L} height={A} role="img" aria-label="Gráfico de colunas">
+        <defs>
+          <linearGradient id={`${idGrad}s`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#8B9566" /><stop offset="1" stopColor="#6F784D" /></linearGradient>
+          <linearGradient id={`${idGrad}d`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#A5502A" /><stop offset="1" stopColor="#7E3717" /></linearGradient>
+        </defs>
         {ticks.map((t) => {
           const y = base - (t / topo) * alturaUtil;
           return (
             <g key={t}>
-              <line x1={esq} x2={L - 4} y1={y} y2={y} stroke={COR.grade} strokeWidth="1" />
+              {t > 0 && <line x1={esq} x2={L - 4} y1={y} y2={y} className="g-grade" />}
               <text x={esq - 8} y={y + 4} textAnchor="end" className="g-eixo">{compacto(t)}</text>
             </g>
           );
@@ -106,23 +134,30 @@ export function Colunas({ serie, rotuloX = (k) => k, formato = (v) => v, altura 
           const h = topo ? (d.valor / topo) * alturaUtil : 0;
           const x = esq + i * larg + (larg - barra) / 2;
           const y = base - h;
-          const r = Math.min(4, barra / 2, h);
+          const r = Math.min(5, barra / 2, h);
           const caminho = h > 0
             ? `M${x},${base} V${y + r} Q${x},${y} ${x + r},${y} H${x + barra - r} Q${x + barra},${y} ${x + barra},${y + r} V${base} Z`
             : '';
           const conteudo = <><strong>{rotuloX(d.chave, true)}</strong><span>{formato(d.valor)}{dicaExtra ? dicaExtra(d) : ''}</span></>;
+          const aqui = (e) => { setAtivo(i); mostrar(e, conteudo); };
           return (
             <g key={d.chave}>
-              {caminho && <path d={caminho} fill={i === iMax ? COR.destaque : COR.serie} />}
-              <rect x={esq + i * larg} y={10} width={larg} height={base - 10} fill="transparent"
-                onMouseMove={(e) => mostrar(e, conteudo)} onTouchStart={(e) => mostrar(e, conteudo)} />
+              {ativo === i && <rect x={esq + i * larg} y={6} width={larg} height={base - 6} rx="4" className="g-faixa" />}
+              {caminho && <path d={caminho} fill={`url(#${idGrad}${i === iMax ? 'd' : 's'})`} opacity={ativo != null && ativo !== i ? 0.55 : 1} />}
+              <rect x={esq + i * larg} y={6} width={larg} height={base - 6} fill="transparent" onMouseMove={aqui} onTouchStart={aqui} />
               {i % cada === 0 && <text x={x + barra / 2} y={A - 8} textAnchor="middle" className="g-eixo">{rotuloX(d.chave)}</text>}
             </g>
           );
         })}
-        <line x1={esq} x2={L - 4} y1={base} y2={base} stroke="rgba(47,56,33,0.35)" strokeWidth="1" />
+        <line x1={esq} x2={L - 4} y1={base} y2={base} className="g-base" />
       </svg>
       {el}
+      {iMax >= 0 && (
+        <p className="g-legenda">
+          {legenda && <span><i className="g-legenda__cor" />{legenda}</span>}
+          <span><i className="g-legenda__cor g-legenda__cor--destaque" />Maior: {rotuloX(dados[iMax].chave, true)} · {formato(dados[iMax].valor)}</span>
+        </p>
+      )}
     </div>
   );
 }
