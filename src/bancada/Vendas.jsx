@@ -25,6 +25,11 @@ export default function Vendas() {
   );
 }
 
+// número do pedido da comanda vira o "nº" curto que a comanda mostra (Comanda Q261028083158AAB2F → Comanda nº AAB2F)
+const obsLegivel = (t) => String(t || '').replace(/Comanda Q\d{10,}(\w{5})\b/g, 'Comanda nº $1');
+// valores dos cartões inteiros, com centavos (só abrevia a partir de 100 mil)
+const kpiReal = (v) => (Math.abs(Number(v || 0)) >= 100000 ? realCurto(v) : real(v));
+
 const FILTROS = [['todos', 'Todos'], ['pagos', 'Pagos'], ['pendentes', 'Pendentes'], ['site', 'Site'], ['balcao', 'Balcão'], ['devolver', 'Juros a devolver'], ['estornados', 'Estornados'], ['excluidas', 'Excluídas']];
 const passaNoFiltro = (p, filtro) => {
   if (filtro === 'pagos') return p.status === 'pago';
@@ -75,8 +80,8 @@ function ListaVendas({ abas }) {
         <label className="vn-periodo__campo"><span>Até</span><input type="date" value={ate} onChange={(e) => e.target.value && setAte(e.target.value)} /></label>
       </div>
       <section className="b-kpis">
-        <Kpi rotulo="Recebido no período" valor={realCurto(total)} detalhe={plural(pagos.filter((p) => p.valor > 0).length, 'venda', 'vendas')} />
-        {verLiquido && <Kpi rotulo="Líquido no período" valor={realCurto(total - taxas)} detalhe={taxas > 0 ? `${real(taxas)} de taxa da maquininha` : 'sem taxas no período'} />}
+        <Kpi rotulo="Recebido no período" valor={kpiReal(total)} detalhe={plural(pagos.filter((p) => p.valor > 0).length, 'venda', 'vendas')} />
+        {verLiquido && <Kpi rotulo="Líquido no período" valor={kpiReal(total - taxas)} detalhe={taxas > 0 ? `${real(taxas)} de taxa da maquininha` : 'sem taxas no período'} />}
         <Kpi rotulo="Aguardando pagamento" valor={(dados || []).filter((p) => p.status === 'pendente').length} detalhe="links gerados e não pagos" />
         <Kpi rotulo="Juros a devolver" valor={devolver.length} tom={devolver.length ? 'alerta' : ''} detalhe="parcelou dentro do sem juros" />
       </section>
@@ -111,7 +116,7 @@ function ListaVendas({ abas }) {
                   {(p.cupom || p.vale || p.observacao) && (
                     <span className="vn-venda__nota">
                       {(p.cupom || p.vale) && <span className="vn-venda__desconto">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
-                      {p.observacao && <span className={devolverEsta ? 'b-alerta-txt' : undefined}>{p.observacao}</span>}
+                      {p.observacao && <span className={devolverEsta ? 'b-alerta-txt' : undefined}>{obsLegivel(p.observacao)}</span>}
                     </span>
                   )}
                 </div>
@@ -122,13 +127,13 @@ function ListaVendas({ abas }) {
                 <div className="vn-venda__rodape">
                   <span className="vn-venda__data" title={dataBR(p.pagoEm || p.criadoEm)}>{dataCurta(p.pagoEm || p.criadoEm)}</span>
                   <span className="vn-venda__forma">
-                    <Tag>{p.metodo || '—'}</Tag>
+                    {p.metodo && <Tag>{p.metodo}</Tag>}
                     <small>{[p.bandeira, Number(p.parcelas) > 1 ? `${p.parcelas}x` : '', p.origem].filter(Boolean).join(' · ')}</small>
                   </span>
                   <span className="vn-venda__acoes">
                     {devolverEsta && <BotaoAcao className="botao botao--linha botao--p" acao={async () => { await chamar('marcarDevolvido', { orderNsu: p.orderNsu }); recarregar(); }}>Já devolvi</BotaoAcao>}
-                    {p.status === 'pago' && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setAberta(p)}>Editar</button>}
-                    {p.recibo && <a className="botao botao--fantasma botao--p" href={p.recibo} target="_blank" rel="noreferrer">Recibo</a>}
+                    {p.status === 'pago' && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setAberta(p)} aria-label={`Editar venda de ${p.nome}`}>Editar</button>}
+                    {p.recibo && <a className="botao botao--fantasma botao--p" href={p.recibo} target="_blank" rel="noreferrer" aria-label={`Recibo da venda de ${p.nome}`}>Recibo</a>}
                   </span>
                 </div>
               </li>
@@ -174,7 +179,7 @@ function VendasDuplicadas({ abas }) {
       {r && (
         <section className="b-kpis">
           <Kpi rotulo="Prováveis duplicadas" valor={r.provaveis} tom={r.provaveis ? 'alerta' : ''} detalhe={r.provaveis ? 'mesmo item, dia e valor' : 'nenhuma no período'} />
-          <Kpi rotulo="Valor em dobro" valor={realCurto(r.valorEmDobro)} tom={r.valorEmDobro ? 'alerta' : ''} detalhe="soma do que sobra nas prováveis" />
+          <Kpi rotulo="Valor em dobro" valor={kpiReal(r.valorEmDobro)} tom={r.valorEmDobro ? 'alerta' : ''} detalhe="soma do que sobra nas prováveis" />
           <Kpi rotulo="Para conferir" valor={r.conferir} detalhe="valores diferentes no mesmo dia" />
         </section>
       )}
@@ -204,8 +209,7 @@ function VendasDuplicadas({ abas }) {
                   <div className="b-item__corpo">
                     <span className="b-item__titulo">{real(v.total)} <small>{v.metodo}</small></span>
                     <span className="b-meta">
-                      <span>{(v.pagoEm || v.criadoEm || '').slice(11, 16) || '—'}</span>
-                      <span>{v.registradoPor ? v.registradoPor.split('@')[0] : v.origem}</span>
+                      <span>{(v.pagoEm || v.criadoEm || '').slice(11, 16) || '—'} · {v.registradoPor ? v.registradoPor.split('@')[0] : v.origem}</span>
                       <span>{LIGACAO[v.ligacao.tipo]}{v.ligacao.agenda ? ` · ${dataCurta(v.ligacao.agenda.data)} ${v.ligacao.agenda.hora}` : ''}{v.ligacao.comanda ? ` · ${v.ligacao.comanda}` : ''}</span>
                     </span>
                   </div>
@@ -262,7 +266,7 @@ function VendaAberta({ p, aoFechar, aoMudar }) {
             <div><dt>Líquido</dt><dd><strong>{real(p.liquido)}</strong><small>{p.taxa > 0 ? `taxa estimada ${real(p.taxa)} (${String(p.taxaPct).replace('.', ',')}%)` : 'sem taxa'}</small></dd></div>
           )}
           {p.registradoPor && <div><dt>Lançada por</dt><dd>{p.registradoPor.split('@')[0]}{p.pagoEm ? ` · ${p.pagoEm.slice(11, 16)}` : ''}</dd></div>}
-          {p.observacao && <div className="vn-dados__largo"><dt>Observação</dt><dd>{p.observacao}</dd></div>}
+          {p.observacao && <div className="vn-dados__largo"><dt>Observação</dt><dd>{obsLegivel(p.observacao)}</dd></div>}
         </dl>
       </section>
       {p.status !== 'pago' ? (
@@ -348,7 +352,7 @@ function CorrigirVenda({ p, aoSalvar }) {
         <input value={obs} onChange={(e) => setObs(e.target.value)} maxLength={250} /></label>
       <label className="b-campo"><span className="rotulo">Motivo da correção</span>
         <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: foi no débito, não no crédito" /></label>
-      <p className="vn-nota">Fica anotado quem corrigiu, quando e como estava antes. Para trocar a cliente ou o item, exclua e registre de novo.</p>
+      <p className="vn-nota">Fica anotado quem corrigiu, quando e como estava antes. Para trocar quem comprou ou o item, exclua e registre de novo.</p>
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio" disabled={valorRuim || formasRuins || motivo.trim().length < 3 || (!formas && ehCartao(metodo) && faltaBandeira(metodo, bandeira))} acao={async () => {
         setErro('');
@@ -374,7 +378,7 @@ function ExcluirVenda({ p, aoExcluir }) {
         </ul>
       </details>
       <label className="b-campo"><span className="rotulo">Motivo</span>
-        <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: lancei a aula antes de a aluna pagar" /></label>
+        <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} placeholder="Ex.: lancei a aula antes do pagamento" /></label>
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio botao--perigo-cheio" disabled={motivo.trim().length < 3} confirmar={`Excluir a venda de ${p.nome} (${real(p.valor)})?`} acao={async () => {
         setErro('');

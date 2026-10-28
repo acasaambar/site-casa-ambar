@@ -361,3 +361,6 @@ section.cx-cartao { margin-top: var(--e-3, 16px); }
 @media (max-width: 560px) {
   .cx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* celular: a linha de info do item não dobra o espaço entre os pedaços */
+@media (max-width: 560px) { .cm .cm-item__meta { gap: 2px 0; } }

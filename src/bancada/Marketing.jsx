@@ -119,7 +119,7 @@ function EditarPromocao({ p, catalogo, aoFechar, aoSalvar }) {
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Terça da pele" /></label>
         <label className="b-campo"><span className="rotulo">Descrição (opcional)</span><input value={f.descricao} onChange={(e) => setF({ ...f, descricao: e.target.value })} /></label>
-        <fieldset className="b-opcoes b-opcoes--linha">
+        <fieldset className="b-opcoes b-opcoes--linha mk-tipos">
           <legend className="rotulo">Tipo de desconto</legend>
           {[['percentual', 'Porcentagem', '% sobre o preço'], ['valor', 'Valor', 'R$ a menos'], ['preco_fixo', 'Preço fixo', 'para um item']].map(([id, t, d]) => (
             <label key={id} className={f.tipo === id ? 'ativo' : ''}><input type="radio" checked={f.tipo === id} onChange={() => setF({ ...f, tipo: id })} /><span><strong>{t}</strong><small>{d}</small></span></label>

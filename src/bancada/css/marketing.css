@@ -118,4 +118,13 @@
 @media (max-width: 560px) {
   .mk-promo .b-meta, .mk-lembrete .b-meta, .mk-retorno .b-meta, .mk-resumo .b-meta { flex-direction: column; align-items: flex-start; gap: 1px; }
   .mk-promo .b-meta > * + *::before, .mk-lembrete .b-meta > * + *::before, .mk-retorno .b-meta > * + *::before, .mk-resumo .b-meta > * + *::before { display: none; }
+  .bancada :is(.mk-promo, .mk-lembrete, .mk-retorno, .mk-resumo) .b-meta > *::after { content: none; }
+  .bancada :is(.mk-promo, .mk-lembrete, .mk-retorno, .mk-resumo) .b-meta > * { margin-right: 0; }
 }
+
+/* tipo de desconto: as três opções lado a lado quando a folha é larga */
+@media (min-width: 561px) { .bancada .mk-tipos { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.bancada .mk-tipos label { padding: 10px 12px; gap: 10px; }
+
+/* celular: o botão Editar do cartão aparece como botão (contorno), não como texto solto */
+@media (max-width: 640px) { .bancada .mk-promo .mk-promo__editar { border: 1px solid var(--b-linha); min-height: 44px; } }

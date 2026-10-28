@@ -440,7 +440,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
                       <input value={motivoTirar} onChange={(e) => setMotivoTirar(e.target.value)} maxLength={120} placeholder="Ex.: cliente desistiu" autoFocus
                         onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), setTirando(null))} />
                     </label>
-                    {it.atendimentoId && <span className="b-suave">O agendamento continua na agenda; se a cliente não veio, marque lá.</span>}
+                    {it.atendimentoId && <span className="b-suave">O agendamento continua na agenda; se a pessoa não veio, marque lá.</span>}
                     <div className="cm-tirar__botoes">
                       <BotaoAcao className="botao botao--linha botao--p botao--perigo" acao={async () => {
                         const r = await salvar({ itens: itens.filter((_, k) => k !== idx), motivo: motivoTirar.trim() || undefined });
@@ -1230,7 +1230,7 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
             ajuda={passado ? 'Informe quanto havia na gaveta no fim daquele dia. O sistema compara com o esperado.' : 'Conte o dinheiro da gaveta e informe o total. O sistema compara com o esperado.'}>
             <div className="b-linha2">
               <label className="b-campo"><span className="rotulo">Dinheiro contado (R$)</span>
-                <input inputMode="decimal" value={contado} onChange={(e) => setContado(e.target.value.replace(/[^\d,.]/g, ''))} placeholder={String(cx.esperado).replace('.', ',')} />
+                <input inputMode="decimal" value={contado} onChange={(e) => setContado(e.target.value.replace(/[^\d,.]/g, ''))} placeholder={Number(cx.esperado || 0).toFixed(2).replace('.', ',')} />
                 <small className="b-suave">Esperado: {real(cx.esperado)}</small></label>
               <label className="b-campo"><span className="rotulo">Observação</span><input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional" /></label>
             </div>

@@ -89,7 +89,7 @@
 .vn-dados dd { margin: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; display: flex; flex-direction: column; }
 .vn-dados dd small { font-size: 13px; font-weight: 400; color: var(--b-suave); }
 .vn-dados__largo { grid-column: 1 / -1; }
-@media (max-width: 480px) { .vn-dados { grid-template-columns: 1fr; } .vn-resumo__valor strong { font-size: 22px; } }
+@media (max-width: 480px) { .vn-resumo__valor strong { font-size: 22px; } .vn-dados { gap: 10px var(--e-2); } }
 .vn-voltar { align-self: flex-start; margin-left: -8px; }
 .vn-nota { margin: 0; font-size: 13px; line-height: 1.5; color: var(--b-suave); }
 .vn-detalhes { border-radius: var(--r-m); border: 1px solid var(--b-linha); padding: 0 14px; font-size: 14px; background: rgba(251, 248, 239, 0.6); }
@@ -218,8 +218,11 @@
 .es-hist__corpo strong { font-weight: 600; }
 
 @media (max-width: 560px) {
-  .es-item .b-meta { flex-direction: column; align-items: flex-start; gap: 1px; }
-  .es-item .b-meta > * + *::before { display: none; }
+  .bancada .es-item .b-meta { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .bancada .es-item .b-meta > *:not(:last-child)::after { content: none; }
+  .bancada .es-form .b-linha2 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .bancada .es-form .b-linha2 > .b-check { grid-column: 1 / -1; }
+  .bancada .es-form .b-linha2.es-linha--cheia { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) { .b-modal .b-aviso__acao { padding-left: 0; } }
@@ -257,3 +260,17 @@
   .bancada .dp-grupo__rodape .botao { width: 100%; justify-content: center; }
 }
 .bancada .dp-barra .b-segmento button { white-space: nowrap; padding-inline: 12px; }
+
+/* info miúda: o ponto separador fica no fim do item (nunca sozinho no começo da linha quebrada) */
+.bancada :is(.vr, .dp-venda, .es-item) .b-meta { gap: 2px 0; }
+.bancada :is(.vr, .dp-venda, .es-item) .b-meta > * + *::before { content: none; margin: 0; }
+.bancada :is(.vr, .dp-venda, .es-item) .b-meta > *:not(:last-child)::after { content: '·'; margin: 0 8px; color: rgba(47, 56, 33, 0.35); }
+.es-item__preco { font-size: 13px; color: var(--b-suave); }
+.es-item__nome .es-item__preco { margin-top: 1px; }
+@media (max-width: 560px) {
+  /* venda repetida e duplicadas: uma informação por linha no celular, sem ponto */
+  .bancada :is(.vr, .dp-venda) .b-meta { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .bancada :is(.vr, .dp-venda, .es-item) .b-meta > *:not(:last-child)::after { content: none; }
+}
+
+@media (max-width: 480px) { .bancada .cq-cupom .botao--fantasma { border: 1px solid var(--b-linha); min-height: 44px; padding-inline: 18px; } }
