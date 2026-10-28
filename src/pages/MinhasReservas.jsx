@@ -132,7 +132,7 @@ export default function MinhasReservas() {
               {passadas.slice(0, 10).map((r) => (
                 <li key={r.id}>
                   <span>{r.modalidade} · {dataExtensa(r.data)}</span>
-                  <span>{r.status === 'check-in' ? 'presente' : 'não compareceu'}</span>
+                  <span className={r.status === 'check-in' ? 'historico__ok' : ''}>{r.status === 'check-in' ? 'presente' : 'não compareceu'}</span>
                 </li>
               ))}
             </ul>

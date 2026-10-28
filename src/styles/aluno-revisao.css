@@ -1,0 +1,103 @@
+/* ============================================================
+   ÁREA DO ALUNO · revisão de interface (out/2026)
+   Camada por cima de styles.css: só ajustes da área logada (Aulas, Reservar, Meu plano,
+   Minhas reservas, Minha conta, Ficha de saúde, contrato). Regras do site: nada abaixo de 12 px,
+   foco visível com contraste, alvos de toque de 40 px ou mais, sem texto só no feminino.
+   ============================================================ */
+
+/* ---------- barra de navegação da área do aluno: texto de 12 px (era 11 e 11,5) ---------- */
+@media (max-width: 760px) {
+  .area-nav__item { font-size: 12px; letter-spacing: 0.01em; line-height: 1.25; padding: 6px 1px; }
+  .area-nav__item svg { width: 22px; height: 22px; }
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .area-nav__item { font-size: 12px; letter-spacing: 0.06em; }
+}
+/* tela muito estreita (iPhone SE, 320 px): ícone menor e texto sem espaçamento, para "reservas" caber */
+@media (max-width: 359px) {
+  .area-nav__item { letter-spacing: 0; padding-inline: 0; }
+  .area-nav__item svg { width: 20px; height: 20px; }
+}
+
+/* ---------- foco visível com contraste (o âmbar some no papel claro) ---------- */
+.app :focus-visible,
+.confirmado :focus-visible,
+.passos-previos :focus-visible { outline-color: var(--terracota); }
+.app__topo :focus-visible,
+.area-nav :focus-visible,
+.barra-confirmar :focus-visible,
+.bilhete :focus-visible,
+.credito :focus-visible,
+.boas-vindas :focus-visible,
+.wh__lado :focus-visible,
+.wh__cartao :focus-visible { outline-color: var(--ambar); }
+.escolha:has(input:focus-visible),
+.marca:has(input:focus-visible),
+.wh__confirma:has(input:focus-visible) { outline-color: var(--terracota); }
+/* a janela recebe o foco ao abrir (Dialogo.jsx), mas não precisa de contorno */
+.confirmado:focus, .confirmado:focus-visible,
+.passos-previos:focus, .passos-previos:focus-visible { outline: none; }
+
+/* títulos que quebram em duas linhas ficam equilibrados ("QUARTA, 28 / DE OUT") */
+.app .display-m, .app .display-p, .bilhete h2, .confirmado .display-m { text-wrap: balance; }
+
+/* ---------- Aulas: aula lotada ou encerrada sem apagar o texto (opacidade deixava o contraste abaixo de 4,5:1) ---------- */
+.aula--apagada { opacity: 1; background: #F3EEDE; box-shadow: none; }
+.aula--apagada.aula--yoga { background: #EFE9D6; }
+.aula--apagada .aula__hora strong,
+.aula--apagada .aula__mod,
+.aula--lotada .aula__hora strong,
+.aula--lotada .aula__mod { color: var(--tinta-suave); }
+.aula--lotada .aula__hora, .aula--lotada .aula__info { opacity: 1; }
+.aula--apagada .mini, .aula--lotada .mini { opacity: 0.6; }
+.aula__acao { min-width: 0; }
+
+/* ---------- Reservar: tapete ocupado com selo de 12 px ---------- */
+.tapete__selo { font-size: 12px; letter-spacing: 0.08em; }
+
+/* ---------- Ficha de saúde e contrato ---------- */
+/* um botão só (etapa 1): ocupa a largura toda no celular, em vez de ficar torto ao lado de um espaço vazio */
+@media (max-width: 560px) {
+  .ficha__botoes > .botao:only-child { flex: 1; }
+}
+.ficha__botoes { align-items: stretch; }
+.ficha__botoes > .botao:only-child { margin-left: auto; }
+
+.opcoes-imagem.sim-nao { display: grid; gap: 8px; }
+.opcoes-imagem[aria-invalid='true'] { padding: 10px 12px; margin-inline: -12px; border-radius: 14px; background: rgba(181, 84, 58, 0.14); box-shadow: inset 0 0 0 1px rgba(181, 84, 58, 0.5), inset 4px 0 0 #B5543A; }
+.termo input[aria-invalid='true'] { outline: 2px solid #B5543A; outline-offset: 2px; }
+.opcoes-imagem__titulo, .assina__rotulo { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 500; color: var(--tinta); }
+.assina__quadro--invalido { border-color: #B5543A; box-shadow: 0 0 0 3px rgba(181, 84, 58, 0.18); }
+.assina__limpar { color: #7E3717; }
+
+/* ---------- Meu plano ---------- */
+.wh__campo input::placeholder { color: rgba(47, 56, 33, 0.5); }
+.preco:focus-visible { outline-offset: 3px; }
+
+/* ---------- Minhas reservas ---------- */
+/* telas largas: dois bilhetes por linha (um por linha deixava cada um com 1.100 px de largura e quase nada dentro) */
+@media (min-width: 1000px) {
+  .bilhetes { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .bilhete { grid-template-rows: 1fr auto; }
+  .bilhete__acoes { gap: 8px 16px; }
+}
+.historico h2 { margin: 0; }
+.historico li { align-items: center; }
+.historico li span:last-child {
+  flex: none; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500;
+  padding: 4px 10px; border-radius: 999px; background: var(--creme); color: var(--tinta-suave);
+}
+.historico li span:last-child.historico__ok { background: #E3ECD8; color: #3E5228; }
+
+/* ---------- janelas: no celular a caixa usa a largura toda, sem sobrar margem ---------- */
+@media (max-width: 420px) {
+  .confirmado { padding: 10px; }
+  .confirmado__caixa { padding: 34px 22px 24px; border-radius: 24px; }
+  .compra { padding: 24px 20px 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aula, .oferta, .modalidade, .preco { transition: none; }
+  .aula:not(.aula--apagada):hover, .oferta:hover, .modalidade:hover, .preco:hover { transform: none; }
+  .girando-lento, .confirmado__sol { animation: none; }
+}

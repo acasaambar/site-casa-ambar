@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apontarCampo } from '../lib/util.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import AssinaturaDesenhada from './AssinaturaDesenhada.jsx';
@@ -12,16 +13,26 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
   const [nome, setNome] = useState('');
   const [imagem, setImagem] = useState('');
   const [desenho, setDesenho] = useState('');
+  const [assinaturaFalta, setAssinaturaFalta] = useState(false);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   async function assinar(e) {
     e.preventDefault();
-    if (!aceito) return setErro('Marque que leu e concorda com o contrato.');
-    if (!imagem) return setErro('Escolha uma das opções sobre o uso de imagem (cláusula sexta).');
-    if (nome.trim().split(/\s+/).length < 2) return setErro('Digite seu nome completo, como no cadastro.');
-    if (!desenho) return setErro('Desenhe sua assinatura no quadro (com o dedo, a caneta ou o mouse).');
+    // cada problema aponta o campo (marca em vermelho, rola até ele e põe o cursor)
+    const form = e.currentTarget;
+    const falhar = (msg, campo) => {
+      setErro(msg);
+      setAssinaturaFalta(campo === 'assinatura');
+      apontarCampo(form, campo);
+      if (campo === 'assinatura') form.querySelector('.assina')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    if (!imagem) return falhar('Escolha uma das opções sobre o uso de imagem (cláusula sexta).', 'imagem');
+    if (!aceito) return falhar('Marque que leu e concorda com o contrato.', 'aceito');
+    if (nome.trim().split(/\s+/).length < 2) return falhar('Digite seu nome completo, como no cadastro.', 'nome');
+    if (!desenho) return falhar('Desenhe sua assinatura no quadro (com o dedo, a caneta ou o mouse).', 'assinatura');
     setErro('');
+    setAssinaturaFalta(false);
     setEnviando(true);
     try {
       await api.assinarContrato(token, plano.id, nome.trim(), true, typeof navigator === 'undefined' ? '' : navigator.userAgent, imagem, desenho);
@@ -47,28 +58,28 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
         </article>
         <form className="form ficha__form contrato__assinatura" onSubmit={assinar} noValidate>
           <fieldset className="bloco bloco--termos">
-            <div className="opcoes-imagem" role="radiogroup" aria-label="Uso de imagem">
+            <div className="opcoes-imagem sim-nao" role="radiogroup" aria-label="Uso de imagem">
               <span className="opcoes-imagem__titulo">Uso de imagem (cláusula sexta)</span>
               <label className="termo">
-                <input type="radio" name="imagem" checked={imagem === 'sim'} onChange={() => setImagem('sim')} />
+                <input type="radio" name="imagem" value="sim" checked={imagem === 'sim'} onChange={() => setImagem('sim')} />
                 <span>Autorizo o uso da minha imagem em redes sociais e materiais da Casa Âmbar.</span>
               </label>
               <label className="termo">
-                <input type="radio" name="imagem" checked={imagem === 'nao'} onChange={() => setImagem('nao')} />
+                <input type="radio" name="imagem" value="nao" checked={imagem === 'nao'} onChange={() => setImagem('nao')} />
                 <span>Não autorizo.</span>
               </label>
               <span className="dica-campo">Pode mudar de ideia a qualquer momento, avisando por escrito.</span>
             </div>
             <label className="termo">
-              <input type="checkbox" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
+              <input type="checkbox" name="aceito" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
               <span>Li o contrato e concordo com todas as cláusulas.</span>
             </label>
             <label>
               Para assinar, digite seu nome completo
-              <input type="text" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} placeholder={dados.nomeCadastro} />
+              <input type="text" name="nome" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} placeholder={dados.nomeCadastro} />
               <span className="dica-campo">Igual ao do cadastro.</span>
             </label>
-            <AssinaturaDesenhada aoMudar={setDesenho} desabilitado={enviando} />
+            <AssinaturaDesenhada aoMudar={(d) => { setDesenho(d); if (d) setAssinaturaFalta(false); }} desabilitado={enviando} invalida={assinaturaFalta} />
             <span className="dica-campo">A cópia assinada chega no seu e-mail assim que o pagamento do plano for confirmado.</span>
           </fieldset>
           {erro && <p className="erro erro--destaque" role="alert">{erro}</p>}

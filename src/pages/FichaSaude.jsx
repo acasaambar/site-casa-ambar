@@ -304,7 +304,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                   <input type="text" {...campo('alergias')} />
                 </label>
                 <label>
-                  Algo mais que a professora deva saber? <span className="opcional">opcional</span>
+                  Algo mais que a equipe deva saber? <span className="opcional">opcional</span>
                   <textarea rows="3" {...campo('observacoes')} />
                 </label>
               </fieldset>
@@ -332,9 +332,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
               <button type="button" className="botao botao--linha" onClick={() => { setErro(''); setEtapa(etapa - 1); }}>Voltar</button>
             ) : aoVoltar ? (
               <button type="button" className="botao botao--linha" onClick={aoVoltar}>Voltar</button>
-            ) : (
-              <span />
-            )}
+            ) : null}
             <button type="submit" className="botao botao--cheio" disabled={enviando}>
               {enviando ? 'Salvando…' : etapa < ETAPAS.length - 1 ? 'Continuar' : embutida ? 'Concluir e continuar' : 'Concluir ficha'}
             </button>
