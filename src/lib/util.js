@@ -1,3 +1,5 @@
+import { rolagemSuave } from './movimento.js';
+
 // ---------- CPF ----------
 export function soDigitos(v) {
   return String(v || '').replace(/\D/g, '');
@@ -82,7 +84,7 @@ export function apontarCampo(form, nome) {
   const limpar = () => alvo.removeAttribute('aria-invalid');
   alvo.addEventListener(el.type === 'checkbox' || grupo ? 'change' : 'input', limpar, { once: true });
   el.focus({ preventScroll: true });
-  alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  alvo.scrollIntoView({ behavior: rolagemSuave(), block: 'center' });
 }
 
 export function idDaAula(data, hora, modalidade) {

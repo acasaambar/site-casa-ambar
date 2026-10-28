@@ -42,9 +42,14 @@ main:focus { outline: none; }
 :is(.topo, .secao, .entrar, .rodape, .hero, .whats) :focus-visible { outline: 2px solid var(--verde); outline-offset: 3px; }
 :is(.secao--verde, .secao--terracota, .secao--caramelo, .rodape, .hero, .topo--transparente, .entrar__arte) :focus-visible { outline-color: var(--creme); }
 .abas button:focus-visible { outline-offset: -4px; }
+/* o botão do WhatsApp flutua sobre papel e sobre verde: anel de duas cores (papel por dentro, verde por fora) que se vê em qualquer fundo */
+.whats:focus-visible { outline: none; }
+.whats:focus-visible .whats__botao { box-shadow: 0 0 0 3px var(--papel), 0 0 0 6px var(--verde); }
 
 /* ---------- cabeçalho ---------- */
 .topo__nav a { min-height: 40px; display: inline-flex; align-items: center; }
+/* os atalhos da área do aluno só existem no menu do celular (a regra acima, mais forte, os trazia de volta e estourava a largura) */
+@media (min-width: 881px) { .topo__nav a.topo__nav-area { display: none; } }
 @media (max-width: 880px) {
   .topo__nav {
     max-height: calc(100dvh - 76px);
@@ -147,3 +152,12 @@ main:focus { outline: none; }
 .entrar .erro { border-left: 3px solid #B5543A; margin: 0; }
 .entrar .erro--campo { margin: -6px 0 2px; }
 .entrar__ajuda--duplo { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 12px; }
+
+/* campo apontado por erro (apontarCampo rola até ele): nunca fica escondido atrás do cabeçalho fixo de 74 px */
+.form input, .form select, .form textarea, .form .sim-nao, .form .assina__quadro { scroll-margin-block: 110px 40px; }
+/* aviso do endereço entre dois blocos do cadastro: respiro dos dois lados */
+.form--cadastro > fieldset + .erro--campo { margin-top: 14px; }
+.form--cadastro > .erro--campo + fieldset { margin-top: 14px; }
+
+/* o logo agora vem dentro de <picture> (WebP + PNG de reserva): a moldura não cria caixa própria */
+picture { display: contents; }

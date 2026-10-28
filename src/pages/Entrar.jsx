@@ -163,8 +163,9 @@ export default function Entrar() {
                   </label>
                 </fieldset>
 
-                <EnderecoSite valor={endereco} aoMudar={(v) => { if (CAMPOS_ENDERECO.includes(erroNome)) limparErro(); setEndereco(v); }} />
+                {/* o aviso do endereço fica ACIMA dos campos: o bloco é comprido e, embaixo, a mensagem ficava fora da tela */}
                 {erroDe(...CAMPOS_ENDERECO)}
+                <EnderecoSite valor={endereco} aoMudar={(v) => { if (CAMPOS_ENDERECO.includes(erroNome)) limparErro(); setEndereco(v); }} />
 
                 <fieldset className="grupo-form">
                   <legend className="display-p">Sua senha</legend>

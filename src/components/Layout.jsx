@@ -28,6 +28,8 @@ export function Header() {
   // Esc fecha o menu do celular e devolve o foco ao botão
   useEffect(() => {
     if (!aberto) return undefined;
+    // os links do menu vêm antes do botão no código: ao abrir, o foco vai ao primeiro link (senão o Tab pula o menu inteiro)
+    document.querySelector('#menu-principal a')?.focus({ preventScroll: true });
     const f = (e) => {
       if (e.key !== 'Escape') return;
       setAberto(false);
@@ -51,11 +53,11 @@ export function Header() {
           <Logo variante={transparente ? 'creme' : 'verde'} largura={52} />
         </Link>
         <nav id="menu-principal" className={`topo__nav ${aberto ? 'aberto' : ''}`} aria-label="Principal">
-          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'conceito')}>A Casa</a>
-          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'movimento')}>Yoga & Pilates</a>
-          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'equipe')}>Nossa equipe</a>
-          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'cuidados')}>Cuidados</a>
-          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'contato')}>Contato</a>
+          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { irPara(e, 'conceito'); setAberto(false); }}>A Casa</a>
+          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { irPara(e, 'movimento'); setAberto(false); }}>Yoga & Pilates</a>
+          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { irPara(e, 'equipe'); setAberto(false); }}>Nossa equipe</a>
+          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { irPara(e, 'cuidados'); setAberto(false); }}>Cuidados</a>
+          <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => { irPara(e, 'contato'); setAberto(false); }}>Contato</a>
           {/* atalhos da área: só no menu do celular (no computador já estão na barra da área do aluno) */}
           {aluno ? (
             <>

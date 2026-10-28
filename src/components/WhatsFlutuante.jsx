@@ -24,18 +24,20 @@ export default function WhatsFlutuante() {
   const texto = encodeURIComponent('Olá, Casa Âmbar! Vim pelo site e gostaria de mais informações.');
 
   return (
-    <a
-      className={`whats ${visivel ? 'whats--visivel' : ''} ${elevado ? 'whats--elevado' : ''} ${naArea ? 'whats--area' : ''} ${noFormulario ? 'whats--form' : ''}`}
-      href={`https://wa.me/${CONFIG.whatsapp}?text=${texto}`}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`Conversar no WhatsApp ${CONFIG.telefone}`}
-    >
-      <span className="whats__rotulo">Fale com a gente</span>
-      <span className="whats__botao">
-        <span className="whats__onda" aria-hidden="true" />
-        <IconeWhatsapp tamanho={28} />
-      </span>
-    </a>
+    <aside aria-label="Atendimento por WhatsApp">
+      <a
+        className={`whats ${visivel ? 'whats--visivel' : ''} ${elevado ? 'whats--elevado' : ''} ${naArea ? 'whats--area' : ''} ${noFormulario ? 'whats--form' : ''}`}
+        href={`https://wa.me/${CONFIG.whatsapp}?text=${texto}`}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={`Conversar no WhatsApp ${CONFIG.telefone}`}
+      >
+        <span className="whats__rotulo">Fale com a gente</span>
+        <span className="whats__botao">
+          <span className="whats__onda" aria-hidden="true" />
+          <IconeWhatsapp tamanho={28} />
+        </span>
+      </a>
+    </aside>
   );
 }

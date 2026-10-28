@@ -60,7 +60,7 @@ export default function AreaNav() {
   const { sair } = useAuth();
   const nav = useNavigate();
   return (
-    <nav className="area-nav" aria-label="Área do aluno">
+    <nav className="area-nav" aria-label="Seções da área do aluno">
       <div className="area-nav__in">
         {ITENS.map((i) => (
           <NavLink key={i.to} to={i.to} state={i.to === '/ficha-saude' ? { de: '/minhas-reservas' } : undefined} className={`area-nav__item ${i.classe || ''}`}>

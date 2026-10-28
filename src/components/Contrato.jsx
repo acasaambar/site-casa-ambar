@@ -3,6 +3,7 @@ import { apontarCampo } from '../lib/util.js';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import AssinaturaDesenhada from './AssinaturaDesenhada.jsx';
+import { rolagemSuave } from '../lib/movimento.js';
 
 // Contrato do plano mensal ou trimestral: a pessoa lê, marca "li e concordo" e digita o nome completo (aceite eletrônico).
 // O texto vem do servidor (Contrato.gs), já com os dados dela e do plano: aqui só aparece e é assinado.
@@ -15,6 +16,8 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
   const [desenho, setDesenho] = useState('');
   const [assinaturaFalta, setAssinaturaFalta] = useState(false);
   const [erro, setErro] = useState('');
+  // campo que a mensagem aponta ('' = erro geral, junto do botão): o aviso fica colado no campo, não 700 px abaixo
+  const [erroCampo, setErroCampo] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   async function assinar(e) {
@@ -23,15 +26,17 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
     const form = e.currentTarget;
     const falhar = (msg, campo) => {
       setErro(msg);
+      setErroCampo(campo);
       setAssinaturaFalta(campo === 'assinatura');
       apontarCampo(form, campo);
-      if (campo === 'assinatura') form.querySelector('.assina')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (campo === 'assinatura') form.querySelector('.assina')?.scrollIntoView({ behavior: rolagemSuave(), block: 'center' });
     };
     if (!imagem) return falhar('Escolha uma das opções sobre o uso de imagem (cláusula sexta).', 'imagem');
     if (!aceito) return falhar('Marque que leu e concorda com o contrato.', 'aceito');
     if (nome.trim().split(/\s+/).length < 2) return falhar('Digite seu nome completo, como no cadastro.', 'nome');
     if (!desenho) return falhar('Desenhe sua assinatura no quadro (com o dedo, a caneta ou o mouse).', 'assinatura');
     setErro('');
+    setErroCampo('');
     setAssinaturaFalta(false);
     setEnviando(true);
     try {
@@ -39,9 +44,12 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
       aoAssinar();
     } catch (err) {
       setErro(err.message);
+      setErroCampo('');
       setEnviando(false);
     }
   }
+
+  const aviso = (campo) => (erro && erroCampo === campo ? <p className="erro erro--campo" role="alert">{erro}</p> : null);
 
   return (
     <div className="contrato">
@@ -70,19 +78,23 @@ export default function Contrato({ plano, dados, aoAssinar, aoVoltar }) {
               </label>
               <span className="dica-campo">Pode mudar de ideia a qualquer momento, avisando por escrito.</span>
             </div>
+            {aviso('imagem')}
             <label className="termo">
               <input type="checkbox" name="aceito" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
               <span>Li o contrato e concordo com todas as cláusulas.</span>
             </label>
+            {aviso('aceito')}
             <label>
               Para assinar, digite seu nome completo
               <input type="text" name="nome" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} placeholder={dados.nomeCadastro} />
               <span className="dica-campo">Igual ao do cadastro.</span>
             </label>
+            {aviso('nome')}
             <AssinaturaDesenhada aoMudar={(d) => { setDesenho(d); if (d) setAssinaturaFalta(false); }} desabilitado={enviando} invalida={assinaturaFalta} />
+            {aviso('assinatura')}
             <span className="dica-campo">A cópia assinada chega no seu e-mail assim que o pagamento do plano for confirmado.</span>
           </fieldset>
-          {erro && <p className="erro erro--destaque" role="alert">{erro}</p>}
+          {erro && !erroCampo && <p className="erro erro--destaque" role="alert">{erro}</p>}
           <div className="ficha__botoes">
             <button type="button" className="botao botao--linha" onClick={aoVoltar} disabled={enviando}>Voltar</button>
             <button type="submit" className="botao botao--cheio" disabled={enviando}>{enviando ? 'Assinando…' : 'Assinar e continuar'}</button>
