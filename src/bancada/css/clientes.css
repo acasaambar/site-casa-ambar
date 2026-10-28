@@ -393,3 +393,73 @@ button.pt-foto:hover { transform: translateY(-2px); box-shadow: var(--sombra-2);
   .cl-chips:not(.cl-chips--solto) { flex-wrap: nowrap; overflow-x: auto; margin-inline: -16px; padding: 2px 16px 4px; scrollbar-width: none; }
   .cl-chips:not(.cl-chips--solto)::-webkit-scrollbar { display: none; }
 }
+
+/* ============================================================
+   REVISÃO DE INTERFACE · rodada 2 (Hoje, lista, ficha)
+   ============================================================ */
+
+/* abas da ficha acompanham a rolagem (a ficha é longa no celular) */
+.cl-abas { position: sticky; top: 0; z-index: 11; background: var(--b-papel); margin-top: -4px; }
+@media (max-width: 900px) { .cl-abas { top: 69px; margin-inline: -16px; padding-inline: 16px; } }
+
+/* "Perguntar e anotar" alinhado com os outros valores */
+.cl-dados dd .botao { margin: -6px 0 -6px -18px; }
+
+/* endereço: o título do grupo não gruda no primeiro campo */
+.cc-endereco > legend { padding: 0; margin-bottom: 8px; }
+.cl-bloco__titulo { margin-bottom: 2px; }
+
+/* ficha de saúde (aba Saúde): respostas em cartõezinhos, igual à ficha de estética */
+.cl-cartao .b-ficha__grade { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; }
+.cl-cartao .b-ficha__item { display: grid; align-content: start; gap: 2px; padding: 12px 14px; border-radius: var(--r-p); background: rgba(47, 56, 33, 0.045); min-width: 0; }
+.cl-cartao .b-ficha__item .rotulo { font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--b-suave); }
+.cl-cartao .b-ficha__item p { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
+.cl-cartao .b-ficha__alerta { font-size: 15px; line-height: 1.5; }
+.cl-cartao .b-ficha__ok, .cl-cartao .b-ficha__emergencia p { font-size: 15px; }
+.cl-cartao .b-ficha__emergencia .rotulo { font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--b-suave); }
+
+/* ficha de saúde: telefone e PDF fáceis de tocar */
+.cl-cartao .b-ficha a { padding: 11px 6px; margin: 0 -6px; border-radius: 8px; font-weight: 600; color: var(--b-terracota); }
+.cl-cartao .b-ficha a:hover { background: rgba(126, 55, 23, 0.08); }
+
+/* aulas da pessoa no celular: situação embaixo, sem ponto solto no fim da linha */
+@media (max-width: 700px) {
+  .cl-aula { display: grid; grid-template-columns: 54px minmax(0, 1fr); grid-template-areas: 'data corpo' 'data lado'; align-items: start; gap: 6px 12px; }
+  .cl-aula > .cl-data { grid-area: data; }
+  .cl-aula > .b-item__corpo { grid-area: corpo; }
+  .cl-aula > .b-item__lado { grid-area: lado; }
+  .cl-aula .b-meta, .cl-tl .b-meta, .cl-pag .b-meta { gap: 2px 14px; }
+  .cl-aula .b-meta > *, .cl-tl .b-meta > *, .cl-pag .b-meta > * { margin-right: 0; }
+  .cl-aula .b-meta > *::after, .cl-tl .b-meta > *::after, .cl-pag .b-meta > *::after { content: none; }
+}
+
+/* cabeçalho da ficha no celular: contatos em duas colunas, sem gastar altura */
+@media (max-width: 560px) {
+  .cl-contatos { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); }
+  .cl-contatos li:nth-child(2) { order: 3; grid-column: auto; }
+  .cl-contatos li:nth-child(3) { order: 4; grid-column: auto; }
+  .cl-ficha__quem { gap: 8px; }
+}
+
+/* lista: "Novo cliente" e "Mais" na mesma linha no celular (o menu abre para a esquerda e antes saía da tela) */
+@media (max-width: 560px) {
+  .b-cabecalho__acoes > .botao--cheio.cl-novo { flex: 1 1 0; order: -1; }
+  .b-cabecalho__acoes > .cl-mais-topo { flex: none; }
+  .b-cabecalho__acoes:has(.cl-novo) { flex-wrap: nowrap; }
+}
+
+/* importar: depois de carregar a lista, o passo 1 vira uma linha só */
+.cl-carregada { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--r-m); background: var(--b-ok-fundo, rgba(111, 120, 77, 0.14)); border: 1px solid rgba(111, 120, 77, 0.3); }
+.cl-carregada__ok { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--b-oliva); color: #FBF8EF; font-weight: 700; font-size: 14px; }
+.cl-carregada__texto { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+.cl-carregada__texto strong { font-size: 15px; font-weight: 600; }
+.cl-carregada__texto small { font-size: 13px; color: var(--b-suave); }
+
+/* busca: o "x" de limpar na cor da casa */
+.cl-busca input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; cursor: pointer;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%236A6C56' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='m6 6 12 12M18 6 6 18'/%3E%3C/svg%3E") center / contain no-repeat; }
+
+/* ---------- Hoje: tarefas da profissional ---------- */
+.hj-tarefa { align-items: center; gap: 14px; padding: 12px 14px; }
+.hj-tarefa .hl__texto small { font-size: 14px; color: var(--b-suave); line-height: 1.35; }
+.hj-tarefa .hl__texto strong { font-size: 15px; }
