@@ -390,8 +390,8 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                 })}
                 {lista.filter((a) => a.profissional === c.nome).map((a) => (
                   <button key={a.id} type="button" onClick={() => { if (!arrastou.current) setAberto(a); }} onPointerDown={(e) => comecarArrasto(e, a)}
-                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}${a.duracao < 30 ? ' ag-bloco--curto' : ''}`}
-                    style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }}>
+                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}${a.duracao < 30 ? ' ag-bloco--curto' : ''}${a.duracao >= 90 ? ' ag-bloco--longo' : ''}`}
+                    style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }} title={`${a.nome} · ${a.servico}`}>
                     <span className="ag-bloco__hora" title={`${hora(a.hora)}–${hora(fimDe(a))}`}>{a.duracao < 30 ? hora(a.hora) : `${hora(a.hora)}–${hora(fimDe(a))}`}{pedeRemarcar(a) ? ' · quer remarcar' : ''}</span>
                     <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" title={a.alertas.join(' · ')} aria-label="Atenção: ver alertas">!</i>}{a.nome}</strong>
                     {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
@@ -1789,10 +1789,16 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
     const el = quadroSem.current;
     if (!el || !dados || !pessoa || rolouSem.current === pessoa + inicio) return;
     rolouSem.current = pessoa + inicio;
-    const inicios = atend.filter((a) => a.status !== 'cancelado').map((a) => min(a.hora))
-      .concat(aulas.map((a) => min(a.hora)), dias.flatMap((d) => (turnosDia(d) || []).map(([a]) => a)));
+    // rola até o primeiro compromisso da semana; sem nenhum, até o começo do expediente
+    const marcados = atend.filter((a) => a.status !== 'cancelado').map((a) => min(a.hora)).concat(aulas.map((a) => min(a.hora)));
+    const inicios = marcados.length ? marcados : dias.flatMap((d) => (turnosDia(d) || []).map(([a]) => a));
     const alvo = inicios.length ? Math.min(...inicios) - 30 : INI;
     el.scrollTop = alvo > INI + 30 ? (alvo - INI) * PX : 0;
+    // celular: só cabem 3 dias; já mostra o dia escolhido (hoje, em geral) e não o começo da semana
+    const cab = el.querySelectorAll('.sem-cab')[dias.indexOf(dia)];
+    if (cab && el.scrollWidth > el.clientWidth) {
+      el.scrollLeft = cab.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft - (el.querySelector('.ag-canto')?.offsetWidth || 0);
+    }
   }, [dados, pessoa, inicio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const acoes = balcao && slot && createPortal(

@@ -22,6 +22,11 @@
 .bancada .ag-resumo--carregando { color: var(--b-suave); }
 .bancada .ag-resumo.b-meta > * + *::before { margin-right: 14px; }
 
+/* celular: o resumo some com "alunos"; o último item que sobra não leva ponto depois */
+@media (max-width: 560px) {
+  .bancada .ag-resumo > :has(+ .ag-resumo__alunos)::after { content: none; }
+}
+
 /* ---------- tira da semana ---------- */
 .bancada .ag-tira { gap: 8px; margin-top: 0; }
 .bancada .ag-tira button {
@@ -66,6 +71,12 @@
   .bancada .ag-barra .ag-grupos { flex: 1 1 0; min-width: 0; width: auto; }
   .ag-barra__fim { margin-left: 0; flex: none; }
 }
+
+/* a grade tem a largura de todas as colunas: sem isso, as horas (sticky à esquerda) saem da tela ao rolar para o lado */
+.bancada .ag-grade { width: max-content; min-width: 100%; }
+
+/* celular: o botão flutuante "Agendar serviço" não cobre as últimas linhas */
+@media (max-width: 560px) { .bancada .ag { margin-bottom: 84px; } }
 
 /* ---------- grade da agenda ---------- */
 .bancada .ag { border-radius: var(--r-g); box-shadow: var(--sombra-1); background: var(--b-linho); }
@@ -120,6 +131,11 @@
   background: rgba(255, 253, 246, 0.85); color: #3C4628; box-shadow: inset 0 0 0 1px rgba(47, 56, 33, 0.18);
 }
 .ag-bloco__pg--pacote { color: #5A3A10; }
+/* alerta (!) e selos de estado: nada abaixo de 13 px */
+.bancada .ag-bloco__alerta { width: 18px; height: 18px; font-size: 13px; }
+.ag-bloco__sel { font-size: 13px; }
+/* atendimento longo (90 min ou mais): o nome do serviço pode ocupar duas linhas */
+.bancada .ag-bloco--longo .ag-bloco__info { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 /* atendimento curto (menos de 30 min): hora e nome na mesma linha, para o nome não ficar cortado */
 .bancada .ag-bloco--curto { display: flex; flex-direction: row; justify-content: flex-start; text-align: left; align-items: center; gap: 6px; padding-top: 2px; padding-bottom: 2px; overflow: hidden; white-space: nowrap; }
 .bancada .ag-bloco--curto .ag-bloco__hora { flex: none; padding-right: 0; }
@@ -137,7 +153,8 @@
 .bancada .sem-cab strong { font-size: 22px; font-weight: 600; }
 .bancada .sem-cab .ag-cab__n { min-width: 22px; height: 20px; margin-top: 2px; box-shadow: none; color: var(--b-tinta); background: rgba(166, 132, 94, 0.24); }
 .bancada .sem-cab .ag-cab__n--zero { background: none; }
-.bancada .sem-cab--hoje { background: rgba(200, 150, 62, 0.1); }
+/* fundo sólido: com transparência, as linhas da grade apareciam por baixo do cabeçalho ao rolar */
+.bancada .sem-cab--hoje { background: color-mix(in srgb, #C8963E 12%, #F8F4E8); }
 .bancada .sem-cab--hoje strong { color: var(--b-terracota); }
 .ag-sem-barra { align-items: center; padding: 2px 0 6px; gap: 10px 18px; }
 .ag-sem-barra .sem-pessoa { flex-direction: row; align-items: center; gap: 10px; width: auto; }
@@ -211,8 +228,11 @@
 .ag-res--falta .ag-res__quem > strong { text-decoration: line-through; text-decoration-color: rgba(110, 42, 16, 0.5); }
 .ag-res__quem { grid-area: quem; min-width: 0; display: grid; gap: 5px; }
 .ag-res__quem > strong { font-weight: 600; font-size: 15.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-res__nome { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(47, 56, 33, 0.4); }
-.ag-res__nome:hover { color: var(--b-terracota); border-bottom-color: var(--b-terracota); }
+.ag-res__quem > strong:has(.ag-res__nome) { overflow: visible; }
+/* alvo de toque de 40 px sem aumentar a linha: a área extra fica em volta do nome */
+.ag-res__nome { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; padding: 9px 0; margin: -9px 0; color: inherit; text-decoration: none; }
+.ag-res__nome:not(:hover) { text-decoration: underline dotted rgba(47, 56, 33, 0.4); text-underline-offset: 4px; }
+.ag-res__nome:hover { color: var(--b-terracota); text-decoration: underline; text-underline-offset: 4px; }
 .ag-res__tags { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .ag-pres { grid-area: pres; display: inline-flex; gap: 0; padding: 3px; border-radius: 999px; background: rgba(47, 56, 33, 0.07); }
 .ag-pres__botao {
@@ -238,7 +258,7 @@
   .ag-aula__seta { display: none; }
   .ag-aula__hora { font-size: 23px; }
   .ag-aula__corpo { padding: 2px 14px 16px 20px; }
-  .ag-aula__rodape .botao { flex: 1 1 140px; }
+  .ag-aula__rodape .botao { flex: 1 1 100%; min-height: 44px; }
 }
 
 /* lista de espera (dentro da aula e da folha) */
@@ -319,7 +339,7 @@
 .ag-fatos dt { font-size: 13px; font-weight: 500; color: var(--b-suave); }
 .ag-fatos dd { margin: 0; font-size: 15.5px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }
 .ag-fatos dd small { flex-basis: 100%; font-size: 13.5px; font-weight: 400; color: var(--b-suave); }
-.ag-fatos dd a { color: var(--b-terracota); }
+.ag-fatos dd a { color: var(--b-terracota); display: inline-block; padding: 9px 0; margin: -9px 0; }
 .ag-fatos__largo { grid-column: 1 / -1; }
 @media (max-width: 560px) { .ag-fatos { grid-template-columns: 1fr 1fr; } .ag-det__hora strong { font-size: 32px; } }
 
@@ -335,9 +355,9 @@
 .ag-comanda__seta { font-size: 26px; line-height: 1; color: #8A6A45; }
 .ag-acoes-det { display: flex; flex-wrap: wrap; gap: 8px; }
 .ag-acoes-det > .botao--cheio { flex: 1 1 200px; }
-.ag-mais { display: flex; flex-wrap: wrap; gap: 2px 4px; padding-top: 10px; border-top: 1px solid var(--b-linha); margin-top: 2px; }
-.ag-mais .botao { margin-left: -6px; }
-.ag-mais .botao + .botao { margin-left: 0; }
+.ag-mais { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 2px 8px; padding-top: 10px; border-top: 1px solid var(--b-linha); margin-top: 2px; }
+.ag-mais .botao, .ag-mais .botao + .botao { margin-left: 0; justify-content: flex-start; text-align: left; min-height: 44px; }
+@media (max-width: 560px) { .ag-mais { grid-template-columns: 1fr 1fr; } }
 .b-modal .s-receber { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
 
 /* remarcar (arrastar) */
