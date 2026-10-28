@@ -23,6 +23,8 @@ var PERMISSOES = {
   b_novoAluno: ['admin', 'recepcao'],
   b_enviarLinkSenha: ['admin', 'recepcao'],
   b_vender: ['admin', 'recepcao'],
+  b_vendasDuplicadas: ['admin', 'recepcao'],
+  b_conferirVendas: ['admin', 'recepcao'],
   b_simularPreco: ['admin', 'recepcao'],
   b_pagamentos: ['admin', 'recepcao'],
   b_estornar: ['admin', 'recepcao'],
@@ -1163,6 +1165,98 @@ function bancada_vender(d, m) {
   registrar(m, 'venda no balcão', aluno.nome + ' · ' + feitas.map(function (f) { return f.nome + ' R$ ' + f.v.valor; }).join(' + ') + ' · ' + feitas[0].v.metodo);
   var primeira = feitas[0].v;
   return Object.assign({}, primeira, { valor: feitas.reduce(function (t, f) { return t + numero(f.v.valor); }, 0), vendas: feitas.map(function (f) { return { nome: f.nome, orderNsu: f.v.orderNsu, valor: f.v.valor }; }) });
+}
+
+// ============================================================
+//  VENDAS QUE PODEM TER SIDO LANÇADAS EM DOBRO (lista para conferir o que já estava na planilha)
+//  Mesmo cliente + mesmo item + mesmo dia de recebimento, duas vendas pagas ou mais, por qualquer porta
+//  (agenda "Já pagou", Vendas, aula avulsa, comanda, site). Dois níveis:
+//  'igual'    = o mesmo valor cobrado também se repete (provável duplicada);
+//  'parecida' = só o item e o dia batem, com valores diferentes (conferir).
+//  Cada venda mostra de onde veio (agenda, comanda, balcão, site) e a que deve ficar; a que costuma sobrar é a mais "solta"
+//  (venda avulsa do balcão), nunca a que a agenda ou a comanda usa e nunca a paga pelo site. Não apaga nada: a pessoa abre a venda
+//  e usa Excluir / Estorno / Reabrir comanda, ou marca o grupo como conferido ("não é duplicada").
+// ============================================================
+var MARCA_CONFERIDA = 'Conferida (não é duplicada)';
+
+function bancada_vendasDuplicadas(d, m) {
+  var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? String(d.de) : somarDias(hojeTexto(), -60);
+  var ate = /^\d{4}-\d{2}-\d{2}$/.test(String(d.ate)) ? String(d.ate) : hojeTexto();
+  var v = valoresAba('Pagamentos'), k = indiceColunas(v[0]);
+  var grupos = {};
+  for (var i = 1; i < v.length; i++) {
+    var l = v[i];
+    if (String(l[k.status]) !== 'pago' || !l[k.cpf]) continue;
+    var t = String(l[k.tipo_item] || '');
+    if (t === 'produto' || t === 'vale') continue;
+    var dia = String(l[k.pago_em] || l[k.criado_em]).slice(0, 10);
+    if (dia < de || dia > ate) continue;
+    var chave = normCpf(l[k.cpf]) + '|' + String(l[k.plano_id]) + '|' + dia;
+    (grupos[chave] = grupos[chave] || []).push(objeto(v[0], l));
+  }
+  var multiplos = Object.keys(grupos).filter(function (c) { return grupos[c].length > 1; });
+  // de onde veio cada venda: atendimento da agenda ligado a ela
+  var porNsu = {};
+  if (multiplos.length) {
+    var va = valoresAba('Atendimentos'), ka = indiceColunas(va[0]);
+    for (var j = 1; j < va.length; j++) {
+      var n = String(va[j][ka.order_nsu] || '');
+      if (n) porNsu[n] = { id: String(va[j][ka.id]), data: dataTexto(va[j][ka.data]), hora: String(va[j][ka.hora] || ''), status: String(va[j][ka.status] || ''), servico: String(va[j][ka.servico] || '') };
+    }
+  }
+  var lista = multiplos.map(function (c) {
+    var vendas = grupos[c].map(function (p) {
+      var at = porNsu[String(p.order_nsu)];
+      var origem = p.comanda ? 'comanda' : String(p.origem) === 'site' ? 'site' : at ? 'agenda' : 'balcão';
+      var o = pagamentoPublico(p);
+      o.ligacao = { tipo: origem, agenda: at || null, comanda: String(p.comanda || '') };
+      o.total = totalCobradoDaVenda(p);
+      o.conferida = String(p.observacao || '').indexOf(MARCA_CONFERIDA) >= 0;
+      // quanto mais alto, mais a venda "precisa" ficar: site (dinheiro da aluna) > agenda > comanda > balcão avulso
+      o.peso = origem === 'site' ? 4 : origem === 'agenda' ? 3 : origem === 'comanda' ? 2 : 1;
+      return o;
+    }).sort(function (a, b) { return String(a.pagoEm || a.criadoEm) < String(b.pagoEm || b.criadoEm) ? -1 : 1; });
+    if (vendas.every(function (x) { return x.conferida; })) return null;
+    var contagem = {};
+    vendas.forEach(function (x) { contagem[x.total] = (contagem[x.total] || 0) + 1; });
+    var tipo = Object.keys(contagem).some(function (t) { return contagem[t] > 1; }) ? 'igual' : 'parecida';
+    // sugestão: em cada valor repetido, fica a de maior peso (a mais antiga, no empate); as outras sobram
+    var sobra = 0;
+    if (tipo === 'igual') {
+      Object.keys(contagem).filter(function (t) { return contagem[t] > 1; }).forEach(function (t) {
+        var mesmas = vendas.filter(function (x) { return String(x.total) === t; });
+        var fica = mesmas.reduce(function (a, b) { return b.peso > a.peso ? b : a; }, mesmas[0]);
+        mesmas.forEach(function (x) { if (x !== fica && x.peso < 4) { x.sugerida = true; sobra += x.total; } });
+      });
+    }
+    var p0 = grupos[c][0];
+    return { chave: c, cpf: normCpf(p0.cpf), nome: String(p0.nome), item: String(p0.descricao), dia: String(p0.pago_em || p0.criado_em).slice(0, 10), tipo: tipo,
+      vendas: vendas, sobra: dinheiro(sobra) };
+  }).filter(Boolean).sort(function (a, b) { return a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : (a.tipo === b.tipo ? 0 : a.tipo === 'igual' ? -1 : 1); });
+  var iguais = lista.filter(function (g) { return g.tipo === 'igual'; });
+  return { de: de, ate: ate, grupos: lista, resumo: { grupos: lista.length, provaveis: iguais.length, conferir: lista.length - iguais.length,
+    valorEmDobro: dinheiro(iguais.reduce(function (t, g) { return t + g.sobra; }, 0)) } };
+}
+
+// "Não é duplicada": anota nas vendas do grupo (uma frase na observação) para o grupo sair da lista
+function bancada_conferirVendas(d, m) {
+  var nsus = (Array.isArray(d.orderNsus) ? d.orderNsus : []).slice(0, 20).map(String);
+  if (nsus.length < 2) throw new Error('Escolha as vendas do grupo.');
+  var motivo = String(d.motivo || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  try {
+    nsus.forEach(function (n) {
+      var pg = linhaPagamento(n);
+      if (!pg || pg.status !== 'pago') throw new Error('Venda não encontrada ou não está paga.');
+      if (String(pg.observacao || '').indexOf(MARCA_CONFERIDA) >= 0) return;
+      atualizarLinha('Pagamentos', pg._linha, { observacao: String(MARCA_CONFERIDA + ' por ' + String(m.email).split('@')[0] + ' em ' + hojeTexto().split('-').reverse().join('/') + (motivo ? ': ' + motivo : '') + '. ' + (pg.observacao || '')).slice(0, 500) });
+    });
+  } finally {
+    soltarTrava(trava);
+  }
+  registrar(m, 'venda conferida (não é duplicada)', nsus.join(' · ') + (motivo ? ' · ' + motivo : ''));
+  return { ok: true };
 }
 
 function bancada_pagamentos(d, m) {

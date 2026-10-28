@@ -235,3 +235,25 @@
 .bancada .vr__acoes { display: flex; gap: var(--e-2); flex-wrap: wrap; }
 .bancada .vr__acoes .botao { flex: 1 1 200px; justify-content: center; }
 .bancada .vr__acoes .botao:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- vendas que podem ter sido lançadas em dobro ---------- */
+.bancada .dp-barra { display: flex; flex-wrap: wrap; gap: var(--e-2); align-items: center; }
+.bancada .dp-grupos { display: flex; flex-direction: column; gap: var(--e-3); }
+.bancada .dp-grupo { background: var(--b-linho); border: 1px solid var(--b-linha); border-radius: var(--r-g); box-shadow: var(--sombra-1); overflow: hidden; }
+.bancada .dp-grupo--igual { border-left: 4px solid var(--b-terracota); }
+.bancada .dp-grupo--parecida { border-left: 4px solid var(--b-caramelo); }
+.bancada .dp-grupo__topo { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--e-3); padding: 14px 18px 10px; flex-wrap: wrap; }
+.bancada .dp-grupo__quem { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bancada .dp-grupo__quem strong { font-size: 16px; }
+.bancada .dp-grupo__lado { display: flex; align-items: center; gap: var(--e-2); }
+.bancada .dp-grupo__dobro { color: var(--b-alerta-tinta); font-size: 15px; }
+.bancada .dp-vendas { border: 0; border-radius: 0; box-shadow: none; background: transparent; border-top: 1px solid var(--b-linha); }
+.bancada .dp-venda--sobra { background: rgba(126, 55, 23, 0.06); }
+.bancada .dp-venda .b-item__titulo small { font-weight: 400; color: var(--b-suave); margin-left: 6px; }
+.bancada .dp-grupo__rodape { display: flex; justify-content: flex-end; padding: 6px 12px 10px; border-top: 1px solid var(--b-linha); }
+@media (max-width: 560px) {
+  .bancada .dp-grupo__topo { padding: 12px 14px 8px; }
+  .bancada .dp-grupo__rodape { justify-content: stretch; }
+  .bancada .dp-grupo__rodape .botao { width: 100%; justify-content: center; }
+}
+.bancada .dp-barra .b-segmento button { white-space: nowrap; padding-inline: 12px; }

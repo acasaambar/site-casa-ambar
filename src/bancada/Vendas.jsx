@@ -13,8 +13,9 @@ export default function Vendas() {
   const [aba, setAba] = useState(local.state?.aba === 'vales' ? 'vales' : 'vendas');
   const [abrirVale] = useState(!!local.state?.novo);
   useEsquecerPedidoDaRota('novo', 'nova');
-  const abas = <Abas atual={aba} aoMudar={setAba} itens={[['vendas', 'Vendas'], ['vales', 'Vales-presente']]} />;
+  const abas = <Abas atual={aba} aoMudar={setAba} itens={[['vendas', 'Vendas'], ['duplicadas', 'Duplicadas?'], ['vales', 'Vales-presente']]} />;
   if (aba === 'vendas') return <ListaVendas abas={abas} />;
+  if (aba === 'duplicadas') return <VendasDuplicadas abas={abas} />;
   return (
     <>
       <Cabecalho titulo="Vendas" ajuda="Vale-presente é sempre vendido: entra como item da comanda e o código nasce quando ela é paga.">Vales-presente vendidos e entregues</Cabecalho>
@@ -136,6 +137,91 @@ function ListaVendas({ abas }) {
         </ul>
       )}
       {nova && <VenderModal aoFechar={() => setNova(false)} aoVender={() => { setNova(false); recarregar(); }} />}
+      {aberta && <VendaAberta p={aberta} aoFechar={() => setAberta(null)} aoMudar={() => { setAberta(null); recarregar(); }} />}
+    </>
+  );
+}
+
+const LIGACAO = { agenda: 'Agenda', comanda: 'Comanda', 'balcão': 'Balcão (avulsa)', site: 'Site' };
+const PERIODOS = [['30', '30 dias'], ['60', '60 dias'], ['90', '90 dias'], ['120', '120 dias']];
+const TIPOS_DUP = [['todas', 'Todas'], ['igual', 'Prováveis'], ['parecida', 'Para conferir']];
+
+// Vendas que podem ter sido lançadas em dobro: mesmo cliente, item e dia (agenda + Vendas + comanda + site).
+// A lista só mostra; a pessoa abre a venda e exclui, estorna, reabre a comanda ou marca "não é duplicada".
+function VendasDuplicadas({ abas }) {
+  const { chamar } = useBancada();
+  const [dias, setDias] = useState('60');
+  const [tipo, setTipo] = useState('todas');
+  const [aberta, setAberta] = useState(null);
+  const de = somarDias(hojeIso(), -Number(dias));
+  const { dados, erro, carregando, recarregar } = useDados('vendasDuplicadas', { de, ate: hojeIso() });
+  const grupos = useMemo(() => (dados?.grupos || []).filter((g) => tipo === 'todas' || g.tipo === tipo), [dados, tipo]);
+  const r = dados?.resumo;
+  return (
+    <>
+      <Cabecalho titulo="Vendas" ajuda="Duas vendas pagas do mesmo cliente, item e dia. “Provável” = o valor também é igual; “Para conferir” = só o item e o dia batem. A que costuma sobrar é a venda avulsa do balcão: a da agenda, a da comanda e a paga pelo site ficam. Nada é apagado aqui: abra a venda para excluir ou estornar." acoes={
+        <button type="button" className="botao botao--linha botao--p" disabled={!grupos.length} onClick={() => baixarCSV(`vendas-duplicadas-${de}`, [
+          [(l) => dataBR(l.g.dia), 'Dia'], [(l) => l.g.nome, 'Cliente'], [(l) => l.g.item, 'Item'], [(l) => (l.g.tipo === 'igual' ? 'Provável' : 'Para conferir'), 'Nível'],
+          [(l) => String(l.v.total).replace('.', ','), 'Valor'], [(l) => l.v.metodo, 'Forma'], [(l) => LIGACAO[l.v.ligacao.tipo], 'Veio de'], [(l) => (l.v.sugerida ? 'Sobra' : 'Fica'), 'Sugestão'],
+          [(l) => (l.v.pagoEm || '').slice(11, 16), 'Hora'], [(l) => l.v.registradoPor, 'Lançada por'], [(l) => l.v.orderNsu, 'Código']],
+        grupos.flatMap((g) => g.vendas.map((v) => ({ g, v }))))}>Exportar CSV</button>
+      }>Vendas que podem ter sido lançadas em dobro</Cabecalho>
+      {abas}
+      <div className="b-barra-fixa dp-barra">
+        <Segmento rotulo="Período" atual={dias} aoMudar={setDias} itens={PERIODOS} />
+        <Segmento rotulo="Nível" atual={tipo} aoMudar={setTipo} itens={TIPOS_DUP} />
+      </div>
+      {r && (
+        <section className="b-kpis">
+          <Kpi rotulo="Prováveis duplicadas" valor={r.provaveis} tom={r.provaveis ? 'alerta' : ''} detalhe={r.provaveis ? 'mesmo item, dia e valor' : 'nenhuma no período'} />
+          <Kpi rotulo="Valor em dobro" valor={realCurto(r.valorEmDobro)} tom={r.valorEmDobro ? 'alerta' : ''} detalhe="soma do que sobra nas prováveis" />
+          <Kpi rotulo="Para conferir" valor={r.conferir} detalhe="valores diferentes no mesmo dia" />
+        </section>
+      )}
+      <Erro>{erro}</Erro>
+      {carregando && !dados && <Esqueleto linhas={4} altura={120} />}
+      {dados && grupos.length === 0 && (
+        <Vazio titulo="Nenhuma venda duplicada" forma="equilibrio" acao={tipo !== 'todas' ? <button type="button" className="botao botao--linha botao--p" onClick={() => setTipo('todas')}>Ver todas</button> : null}>
+          Nada repetido nos últimos {dias} dias. Daqui para frente o sistema avisa na hora de lançar.
+        </Vazio>
+      )}
+      <div className="dp-grupos">
+        {grupos.map((g) => (
+          <section key={g.chave} className={`dp-grupo dp-grupo--${g.tipo}`}>
+            <header className="dp-grupo__topo">
+              <div className="dp-grupo__quem">
+                <strong>{g.nome}</strong>
+                <span className="b-meta"><span>{g.item}</span><span>{dataBR(g.dia)}</span><span>{plural(g.vendas.length, 'venda', 'vendas')}</span></span>
+              </div>
+              <div className="dp-grupo__lado">
+                <Tag tom={g.tipo === 'igual' ? 'alerta' : 'aviso'}>{g.tipo === 'igual' ? 'provável' : 'para conferir'}</Tag>
+                {g.sobra > 0 && <strong className="dp-grupo__dobro">{real(g.sobra)} em dobro</strong>}
+              </div>
+            </header>
+            <ul className="b-itens dp-vendas">
+              {g.vendas.map((v) => (
+                <li key={v.orderNsu} className={`b-item dp-venda${v.sugerida ? ' dp-venda--sobra' : ''}`}>
+                  <div className="b-item__corpo">
+                    <span className="b-item__titulo">{real(v.total)} <small>{v.metodo}</small></span>
+                    <span className="b-meta">
+                      <span>{(v.pagoEm || v.criadoEm || '').slice(11, 16) || '—'}</span>
+                      <span>{v.registradoPor ? v.registradoPor.split('@')[0] : v.origem}</span>
+                      <span>{LIGACAO[v.ligacao.tipo]}{v.ligacao.agenda ? ` · ${dataCurta(v.ligacao.agenda.data)} ${v.ligacao.agenda.hora}` : ''}{v.ligacao.comanda ? ` · ${v.ligacao.comanda}` : ''}</span>
+                    </span>
+                  </div>
+                  <div className="b-item__lado">
+                    {g.tipo === 'igual' && <Tag tom={v.sugerida ? 'alerta' : 'ok'}>{v.sugerida ? 'sobra' : 'fica'}</Tag>}
+                    <button type="button" className="botao botao--linha botao--p" onClick={() => setAberta(v)}>Abrir</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <footer className="dp-grupo__rodape">
+              <BotaoAcao className="botao botao--fantasma botao--p" confirmar="Marcar estas vendas como conferidas (não são duplicadas)? Elas saem da lista." acao={async () => { await chamar('conferirVendas', { orderNsus: g.vendas.map((v) => v.orderNsu) }); recarregar(); }}>Não é duplicada</BotaoAcao>
+            </footer>
+          </section>
+        ))}
+      </div>
       {aberta && <VendaAberta p={aberta} aoFechar={() => setAberta(null)} aoMudar={() => { setAberta(null); recarregar(); }} />}
     </>
   );

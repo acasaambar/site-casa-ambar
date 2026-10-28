@@ -133,5 +133,45 @@ console.log('— site: a venda paga pelo site aparece para quem lança no balcã
   ok(!r.ok && r.codigo === 'VENDA_DUPLICADA' && r.dados.repetidas[0].origem === 'site' && /pelo site/.test(r.erro), 'venda do site já paga hoje: a recepção é avisada antes de lançar de novo', r.erro);
 }
 
+console.log('— lista das vendas que podem ter sido lançadas em dobro (as que já estavam na planilha)');
+{
+  const cli = novo('Lista Dupla', '85940002010');
+  let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+  // a situação da dona: "Já pagou" na agenda e de novo em Vendas (a proteção ainda não existia: lança de propósito)
+  const ag = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '16:00', cpf: cli, pagamento: 'pago', metodo: 'Pix' });
+  ok(ag.ok, 'serviço pago na agenda');
+  const solta = chamar('b_vender', { token: rec, cpf: cli, planoId: 'drenagem', metodo: 'Pix', ...confirma(chamar('b_vender', { token: rec, cpf: cli, planoId: 'drenagem', metodo: 'Pix' })) });
+  ok(solta.ok, 'e de novo em Vendas (confirmado de propósito)');
+  const outro = novo('Lista Parecida', '85940002011');
+  chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix' });
+  chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150 });
+  const unico = novo('Lista Unica', '85940002012');
+  chamar('b_vender', { token: rec, cpf: unico, planoId: 'yoga-mensal-1x', metodo: 'Pix' });
+  r = chamar('b_vendasDuplicadas', { token: rec });
+  ok(r.ok, 'a lista abre para a recepção', r.erro);
+  const g = r.ok && r.dados.grupos.find((x) => x.cpf === ctx.normCpf(cli));
+  ok(g && g.tipo === 'igual' && g.vendas.length === 2 && g.item === 'Drenagem Linfática', 'agenda + Vendas do mesmo serviço, valor e dia: provável duplicada', g);
+  const [primeira, segunda] = g ? g.vendas : [];
+  ok(primeira && primeira.ligacao.tipo === 'agenda' && primeira.ligacao.agenda.id === ag.dados.id && !primeira.sugerida, 'a venda ligada à agenda fica', primeira && primeira.ligacao);
+  ok(segunda && segunda.ligacao.tipo === 'balcão' && segunda.sugerida === true && g.sobra === 199, 'a venda solta do balcão é a que sobra (R$ 199 em dobro)', segunda);
+  const gp = r.dados.grupos.find((x) => x.cpf === ctx.normCpf(outro));
+  ok(gp && gp.tipo === 'parecida' && gp.sobra === 0 && gp.vendas.every((x) => !x.sugerida), 'mesmo item e dia com valor diferente: só "conferir", sem sugestão', gp);
+  ok(!r.dados.grupos.some((x) => x.cpf === ctx.normCpf(unico)), 'venda única não aparece');
+  ok(r.dados.resumo.provaveis >= 1 && r.dados.resumo.valorEmDobro >= 199, 'resumo com a soma em dobro', r.dados.resumo);
+  // resolver: excluir a solta tira o grupo da lista
+  ok(chamar('b_excluirVenda', { token: rec, orderNsu: segunda.orderNsu, motivo: 'estava em dobro' }).ok, 'exclui a venda em dobro');
+  r = chamar('b_vendasDuplicadas', { token: rec });
+  ok(!r.dados.grupos.some((x) => x.cpf === ctx.normCpf(cli)), 'o grupo resolvido sai da lista');
+  // "não é duplicada": marca o grupo e ele sai; pede as vendas do grupo
+  ok(!chamar('b_conferirVendas', { token: rec, orderNsus: [gp.vendas[0].orderNsu] }).ok, 'marcar conferida exige as vendas do grupo');
+  r = chamar('b_conferirVendas', { token: rec, orderNsus: gp.vendas.map((x) => x.orderNsu), motivo: 'uma é o plano, a outra é diferença' });
+  ok(r.ok, 'marcado como conferido', r.erro);
+  ok(!chamar('b_vendasDuplicadas', { token: rec }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'grupo conferido sai da lista');
+  ok(/Conferida \(não é duplicada\) por bia/.test(ctx.lerAba('Pagamentos').find((p) => p.order_nsu === gp.vendas[0].orderNsu).observacao), 'a observação guarda quem conferiu');
+  // nova venda igual no mesmo grupo conferido volta a aparecer
+  chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150, ...confirma(chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150 })) });
+  ok(chamar('b_vendasDuplicadas', { token: rec }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'uma venda nova igual depois da conferência volta a aparecer');
+}
+
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
 process.exit(falhas ? 1 : 0);
