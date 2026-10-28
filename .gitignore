@@ -37,4 +37,6 @@ dist-ssr
 *.csv
 !testes/**/*.csv
 fotos/
-.claude/
+# Configurações locais do Claude ficam fora; as skills do projeto entram no Git
+.claude/*
+!.claude/skills/
