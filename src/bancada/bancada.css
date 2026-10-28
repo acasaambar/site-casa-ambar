@@ -224,15 +224,15 @@
 
 /* ficha de saúde */
 .b-ficha { display: grid; gap: 14px; }
-.b-ficha__alerta { padding: 14px 16px; border-radius: 14px; background: #F3DCD0; color: #6E2A10; font-size: 13px; }
+.b-ficha__alerta { padding: 14px 16px; border-radius: 14px; background: #F3DCD0; color: #6E2A10; font-size: 14px; line-height: 1.45; }
 .b-ficha__alerta ul { margin: 6px 0; padding-left: 18px; }
-.b-ficha__ok { margin: 0; padding: 12px 14px; border-radius: 14px; background: #E5E8D6; color: #3C4628; font-size: 13px; }
+.b-ficha__ok { margin: 0; padding: 12px 14px; border-radius: 14px; background: #E5E8D6; color: #3C4628; font-size: 14px; }
 .b-ficha__grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
 @media (max-width: 560px) { .b-ficha__grade { grid-template-columns: 1fr; } }
-.b-ficha__item p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
-.b-ficha__item .rotulo { font-size: 10px; color: var(--tinta-suave); }
+.b-ficha__item p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; }
+.b-ficha__item .rotulo { font-size: 13px; color: #4A4D3F; }
 .b-ficha__emergencia { padding: 12px 14px; border-radius: 14px; background: #EEEAD9; }
-.b-ficha__emergencia p { margin: 4px 0 0; font-size: 13px; }
+.b-ficha__emergencia p { margin: 4px 0 0; font-size: 14px; }
 
 /* ---------- tabelas ---------- */
 .b-tabela-caixa { background: var(--branco); border: 1px solid rgba(47, 56, 33, 0.1); border-radius: 20px; overflow-x: auto; }

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { useBancada } from './sessao.jsx';
@@ -359,6 +359,7 @@ export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
   const caixa = useRef(null);
   const botao = useRef(null);
   const id = useId();
+  const lista = useRef(null);
   const pelaTecla = useRef(false); // abriu pelo teclado: o foco vai para o primeiro item
   useEffect(() => {
     if (!aberto) return undefined;
@@ -372,6 +373,19 @@ export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
   useEffect(() => {
     if (aberto && pelaTecla.current) caixa.current?.querySelector('[role="menuitem"]')?.focus();
     pelaTecla.current = false;
+  }, [aberto]);
+  // a lista sempre cabe na tela: se passaria da borda direita ancora pela direita do botão, se passaria da esquerda, pela esquerda
+  useLayoutEffect(() => {
+    const l = lista.current;
+    if (!aberto || !l) return;
+    const folga = 8;
+    const largura = document.documentElement.clientWidth;
+    ['left', 'right', 'transform'].forEach((k) => { l.style[k] = ''; });
+    let r = l.getBoundingClientRect();
+    if (r.right > largura - folga) { l.style.left = 'auto'; l.style.right = '0'; r = l.getBoundingClientRect(); }
+    if (r.left < folga) { l.style.right = 'auto'; l.style.left = '0'; r = l.getBoundingClientRect(); }
+    if (r.right > largura - folga) l.style.transform = `translateX(${largura - folga - r.right}px)`;
+    else if (r.left < folga) l.style.transform = `translateX(${folga - r.left}px)`;
   }, [aberto]);
   const visiveis = itens.filter(Boolean);
   if (!visiveis.length) return null;
@@ -390,7 +404,7 @@ export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
         <span className="b-menumais__texto">{rotulo}</span><span aria-hidden="true" className="b-menumais__pontos">•••</span><span aria-hidden="true" className="b-menumais__seta">▾</span>
       </button>
       {aberto && (
-        <div className="b-menumais__lista" role="menu" id={id} aria-label={rotulo} onKeyDown={aoTeclarNaLista}>
+        <div className="b-menumais__lista" ref={lista} role="menu" id={id} aria-label={rotulo} onKeyDown={aoTeclarNaLista}>
           {visiveis.map((it) => (
             <button key={it.texto} type="button" role="menuitem" className={`b-menumais__item ${it.className || ''}`} onClick={() => { setAberto(false); botao.current?.focus(); it.acao(); }}>
               {it.texto}{it.extra ? <span className="b-menumais__extra">{it.extra}</span> : null}
@@ -511,9 +525,10 @@ export function Aviso({ tom = 'info', titulo, children, acao }) {
 }
 
 // bloco com título, ações e ajuda: a base de toda seção da bancada
-export function Secao({ titulo, ajuda, acoes, children, className = '' }) {
+// aceita ref, id, data-* etc. (vão para o <section>): a tela pode rolar até ela sem envolver num div
+export function Secao({ titulo, ajuda, acoes, children, className = '', ...resto }) {
   return (
-    <section className={`b-secao ${className}`.trim()}>
+    <section {...resto} className={`b-secao ${className}`.trim()}>
       <header className="b-secao__topo">
         <h2 className="b-secao__titulo">{titulo}{ajuda && <Ajuda titulo={typeof titulo === 'string' ? titulo : undefined}>{ajuda}</Ajuda>}</h2>
         {acoes && <div className="b-secao__acoes">{acoes}</div>}

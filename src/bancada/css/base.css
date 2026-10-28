@@ -210,6 +210,10 @@ ul.b-itens > li > .b-item { border-top: 0; }
 .b-segmento button:focus-visible { outline-offset: -2px !important; }
 .b-abas button:focus-visible { outline-offset: -2px !important; border-radius: 8px; }
 
+/* menu "Mais": nunca passa da largura da tela (a posição é acertada em ui.jsx) */
+.b-menumais__lista { max-width: calc(100vw - 32px); }
+.b-menumais__item { text-align: left; }
+
 /* botão de fechar da folha */
 .b-fechar { display: grid; place-items: center; transition: background var(--rapido), border-color var(--rapido); }
 .b-fechar:hover { background: var(--b-areia); border-color: rgba(47, 56, 33, 0.35); }
