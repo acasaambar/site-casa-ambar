@@ -178,7 +178,7 @@ export function TrocaProfissional({ tipo, id, aoFechar, aoTerminar }) {
                     <span className="tr-cand__ini" aria-hidden="true">{iniciais(x.nome)}</span>
                     <span className="tr-cand__info">
                       <strong>{x.nome}</strong>
-                      {det && <small>{det}</small>}
+                      {det && <small title={det}>{det.replace(/\s*\(.*\)$/, '')}</small>}
                       {admin && x.comissao && !(x.aviso && /^sem valor/.test(x.comissao)) && <small className="tr-cand__comissao">Comissão: {x.comissao}</small>}
                     </span>
                     <Tag tom={tom}>{tag}</Tag>
