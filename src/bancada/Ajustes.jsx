@@ -369,19 +369,20 @@ function CalculadoraTaxas() {
 function Registro() {
   const { dados, erro, carregando } = useDados('registro', {});
   const [q, setQ] = useState('');
+  const [ate, setAte] = useState(60);
   if (carregando && !dados) return <Esqueleto linhas={6} altura={44} />;
   const lista = (dados || []).filter((r) => !q || [r.quem, r.acao, r.detalhe].join(' ').toLowerCase().includes(q.toLowerCase()));
   return (
     <>
       <Erro>{erro}</Erro>
       <div className="cg-filtro">
-        <div className="b-barra-busca"><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar por pessoa ou ação" aria-label="Filtrar o registro" /></div>
+        <div className="b-barra-busca"><input type="search" value={q} onChange={(e) => { setQ(e.target.value); setAte(60); }} placeholder="Filtrar por pessoa ou ação" aria-label="Filtrar o registro" /></div>
         {dados && <span className="b-suave cg-filtro__conta">{q ? `${lista.length} de ${plural(dados.length, 'registro', 'registros')}` : plural(dados.length, 'registro', 'registros')}</span>}
       </div>
       {dados && lista.length === 0 && <Vazio titulo={q ? 'Nada com esse filtro' : 'Nada registrado ainda'} />}
       {lista.length > 0 && (
         <ul className="b-itens cg-registro">
-          {lista.map((r, i) => (
+          {lista.slice(0, ate).map((r, i) => (
             <li key={i} className="b-item cg-reg">
               <span className="cg-reg__quando">{r.quando.slice(0, 16).replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2')}</span>
               <div className="b-item__corpo">
@@ -392,6 +393,12 @@ function Registro() {
             </li>
           ))}
         </ul>
+      )}
+      {lista.length > ate && (
+        <div className="cg-mais-itens">
+          <span className="b-suave">Mostrando {ate} de {lista.length}</span>
+          <button type="button" className="botao botao--linha botao--p" onClick={() => setAte((n) => n + 60)}>Mostrar mais</button>
+        </div>
       )}
     </>
   );

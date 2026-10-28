@@ -1326,7 +1326,7 @@ function EditarServico({ s, categorias, produtos = [], profissionais = [], aoFec
           </div>
           <div className="b-linha2">
             <label className="b-campo"><span className="rotulo">Comissão deste serviço (%)</span>
-              <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Vazio = a padrão de quem atende" /></label>
+              <input inputMode="decimal" value={f.comissao} onChange={(e) => setF({ ...f, comissao: e.target.value.replace(/[^\d,.]/g, '') })} placeholder="Padrão de quem atende" /></label>
             <label className="b-campo"><span className="rotulo">Retorno sugerido (dias)</span>
               <input inputMode="numeric" value={f.retornoDias} onChange={(e) => setF({ ...f, retornoDias: e.target.value.replace(/\D/g, '').slice(0, 3) })} placeholder="Vazio = sem retorno" /></label>
           </div>
@@ -1491,7 +1491,7 @@ export function Profissionais() {
       <Erro>{erroW}</Erro>
       {pessoas.length === 0 && <Vazio titulo="Equipe ainda vazia" forma="presenca" acao={<button type="button" className="botao botao--cheio botao--p" onClick={novaPessoa}>Cadastrar profissional</button>}>Quem dá aula aparece aqui sozinho, assim que entra na Grade de aulas.</Vazio>}
       {pessoas.length > 0 && (
-        <ul className="b-itens cg-equipe">
+        <ul className="b-itens cg-equipe cg-equipe--prof">
           {pessoas.map(({ nome, servico: p, aula: a }) => {
             const inativo = p ? !p.ativo && !a : false;
             const comissao = [p && verComissao && (p.comissao ? `serviços ${p.comissao}%` : 'sem comissão padrão'), a && (a.pilatesPct != null || a.yogaPorAula ? 'valor da aula cadastrado' : 'sem valor de aula')].filter(Boolean);
@@ -1667,7 +1667,7 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
                 </label>
               ))}
             </div>
-            {mods.some((t) => !daGrade.includes(t)) && <Aviso tom="info">As aulas só aparecem na agenda e no site quando o nome da pessoa estiver como professor(a) na Grade de aulas (Catálogo → Grade de aulas).</Aviso>}
+            {mods.some((t) => !daGrade.includes(t)) && <Aviso tom="info">As aulas só aparecem na agenda e no site quando o nome da pessoa estiver em quem dá a aula, na Grade de aulas (Catálogo → Grade de aulas).</Aviso>}
             <div className="pa-campos">
               {pilates && <label className="b-campo"><span className="rotulo">Pilates · % por aluno</span>
                 <input inputMode="decimal" value={au.pilatesPct} placeholder="Ex.: 40" onChange={(e) => setAu({ ...au, pilatesPct: e.target.value.replace(/[^\d,.]/g, '') })} /></label>}
@@ -1681,7 +1681,7 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
           </fieldset>
         )}
         <Erro>{erro}</Erro>
-        <BotaoAcao className="botao botao--cheio" acao={salvar}>Salvar</BotaoAcao>
+        <BotaoAcao className="botao botao--cheio" acao={salvar}>Salvar profissional</BotaoAcao>
         {(temServico || (aula && !daGrade.length)) && (
           <BlocoForm titulo="Apagar cadastro" className="cg-risco" ajuda='Só apaga se não houver horário marcado daqui para a frente, bloqueio, comanda aberta ou aula na Grade. Para só parar de agendar, desmarque "Atendendo".'>
             <BotaoAcao className="botao botao--linha botao--p cg-perigo" confirmar={`Apagar o cadastro de ${p.nomeOriginal || nomeAula}? O histórico (atendimentos passados, vendas e comissões) continua com o nome.`}
@@ -1690,7 +1690,7 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
             </BotaoAcao>
           </BlocoForm>
         )}
-        {!temServico && daGrade.length > 0 && <Aviso tom="info">Esta pessoa aparece aqui porque dá aula na Grade de aulas. Para tirar, troque o(a) professor(a) dessas aulas na Grade (Catálogo → Grade de aulas).</Aviso>}
+        {!temServico && daGrade.length > 0 && <Aviso tom="info">Esta pessoa aparece aqui porque dá aula na Grade de aulas. Para tirar, troque quem dá essas aulas na Grade (Catálogo → Grade de aulas).</Aviso>}
       </div>
     </Modal>
   );

@@ -144,7 +144,7 @@ export function Colunas({ serie, rotuloX = (k) => k, formato = (v) => v, altura 
             <g key={d.chave}>
               {ativo === i && <rect x={esq + i * larg} y={6} width={larg} height={base - 6} rx="4" className="g-faixa" />}
               {caminho && <path d={caminho} fill={`url(#${idGrad}${i === iMax ? 'd' : 's'})`} opacity={ativo != null && ativo !== i ? 0.55 : 1} />}
-              <rect x={esq + i * larg} y={6} width={larg} height={base - 6} fill="transparent" onMouseMove={aqui} onTouchStart={aqui} />
+              <rect x={esq + i * larg} y={6} width={larg} height={base - 6} fill="transparent" onMouseMove={aqui} onTouchStart={aqui}><title>{`${rotuloX(d.chave, true)}: ${formato(d.valor)}`}</title></rect>
               {i % cada === 0 && <text x={x + barra / 2} y={A - 8} textAnchor="middle" className="g-eixo">{rotuloX(d.chave)}</text>}
             </g>
           );

@@ -18,7 +18,7 @@ export default function Financeiro() {
   const [mes, setMes] = useState(mesAtual());
   return (
     <>
-      <Cabecalho titulo="Financeiro" acoes={<SeletorMes mes={mes} aoMudar={setMes} />}
+      <Cabecalho titulo="Financeiro" acoes={<span className="gs-mes"><SeletorMes mes={mes} aoMudar={setMes} /></span>}
         ajuda="As vendas entram sozinhas (site, balcão e comandas). Aqui você lança despesas, paga comissões e confere os caixas.">
         Entradas, despesas, comissões e caixas do mês.
       </Cabecalho>
@@ -151,7 +151,7 @@ function Fluxo({ serie }) {
         <line x1={esq} x2={L - 6} y1={meio - util} y2={meio - util} className="g-grade" />
         <line x1={esq} x2={L - 6} y1={meio + util} y2={meio + util} className="g-grade" />
         <text x={esq - 8} y={meio - util + 4} textAnchor="end" className="g-eixo">{compactoR(max)}</text>
-        <text x={esq - 8} y={meio + util + 4} textAnchor="end" className="g-eixo">{compactoR(max)}</text>
+        <text x={esq - 8} y={meio + util + 4} textAnchor="end" className="g-eixo">−{compactoR(max)}</text>
         <text x={esq - 8} y={meio + 4} textAnchor="end" className="g-eixo">0</text>
         <line x1={esq} x2={L - 6} y1={meio} y2={meio} className="fluxo__eixo" />
         {serie.map((s, i) => {
@@ -161,7 +161,7 @@ function Fluxo({ serie }) {
           return (
             <g key={s.chave} onMouseMove={aqui} onTouchStart={aqui}>
               {dica?.i === i && <rect x={esq + i * larg} y={6} width={larg} height={A - 30} rx="4" className="g-faixa" />}
-              <rect x={esq + i * larg} y={0} width={larg} height={A} fill="transparent" />
+              <rect x={esq + i * larg} y={0} width={larg} height={A} fill="transparent"><title>{`${dataCurta(s.chave)}: entrou ${real(s.entradas)}, saiu ${real(s.saidas)}`}</title></rect>
               {he > 0 && <rect x={x} y={meio - he - 1} width={barra} height={he} rx={Math.min(4, barra / 2)} className="fluxo__entra" />}
               {hs > 0 && <rect x={x} y={meio + 1} width={barra} height={hs} rx={Math.min(4, barra / 2)} className="fluxo__sai" />}
               {(((i === 0 || (i + 1) % 5 === 0) && (iHoje < 0 || Math.abs(i - iHoje) > 1)) || i === iHoje) && <text x={x + barra / 2} y={A - 4} textAnchor="middle" className={`g-eixo${s.chave === hoje ? ' g-eixo--hoje' : ''}`}>{Number(s.chave.slice(8))}</text>}
@@ -283,8 +283,8 @@ function EditarDespesa({ x, categorias, aoFechar, aoSalvar, mes }) {
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setErro('');
           try { aoSalvar(await chamar('salvarDespesa', { despesa: { ...f, valor: numBR(f.valor) } })); } catch (e) { setErro(e.message); }
-        }}>Salvar</BotaoAcao>
-        {x.id && <BotaoAcao className="link-sair" confirmar="Excluir esta despesa?" acao={async () => {
+        }}>Salvar despesa</BotaoAcao>
+        {x.id && <BotaoAcao className="botao botao--fantasma botao--p cg-perigo" confirmar="Excluir esta despesa?" acao={async () => {
           try { aoSalvar(await chamar('excluirDespesa', { id: x.id, mes })); } catch (e) { setErro(e.message); }
         }}>Excluir despesa</BotaoAcao>}
       </div>
@@ -414,6 +414,7 @@ function Comissoes({ mes }) {
       </section>
 
       {relatorio && <RelatorioProfissional mes={mes} profissional={relatorio} aoFechar={() => setRelatorio(null)} />}
+      <Erro>{erroA}</Erro>
 
       {todas.length === 0 && <Vazio titulo="Nenhuma comissão neste mês" forma="presenca">Cada atendimento marcado como atendido e cada aula dada geram a comissão (valores em Catálogo).</Vazio>}
       {todas.length > 0 && (
@@ -478,7 +479,6 @@ function Comissoes({ mes }) {
           }}>Registrar pagamento</BotaoAcao>
         </div>
       )}
-      <Erro>{erroA}</Erro>
     </div>
   );
 }
@@ -496,13 +496,15 @@ function Caixas() {
   const abertos = lista.filter((c) => c.diferenca == null).length;
   return (
     <>
-      <Aviso tom="info" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => nav('/bancada/comandas', { state: { vista: 'caixa' } })}>Abrir caixa de hoje</button>}>
-        O caixa de hoje fica em Comandas → Caixa do dia. Toque num dia para abrir ou corrigir.
-      </Aviso>
       {lista.length === 0 ? (
-        <Vazio titulo="Nenhum caixa fechado ainda" forma="presenca">Feche o caixa do dia em Comandas → Caixa do dia e ele aparece aqui.</Vazio>
+        <Vazio titulo="Nenhum caixa fechado ainda" forma="presenca" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => nav('/bancada/comandas', { state: { vista: 'caixa' } })}>Abrir caixa de hoje</button>}>
+          Feche o caixa do dia em Comandas → Caixa do dia e ele aparece aqui.
+        </Vazio>
       ) : (
         <>
+          <Aviso tom="info" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => nav('/bancada/comandas', { state: { vista: 'caixa' } })}>Abrir caixa de hoje</button>}>
+            O caixa de hoje fica em Comandas → Caixa do dia. Toque num dia para abrir ou corrigir.
+          </Aviso>
           <section className="gs-kpis gs-kpis--3" aria-label="Resumo dos caixas">
             <KpiG compacto icone="check" tom={bateram ? 'ok' : undefined} rotulo="Bateram" valor={bateram} detalhe={`de ${plural(lista.length, 'fechamento', 'fechamentos')}`} />
             <KpiG compacto icone="alerta" tom={comDiferenca ? 'alerta' : undefined} rotulo="Com diferença" valor={comDiferenca} detalhe="contado ≠ esperado" />
@@ -539,7 +541,7 @@ export function MeusGanhos() {
   const nomeMes = mesTexto(mes).split(' ')[0].toLowerCase();
   return (
     <>
-      <Cabecalho titulo="Meus ganhos" acoes={<SeletorMes mes={mes} aoMudar={setMes} />}
+      <Cabecalho titulo="Meus ganhos" acoes={<span className="gs-mes"><SeletorMes mes={mes} aoMudar={setMes} /></span>}
         ajuda={`A administração registra quando paga.${g?.liquida ? ' A base de cada comissão é o valor depois da taxa da maquininha.' : ''}`}>
         Sua comissão de cada atendimento e venda.
       </Cabecalho>
