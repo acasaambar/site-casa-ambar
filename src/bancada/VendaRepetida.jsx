@@ -37,7 +37,7 @@ export default function VendaRepetida() {
   const texto = motivo === 'Outro motivo' ? outro.trim() : motivo;
   const pode = texto.length >= 3;
   return (
-    <Modal titulo="Venda parecida já registrada" rotulo="Mesmo cliente, mesmo item e mesmo valor hoje" aoFechar={() => responder(null)}>
+    <Modal titulo="Venda parecida já registrada" rotulo="Mesmo cliente, item, valor e dia" aoFechar={() => responder(null)}>
       <div className="vr">
         <Aviso tom="aviso" titulo="Confira antes de lançar de novo">
           Se for a mesma venda, cancele: o dinheiro entraria em dobro no caixa e nas comissões.

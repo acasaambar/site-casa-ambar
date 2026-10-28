@@ -39,7 +39,7 @@ export function ListaVales({ abrirNovo }) {
       {dados && (
         <section className="b-kpis">
           <Kpi rotulo="Vales ativos" valor={ativos.length} detalhe="dentro da validade" />
-          <Kpi rotulo="Valor a usar" valor={realCurto(aberto)} detalhe="saldo dos vales ativos" />
+          <Kpi rotulo="Valor a usar" valor={Math.abs(aberto) >= 100000 ? realCurto(aberto) : real(aberto)} detalhe="saldo dos vales ativos" />
           <Kpi rotulo="Ainda não entregues" valor={naoEntregues} tom={naoEntregues ? 'aviso' : ''} detalhe="ativos sem entrega" />
         </section>
       )}
@@ -160,7 +160,7 @@ export function Cupons({ podeEditar }) {
   const novo = () => setEditar({});
   return (
     <>
-      <Secao titulo="Cupons de desconto" ajuda="O aluno digita o cupom no pagamento do site; a recepção também pode aplicar na venda do balcão." acoes={podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={novo}>Novo cupom</button>}>
+      <Secao titulo="Cupons de desconto" ajuda="Quem compra digita o cupom no pagamento do site; a recepção também pode aplicar na venda do balcão." acoes={podeEditar && <button type="button" className="botao botao--cheio botao--p" onClick={novo}>Novo cupom</button>}>
         <Erro>{erro}</Erro>
         {carregando && !dados && <Esqueleto linhas={3} altura={64} />}
         {dados && dados.length === 0 && (

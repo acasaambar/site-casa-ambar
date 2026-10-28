@@ -92,8 +92,8 @@ export default function Estoque() {
                   <span className="b-meta">
                     {p.marca && <span>{p.marca}</span>}
                     {p.categoria && <span>{p.categoria}</span>}
-                    {p.vende && <span>vende por {real(p.preco)}</span>}
                   </span>
+                  {p.vende && <span className="es-item__preco">vende por {real(p.preco)}</span>}
                 </button>
                 <div className="es-nivel" role="img" aria-label={`Saldo ${qtdFmt(p.estoque)} ${p.unidade}, mínimo ${qtdFmt(p.minimo)}`}>
                   <span className="es-nivel__linha">
@@ -103,10 +103,10 @@ export default function Estoque() {
                   <span className="es-barra"><i style={{ width: `${Math.max(0, Math.min(100, (p.estoque / cheio) * 100))}%` }} />{p.minimo > 0 && <b style={{ left: `${(p.minimo / cheio) * 100}%` }} />}</span>
                 </div>
                 <div className="es-acoes">
-                  <button type="button" className="botao botao--linha botao--p" onClick={() => setMover({ p, tipo: 'entrada' })}>Entrada</button>
-                  <button type="button" className="botao botao--fantasma botao--p" onClick={() => setMover({ p, tipo: 'ajuste' })}>Contar</button>
-                  <button type="button" className="botao botao--fantasma botao--p" onClick={() => setMover({ p, tipo: 'perda' })}>Baixa</button>
-                  {admin && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(p)}>Editar</button>}
+                  <button type="button" className="botao botao--linha botao--p" aria-label={`Registrar entrada de ${p.nome}`} onClick={() => setMover({ p, tipo: 'entrada' })}>Entrada</button>
+                  <button type="button" className="botao botao--fantasma botao--p" aria-label={`Contar o estoque de ${p.nome}`} onClick={() => setMover({ p, tipo: 'ajuste' })}>Contar</button>
+                  <button type="button" className="botao botao--fantasma botao--p" aria-label={`Dar baixa em ${p.nome}`} onClick={() => setMover({ p, tipo: 'perda' })}>Baixa</button>
+                  {admin && <button type="button" className="botao botao--fantasma botao--p" aria-label={`Editar ${p.nome}`} onClick={() => setEditar(p)}>Editar</button>}
                 </div>
               </li>
             );
@@ -130,9 +130,9 @@ function EditarProduto({ p, categorias, aoFechar, aoSalvar }) {
   const campo = (k) => ({ value: f[k], onChange: (e) => setF({ ...f, [k]: e.target.value }) });
   return (
     <Modal titulo={novo ? 'Novo produto' : p.nome} rotulo="Estoque" aoFechar={aoFechar}>
-      <div className="b-form">
+      <div className="b-form es-form">
         <label className="b-campo"><span className="rotulo">Nome</span><input {...campo('nome')} placeholder="Ex.: Protetor solar FPS 50" /></label>
-        <div className="b-linha2">
+        <div className="b-linha2 es-linha--cheia">
           <label className="b-campo"><span className="rotulo">Marca</span><input {...campo('marca')} /></label>
           <label className="b-campo"><span className="rotulo">Categoria</span><select {...campo('categoria')}>{categorias.map((c) => <option key={c}>{c}</option>)}</select></label>
         </div>
@@ -175,7 +175,7 @@ function Movimentar({ p, tipoInicial, admin, aoFechar, aoSalvar }) {
   const novoSaldo = tipo === 'ajuste' ? n : tipo === 'entrada' ? p.estoque + n : p.estoque - n;
   return (
     <Modal titulo={p.nome} rotulo={`Saldo atual: ${qtdFmt(p.estoque)} ${p.unidade}`} aoFechar={aoFechar}>
-      <div className="b-form">
+      <div className="b-form es-form">
         <fieldset className="b-opcoes">
           <legend className="rotulo">O que aconteceu</legend>
           {Object.entries(TIPOS).map(([id, t]) => (
