@@ -15,7 +15,8 @@ export default function Tapete({ numero, estado = 'livre', onClick, desabilitado
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const c = CORES[estado];
   const ocupado = estado === 'ocupado';
-  const rotulo = `Tapete ${numero}, ${ocupado ? 'ocupado' : estado === 'meu' ? 'escolhido por você' : 'livre'}`;
+  // ocupado: sem vírgula, para o nome acessível conter o texto visível ("6 ocupado")
+  const rotulo = ocupado ? `Tapete ${numero} ocupado` : `Tapete ${numero}, ${estado === 'meu' ? 'escolhido por você' : 'livre'}`;
 
   return (
     <button
@@ -97,7 +98,7 @@ export default function Tapete({ numero, estado = 'livre', onClick, desabilitado
           </g>
         )}
       </svg>
-      {ocupado && <span className="tapete__selo">ocupado</span>}
+      {ocupado && <span className="tapete__selo">{' '}ocupado</span>}
     </button>
   );
 }

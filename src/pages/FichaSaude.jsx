@@ -8,6 +8,7 @@ import { PARQ, COMORBIDADES, PARENTESCO, FICHA_VAZIA } from '../anamnese.js';
 import { apontarCampo, mascaraTelefone, soDigitos } from '../lib/util.js';
 import { Carregando } from './Aulas.jsx';
 import { CONFIG } from '../config.js';
+import { rolagemSuave } from '../lib/movimento.js';
 
 const ETAPAS = [
   { titulo: 'Contato de emergência', forma: 'presenca' },
@@ -25,6 +26,8 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
   const [etapa, setEtapa] = useState(0);
   const [f, setF] = useState(FICHA_VAZIA);
   const [erro, setErro] = useState('');
+  // campo a que a mensagem se refere ('' = erro geral, junto dos botões): o aviso fica colado no campo, não no fim de uma página comprida
+  const [erroNome, setErroNome] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [feito, setFeito] = useState(null);
   const formRef = useRef(null);
@@ -48,6 +51,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
     return () => { vivo = false; };
   }, [token, aluno?.anamnese]);
 
+  const aviso = (...nomes) => (erro && nomes.includes(erroNome) ? <p className="erro erro--campo" role="alert">{erro}</p> : null);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const campo = (k, mascara) => ({
     value: f[k],
@@ -77,13 +81,14 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
 
   // erro do servidor (sem campo marcado): leva até a mensagem, uma vez por erro
   useEffect(() => {
-    if (erro && !formRef.current?.querySelector('[aria-invalid="true"]')) erroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (erro && !formRef.current?.querySelector('[aria-invalid="true"]')) erroRef.current?.scrollIntoView({ behavior: rolagemSuave(), block: 'center' });
   }, [erro]);
 
   async function avancar(e) {
     e.preventDefault();
     const [msg = '', nome = ''] = validar(etapa);
     setErro(msg);
+    setErroNome(nome);
     apontarCampo(formRef.current, nome);
     if (msg) return;
     if (etapa < ETAPAS.length - 1) {
@@ -102,7 +107,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
       if (/sessão/i.test(err.message)) {
         expirou();
         nav('/entrar', { state: { de: '/ficha-saude' } });
-      } else setErro(err.message);
+      } else { setErro(err.message); setErroNome(''); }
     } finally {
       setEnviando(false);
     }
@@ -181,10 +186,12 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                 Sua data de nascimento
                 <input type="date" name="data_nascimento" max={new Date().toISOString().slice(0, 10)} {...campo('data_nascimento')} />
               </label>
+              {aviso('data_nascimento')}
               <label>
                 Nome do contato
                 <input type="text" name="emergencia_nome" autoComplete="off" {...campo('emergencia_nome')} />
               </label>
+              {aviso('emergencia_nome')}
               <div className="duas-colunas">
                 <label>
                   Parentesco
@@ -198,6 +205,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                   <input type="tel" name="emergencia_telefone" inputMode="numeric" placeholder="(85) 90000-0000" {...campo('emergencia_telefone', mascaraTelefone)} />
                 </label>
               </div>
+              {aviso('emergencia_parentesco', 'emergencia_telefone')}
               <label>
                 Plano de saúde <span className="opcional">opcional</span>
                 <input type="text" placeholder="Nome do plano" {...campo('plano_saude')} />
@@ -222,6 +230,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                         </label>
                       ))}
                     </div>
+                    {aviso(q.id)}
                   </li>
                 ))}
               </ul>
@@ -267,6 +276,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                         </label>
                       ))}
                     </div>
+                    {aviso('gestante')}
                     {f.gestante === 'sim' && (
                       <label>
                         Quantas semanas?
@@ -284,6 +294,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                         </label>
                       ))}
                     </div>
+                    {aviso('atividade')}
                   </div>
                 </div>
 
@@ -314,6 +325,7 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                   <input type="checkbox" name="declaracao" checked={f.declaracao} onChange={(e) => set('declaracao', e.target.checked)} />
                   <span>Declaro que as informações acima são verdadeiras e que avisarei a Casa Âmbar se meu estado de saúde mudar.</span>
                 </label>
+                {aviso('declaracao')}
                 <label className="termo">
                   <input type="checkbox" name="consentimento" checked={f.consentimento} onChange={(e) => set('consentimento', e.target.checked)} />
                   <span>
@@ -321,15 +333,16 @@ export default function FichaSaude({ embutida = false, aoConcluir, rotulo = '', 
                     Lei Geral de Proteção de Dados (LGPD). Posso pedir a exclusão a qualquer momento pelo WhatsApp {CONFIG.telefone}.
                   </span>
                 </label>
+                {aviso('consentimento')}
               </fieldset>
             </>
           )}
 
-          {erro && <p className="erro erro--destaque" role="alert" ref={erroRef}>{erro}</p>}
+          {erro && !erroNome && <p className="erro erro--destaque" role="alert" ref={erroRef}>{erro}</p>}
 
           <div className="ficha__botoes">
             {etapa > 0 ? (
-              <button type="button" className="botao botao--linha" onClick={() => { setErro(''); setEtapa(etapa - 1); }}>Voltar</button>
+              <button type="button" className="botao botao--linha" onClick={() => { setErro(''); setErroNome(''); setEtapa(etapa - 1); }}>Voltar</button>
             ) : aoVoltar ? (
               <button type="button" className="botao botao--linha" onClick={aoVoltar}>Voltar</button>
             ) : null}

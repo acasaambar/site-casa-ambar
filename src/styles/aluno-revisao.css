@@ -52,6 +52,10 @@
 .aula--apagada .mini, .aula--lotada .mini { opacity: 0.6; }
 .aula__acao { min-width: 0; }
 
+/* ---------- Meu plano: modalidade escolhida (Yoga) com letra pequena sobre o oliva: o oliva puro dava 3,6:1; um tom mais escuro chega a 5,6:1 ---------- */
+.modalidade[aria-selected='true'].modalidade--yoga { background: #5C653F; border-color: #5C653F; }
+.modalidade[aria-selected='true'] .modalidade__det { color: var(--creme); }
+
 /* ---------- Reservar: tapete ocupado com selo de 12 px ---------- */
 .tapete__selo { font-size: 12px; letter-spacing: 0.08em; }
 
@@ -101,3 +105,8 @@
   .aula:not(.aula--apagada):hover, .oferta:hover, .modalidade:hover, .preco:hover { transform: none; }
   .girando-lento, .confirmado__sol { animation: none; }
 }
+
+/* ---------- avisos de erro colados no campo (contrato, ficha de saúde) ---------- */
+.ficha__form .erro--campo { margin: 0; border-left: 3px solid #B5543A; }
+.pergunta > .erro--campo { grid-column: 1 / -1; }
+.form [aria-invalid='true'], .opcoes-imagem[aria-invalid='true'], .assina__quadro--invalido { scroll-margin-block: 110px 80px; }

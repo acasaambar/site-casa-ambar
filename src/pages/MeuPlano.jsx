@@ -12,6 +12,7 @@ import CampoCodigo from '../components/CampoCodigo.jsx';
 import Dialogo from '../components/Dialogo.jsx';
 import ExigenciasPlano from '../components/ExigenciasPlano.jsx';
 import { comNumeros } from '../components/Num.jsx';
+import { rolagemSuave } from '../lib/movimento.js';
 
 const real = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const realCurto = (v) => {
@@ -62,7 +63,7 @@ export default function MeuPlano() {
   const local = useLocation();
   const valeDoLink = new URLSearchParams(local.search).get('vale') || '';
   useEffect(() => {
-    if (dados && local.state?.rolar) setTimeout(() => document.getElementById(local.state.rolar)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    if (dados && local.state?.rolar) setTimeout(() => document.getElementById(local.state.rolar)?.scrollIntoView({ behavior: rolagemSuave(), block: 'start' }), 150);
   }, [dados, local.state]);
 
   async function irParaPagamento() {

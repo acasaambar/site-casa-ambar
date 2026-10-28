@@ -53,7 +53,13 @@ export function Monograma({ tamanho = 120, cor = 'currentColor', className = '' 
 }
 
 export function Logo({ variante = 'verde', largura = 64, className = '' }) {
-  return <img className={className} src={img(`logo-${variante}.png`)} alt="Casa Âmbar" width={largura} style={{ height: 'auto' }} />;
+  // WebP de 560 px (metade do peso do PNG de 900 px, e sobra para telas retina); o PNG fica de reserva para navegadores antigos
+  return (
+    <picture>
+      <source srcSet={img(`logo-${variante}-560.webp`)} type="image/webp" />
+      <img className={className} src={img(`logo-${variante}.png`)} alt="Casa Âmbar" width={largura} style={{ height: 'auto' }} />
+    </picture>
+  );
 }
 
 // Selo circular "CASA ÂMBAR" com o sol no centro.
