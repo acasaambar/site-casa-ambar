@@ -66,10 +66,10 @@ console.log('— estornada ou excluída não conta');
 {
   const cli = novo('Repetida Quatro', '85940002004');
   const v = chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-mensal-1x', metodo: 'Pix' }).dados;
-  ok(chamar('b_estornar', { token: rec, orderNsu: v.orderNsu, motivo: 'engano' }).ok, 'venda estornada');
+  ok(chamar('b_estornar', { token: adm, orderNsu: v.orderNsu, motivo: 'engano' }).ok, 'venda estornada');
   ok(chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-mensal-1x', metodo: 'Pix' }).ok, 'lançar de novo depois do estorno não pede confirmação');
   const v2 = chamar('b_vender', { token: rec, cpf: cli, planoId: 'pilates-avulsa', metodo: 'Pix' }).dados;
-  ok(chamar('b_excluirVenda', { token: rec, orderNsu: v2.orderNsu, motivo: 'lancei errado' }).ok, 'venda excluída');
+  ok(chamar('b_excluirVenda', { token: adm, orderNsu: v2.orderNsu, motivo: 'lancei errado' }).ok, 'venda excluída');
   ok(chamar('b_vender', { token: rec, cpf: cli, planoId: 'pilates-avulsa', metodo: 'Pix' }).ok, 'lançar de novo depois de excluir também passa');
 }
 
@@ -156,7 +156,7 @@ console.log('— lista das vendas que podem ter sido lançadas em dobro (as que 
   chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150 });
   const unico = novo('Lista Unica', '85940002012');
   chamar('b_vender', { token: rec, cpf: unico, planoId: 'yoga-mensal-1x', metodo: 'Pix' });
-  r = chamar('b_vendasDuplicadas', { token: rec });
+  r = chamar('b_vendasDuplicadas', { token: adm });
   ok(r.ok, 'a lista abre para a recepção', r.erro);
   const g = r.ok && r.dados.grupos.find((x) => x.cpf === ctx.normCpf(cli));
   ok(g && g.tipo === 'igual' && g.vendas.length === 2 && g.item === 'Drenagem Linfática', 'agenda + Vendas do mesmo serviço, valor e dia: provável duplicada', g);
@@ -168,18 +168,18 @@ console.log('— lista das vendas que podem ter sido lançadas em dobro (as que 
   ok(!r.dados.grupos.some((x) => x.cpf === ctx.normCpf(unico)), 'venda única não aparece');
   ok(r.dados.resumo.provaveis >= 1 && r.dados.resumo.valorEmDobro >= 199, 'resumo com a soma em dobro', r.dados.resumo);
   // resolver: excluir a solta tira o grupo da lista
-  ok(chamar('b_excluirVenda', { token: rec, orderNsu: segunda.orderNsu, motivo: 'estava em dobro' }).ok, 'exclui a venda em dobro');
-  r = chamar('b_vendasDuplicadas', { token: rec });
+  ok(chamar('b_excluirVenda', { token: adm, orderNsu: segunda.orderNsu, motivo: 'estava em dobro' }).ok, 'exclui a venda em dobro');
+  r = chamar('b_vendasDuplicadas', { token: adm });
   ok(!r.dados.grupos.some((x) => x.cpf === ctx.normCpf(cli)), 'o grupo resolvido sai da lista');
   // "não é duplicada": marca o grupo e ele sai; pede as vendas do grupo
-  ok(!chamar('b_conferirVendas', { token: rec, orderNsus: [gp.vendas[0].orderNsu] }).ok, 'marcar conferida exige as vendas do grupo');
-  r = chamar('b_conferirVendas', { token: rec, orderNsus: gp.vendas.map((x) => x.orderNsu), motivo: 'uma é o plano, a outra é diferença' });
+  ok(!chamar('b_conferirVendas', { token: adm, orderNsus: [gp.vendas[0].orderNsu] }).ok, 'marcar conferida exige as vendas do grupo');
+  r = chamar('b_conferirVendas', { token: adm, orderNsus: gp.vendas.map((x) => x.orderNsu), motivo: 'uma é o plano, a outra é diferença' });
   ok(r.ok, 'marcado como conferido', r.erro);
-  ok(!chamar('b_vendasDuplicadas', { token: rec }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'grupo conferido sai da lista');
-  ok(/Conferida \(não é duplicada\) por bia/.test(ctx.lerAba('Pagamentos').find((p) => p.order_nsu === gp.vendas[0].orderNsu).observacao), 'a observação guarda quem conferiu');
+  ok(!chamar('b_vendasDuplicadas', { token: adm }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'grupo conferido sai da lista');
+  ok(/Conferida \(não é duplicada\) por contato/.test(ctx.lerAba('Pagamentos').find((p) => p.order_nsu === gp.vendas[0].orderNsu).observacao), 'a observação guarda quem conferiu');
   // nova venda igual no mesmo grupo conferido volta a aparecer
   chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150, ...confirma(chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150 })) });
-  ok(chamar('b_vendasDuplicadas', { token: rec }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'uma venda nova igual depois da conferência volta a aparecer');
+  ok(chamar('b_vendasDuplicadas', { token: adm }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'uma venda nova igual depois da conferência volta a aparecer');
 }
 
 console.log('— venda ligada à agenda pelo crédito (venda de serviço + sessão usada do crédito dela)');
@@ -192,7 +192,7 @@ console.log('— venda ligada à agenda pelo crédito (venda de serviço + sess�
   ok(ag.ok, 'agendado usando o crédito da venda', ag.erro);
   const v2 = chamar('b_vender', { token: rec, cpf: cli, planoId: 'limpeza-pele', metodo: 'Pix' });
   chamar('b_vender', { token: rec, cpf: cli, planoId: 'limpeza-pele', metodo: 'Pix', ...confirma(v2) });
-  r = chamar('b_vendasDuplicadas', { token: rec });
+  r = chamar('b_vendasDuplicadas', { token: adm });
   const g = r.dados.grupos.find((x) => x.cpf === ctx.normCpf(cli));
   ok(g && g.vendas[0].orderNsu === v1.dados.orderNsu && g.vendas[0].ligacao.tipo === 'agenda' && !g.vendas[0].sugerida && g.vendas[1].sugerida === true, 'a venda cujo crédito a agenda usou fica; a outra sobra', g && g.vendas.map((x) => [x.ligacao.tipo, x.sugerida]));
 }

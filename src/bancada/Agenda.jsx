@@ -252,7 +252,7 @@ export default function Agenda() {
       <Erro>{erro || aviso}</Erro>
       {!dados && !erro && <Esqueleto linhas={5} altura={64} />}
       {dados && aulas.length === 0 && (
-        <Vazio titulo="Sem aulas neste dia" acao={equipeBalcao ? <Link className="botao botao--linha botao--p" to="/bancada/grade">Ver a grade de aulas</Link> : null}>
+        <Vazio titulo="Sem aulas neste dia" acao={pode(membro, 'admin') ? <Link className="botao botao--linha botao--p" to="/bancada/grade">Ver a grade de aulas</Link> : null}>
           {equipeBalcao ? 'Domingo, feriado ou dia bloqueado.' : 'Você não tem aula neste dia.'}
         </Vazio>
       )}

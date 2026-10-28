@@ -23,18 +23,18 @@ var PERMISSOES = {
   b_novoAluno: ['admin', 'recepcao'],
   b_enviarLinkSenha: ['admin', 'recepcao'],
   b_vender: ['admin', 'recepcao'],
-  b_vendasDuplicadas: ['admin', 'recepcao'],
-  b_conferirVendas: ['admin', 'recepcao'],
+  b_vendasDuplicadas: ['admin'],
+  b_conferirVendas: ['admin'],
   b_simularPreco: ['admin', 'recepcao'],
-  b_pagamentos: ['admin', 'recepcao'],
-  b_estornar: ['admin', 'recepcao'],
-  b_marcarDevolvido: ['admin', 'recepcao'],
+  b_pagamentos: ['admin'],
+  b_estornar: ['admin'],
+  b_marcarDevolvido: ['admin'],
   b_ajustarCredito: ['admin', 'recepcao'],
-  b_vales: ['admin', 'recepcao'],
+  b_vales: ['admin'],
   b_cancelarVale: ['admin', 'recepcao'],
   b_enviarVale: ['admin', 'recepcao'],
   b_aplicarVale: ['admin', 'recepcao'],
-  b_cupons: ['admin', 'recepcao'],
+  b_cupons: ['admin'],
   b_salvarCupom: ['admin'],
   b_bloqueios: ['admin', 'recepcao'],
   b_bloquear: ['admin', 'recepcao'],
@@ -136,8 +136,8 @@ var PERMISSOES = {
   b_espera: ['admin', 'recepcao'],
   b_receberAula: ['admin', 'recepcao'],
   b_corrigirFormasComanda: ['admin', 'recepcao'],
-  b_corrigirVenda: ['admin', 'recepcao'],
-  b_excluirVenda: ['admin', 'recepcao'],
+  b_corrigirVenda: ['admin'],
+  b_excluirVenda: ['admin'],
   b_entrarEspera: ['admin', 'recepcao'],
   b_atualizarEspera: ['admin', 'recepcao'],
   b_retornos: ['admin', 'recepcao'],
@@ -422,7 +422,8 @@ function bancada_resumo(d, m) {
     var pagos = pagamentosPagos();
     var mes = hoje.slice(0, 7);
     r.vendasHoje = pagos.filter(function (p) { return String(p.pago_em).slice(0, 10) === hoje && numero(p.valor) > 0; }).reduce(function (s, p) { return s + numero(p.valor); }, 0);
-    r.vendasMes = pagos.filter(function (p) { return String(p.pago_em).slice(0, 7) === mes; }).reduce(function (s, p) { return s + numero(p.valor); }, 0);
+    // total do mês: só a administração (a recepção vê o caixa do dia)
+    if (m.papel === 'admin') r.vendasMes = pagos.filter(function (p) { return String(p.pago_em).slice(0, 7) === mes; }).reduce(function (s, p) { return s + numero(p.valor); }, 0);
     r.wellhubPendentes = lerAba('Alunos').filter(function (a) { return statusWellhub(a) === 'pendente'; }).length;
     r.devolverJuros = lerAba('Pagamentos').filter(function (p) { return /^DEVOLVER/.test(String(p.observacao)); }).length;
     var mapaC = mapaCreditos();

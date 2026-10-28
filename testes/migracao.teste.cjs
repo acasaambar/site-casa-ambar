@@ -68,7 +68,7 @@ console.log('— data da venda');
   ok(caixa(dez).vendas === antesDez + 63 && caixa().vendas === antesHoje, 'entra no caixa daquele dia, não no de hoje', [caixa(dez).vendas, antesDez]);
   ok(!chamar('b_vender', { token: rec, cpf, planoId: 'yoga-avulsa', metodo: 'Pix', dataVenda: ctx.somarDias(hojeS, 1) }).ok, 'data futura é recusada');
   ok(!chamar('b_vender', { token: rec, cpf, planoId: 'yoga-avulsa', metodo: 'Pix', dataVenda: ctx.somarDias(hojeS, -200) }).ok, 'mais de 120 dias é recusado');
-  r = chamar('b_corrigirVenda', { token: rec, orderNsu: r.dados.orderNsu, metodo: 'Pix', valor: 63, dataVenda: ontem, motivo: 'era de ontem' });
+  r = chamar('b_corrigirVenda', { token: adm, orderNsu: r.dados.orderNsu, metodo: 'Pix', valor: 63, dataVenda: ontem, motivo: 'era de ontem' });
   ok(r.ok && r.dados.pagoEm.slice(0, 10) === ontem, 'recepção corrige a data de uma venda lançada hoje', r.erro || r.dados);
   ok(caixa(dez).vendas === antesDez && caixa(ontem).lancamentos.some((l) => l.nome === 'Venda Passada'), 'muda de caixa junto');
 }

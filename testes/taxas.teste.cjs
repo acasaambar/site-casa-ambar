@@ -138,7 +138,7 @@ ok(!vPix || (vPix.taxa === 0 && vPix.liquido === vPix.valor), 'Vendas: Pix sem t
 const naComanda = vendasP.find((x) => x.comanda && x.metodo === 'Cartão de crédito');
 ok(!naComanda || (naComanda.taxa > 0 && naComanda.liquido < naComanda.valor), 'Vendas: venda de comanda no crédito também mostra o líquido', naComanda);
 r = chamar('b_pagamentos', { token: rec, de: ontem, ate: hoje });
-ok(r.ok && r.dados.every((x) => x.taxa === undefined && x.liquido === undefined), 'Vendas (recepção): não vê taxa nem líquido');
+ok(!r.ok, 'Vendas: a recepção nem abre a lista (taxa e líquido só com a administração)');
 r = chamar('b_caixa', { token: adm });
 const lancCredito = r.dados.lancamentos.filter((l) => l.metodo === 'Cartão de crédito');
 ok(lancCredito.length > 0 && lancCredito.every((l) => l.taxa > 0 && l.liquido < l.valor), 'Caixa do dia (administração): cada lançamento no crédito traz taxa e líquido', lancCredito[0]);

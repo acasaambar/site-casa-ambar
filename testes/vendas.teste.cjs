@@ -13,11 +13,11 @@ console.log('— corrigir forma, bandeira, parcelas e valor');
 {
   const v = chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-mensal-2x', metodo: 'Pix' }).dados;
   const antes = caixa();
-  r = chamar('b_corrigirVenda', { token: rec, orderNsu: v.orderNsu, metodo: 'Cartão de crédito', parcelas: 2, valor: 350, motivo: 'foi no cartão' });
+  r = chamar('b_corrigirVenda', { token: adm, orderNsu: v.orderNsu, metodo: 'Cartão de crédito', parcelas: 2, valor: 350, motivo: 'foi no cartão' });
   ok(!r.ok && /bandeira/i.test(r.erro), 'cartão sem bandeira é recusado', r.erro);
-  r = chamar('b_corrigirVenda', { token: rec, orderNsu: v.orderNsu, metodo: 'Cartão de crédito', bandeira: 'Visa', parcelas: 2, valor: 330, motivo: '' });
+  r = chamar('b_corrigirVenda', { token: adm, orderNsu: v.orderNsu, metodo: 'Cartão de crédito', bandeira: 'Visa', parcelas: 2, valor: 330, motivo: '' });
   ok(!r.ok && /motivo/i.test(r.erro), 'sem motivo é recusado', r.erro);
-  r = chamar('b_corrigirVenda', { token: rec, orderNsu: v.orderNsu, metodo: 'Cartão de crédito', bandeira: 'Visa', parcelas: 2, valor: '330,00', motivo: 'foi no cartão com desconto' });
+  r = chamar('b_corrigirVenda', { token: adm, orderNsu: v.orderNsu, metodo: 'Cartão de crédito', bandeira: 'Visa', parcelas: 2, valor: '330,00', motivo: 'foi no cartão com desconto' });
   ok(r.ok && r.dados.metodo === 'Cartão de crédito' && r.dados.bandeira === 'Visa' && Number(r.dados.parcelas) === 2 && r.dados.valor === 330, 'corrigida', r.erro || r.dados);
   ok(/Corrigida em .* \(antes: Pix · R\$\s?350,00\): foi no cartão/.test(pg(v.orderNsu).observacao), 'anota quem, quando e como estava', pg(v.orderNsu).observacao);
   const depois = caixa();
@@ -27,7 +27,9 @@ console.log('— corrigir forma, bandeira, parcelas e valor');
   const p = pg(v.orderNsu);
   ctx.atualizarLinha('Pagamentos', p._linha, { pago_em: ctx.somarDias(hojeS, -1) + ' 10:00:00', criado_em: ctx.somarDias(hojeS, -1) + ' 10:00:00' });
   r = chamar('b_corrigirVenda', { token: rec, orderNsu: v.orderNsu, metodo: 'Pix', valor: 350, motivo: 'teste' });
-  ok(!r.ok && /só as vendas lançadas hoje/.test(r.erro), 'recepção não corrige venda de outro dia', r.erro);
+  ok(!r.ok, 'recepção não corrige venda (só administração)', r.erro);
+  r = chamar('b_corrigirVenda', { token: adm, orderNsu: v.orderNsu, metodo: 'Pix', valor: 350, motivo: 'teste' });
+  ok(r.ok, 'administração corrige venda de outro dia', r.erro);
   r = chamar('b_corrigirVenda', { token: adm, orderNsu: v.orderNsu, metodo: 'Pix', valor: 350, motivo: 'voltou ao original' });
   ok(r.ok && r.dados.metodo === 'Pix' && r.dados.bandeira === '' && Number(r.dados.parcelas) === 1, 'administração corrige venda de outro dia', r.erro);
   const lia = chamar('b_entrar', { email: 'lia@gmail.com', senha: 'liamoura2026' });
@@ -57,13 +59,13 @@ console.log('— excluir aula avulsa lançada por engano');
   ok(r.ok, 'agendou como "já pagou"', r.erro);
   ok(caixa().vendas === antes.vendas + 63, 'entrou no caixa');
   const venda = ctx.lerAba('Pagamentos').filter((p) => p.cpf === cpf2).pop();
-  r = chamar('b_excluirVenda', { token: rec, orderNsu: venda.order_nsu, motivo: 'a aluna ainda não pagou' });
+  r = chamar('b_excluirVenda', { token: adm, orderNsu: venda.order_nsu, motivo: 'a aluna ainda não pagou' });
   ok(r.ok && r.dados.aulasAPagar === 1 && r.dados.venda.status === 'excluido', 'excluída: a aula volta a ficar a pagar', r.erro || r.dados);
   ok(caixa().vendas === antes.vendas && !caixa().lancamentos.some((l) => l.nome === 'Avulsa Engano'), 'saiu do caixa');
   const res = chamar('b_agendaSemana', { token: rec, de: hojeS }).dados.aulas.find((a) => a.id === aula.id).reservas.find((x) => x.cpf === cpf2);
   ok(res && res.aPagar && res.forma === 'A pagar', 'na aula aparece "A pagar" (e o botão Receber)', res);
   ok(ctx.lerAba('Creditos').find((c) => c.id === 'C' + venda.order_nsu.slice(1)).ativo === 'NÃO', 'crédito desativado');
-  r = chamar('b_excluirVenda', { token: rec, orderNsu: venda.order_nsu, motivo: 'de novo' });
+  r = chamar('b_excluirVenda', { token: adm, orderNsu: venda.order_nsu, motivo: 'de novo' });
   ok(!r.ok, 'não exclui duas vezes');
   r = chamar('b_receberAula', { token: rec, reservaId: res.id, metodo: 'Dinheiro' });
   ok(r.ok && caixa().vendas === antes.vendas + 63, 'depois recebe normalmente pela aula', r.erro);
@@ -79,9 +81,9 @@ console.log('— serviço pago na agenda');
   const at = chamar('b_agendarServico', { token: rec, servicoId: serv.id, profissional: prof, data: dia, hora: hs[0], cpf: cli, pagamento: 'pago', metodo: 'Pix' }).dados;
   ok(at && at.pagamento === 'pago', 'agendado já pago', at);
   const nsu = ctx.lerAba('Atendimentos').find((a) => a.id === at.id).order_nsu;
-  r = chamar('b_corrigirVenda', { token: rec, orderNsu: nsu, metodo: 'Dinheiro', valor: 150, motivo: 'desconto combinado' });
+  r = chamar('b_corrigirVenda', { token: adm, orderNsu: nsu, metodo: 'Dinheiro', valor: 150, motivo: 'desconto combinado' });
   ok(r.ok && Number(ctx.lerAba('Atendimentos').find((a) => a.id === at.id).valor) === 150, 'corrigir o valor leva o atendimento junto (base da comissão)', r.erro);
-  r = chamar('b_excluirVenda', { token: rec, orderNsu: nsu, motivo: 'vai pagar no dia' });
+  r = chamar('b_excluirVenda', { token: adm, orderNsu: nsu, motivo: 'vai pagar no dia' });
   const a2 = ctx.lerAba('Atendimentos').find((a) => a.id === at.id);
   ok(r.ok && r.dados.atendimentosAPagar === 1 && a2.pagamento === 'no_dia' && !a2.order_nsu, 'excluir: o atendimento volta a "paga no dia"', r.erro || a2);
 }
@@ -94,18 +96,18 @@ console.log('— venda de comanda e do site não se mexem por aqui');
   r = chamar('b_corrigirVenda', { token: adm, orderNsu: pc.order_nsu, metodo: 'Dinheiro', valor: 63, motivo: 'teste' });
   ok(!r.ok && /comanda/.test(r.erro), 'venda de comanda: corrigir pela comanda', r.erro);
   ok(!chamar('b_excluirVenda', { token: adm, orderNsu: pc.order_nsu, motivo: 'teste' }).ok, 'venda de comanda: não exclui por aqui');
-  const lista = chamar('b_pagamentos', { token: rec, de: hojeS, ate: hojeS }).dados;
+  const lista = chamar('b_pagamentos', { token: adm, de: hojeS, ate: hojeS }).dados;
   ok(lista.find((p) => p.orderNsu === pc.order_nsu).comanda === cm.id, 'a lista traz a comanda (botão "Abrir a comanda")');
 }
 
 console.log('— estorno: motivo obrigatório, com quem estornou');
 {
   const v = chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-avulsa', metodo: 'Pix' }).dados;
-  r = chamar('b_estornar', { token: rec, orderNsu: v.orderNsu });
+  r = chamar('b_estornar', { token: adm, orderNsu: v.orderNsu });
   ok(!r.ok && /motivo/i.test(r.erro), 'estorno sem motivo é recusado', r.erro);
-  r = chamar('b_estornar', { token: rec, orderNsu: v.orderNsu, motivo: 'cliente desistiu' });
-  ok(r.ok && r.dados.status === 'estornado' && /ESTORNADO em .* por bia@acasaambar\.com\.br: cliente desistiu/.test(r.dados.observacao), 'estornado com quem, quando e motivo', r.dados || r.erro);
-  ok(chamar('b_registro', { token: adm }).dados.some((x) => x.acao === 'estorno' && /cliente desistiu/.test(x.detalhe) && x.quem === 'bia@acasaambar.com.br'), 'o Registro guarda quem e o motivo');
+  r = chamar('b_estornar', { token: adm, orderNsu: v.orderNsu, motivo: 'cliente desistiu' });
+  ok(r.ok && r.dados.status === 'estornado' && /ESTORNADO em .* por contato@acasaambar\.com\.br: cliente desistiu/.test(r.dados.observacao), 'estornado com quem, quando e motivo', r.dados || r.erro);
+  ok(chamar('b_registro', { token: adm }).dados.some((x) => x.acao === 'estorno' && /cliente desistiu/.test(x.detalhe) && x.quem === 'contato@acasaambar.com.br'), 'o Registro guarda quem e o motivo');
 }
 
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

@@ -141,7 +141,7 @@ console.log('— revisão: comanda aberta e agenda não cobram duas vezes');
   r = chamar('b_fecharComanda', { token: rec, id: cmC.id, pagamentos: [{ metodo: 'Pix', valor: r.dados.total }] });
   ok(r.ok, 'comanda do atendimento fecha', r);
   const pgC = ctx.lerAba('Pagamentos').find((p) => p.comanda === cmC.id);
-  r = chamar('b_estornar', { token: rec, orderNsu: pgC.order_nsu, motivo: 'teste' });
+  r = chamar('b_estornar', { token: adm, orderNsu: pgC.order_nsu, motivo: 'teste' });
   ok(!r.ok && /Reabrir/.test(r.erro), 'estorno de venda da comanda manda reabrir a comanda', r);
   // vale em R$ no campo do código da comanda é recusado (abatia por unidade)
   const cv = chamar('b_salvarComanda', { token: rec, comanda: { cliente: { nome: 'Rita Gomes', whatsapp: '85991234567' }, itens: [{ tipo: 'vale', vale: { tipo: 'valor', valor: 40 } }] } }).dados;
@@ -250,7 +250,7 @@ console.log('— vale-presente na agenda (sem abrir comanda)');
   const pg1 = ctx.lerAba('Pagamentos').find((p) => p.order_nsu === at1.order_nsu);
   ok(r.ok && at1.pagamento === 'pago' && Number(at1.valor) === 199 && pg1.vale === v300 && Number(pg1.vale_usado) === 199 && Number(pg1.valor) === 0 && pg1.metodo === 'Vale-presente',
     'agendado como pago com o vale (atendimento vale R$ 199 para a comissão)', [at1, pg1]);
-  ok(chamar('b_vales', { token: rec }).dados.find((v) => v.codigo === v300).saldo === 101, 'sobram R$ 101 no vale');
+  ok(chamar('b_vales', { token: adm }).dados.find((v) => v.codigo === v300).saldo === 101, 'sobram R$ 101 no vale');
   // vale menor que o serviço: o resto em outra forma
   const v50 = vender(50);
   r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '15:00', ...quem, pagamento: 'pago', metodo: 'Vale-presente', codigo: v50 });
@@ -263,7 +263,7 @@ console.log('— vale-presente na agenda (sem abrir comanda)');
   ok(r.ok && a2.status === 'atendido' && Number(a2.valor) === 199 && Number(pg2.valor) === 149 && Number(pg2.vale_usado) === 50 && pg2.metodo === 'Cartão de crédito' && pg2.bandeira === 'Visa',
     'marcar atendido: R$ 50 do vale + R$ 149 no cartão Visa', [a2, pg2]);
   { const ks = ctx.lerAba('Comissoes').filter((k) => k.id === 'K' + at2); ok(ks.length === 1 && Math.abs(Number(ks[0].base) - (199 - 149 * 0.0315)) < 0.011, 'comissão sobre o valor do serviço sem a taxa do cartão (o vale de R$ 50 não tem taxa)', ks); }
-  ok(chamar('b_vales', { token: rec }).dados.find((v) => v.codigo === v50).status === 'usado', 'vale de R$ 50 usado');
+  ok(chamar('b_vales', { token: adm }).dados.find((v) => v.codigo === v50).status === 'usado', 'vale de R$ 50 usado');
 }
 
 console.log('— fechar comanda que falha no meio: nada é cobrado nem creditado duas vezes');

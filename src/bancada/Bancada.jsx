@@ -49,17 +49,17 @@ const MENU = [
   ]],
   ['Caixa', [
     ['comandas', 'Comandas e caixa', 'comandas', ['admin', 'recepcao']],
-    ['vendas', 'Vendas', 'vendas', ['admin', 'recepcao']],
-    ['estoque', 'Estoque', 'estoque', ['admin', 'recepcao']],
+    ['vendas', 'Vendas', 'vendas', ['admin']],
+    ['estoque', 'Estoque', 'estoque', ['admin']],
     ['ganhos', 'Meus ganhos', 'ganhos', ['professora']],
   ]],
   ['Relacionamento', [
-    ['marketing', 'Marketing', 'marketing', ['admin', 'recepcao']],
+    ['marketing', 'Marketing', 'marketing', ['admin']],
   ]],
   ['A casa', [
     ['financeiro', 'Financeiro', 'financeiro', ['admin']],
     ['relatorios', 'Relatórios', 'relatorios', ['admin']],
-    ['grade', 'Catálogo', 'grade', ['admin', 'recepcao']],
+    ['grade', 'Catálogo', 'grade', ['admin']],
     ['equipe', 'Equipe', 'equipe', ['admin']],
     ['ajustes', 'Ajustes', 'ajustes', ['admin']],
   ]],
@@ -204,16 +204,17 @@ function Painel() {
               <>
                 <Route path="alunos" element={<Alunos />} />
                 <Route path="alunos/:cpf" element={<AlunoDetalhe />} />
-                <Route path="vendas" element={<Vendas />} />
                 <Route path="comandas" element={<Comandas />} />
+              </>
+            )}
+            {/* a recepção só vê Hoje, Agenda, Clientes, Comandas e caixa: o resto é da administração */}
+            {pode(membro, 'admin') && (
+              <>
+                <Route path="vendas" element={<Vendas />} />
                 <Route path="estoque" element={<Estoque />} />
                 <Route path="marketing" element={<Marketing />} />
                 <Route path="vales" element={<Navigate to="/bancada/vendas" replace state={{ aba: 'vales' }} />} />
                 <Route path="grade" element={<Grade />} />
-              </>
-            )}
-            {pode(membro, 'admin') && (
-              <>
                 <Route path="relatorios" element={<Relatorios />} />
                 <Route path="financeiro" element={<Financeiro />} />
                 <Route path="equipe" element={<Equipe />} />

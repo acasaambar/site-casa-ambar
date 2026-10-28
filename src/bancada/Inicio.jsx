@@ -137,6 +137,7 @@ export default function Inicio() {
   const h = agora.getHours();
   const saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
   const balcao = pode(membro, 'admin', 'recepcao');
+  const ehAdmin = pode(membro, 'admin'); // total do mês e telas de dinheiro: só a administração
   // profissional: mostra só o que é dela (aulas, serviços ou os dois)
   const fazServicos = useFazServicos();
   const daAula = balcao || !!r?.aulasHoje || fazServicos === false;
@@ -187,7 +188,7 @@ export default function Inicio() {
     [r.retornos, r.retornos === 1 ? 'retorno para sugerir' : 'retornos para sugerir', '/bancada/marketing', { aba: 'retornos' }],
     [r.lembretesWhats, 'lembretes de amanhã no WhatsApp', '/bancada/marketing', { aba: 'lembretes' }, false, null, 'Lembretes de amanhã para mandar no WhatsApp'],
     [r.contasVencendo, 'contas vencendo', '/bancada/financeiro', { aba: 'despesas' }, true],
-  ].filter(([n]) => n) : [];
+  ].filter(([n, , destino]) => n && (ehAdmin || !/\/bancada\/(vendas|estoque|marketing|grade|financeiro)/.test(destino))) : [];
 
   return (
     <div className="hoje">
@@ -220,7 +221,7 @@ export default function Inicio() {
               progresso={r.reservasHoje ? r.presentesHoje / r.reservasHoje : 0} />}
             {daServico && <Numero icone="atendimento" rotulo="Atendimentos hoje" valor={r.servicosHoje || 0} detalhe="estética e fisioterapia" />}
             {balcao && <Numero icone="moeda" rotulo="Recebido hoje" valor={kpiReal(r.vendasHoje)} detalhe={statusCaixa[1]} tomDetalhe={statusCaixa[0]} />}
-            {balcao && <Numero icone="mes" rotulo="Recebido no mês" valor={kpiReal(r.vendasMes)} />}
+            {ehAdmin && <Numero icone="mes" rotulo="Recebido no mês" valor={kpiReal(r.vendasMes)} />}
             {!balcao && <Numero icone="ganhos" rotulo="Meus ganhos no mês" valor={kpiReal(r.meusGanhosMes || 0)} detalhe="comissões" />}
           </section>
 
@@ -322,7 +323,7 @@ export default function Inicio() {
                   <>
                     <Atalho para="/bancada/comandas" estado={{ nova: true }} icone="comanda">Abrir comanda</Atalho>
                     <Atalho para="/bancada/agenda" estado={{ vista: 'servicos', novoServico: true }} icone="agendaMais">Agendar serviço</Atalho>
-                    <Atalho para="/bancada/vendas" estado={{ aba: 'vales', novo: true }} icone="presente">Vender vale‑presente</Atalho>
+                    <Atalho para="/bancada/comandas" estado={{ nova: true, vale: true }} icone="presente">Vender vale‑presente</Atalho>
                     <Atalho para="/bancada/alunos" estado={{ novo: true }} icone="usuarioMais">Cadastrar cliente</Atalho>
                   </>
                 ) : (

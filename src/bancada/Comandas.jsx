@@ -20,20 +20,25 @@ const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 export default function Comandas() {
   const local = useLocation();
   const [vista, setVista] = useState(local.state?.vista || 'abertas');
-  const [aberta, setAberta] = useState(local.state?.nova ? { nova: true } : local.state?.abrir ? { id: local.state.abrir } : null);
-  useEsquecerPedidoDaRota('nova', 'abrir');
+  const [aberta, setAberta] = useState(local.state?.nova ? { nova: true, vale: !!local.state?.vale } : local.state?.abrir ? { id: local.state.abrir } : null);
+  useEsquecerPedidoDaRota('nova', 'abrir', 'vale');
   const [versao, setVersao] = useState(0);
   return (
     <>
       <Cabecalho titulo="Comandas" ajuda="Serviços, produtos e planos da visita, com uma ou mais formas de pagamento. Abra pela agenda (no atendimento) ou em Nova comanda. Para corrigir uma comanda fechada, abra-a e use Reabrir para corrigir (administração)."
-        acoes={<button type="button" className="botao botao--cheio botao--p" onClick={() => setAberta({ nova: true })}>Nova comanda</button>}>
+        acoes={(
+          <>
+            <button type="button" className="botao botao--linha botao--p" onClick={() => setAberta({ nova: true, vale: true })}>Vender vale-presente</button>
+            <button type="button" className="botao botao--cheio botao--p" onClick={() => setAberta({ nova: true })}>Nova comanda</button>
+          </>
+        )}>
         A conta de cada visita e o caixa do dia
       </Cabecalho>
       <Segmento rotulo="O que mostrar" atual={vista} aoMudar={setVista} itens={[['abertas', 'Abertas'], ['fechadas', 'Fechadas'], ['caixa', 'Caixa do dia']]} />
       {vista === 'abertas' && <Abertas key={versao} aoAbrir={setAberta} />}
       {vista === 'fechadas' && <Fechadas key={versao} aoAbrir={setAberta} />}
       {vista === 'caixa' && <CaixaDoDia key={versao} diaInicial={local.state?.dia} />}
-      {aberta && <ComandaModal id={aberta.id} aoFechar={() => { setAberta(null); setVersao((v) => v + 1); }} />}
+      {aberta && <ComandaModal id={aberta.id} inicial={aberta.vale ? { vale: true } : undefined} aoFechar={() => { setAberta(null); setVersao((v) => v + 1); }} />}
     </>
   );
 }
@@ -103,6 +108,7 @@ function Abertas({ aoAbrir }) {
 }
 
 function Fechadas({ aoAbrir }) {
+  const { membro } = useBancada();
   const hoje = hojeIso();
   const [de, setDe] = useState(hoje);
   const [ate, setAte] = useState(hoje);
@@ -148,7 +154,7 @@ function Fechadas({ aoAbrir }) {
       {dados && dados.length > 0 && (
         <div className="b-kpis cm-kpis">
           <Kpi rotulo="Comandas" valor={lista.length} detalhe={filtrando ? `de ${dados.length} no período` : 'no período'} />
-          <Kpi rotulo="Total" valor={real(total)} detalhe={lista.length ? `média ${real(total / lista.length)}` : undefined} tom="destaque" />
+          {pode(membro, 'admin') && <Kpi rotulo="Total" valor={real(total)} detalhe={lista.length ? `média ${real(total / lista.length)}` : undefined} tom="destaque" />}
         </div>
       )}
       {dados && dados.length === 0 && <Vazio titulo="Nenhuma comanda fechada no período" acao={<button type="button" className="botao botao--linha botao--p" onClick={() => { setDe(somarDias(hoje, -6)); setAte(hoje); }}>Ver os últimos 7 dias</button>} />}
@@ -1294,13 +1300,14 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
 
 // cada venda do dia: hora, cliente, o quê, como pagou e quem registrou (Vendas tem o detalhe e o estorno)
 function Lancamentos({ lista, doDia }) {
+  const { membro } = useBancada();
   if (!lista || lista.length === 0) return null;
   const comLiquido = lista.some((l) => l.liquido != null); // só a administração recebe a taxa e o líquido
   const forma = (l) => [l.metodo === 'Misto' && l.divisao ? l.divisao : l.metodo, l.bandeira && l.metodo !== 'Misto' ? l.bandeira : '', l.parcelas > 1 ? `${l.parcelas}x` : ''].filter(Boolean).join(' · ');
   const onde = (l) => (l.comanda ? `comanda ${String(l.comanda).slice(-5)}` : l.origem === 'site' ? 'pelo site' : 'balcão') + (l.por ? ` · ${l.por}` : '');
   return (
-    <Secao titulo={`Lançamentos ${doDia}`} className="b-cartao cx-cartao" ajuda="Cada venda do dia. Para estornar, corrigir ou ver o recibo, use Vendas."
-      acoes={<><span className="b-suave">{plural(lista.length, 'venda', 'vendas')}</span><Link className="botao botao--linha botao--p" to="/bancada/vendas">Abrir Vendas</Link></>}>
+    <Secao titulo={`Lançamentos ${doDia}`} className="b-cartao cx-cartao" ajuda={pode(membro, 'admin') ? 'Cada venda do dia. Para estornar, corrigir ou ver o recibo, use Vendas.' : 'Cada venda do dia. Para estornar ou corrigir uma venda, fale com a administração.'}
+      acoes={<><span className="b-suave">{plural(lista.length, 'venda', 'vendas')}</span>{pode(membro, 'admin') && <Link className="botao botao--linha botao--p" to="/bancada/vendas">Abrir Vendas</Link>}</>}>
       <ul className={`cx-lanc${comLiquido ? ' cx-lanc--liquido' : ''}`}>
         <li className="cx-lanc__cab" aria-hidden="true">
           <span>Hora</span><span>Cliente</span><span>O quê</span><span>Forma</span><span className="cx-lanc__valor">Valor</span>{comLiquido && <span className="cx-lanc__valor">Líquido</span>}

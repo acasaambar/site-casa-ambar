@@ -142,13 +142,13 @@ r = chamar('comprar', { token: tokA, planoId: 'yoga-mensal-2x', codigo: v100 });
 ok(r.ok && r.dados.valor === 250, 'vale R$ 100 abate em R$ 350 → R$ 250', r);
 global.__valor = 25000;
 chamar(undefined, { order_nsu: r.dados.order_nsu, transaction_nsu: 't2', invoice_slug: 's2' });
-r = chamar('b_vales', { token: rec });
+r = chamar('b_vales', { token: adm });
 let vv = r.dados.find(v => v.codigo === v100);
 ok(vv.status === 'usado' && vv.saldo === 0, 'vale R$ 100 usado, saldo 0', vv);
 r = venderVale(rec, [{ tipo: 'valor', valor: 300 }]);
 r = chamar('comprar', { token: tokA, planoId: 'yoga-mensal-1x', codigo: r.dados.valesCriados[0].codigo });
 ok(r.ok && r.dados.pago === true, 'vale maior que o preço: concluído sem InfinitePay', r);
-r = chamar('b_vales', { token: rec }); vv = r.dados.find(v => v.saldo === 100 && v.valor === 300);
+r = chamar('b_vales', { token: adm }); vv = r.dados.find(v => v.saldo === 100 && v.valor === 300);
 ok(!!vv && vv.status === 'ativo', 'sobra R$ 100 no vale de R$ 300', r.dados.map(v => [v.valor, v.saldo, v.status]));
 r = chamar('b_aplicarVale', { token: rec, cpf: '39053344705', codigo: v100b });
 ok(r.ok && r.dados.tipo === 'valor', 'balcão liga vale de valor ao aluno', r);
@@ -194,9 +194,10 @@ if (r.ok) {
   ok(r.dados.alunos.aniversariantes.length === 1, 'aniversariante do mês', r.dados.alunos.aniversariantes);
   console.log('    aulas', JSON.stringify(r.dados.aulas.geral), 'alunos', JSON.stringify({ t: r.dados.alunos.total, at: r.dados.alunos.ativos }));
 }
-r = chamar('b_resumo', { token: rec }); ok(r.ok && r.dados.vendasMes > 0, 'resumo do dia', r);
+r = chamar('b_resumo', { token: adm }); ok(r.ok && r.dados.vendasMes > 0, 'resumo do dia (administração vê o total do mês)', r);
+r = chamar('b_resumo', { token: rec }); ok(r.ok && r.dados.vendasMes === undefined && r.dados.vendasHoje >= 0, 'resumo do dia (recepção não vê o total do mês)', r);
 r = chamar('b_registro', { token: adm }); ok(r.ok && r.dados.length > 10, 'registro de ações', r.dados && r.dados.length);
-r = chamar('b_estornar', { token: rec, orderNsu: ctx.lerAba('Pagamentos').find(p => p.origem === 'balcão').order_nsu, motivo: 'teste' });
+r = chamar('b_estornar', { token: adm, orderNsu: ctx.lerAba('Pagamentos').find(p => p.origem === 'balcão').order_nsu, motivo: 'teste' });
 ok(r.ok && r.dados.status === 'estornado', 'estorno registrado', r);
 r = chamar('b_sair', { token: rec }); r = chamar('b_resumo', { token: rec }); ok(!r.ok && r.codigo === 'SESSAO_EQUIPE', 'saiu da bancada');
 
