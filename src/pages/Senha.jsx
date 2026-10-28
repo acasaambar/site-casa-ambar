@@ -11,14 +11,14 @@ import { useVerificacao } from '../components/Verificacao.jsx';
 function Moldura({ children }) {
   return (
     <main className="entrar">
-      <aside className="entrar__arte">
+      <div className="entrar__arte" aria-hidden="true">
         <img className="entrar__foto" src={img('yoga.jpg')} alt="" aria-hidden="true" />
         <div className="entrar__veu" />
         <div className="entrar__arte-conteudo">
           <Logo variante="creme" largura={150} />
           <p className="script">harmonia em estado natural</p>
         </div>
-      </aside>
+      </div>
       <section className="entrar__painel">
         <div className="entrar__caixa">{children}</div>
       </section>
@@ -56,7 +56,7 @@ export function EsqueciSenha() {
   return (
     <Moldura>
       {enviado ? (
-        <div className="senha-ok">
+        <div className="senha-ok" role="status">
           <Sol tamanho={48} className="cor-caramelo" />
           <h1 className="display-m">Confira seu e-mail</h1>
           <p className="entrar__sub">
@@ -133,7 +133,7 @@ export function NovaSenha() {
   return (
     <Moldura>
       {pronto ? (
-        <div className="senha-ok">
+        <div className="senha-ok" role="status">
           <Sol tamanho={48} className="cor-caramelo" />
           <h1 className="display-m">Senha criada</h1>
           <p className="entrar__sub">Tudo certo. Agora é só entrar com a senha nova.</p>
@@ -149,7 +149,10 @@ export function NovaSenha() {
           <Link className="link-acao" to="/bancada">É da equipe? Peça o link novo na bancada, em "Esqueci minha senha"</Link>
         </div>
       ) : !info ? (
-        <p className="entrar__sub">Conferindo o link…</p>
+        <div className="senha-ok" role="status">
+          <Sol tamanho={30} className="girando cor-caramelo" />
+          <p className="entrar__sub">Conferindo o link…</p>
+        </div>
       ) : (
         <>
           <span className="rotulo-espacado cor-terracota">{info.tipo === 'equipe' ? 'Bancada Casa Âmbar' : 'Área do aluno'}</span>
@@ -188,7 +191,7 @@ export function Descadastrar() {
   }, [t]);
   return (
     <Moldura>
-      <Sol tamanho={30} className="cor-caramelo" />
+      <Sol tamanho={30} className={`cor-caramelo ${estado.carregando ? 'girando' : ''}`} />
       <h1 className="display-m">{estado.carregando ? 'Um momento…' : estado.erro ? 'Não deu certo' : 'Pronto'}</h1>
       {estado.erro && <p className="entrar__sub">{estado.erro} Se quiser, fale com a gente pelo WhatsApp.</p>}
       {estado.nome !== undefined && !estado.erro && (

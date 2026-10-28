@@ -8,6 +8,8 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/400-italic.css';
 import '@fontsource/pinyon-script/400.css';
 import './styles.css';
+// Revisão de interface do site público (cabeçalho, início, entrar, senhas e rodapé)
+import './styles/site-revisao.css';
 import App from './App.jsx';
 import ErroTela from './components/ErroTela.jsx';
 import { EXTERNOS } from './externos.js';

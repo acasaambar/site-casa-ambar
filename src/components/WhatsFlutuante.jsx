@@ -20,7 +20,7 @@ export default function WhatsFlutuante() {
   // o WhatsApp continua no rodapé, em Meu plano e em Minha conta
   const naArea = elevado || ['/aulas', '/minhas-reservas', '/ficha-saude', '/meu-plano', '/minha-conta'].includes(pathname);
   // telas de entrar e de senha: no celular ele cobria a mensagem de erro
-  const noFormulario = ['/entrar', '/esqueci-senha', '/nova-senha'].includes(pathname);
+  const noFormulario = ['/entrar', '/esqueci-senha', '/nova-senha', '/descadastrar'].includes(pathname) || pathname.startsWith('/confirmar');
   const texto = encodeURIComponent('Olá, Casa Âmbar! Vim pelo site e gostaria de mais informações.');
 
   return (

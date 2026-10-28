@@ -37,17 +37,17 @@ export default function Confirmar() {
 
   return (
     <main className="entrar">
-      <aside className="entrar__arte">
+      <div className="entrar__arte" aria-hidden="true">
         <img className="entrar__foto" src={img('yoga.jpg')} alt="" aria-hidden="true" />
         <div className="entrar__veu" />
         <div className="entrar__arte-conteudo">
           <Logo variante="creme" largura={150} />
           <p className="script">harmonia em estado natural</p>
         </div>
-      </aside>
+      </div>
       <section className="entrar__painel">
         <div className="entrar__caixa confirmar">
-          {!x && !erro && <><Sol tamanho={30} className="girando cor-caramelo" /><p className="entrar__sub">Um momento…</p></>}
+          {!x && !erro && <div className="senha-ok" role="status"><Sol tamanho={30} className="girando cor-caramelo" /><p className="entrar__sub">Um momento…</p></div>}
           {!x && erro && (
             <>
               <h1 className="display-m">Não deu certo</h1>
@@ -90,7 +90,7 @@ export default function Confirmar() {
                 </div>
               )}
               {erro && <p className="erro" role="alert">{erro}</p>}
-              <p className="entrar__ajuda"><a href={whats} target="_blank" rel="noreferrer">Falar no WhatsApp</a> <Link to="/">Conhecer a Casa Âmbar</Link></p>
+              <p className="entrar__ajuda entrar__ajuda--duplo"><a href={whats} target="_blank" rel="noreferrer">Falar no WhatsApp</a> <Link to="/">Conhecer a Casa Âmbar</Link></p>
             </>
           )}
         </div>
