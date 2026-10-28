@@ -1,0 +1,149 @@
+/* ============================================================
+   REVISÃO DE INTERFACE · SITE PÚBLICO (out/2026)
+   Cabeçalho, início, entrar/cadastro, senhas, confirmar e rodapé.
+   Carrega depois de styles.css; a área do aluno não é tocada.
+   ============================================================ */
+
+/* ---------- acessibilidade: só para leitores de tela e atalho de teclado ---------- */
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  font-size: 12px;
+  white-space: nowrap;
+  border: 0;
+}
+.pular {
+  position: absolute;
+  left: 16px;
+  top: 10px;
+  z-index: 3;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--verde);
+  border-radius: 999px;
+  background: var(--branco);
+  color: var(--verde);
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transform: translateY(-220%);
+  transition: transform var(--rapido);
+}
+.pular:focus-visible { transform: none; }
+main:focus { outline: none; }
+
+/* anel de foco que se vê no fundo claro (verde) e no escuro (creme); o âmbar antigo sumia no papel */
+:is(.topo, .secao, .entrar, .rodape, .hero, .whats) :focus-visible { outline: 2px solid var(--verde); outline-offset: 3px; }
+:is(.secao--verde, .secao--terracota, .secao--caramelo, .rodape, .hero, .topo--transparente, .entrar__arte) :focus-visible { outline-color: var(--creme); }
+.abas button:focus-visible { outline-offset: -4px; }
+
+/* ---------- cabeçalho ---------- */
+.topo__nav a { min-height: 40px; display: inline-flex; align-items: center; }
+@media (max-width: 880px) {
+  .topo__nav {
+    max-height: calc(100dvh - 76px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 24px 40px -28px rgba(47, 56, 33, 0.5);
+  }
+  .topo__nav a { min-height: 50px; display: flex; }
+}
+
+/* ---------- início ---------- */
+.hero__titulo { margin: 0; display: flex; justify-content: center; line-height: 0; }
+
+/* três pilares lado a lado no celular: antes eram três telas de rolagem só de enfeite */
+@media (max-width: 640px) {
+  .pilares { gap: 40px; }
+  .pilares ul { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .pilares li { gap: 18px; }
+  .pilares .forma { width: 64px !important; height: 64px !important; }
+  .pilares .rotulo-espacado { font-size: 12px; letter-spacing: 0.2em; margin-right: -0.2em; }
+}
+
+/* equipe: nunca uma pessoa sozinha na última linha (5+4 no computador, 3x3 no tablet, 2 por linha no celular) */
+.equipe__lista { display: flex; flex-wrap: wrap; justify-content: center; gap: 36px 24px; }
+.equipe__lista .prof { flex: 0 0 calc((100% - 4 * 24px) / 5); min-width: 0; }
+@media (max-width: 1099px) { .equipe__lista .prof { flex-basis: calc((100% - 2 * 24px) / 3); } }
+@media (max-width: 699px) {
+  .equipe__lista { gap: 32px 18px; }
+  .equipe__lista .prof { flex-basis: calc((100% - 18px) / 2); }
+}
+/* o cargo usa a cor da área, escurecida para dar leitura (o oliva puro não passa no contraste em letra pequena) */
+.prof__selo { background: var(--cor); }
+.prof__funcao { color: color-mix(in srgb, var(--cor) 80%, #1b2111); }
+
+/* faixa "Cuidado que permanece": a legenda ganha fundo próprio (caramelo com letra clara não dava leitura) */
+.manifesto__foto figcaption {
+  background: var(--verde);
+  color: var(--creme);
+  opacity: 1;
+  padding: 9px 20px 9px 24px;
+  border-radius: 999px;
+  letter-spacing: 0.3em;
+}
+@media (max-width: 480px) { .manifesto__foto figcaption { letter-spacing: 0.18em; padding: 9px 16px 9px 18px; text-align: center; } }
+
+/* a casa: endereço e horário quebram por partes, e os contatos têm área de toque de 44 px */
+.parte { white-space: nowrap; }
+.parte--com-ponto::after { content: ' ·'; }
+.casa__texto .com-icone { min-height: 44px; }
+@media (max-width: 560px) {
+  .casa__botoes { flex-direction: column; }
+  .casa__botoes .botao { width: 100%; }
+}
+
+/* ---------- rodapé ---------- */
+.rodape__item { padding: 10px 0; } /* 40 px de altura: toque confortável */
+.rodape__col { gap: 0; }
+/* a assinatura ficava com 4:1 de contraste; com a cor mais clara chega a 5:1 (continua pequena e discreta) */
+.assinatura--rodape { color: #D0C8B2; }
+.assinatura__txt a { display: inline-block; padding: 12px 0; margin: -12px 0; } /* área de toque de 40 px sem mudar o tamanho da assinatura */
+
+/* ---------- entrar, cadastro, senhas e confirmar ---------- */
+@media (prefers-reduced-motion: reduce) { .girando { animation: none; } }
+
+/* a coluna de arte não estica mais conforme o conteúdo: no celular é uma faixa baixa e igual em todas as telas */
+@media (min-width: 861px) {
+  .entrar__arte { overflow: clip; }
+  /* o cadastro é comprido: a marca acompanha quem rola */
+  .entrar__arte-conteudo { position: sticky; top: 74px; height: calc(100svh - 74px); }
+}
+@media (max-width: 860px) {
+  .entrar { grid-template-rows: auto 1fr; }
+  .entrar__arte { min-height: 0; }
+  .entrar__arte-conteudo { padding: 28px 24px; gap: 6px; }
+  .entrar__arte-conteudo img:not(.entrar__foto) { width: 118px; height: auto; }
+  .entrar__arte .script { font-size: 24px; }
+}
+
+/* campos */
+.entrar .form input:hover, .entrar .form select:hover { border-color: rgba(47, 56, 33, 0.42); }
+.entrar .form select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232F3821' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 9l7 7 7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 14px;
+  cursor: pointer;
+}
+.entrar .form input::placeholder { color: #6A6E57; opacity: 1; } /* contraste do texto de exemplo (4,5:1) */
+
+/* o cadastro em três blocos, cada um com título, como o endereço já era */
+.grupo-form { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.grupo-form > legend { padding: 0; margin-bottom: 14px; color: var(--verde); }
+.form--cadastro > fieldset + fieldset, .form--cadastro > .verificacao + fieldset { margin-top: 14px; }
+.form--cadastro .end-site { gap: 16px; }
+
+/* mensagem de erro: marca lateral (não depende só da cor) e, quando é de um campo, fica colada nele */
+.entrar .erro { border-left: 3px solid #B5543A; margin: 0; }
+.entrar .erro--campo { margin: -6px 0 2px; }
+.entrar__ajuda--duplo { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 12px; }

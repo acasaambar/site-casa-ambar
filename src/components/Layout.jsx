@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Logo, Selo, Sol, IconeInstagram, IconeWhatsapp, IconeEmail } from './Marca.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { CONFIG } from '../config.js';
 import { MODO_DEMO } from '../lib/api.js';
+import { rolagemSuave } from '../lib/movimento.js';
 import Assinatura from './Assinatura.jsx';
 
 export function Header() {
@@ -13,6 +14,7 @@ export function Header() {
   const naHome = pathname === '/';
   const [rolou, setRolou] = useState(false);
   const [aberto, setAberto] = useState(false);
+  const botaoMenu = useRef(null);
 
   useEffect(() => {
     const f = () => setRolou(window.scrollY > 40);
@@ -23,6 +25,17 @@ export function Header() {
   useEffect(() => {
     setAberto(false);
   }, [pathname]);
+  // Esc fecha o menu do celular e devolve o foco ao botão
+  useEffect(() => {
+    if (!aberto) return undefined;
+    const f = (e) => {
+      if (e.key !== 'Escape') return;
+      setAberto(false);
+      botaoMenu.current?.focus();
+    };
+    window.addEventListener('keydown', f);
+    return () => window.removeEventListener('keydown', f);
+  }, [aberto]);
   // título da aba por página (a bancada cuida do próprio título)
   useEffect(() => {
     document.title = tituloDaPagina(pathname);
@@ -32,11 +45,12 @@ export function Header() {
 
   return (
     <header className={`topo ${transparente ? 'topo--transparente' : ''}`}>
+      <button type="button" className="pular" onClick={pularParaOConteudo}>Pular para o conteúdo</button>
       <div className="topo__in">
         <Link to="/" className="topo__logo" aria-label="Casa Âmbar, início">
           <Logo variante={transparente ? 'creme' : 'verde'} largura={52} />
         </Link>
-        <nav className={`topo__nav ${aberto ? 'aberto' : ''}`} aria-label="Principal">
+        <nav id="menu-principal" className={`topo__nav ${aberto ? 'aberto' : ''}`} aria-label="Principal">
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'conceito')}>A Casa</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'movimento')}>Yoga & Pilates</a>
           <a href={`${import.meta.env.BASE_URL}#/`} onClick={(e) => irPara(e, 'equipe')}>Nossa equipe</a>
@@ -69,7 +83,7 @@ export function Header() {
           <Link to={aluno ? '/aulas' : '/entrar'} className="botao botao--pequeno">
             {aluno ? `Olá, ${aluno.nome.split(' ')[0]}` : 'Reservar aula'}
           </Link>
-          <button type="button" className="topo__menu" aria-label="Abrir menu" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}>
+          <button ref={botaoMenu} type="button" className="topo__menu" aria-label={aberto ? 'Fechar menu' : 'Abrir menu'} aria-expanded={aberto} aria-controls="menu-principal" onClick={() => setAberto((v) => !v)}>
             <span /><span />
           </button>
         </div>
@@ -101,11 +115,20 @@ function tituloDaPagina(pathname) {
   return nome ? `${nome} · Casa Âmbar` : TITULO_INICIO;
 }
 
+// atalho de teclado: pula o cabeçalho e vai direto ao conteúdo da página
+function pularParaOConteudo() {
+  const m = document.querySelector('main');
+  if (!m) return;
+  m.setAttribute('tabindex', '-1');
+  m.focus({ preventScroll: true });
+  m.scrollIntoView({ behavior: 'auto', block: 'start' });
+}
+
 function irPara(e, id) {
   const el = document.getElementById(id);
   if (el) {
     e.preventDefault();
-    el.scrollIntoView({ behavior: 'smooth' });
+    el.scrollIntoView({ behavior: rolagemSuave() });
   } else {
     // está em outra página: volta para a home e rola depois
     sessionStorage.setItem('ambar_rolar', id);
@@ -165,8 +188,8 @@ export function Footer() {
           </a>
         </div>
 
-        <div className="rodape__col">
-          <h2 className="rotulo">Área do aluno</h2>
+        <nav className="rodape__col" aria-labelledby="rodape-area">
+          <h2 id="rodape-area" className="rotulo">Área do aluno</h2>
           {aluno ? (
             <>
               <Link className="rodape__item" to="/aulas"><IconeSeta /> <span>Aulas</span></Link>
@@ -181,7 +204,7 @@ export function Footer() {
               <Link className="rodape__item" to="/minhas-reservas"><IconeSeta /> <span>Minhas reservas</span></Link>
             </>
           )}
-        </div>
+        </nav>
       </div>
       <div className="rodape__base">
         <span className="rodape__base-marca"><Sol tamanho={14} /> Casa Âmbar · desde 26</span>

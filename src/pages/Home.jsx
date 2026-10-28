@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Logo, Sol, Forma, Monograma, Seta, IconeInstagram, IconeWhatsapp, IconeEmail, img } from '../components/Marca.jsx';
 import { CONFIG, CUIDADOS, GRADE, PRECOS_AULAS } from '../config.js';
 import { DIAS_CURTOS, formatarHora } from '../lib/util.js';
+import { rolagemSuave } from '../lib/movimento.js';
 
 function useRevelar() {
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function Home() {
     const alvo = sessionStorage.getItem('ambar_rolar');
     if (alvo) {
       sessionStorage.removeItem('ambar_rolar');
-      setTimeout(() => document.getElementById(alvo)?.scrollIntoView({ behavior: 'smooth' }), 120);
+      setTimeout(() => document.getElementById(alvo)?.scrollIntoView({ behavior: rolagemSuave() }), 120);
     }
   }, []);
 
@@ -66,16 +67,19 @@ export default function Home() {
     <main>
       {/* ---------- HERO ---------- */}
       <section className="hero">
-        <img className="hero__foto" src={img('yoga.jpg')} alt="" aria-hidden="true" />
+        <img className="hero__foto" src={img('yoga.jpg')} alt="" aria-hidden="true" fetchPriority="high" decoding="async" />
         <div className="hero__veu" />
         <div className="hero__conteudo">
           <Sol tamanho={40} className="hero__sol" />
-          <Logo variante="creme" largura={230} className="hero__logo" />
+          <h1 className="hero__titulo">
+            <Logo variante="creme" largura={230} className="hero__logo" />
+            <span className="so-leitor"> · Yoga, Pilates, Estética e Fisioterapia na Aldeota, Fortaleza</span>
+          </h1>
           <p className="script hero__frase">harmonia em estado natural</p>
           <p className="rotulo hero__desde">desde 26</p>
           <div className="hero__botoes">
             <Link to="/entrar" className="botao botao--ambar">Reservar minha aula</Link>
-            <a href="#conceito" className="botao botao--linha-clara" onClick={(e) => { e.preventDefault(); document.getElementById('conceito').scrollIntoView({ behavior: 'smooth' }); }}>
+            <a href="#conceito" className="botao botao--linha-clara" onClick={(e) => { e.preventDefault(); document.getElementById('conceito').scrollIntoView({ behavior: rolagemSuave() }); }}>
               Conhecer a casa
             </a>
           </div>
@@ -127,8 +131,8 @@ export default function Home() {
         <div className="largura">
           <div className="movimento__titulo revelar">
             <span className="movimento__e" aria-hidden="true">&amp;</span>
-            <h2 className="display">
-              Movi<br />mento<br />fluidez
+            <h2 className="display" aria-label="Movimento e fluidez">
+              <span aria-hidden="true">Movi<br />mento<br />fluidez</span>
             </h2>
             <p className="movimento__lead">
               Yoga e Pilates em turmas pequenas. Reserve pelo celular, escolha o número do seu tapete
@@ -221,18 +225,18 @@ export default function Home() {
           </div>
           <ul className="equipe__lista">
             {EQUIPE.map(({ nome, funcao, foto, forma, cor }, i) => (
-              <li key={nome} className="prof revelar" style={{ transitionDelay: `${(i % 4) * 100}ms` }}>
-                <div className={'prof__selo' + (foto ? ' prof__selo--foto' : '')} style={{ '--cor': cor }}>
+              <li key={nome} className="prof revelar" style={{ transitionDelay: `${(i % 4) * 100}ms`, '--cor': cor }}>
+                <div className={'prof__selo' + (foto ? ' prof__selo--foto' : '')}>
                   {foto ? (
                     <img src={img(`equipe/${foto}.jpg`)} srcSet={`${img(`equipe/${foto}-360.jpg`)} 360w, ${img(`equipe/${foto}.jpg`)} 600w`}
-                      sizes="(max-width: 700px) 45vw, 25vw" width="600" height="800" alt={`${nome}, ${funcao}`} loading="lazy" decoding="async" />
+                      sizes="(max-width: 700px) 45vw, 25vw" width="600" height="800" alt={`Retrato de ${nome}`} loading="lazy" decoding="async" />
                   ) : (
                     <span className="prof__inicial">{nome[0]}</span>
                   )}
                   <Forma nome={forma} tamanho={34} cor="var(--creme)" className="prof__forma" />
                 </div>
                 <strong className="display-p">{nome}</strong>
-                <span className="rotulo" style={{ color: cor }}>{funcao}</span>
+                <span className="rotulo prof__funcao">{funcao}</span>
               </li>
             ))}
           </ul>
@@ -292,8 +296,8 @@ export default function Home() {
           <div className="casa__texto revelar">
             <span className="rotulo-espacado cor-terracota">Crescimento contínuo e presença viva</span>
             <h2 className="display-m">Uma casa na Aldeota para desacelerar</h2>
-            <p>{CONFIG.endereco}</p>
-            {CONFIG.horario && <p>{CONFIG.horario}</p>}
+            <p><Partes texto={CONFIG.endereco} /></p>
+            {CONFIG.horario && <p><Partes texto={CONFIG.horario} /></p>}
             <p><a className="com-icone" href={`https://wa.me/${CONFIG.whatsapp}`} target="_blank" rel="noreferrer"><IconeWhatsapp /> {CONFIG.telefone}</a></p>
             <p><a className="com-icone" href={`mailto:${CONFIG.email}`}><IconeEmail /> {CONFIG.email}</a></p>
             <div className="casa__botoes">
@@ -305,6 +309,16 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+// Texto com partes separadas por " · ": cada parte fica inteira na linha (o ponto acompanha a parte de trás)
+function Partes({ texto }) {
+  return String(texto).split(' · ').map((t, i, todas) => (
+    <Fragment key={t}>
+      <span className={i < todas.length - 1 ? 'parte parte--com-ponto' : 'parte'}>{t}</span>
+      {i < todas.length - 1 ? ' ' : null}
+    </Fragment>
+  ));
 }
 
 function Precos({ lista }) {
