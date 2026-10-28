@@ -160,7 +160,7 @@ function EditorAnamnese({ alvo, anotacao, aoCancelar, aoSalvar }) {
     <section className="an-editor" aria-label={anotacao ? 'Editar anamnese' : 'Nova anamnese'}>
       <h3 className="an-editor__titulo">{anotacao ? 'Editar anamnese' : 'Nova anamnese'}</h3>
       <label className="b-campo"><span className="rotulo">Título</span>
-        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Anamnese facial, Primeira consulta, Retorno" maxLength={120} /></label>
+        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Primeira consulta" maxLength={120} /></label>
       <label className="b-campo"><span className="rotulo">Anamnese</span>
         {carregandoTexto ? <Carregando texto="Abrindo o texto" /> : (
           <textarea ref={area} className="an-editor__texto" value={texto} onChange={(e) => setTexto(e.target.value)}

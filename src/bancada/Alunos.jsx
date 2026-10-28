@@ -85,11 +85,11 @@ export function Alunos() {
     <>
       <Cabecalho titulo="Clientes" ajuda="Toque numa pessoa para abrir a ficha: dados, planos, aulas, histórico, pagamentos e saúde. A busca acha por nome, CPF, WhatsApp ou e-mail." acoes={
         <>
-          <MenuMais rotulo="Mais" itens={[
+          <MenuMais rotulo="Mais" className="cl-mais-topo" itens={[
             dados && { texto: 'Exportar CSV', acao: () => baixarCSV('clientes-casa-ambar', colunasCsv, lista), extra: temFiltro ? 'do filtro' : undefined },
             pode(membro, 'admin') && { texto: 'Importar planilha', acao: () => setImportar(true) },
           ]} />
-          <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Novo cliente</button>
+          <button type="button" className="botao botao--cheio botao--p cl-novo" onClick={() => setNovo(true)}>Novo cliente</button>
         </>
       }>
         {dados ? `${plural(contagens.todos, 'cadastro', 'cadastros')} · ${contagens.ativos} com plano ativo` : 'Cadastros, planos e histórico'}
@@ -204,6 +204,9 @@ function Importar({ aoFechar, aoImportar }) {
   const [erro, setErro] = useState('');
   const [feito, setFeito] = useState(null);
   const arquivo = useRef(null);
+  const resultado = useRef(null);
+  // a conferência aparece abaixo das colunas: leva a tela até ela para ninguém importar sem ver
+  useEffect(() => { if (previa) resultado.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [previa]);
   function carregar(texto) {
     const t = lerTabela(texto);
     if (t.length < 2) { setErro('Não encontrei linhas. Confira se a primeira linha tem os títulos das colunas.'); return; }
@@ -265,17 +268,25 @@ function Importar({ aoFechar, aoImportar }) {
               ler('utf-8');
               e.target.value = '';
             }} />
-            <Secao titulo="1. Traga a lista" ajuda={<>No Avec (ou no Excel), salve a lista de clientes como <strong>CSV</strong>, ou copie as colunas da planilha e cole abaixo. Quem já existe (mesmo CPF, WhatsApp ou e-mail) não é duplicado; só completamos o que faltar.</>}>
-              <div className="cl-origem">
-                <div className="cl-origem__item">
-                  <strong>Arquivo CSV</strong>
-                  <span className="b-suave">Exportado do Avec ou do Excel</span>
-                  <button type="button" className="botao botao--linha botao--p" onClick={() => arquivo.current?.click()}>Escolher arquivo</button>
-                </div>
-                <label className="b-campo cl-origem__item"><span className="rotulo">Ou cole aqui (com a linha de títulos)</span>
-                  <textarea rows={4} onPaste={(e) => { e.preventDefault(); carregar(e.clipboardData.getData('text')); }} placeholder="Nome	Celular	E-mail	CPF	Nascimento" /></label>
+            {tabela ? (
+              <div className="cl-carregada" role="status">
+                <span className="cl-carregada__ok" aria-hidden="true">✓</span>
+                <span className="cl-carregada__texto"><strong>Lista carregada</strong><small>{plural(tabela.length - 1, 'linha', 'linhas')} para importar</small></span>
+                <button type="button" className="botao botao--fantasma botao--p" onClick={() => { setTabela(null); setPrevia(null); setMapa({}); setErro(''); }}>Trocar lista</button>
               </div>
-            </Secao>
+            ) : (
+              <Secao titulo="1. Traga a lista" ajuda={<>No Avec (ou no Excel), salve a lista de clientes como <strong>CSV</strong>, ou copie as colunas da planilha e cole abaixo. Quem já existe (mesmo CPF, WhatsApp ou e-mail) não é duplicado; só completamos o que faltar.</>}>
+                <div className="cl-origem">
+                  <div className="cl-origem__item">
+                    <strong>Arquivo CSV</strong>
+                    <span className="b-suave">Exportado do Avec ou do Excel</span>
+                    <button type="button" className="botao botao--linha botao--p" onClick={() => arquivo.current?.click()}>Escolher arquivo</button>
+                  </div>
+                  <label className="b-campo cl-origem__item"><span className="rotulo">Ou cole aqui (com a linha de títulos)</span>
+                    <textarea rows={4} onPaste={(e) => { e.preventDefault(); carregar(e.clipboardData.getData('text')); }} placeholder="Nome	Celular	E-mail	CPF	Nascimento" /></label>
+                </div>
+              </Secao>
+            )}
             {tabela && (
               <>
                 <Secao titulo="2. Confira as colunas" acoes={<Tag tom={mapa.nome != null ? 'ok' : 'aviso'}>{usados.length} de {CAMPOS_IMPORT.length} reconhecidas · {plural(tabela.length - 1, 'linha', 'linhas')}</Tag>}>
@@ -287,11 +298,11 @@ function Importar({ aoFechar, aoImportar }) {
                   </div>
                   <div className="b-tabela-caixa cl-previa">
                     <table className="b-tabela"><thead><tr>{usados.map(([k, t]) => <th key={k}>{t}</th>)}</tr></thead>
-                      <tbody>{linhas().slice(0, 4).map((l, i) => <tr key={i}>{usados.map(([k]) => <td key={k}>{l[k]}</td>)}</tr>)}</tbody></table>
+                      <tbody>{linhas().slice(0, 4).map((l, i) => <tr key={i}>{usados.map(([k, t]) => <td key={k} data-rotulo={t}>{l[k]}</td>)}</tr>)}</tbody></table>
                   </div>
                 </Secao>
                 {previa && (
-                  <Secao titulo="3. Confira o resultado">
+                  <div ref={resultado}><Secao titulo="3. Confira o resultado">
                     <div className="cl-resumo-imp">
                       <div><strong>{previa.novos}</strong><span>{previa.novos === 1 ? 'cadastro novo' : 'cadastros novos'}{previa.semCpf ? ` · ${previa.semCpf} sem CPF` : ''}</span></div>
                       <div><strong>{previa.atualizados}</strong><span>{previa.atualizados === 1 ? 'completado' : 'completados'}</span></div>
@@ -301,7 +312,7 @@ function Importar({ aoFechar, aoImportar }) {
                     {previa.ignorados.length > 0 && (
                       <Aviso tom="aviso" titulo="Linhas ignoradas">{previa.ignorados.slice(0, 8).map((x) => `linha ${x.linha + 1}${x.nome ? ' (' + x.nome + ')' : ''}: ${x.motivo}`).join('; ')}</Aviso>
                     )}
-                  </Secao>
+                  </Secao></div>
                 )}
                 <Erro>{erro}</Erro>
                 <div className="cl-rodape">
@@ -479,9 +490,11 @@ export function AlunoDetalhe() {
       <Erro>{erro}</Erro>
       {aviso && <Aviso tom="info">{aviso}</Aviso>}
 
-      <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['anamnese', 'Anamnese'], ['estetica', 'Estética'],
-        ['planos', vigentes ? `Planos e pacotes · ${vigentes}` : 'Planos e pacotes'], ['aulas', a.reservas.length ? `Aulas · ${a.reservas.length}` : 'Aulas'],
-        ['pagamentos', a.pagamentos?.length ? `Pagamentos · ${a.pagamentos.length}` : 'Pagamentos'], ['saude', 'Saúde']]} />
+      <div className="cl-abas">
+        <Abas atual={aba} aoMudar={setAba} itens={[['resumo', 'Resumo'], ['historico', 'Histórico'], ['anamnese', 'Anamnese'], ['estetica', 'Estética'],
+          ['planos', vigentes ? `Planos e pacotes · ${vigentes}` : 'Planos e pacotes'], ['aulas', a.reservas.length ? `Aulas · ${a.reservas.length}` : 'Aulas'],
+          ['pagamentos', a.pagamentos?.length ? `Pagamentos · ${a.pagamentos.length}` : 'Pagamentos'], ['saude', 'Saúde']]} />
+      </div>
 
       {aba === 'resumo' && (
         <>
@@ -495,8 +508,6 @@ export function AlunoDetalhe() {
             <section className="b-cartao cl-cartao">
               <Secao titulo="Dados" acoes={<button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(true)}>Editar</button>}>
                 <dl className="cl-dados">
-                  <dt>WhatsApp</dt><dd>{telFmt(a.whatsapp) || '—'}</dd>
-                  <dt>E-mail</dt><dd>{a.email || '—'}</dd>
                   <dt>Nascimento</dt><dd>{a.nascimento ? dataBR(a.nascimento) : '—'}</dd>
                   <dt>Como conheceu</dt><dd>{a.comoConheceu || <button type="button" className="botao botao--fantasma botao--p" onClick={() => setEditar(true)}>Perguntar e anotar</button>}</dd>
                   <dt>Endereço</dt><dd>{a.endereco?.endereco
@@ -618,6 +629,7 @@ export function AlunoDetalhe() {
 function AulasDoCliente({ reservas }) {
   if (!reservas.length) return <Vazio titulo="Nenhuma aula ainda">As reservas e presenças aparecem aqui.</Vazio>;
   const hoje = hojeIso();
+  const anoAtual = hoje.slice(0, 4);
   const proximas = reservas.filter((r) => r.data >= hoje && r.status === 'reservado');
   const resto = reservas.filter((r) => !proximas.includes(r));
   const linha = (r) => {
@@ -633,7 +645,7 @@ function AulasDoCliente({ reservas }) {
             <span>com {r.professor}</span>
             {r.tapete ? <span>tapete {r.tapete}</span> : null}
             {r.forma ? <span>{r.forma}</span> : null}
-            <span>{r.data.slice(0, 4)}</span>
+            {r.data.slice(0, 4) !== anoAtual ? <span>{r.data.slice(0, 4)}</span> : null}
           </span>
         </span>
         <span className="b-item__lado"><Tag tom={st[1]}>{r.status === 'reservado' && passou ? 'sem registro' : st[0]}</Tag></span>
@@ -929,7 +941,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
     if (formas) { setMetodo(formas[0].metodo); setBandeira(formas[0].bandeira); setFormas(null); }
   };
   return (
-    <Modal rotulo="Venda no balcão" titulo="Vender plano, aula ou serviço" aoFechar={aoFechar} largo>
+    <Modal rotulo="Plano, aula ou serviço no balcão" titulo="Nova venda" aoFechar={aoFechar} largo>
       <div className="b-form cl-venda">
         <Passo n={1} titulo="Cliente">
           {!aluno ? (

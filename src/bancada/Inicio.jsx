@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './css/shell.css';
+import './css/clientes.css';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, useFazServicos, Erro, realCurto, hora, primeiro, DIAS_LONGOS, MESES, diaSemana } from './ui.jsx';
 import { Sol } from '../components/Marca.jsx';
@@ -75,6 +76,7 @@ function LinhaDoDia({ aulas, servicos, agora, faixas = ['Yoga', 'Pilates', 'Serv
   for (let h = 6; h <= 20; h += 2) horas.push(h);
   const aula = (a, estilo, passou, andando) => (
     <Link key={a.id} to="/bancada/agenda" state={{ abrir: a.id }} title={`${a.modalidade} ${hora(a.hora)} com ${a.professor} · ${a.reservas} de ${a.capacidade}`}
+      aria-label={`${a.modalidade} ${hora(a.hora)} com ${a.professor}, ${a.reservas} de ${a.capacidade} lugares`}
       className={`pedra pedra--${a.modalidade.toLowerCase()}${passou ? ' pedra--passou' : ''}${andando ? ' pedra--agora' : ''}`} style={estilo}>
       <strong>{hora(a.hora)}</strong>
       <span>{a.reservas}/{a.capacidade}</span>
@@ -89,6 +91,7 @@ function LinhaDoDia({ aulas, servicos, agora, faixas = ['Yoga', 'Pilates', 'Serv
           {faixas.includes('Pilates') && <Faixa nome="Pilates" unidade="aulas" itens={aulas.filter((a) => a.modalidade === 'Pilates')} m={m} dentro={dentro} render={aula} />}
           {faixas.includes('Serviços') && <Faixa nome="Serviços" unidade="atend." itens={servicos} m={m} dentro={dentro} render={(a, estilo, passou, andando) => (
             <Link key={a.id} to="/bancada/agenda" state={{ vista: 'servicos' }} title={`${hora(a.hora)} · ${a.servico} · ${a.nome} com ${a.profissional}`}
+              aria-label={`${hora(a.hora)}, ${a.servico}, ${a.nome} com ${a.profissional}`}
               className={`pedra pedra--s pedra--${COR_CATEGORIA[a.categoria] || 'facial'}${passou ? ' pedra--passou' : ''}${andando ? ' pedra--agora' : ''}`} style={estilo}>
               <strong>{hora(a.hora)}</strong>
               <span>{primeiro(a.nome)}</span>
@@ -169,6 +172,7 @@ export default function Inicio() {
   const statusCaixa = r?.caixa === 'nao_aberto' ? ['aviso', 'caixa ainda não aberto'] : r?.caixa === 'aberto' ? ['ok', 'caixa aberto'] : ['neutro', 'caixa fechado'];
 
   // o que pede atenção (só aparece o que tem número)
+  // [número, texto curto, destino, estado, urgente, símbolo, detalhe ao toque]
   const atencoes = r ? [
     [r.pedidosTroca, r.pedidosTroca === 1 ? 'pedido de troca de profissional' : 'pedidos de troca de profissional', '/bancada/agenda', { vista: 'trocas' }, true],
     [r.wellhubPendentes, 'Wellhub para confirmar', '/bancada/alunos', { filtro: 'wellhub-pendente' }],
@@ -177,11 +181,11 @@ export default function Inicio() {
     [r.caixa === 'nao_aberto' ? 1 : 0, 'abrir o caixa de hoje', '/bancada/comandas', { vista: 'caixa' }, true, 'R$'],
     [r.comandasAbertas, r.comandasAbertas === 1 ? 'comanda aberta' : 'comandas abertas', '/bancada/comandas'],
     [r.estoqueBaixo, 'produtos acabando', '/bancada/estoque', { filtro: 'falta' }],
-    [r.remarcar?.n, r.remarcar?.n === 1 ? 'pedido para remarcar (pelo link do lembrete)' : 'pedidos para remarcar (pelo link do lembrete)', '/bancada/agenda', { dia: r.remarcar?.dia, vista: 'dia' }],
-    [r.espera?.aulasComVaga, r.espera?.aulasComVaga === 1 ? 'aula com vaga e gente na lista de espera' : 'aulas com vaga e gente na lista de espera', '/bancada/agenda', { vista: 'aulas' }],
-    [r.espera?.servicos, r.espera?.servicos === 1 ? 'pedido na lista de espera de serviços' : 'pedidos na lista de espera de serviços', '/bancada/agenda', { espera: true }],
+    [r.remarcar?.n, r.remarcar?.n === 1 ? 'pedido para remarcar' : 'pedidos para remarcar', '/bancada/agenda', { dia: r.remarcar?.dia, vista: 'dia' }, false, null, 'Pedidos feitos pelo link do lembrete'],
+    [r.espera?.aulasComVaga, r.espera?.aulasComVaga === 1 ? 'aula com vaga e espera' : 'aulas com vaga e espera', '/bancada/agenda', { vista: 'aulas' }, false, null, 'Aulas com vaga e gente na lista de espera'],
+    [r.espera?.servicos, r.espera?.servicos === 1 ? 'pedido na espera de serviços' : 'pedidos na espera de serviços', '/bancada/agenda', { espera: true }, false, null, 'Lista de espera de serviços'],
     [r.retornos, r.retornos === 1 ? 'retorno para sugerir' : 'retornos para sugerir', '/bancada/marketing', { aba: 'retornos' }],
-    [r.lembretesWhats, 'lembretes de amanhã para mandar no WhatsApp', '/bancada/marketing', { aba: 'lembretes' }],
+    [r.lembretesWhats, 'lembretes de amanhã no WhatsApp', '/bancada/marketing', { aba: 'lembretes' }, false, null, 'Lembretes de amanhã para mandar no WhatsApp'],
     [r.contasVencendo, 'contas vencendo', '/bancada/financeiro', { aba: 'despesas' }, true],
   ].filter(([n]) => n) : [];
 
@@ -275,9 +279,9 @@ export default function Inicio() {
                     <div className="hoje-vazio"><Icone nome="check" tamanho={22} /><span>Nada pendente.</span></div>
                   ) : (
                     <ul className="ha">
-                      {atencoes.map(([n, texto, para, estado, urgente, simbolo]) => (
+                      {atencoes.map(([n, texto, para, estado, urgente, simbolo, detalhe]) => (
                         <li key={texto}>
-                          <Link to={para} state={estado} className={`ha__item${urgente ? ' ha__item--urgente' : ''}`}>
+                          <Link to={para} state={estado} title={detalhe} className={`ha__item${urgente ? ' ha__item--urgente' : ''}`}>
                             <strong className="ha__n">{simbolo || n}</strong>
                             <span className="ha__texto">{texto}</span>
                             <Icone nome="seta" tamanho={16} className="ha__seta" />
@@ -289,18 +293,24 @@ export default function Inicio() {
                 </section>
               ) : (
                 <section className="b-cartao hoje-cartao">
-                  <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Lembretes</h2></header>
-                  <ul className="hl">
+                  <header className="b-cartao__topo"><h2 className="b-cartao__titulo">Para hoje</h2></header>
+                  <ul className="ha">
                     {daAula && (
                       <li>
-                        <span className="b-icone-chip"><Icone nome="reservas" /></span>
-                        <span className="hl__texto"><strong>Presença nas aulas</strong><small>Marque a presença de cada pessoa e confira a ficha de saúde de quem tem o aviso “saúde: atenção”.</small></span>
+                        <Link to="/bancada/agenda" state={{ vista: 'aulas' }} className="ha__item hj-tarefa">
+                          <span className="b-icone-chip"><Icone nome="reservas" /></span>
+                          <span className="hl__texto"><strong>Presença nas aulas</strong><small>Confira os avisos de saúde antes</small></span>
+                          <Icone nome="seta" tamanho={16} className="ha__seta" />
+                        </Link>
                       </li>
                     )}
                     {daServico && (
                       <li>
-                        <span className="b-icone-chip b-icone-chip--caramelo"><Icone nome="folha" /></span>
-                        <span className="hl__texto"><strong>Ficha e evolução</strong><small>Abra o atendimento na agenda para preencher a ficha de estética e registrar a evolução com fotos.</small></span>
+                        <Link to="/bancada/clientes" className="ha__item hj-tarefa">
+                          <span className="b-icone-chip b-icone-chip--caramelo"><Icone nome="folha" /></span>
+                          <span className="hl__texto"><strong>Ficha e evolução</strong><small>Anamnese, ficha e fotos de cada cliente</small></span>
+                          <Icone nome="seta" tamanho={16} className="ha__seta" />
+                        </Link>
                       </li>
                     )}
                   </ul>
