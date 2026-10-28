@@ -9,6 +9,7 @@ import { Carregando } from './Aulas.jsx';
 import { CONFIG, AVISO_RENOVAR_DIAS, condicaoPagamento } from '../config.js';
 import { dataDeIso, MESES } from '../lib/util.js';
 import CampoCodigo from '../components/CampoCodigo.jsx';
+import Dialogo from '../components/Dialogo.jsx';
 import ExigenciasPlano from '../components/ExigenciasPlano.jsx';
 import { comNumeros } from '../components/Num.jsx';
 
@@ -241,7 +242,7 @@ export default function MeuPlano() {
                     <div className="cardapio__linha cardapio__linha--cabeca" role="row">
                       <span role="columnheader">Frequência</span>
                       <span role="columnheader">Mensal<small>30 dias</small></span>
-                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros{dados.trimestralOnline ? '' : ' · com a atendente'}</small></span>
+                      <span role="columnheader">Trimestral<small>3 meses · até 3x sem juros{dados.trimestralOnline ? '' : ' · com a recepção'}</small></span>
                     </div>
                     {frequencias.map((f) => {
                       const m = plano('mensal', f);
@@ -349,7 +350,7 @@ export default function MeuPlano() {
 
       {/* ---------- CONFIRMAÇÃO ANTES DE PAGAR ---------- */}
       {escolhido && (
-        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="compra-titulo" onClick={(e) => e.target === e.currentTarget && !indo && setEscolhido(null)}>
+        <Dialogo className="confirmado" aria-labelledby="compra-titulo" aoFechar={indo ? undefined : () => { setEscolhido(null); setDesconto(null); }} onClick={(e) => e.target === e.currentTarget && !indo && setEscolhido(null)}>
           <div className="confirmado__caixa compra">
             <Sol tamanho={44} className="cor-caramelo" />
             <span className="rotulo-espacado cor-terracota">{escolhido.modalidade}</span>
@@ -391,10 +392,10 @@ export default function MeuPlano() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <IconeWhatsapp /> Falar com a atendente
+                  <IconeWhatsapp /> Falar com a recepção
                 </a>
                 <ol className="compra__passos">
-                  <li>A atendente gera o seu link em até <strong>3x sem juros</strong>.</li>
+                  <li>A recepção gera o seu link em até <strong>3x sem juros</strong>.</li>
                   <li>Ou, se preferir, pague na recepção na sua primeira aula.</li>
                   <li>Assim que o pagamento for confirmado, o plano aparece aqui.</li>
                 </ol>
@@ -414,11 +415,11 @@ export default function MeuPlano() {
             )}
             <button type="button" className="link-sair" disabled={indo} onClick={() => { setEscolhido(null); setDesconto(null); }}>Voltar</button>
           </div>
-        </div>
+        </Dialogo>
       )}
 
       {comprado && (
-        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="comprado-titulo">
+        <Dialogo className="confirmado" aria-labelledby="comprado-titulo" aoFechar={() => setComprado(null)}>
           <div className="confirmado__caixa">
             <Sol tamanho={52} className="cor-caramelo confirmado__sol" />
             <h2 id="comprado-titulo" className="display-m">Tudo certo</h2>
@@ -428,7 +429,7 @@ export default function MeuPlano() {
               <button type="button" className="link-sair" onClick={() => setComprado(null)}>Fechar</button>
             </div>
           </div>
-        </div>
+        </Dialogo>
       )}
     </main>
   );

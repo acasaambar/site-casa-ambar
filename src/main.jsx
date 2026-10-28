@@ -8,6 +8,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/400-italic.css';
 import '@fontsource/pinyon-script/400.css';
 import './styles.css';
+import './styles/aluno-revisao.css';
 import App from './App.jsx';
 import ErroTela from './components/ErroTela.jsx';
 import { EXTERNOS } from './externos.js';

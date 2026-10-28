@@ -6,6 +6,7 @@ import CampoCodigo from '../components/CampoCodigo.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import Tapete from '../components/Tapete.jsx';
 import Aparelho from '../components/Reformer.jsx';
+import Dialogo from '../components/Dialogo.jsx';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { Carregando } from './Aulas.jsx';
 import FichaSaude from './FichaSaude.jsx';
@@ -52,7 +53,7 @@ export default function Reservar() {
     carregar();
   }, [carregar]);
 
-  if (!aula) return <main className="app"><div className="largura app__corpo">{erro ? <p className="erro">{erro}</p> : <Carregando />}</div></main>;
+  if (!aula) return <main className="app"><div className="largura app__corpo">{erro ? <p className="erro" role="alert">{erro}</p> : <Carregando />}</div></main>;
 
   const yoga = aula.modalidade === 'Yoga';
   const livres = aula.capacidade - aula.ocupadosQtd;
@@ -222,7 +223,7 @@ export default function Reservar() {
                   <li><Forma nome="sutileza" tamanho={18} cor="var(--caramelo)" /> Traga sua garrafinha de água</li>
                 </ul>
               </div>
-              <p className="detalhes__nota">A professora organiza os aparelhos no início da aula.</p>
+              <p className="detalhes__nota">Quem conduz a aula organiza os aparelhos no início.</p>
             </aside>
           </div>
         )}
@@ -251,7 +252,7 @@ export default function Reservar() {
       </div>
 
       {semCredito && (
-        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="sc-titulo">
+        <Dialogo className="confirmado" aria-labelledby="sc-titulo" aoFechar={pagando ? undefined : () => setSemCredito(null)}>
           <div className="confirmado__caixa sem-credito">
             <Forma nome="presenca" tamanho={56} cor="var(--terracota)" />
             <h2 id="sc-titulo" className="display-m">{semCredito.wellhub?.pode?.ok ? 'Como quer reservar?' : 'Falta só o pagamento'}</h2>
@@ -288,11 +289,11 @@ export default function Reservar() {
               <button type="button" className="link-sair" onClick={() => setSemCredito(null)}>Voltar</button>
             </div>
           </div>
-        </div>
+        </Dialogo>
       )}
 
       {feito && (
-        <div className="confirmado" role="dialog" aria-modal="true" aria-labelledby="ok-titulo">
+        <Dialogo className="confirmado" aria-labelledby="ok-titulo">
           <div className="confirmado__caixa">
             <Sol tamanho={52} className="cor-caramelo confirmado__sol" />
             <h2 id="ok-titulo" className="display-m">Reserva confirmada</h2>
@@ -314,7 +315,7 @@ export default function Reservar() {
               <Link className="botao botao--linha" to="/aulas">Voltar às aulas</Link>
             </div>
           </div>
-        </div>
+        </Dialogo>
       )}
     </main>
   );

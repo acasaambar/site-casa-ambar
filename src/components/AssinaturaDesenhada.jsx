@@ -6,7 +6,7 @@ const LARGURA = 700;
 const ALTURA = 240;
 const MINIMO_TRACADO = 160; // px de risco no total: evita "assinar" com um pontinho
 
-export default function AssinaturaDesenhada({ aoMudar, desabilitado = false }) {
+export default function AssinaturaDesenhada({ aoMudar, desabilitado = false, invalida = false }) {
   const tela = useRef(null);
   const desenhando = useRef(false);
   const anterior = useRef(null);
@@ -80,7 +80,7 @@ export default function AssinaturaDesenhada({ aoMudar, desabilitado = false }) {
         <span className="assina__rotulo">Sua assinatura</span>
         <button type="button" className="assina__limpar" onClick={limpar} disabled={!tem || desabilitado}>Limpar e refazer</button>
       </div>
-      <div className="assina__quadro">
+      <div className={`assina__quadro${invalida ? ' assina__quadro--invalido' : ''}`}>
         <canvas
           ref={tela}
           width={LARGURA}

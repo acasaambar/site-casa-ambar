@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth.jsx';
 import FichaSaude from '../pages/FichaSaude.jsx';
 import Contrato from './Contrato.jsx';
 import { Carregando } from '../pages/Aulas.jsx';
+import Dialogo from './Dialogo.jsx';
 
 // Ao escolher um plano mensal ou trimestral: ficha de saúde (só se for a primeira vez) e contrato (quando a Casa o liga).
 // Cobre a tela inteira; quando tudo está certo chama aoPronto e o fluxo normal de compra continua.
@@ -32,7 +33,7 @@ export default function ExigenciasPlano({ plano, aoPronto, aoCancelar }) {
   }, [token, plano.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="passos-previos" role="dialog" aria-modal="true" aria-label="Antes de contratar">
+    <Dialogo className="passos-previos" aria-label="Antes de contratar">
       {erro && (
         <div className="largura app__corpo">
           <p className="erro erro--destaque" role="alert">{erro}</p>
@@ -47,6 +48,6 @@ export default function ExigenciasPlano({ plano, aoPronto, aoCancelar }) {
       {!erro && passo === 'contrato' && info && (
         <Contrato plano={plano} dados={info} aoVoltar={aoCancelar} aoAssinar={aoPronto} />
       )}
-    </div>
+    </Dialogo>
   );
 }
