@@ -143,14 +143,109 @@ ul.b-itens, ol.b-itens { margin: 0; padding: 0; list-style: none; }
 ul.b-itens > li + li > .b-item, ul.b-itens > li + li { border-top: 1px solid var(--b-linha); }
 ul.b-itens > li > .b-item { border-top: 0; }
 @media (max-width: 560px) {
-  /* em linha quebrada o ponto não fica no começo da linha */
-  .b-meta { gap: 2px 0; }
-  .b-meta > * { margin-right: 8px; }
+  /* quando a linha quebra, o ponto ficaria pendurado no fim ou no começo dela: no celular o espaço separa */
+  .b-meta { gap: 2px 14px; }
   .b-meta > * + *::before { content: none; }
-  .b-meta > *:not(:last-child)::after { content: '·'; margin-left: 8px; color: rgba(47, 56, 33, 0.35); }
+}
+
+/* seletor de mês que ocupa a largura toda no celular (className="b-mes--cheio") */
+@media (max-width: 560px) {
+  .b-mes--cheio { display: flex; width: 100%; }
+  .b-mes--cheio strong { flex: 1; text-align: center; }
 }
 
 /* "?" dentro de folha lateral: a folha rola e cortaria o cartãozinho; abre como cartão na base da tela */
 .b-modal .b-ajuda__texto, .b-modal .b-ajuda__texto--esquerda, .b-modal .b-ajuda__texto--direita {
   position: fixed; left: 16px; right: 16px; top: auto; bottom: 16px; width: auto; max-width: 440px; margin-inline: auto; z-index: 90;
 }
+
+/* ============================================================
+   ACESSIBILIDADE E CONSISTÊNCIA (revisão da estrutura compartilhada, out/2026)
+   Foco visível único, "pular para o conteúdo", texto só para leitor de tela,
+   alvos de toque, movimento reduzido, safe-area do iPhone.
+   ============================================================ */
+.bancada, .b-login, .b-modal, .bg {
+  --b-foco: #3C4628;        /* anel de foco no papel claro: 9:1 sobre o papel (o mínimo pedido é 3:1) */
+  --b-foco-escuro: #E6C58F; /* anel de foco em fundo verde-escuro (menu lateral, linha do dia) */
+}
+
+/* texto que só o leitor de tela lê (o tom do aviso, "Aguarde" do botão, contagem da busca) */
+.b-so-leitor {
+  position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* "Ir para o conteúdo": invisível até receber o foco (primeiro Tab da página) */
+.b-pular {
+  position: fixed; z-index: 200; top: 8px; left: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--r-m); border: 0; cursor: pointer;
+  font: 600 15px/1 'IBM Plex Sans', system-ui, sans-serif; color: var(--b-linho); background: var(--b-tinta); box-shadow: var(--sombra-2);
+  transform: translateY(-160%); transition: transform 140ms ease-out;
+}
+.b-pular:focus-visible { transform: none; }
+@media (prefers-reduced-motion: reduce) { .b-pular { transition: none; } }
+
+/* foco visível: o mesmo anel em todo lugar (o do navegador/site é âmbar, só 2:1 no papel).
+   !important porque várias telas antigas têm "outline: none" no :hover/:focus do próprio componente. */
+:where(.bancada, .b-modal, .b-login, .bg) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--b-foco) !important; outline-offset: 2px;
+}
+/* campos: o anel encosta na borda (não cobre o rótulo vizinho) */
+:where(.bancada, .b-modal, .b-login, .bg) :is(input, select, textarea):focus-visible { outline-offset: 1px; }
+/* em fundo escuro o anel é claro */
+.b-lateral :focus-visible, .linha :focus-visible, .bg__item[aria-selected='true']:focus-visible { outline-color: var(--b-foco-escuro) !important; }
+/* o conteúdo e as folhas recebem foco só por programa (depois de trocar de tela, ao abrir a folha): sem anel */
+.bancada main.b-pagina:focus, .b-modal__caixa:focus, .bg:focus { outline: none !important; }
+/* campo da busca já tem o destaque da própria caixa */
+.bg__campo input:focus-visible { outline: none !important; }
+.bg__campo:focus-within { box-shadow: inset 0 -2px 0 var(--b-foco); }
+
+/* placeholder legível (4,9:1; antes 3,4:1) */
+.b-login .form input::placeholder, .bancada ::placeholder, .b-modal ::placeholder { color: #6F715F; opacity: 1; }
+
+/* "?" de ajuda: o botão tem 24 px, mas a área de toque tem 42 px (sem mudar o visual) */
+.b-ajuda__botao { position: relative; }
+.b-ajuda__botao::after { content: ''; position: absolute; inset: -9px; }
+.b-ajuda__texto { max-height: min(60vh, 420px); overflow-y: auto; }
+
+/* abas e segmentos: a aba atual recebe o foco por seta, então o anel fica por dentro */
+.b-segmento button:focus-visible { outline-offset: -2px !important; }
+.b-abas button:focus-visible { outline-offset: -2px !important; border-radius: 8px; }
+
+/* botão de fechar da folha */
+.b-fechar { display: grid; place-items: center; transition: background var(--rapido), border-color var(--rapido); }
+.b-fechar:hover { background: var(--b-areia); border-color: rgba(47, 56, 33, 0.35); }
+.b-fechar:active { background: #DCCFB2; }
+
+/* botão desabilitado e carregando: nunca parece clicável */
+.bancada .botao:disabled:not(.botao--cheio), .b-modal .botao:disabled:not(.botao--cheio) { cursor: not-allowed; opacity: 0.55; }
+.bancada .botao[aria-busy='true'], .b-modal .botao[aria-busy='true'] { cursor: progress; }
+
+/* aviso dentro da folha ou do cartão não estoura a largura */
+.b-aviso { overflow-wrap: anywhere; }
+
+/* ---------- celular e iPad ---------- */
+@media (max-width: 900px) {
+  /* campos com 16 px: o iPhone não dá zoom ao tocar */
+  :where(.bancada, .b-modal, .b-login) :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='hidden']), select, textarea) { font-size: 16px; }
+  /* alvos de toque de pelo menos 40 px */
+  .bancada .b-chip { min-height: 40px; }
+  .bancada .b-abas button { min-height: 44px; }
+  .bancada .b-segmento button { min-height: 40px; }
+  .bancada .b-menumais__item { min-height: 44px; }
+  .bancada .b-mes button { width: 40px; height: 40px; }
+  .b-fechar { width: 44px; height: 44px; }
+}
+@media (max-width: 560px) {
+  .b-modal__corpo { padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px)); }
+  .b-modal__corpo > .b-form > .botao--cheio { bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
+  .b-salvar-fixo { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ---------- movimento reduzido: sem animação de entrada, de giro nem de transição ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .bancada *, .bancada *::before, .bancada *::after, .b-modal *, .b-login *, .bg * {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- impressão: nada disto sai no papel ---------- */
+@media print { .b-pular, .b-so-leitor { display: none !important; } }

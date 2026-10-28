@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sol, Forma } from '../components/Marca.jsx';
 import { useBancada } from './sessao.jsx';
@@ -53,10 +53,10 @@ export function LinhasDePagamento({ linhas, aoMudar, total, formas = METODOS, mi
     <div className="cm-pagar__linhas">
       {linhas.map((l, i) => (
         <div key={i} className={`cm-pagar__linha${linhas.length > minimo ? ' cm-pagar__linha--tirar' : ''}${/Cartão de crédito|Link/.test(l.metodo) ? ' cm-pagar__linha--parcelas' : ''}${pedeBandeira(l.metodo) || l.metodo === 'Vale-presente' ? ' cm-pagar__linha--extra' : ''}`}>
-          <select className="cm-pagar__metodo" value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label="Forma">
+          <select className="cm-pagar__metodo" value={l.metodo} onChange={(e) => mudar(i, { metodo: e.target.value })} aria-label={linhas.length > 1 ? `Forma ${i + 1}` : 'Forma'}>
             {formas.map((m) => <option key={m}>{m}</option>)}
           </select>
-          <input className="cm-pagar__valor" inputMode="decimal" value={l.valor} placeholder={total == null && i === linhas.length - 1 ? 'o que sobrar' : ''} onChange={(e) => mudar(i, { valor: e.target.value.replace(/[^\d,.]/g, '') })} aria-label="Valor" />
+          <input className="cm-pagar__valor" inputMode="decimal" value={l.valor} placeholder={total == null && i === linhas.length - 1 ? 'o que sobrar' : ''} onChange={(e) => mudar(i, { valor: e.target.value.replace(/[^\d,.]/g, '') })} aria-label={linhas.length > 1 ? `Valor da forma ${i + 1}` : 'Valor'} />
           {/Cartão de crédito|Link/.test(l.metodo) && (
             <select className="cm-pagar__extra cm-pagar__parcelas" value={l.parcelas} onChange={(e) => mudar(i, { parcelas: Number(e.target.value) })} aria-label="Parcelas">
               {Array.from({ length: 12 }, (_, k) => <option key={k + 1} value={k + 1}>{k + 1}x</option>)}
@@ -69,10 +69,10 @@ export function LinhasDePagamento({ linhas, aoMudar, total, formas = METODOS, mi
             </select>
           )}
           {l.metodo === 'Vale-presente' && <input className="cm-pagar__extra" value={l.codigo} onChange={(e) => mudar(i, { codigo: e.target.value.toUpperCase() })} placeholder="AMBAR-XXXX-XXXX" aria-label="Código do vale" />}
-          {linhas.length > minimo && <button type="button" className="cm-item__tirar cm-pagar__tirar" aria-label="Tirar forma" onClick={() => aoMudar(linhas.filter((_, k) => k !== i))}>×</button>}
+          {linhas.length > minimo && <button type="button" className="cm-item__tirar cm-pagar__tirar" aria-label={`Tirar forma ${i + 1}`} onClick={() => aoMudar(linhas.filter((_, k) => k !== i))}>×</button>}
         </div>
       ))}
-      <div className="cm-pagar__resumo">
+      <div className="cm-pagar__resumo" aria-live="polite">
         {total == null ? (
           <span className="b-suave">Deixe o valor da última forma em branco para ela levar o que sobrar.</span>
         ) : Math.abs(falta) > 0.009 ? (
@@ -352,29 +352,47 @@ export function preCarregar(chamar, token, acao, params = {}) {
   if (!estaFresco(id)) buscar(id, () => chamar(acao, params), false, true).catch(() => {});
 }
 
-// Menu "Mais" (ações que não cabem na barra). itens: [{ texto, acao, className? }]; fecha ao escolher, ao tocar fora ou com Esc
+// Menu "Mais" (ações que não cabem na barra). itens: [{ texto, acao, className? }]; fecha ao escolher, ao tocar fora ou com Esc.
+// Teclado: Enter/↓ abre no primeiro item, ↑ ↓ Home End navegam, Esc fecha e devolve o foco ao botão, Tab fecha.
 export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef(null);
+  const botao = useRef(null);
+  const id = useId();
+  const pelaTecla = useRef(false); // abriu pelo teclado: o foco vai para o primeiro item
   useEffect(() => {
     if (!aberto) return undefined;
     const fora = (e) => { if (!caixa.current?.contains(e.target)) setAberto(false); };
-    const tecla = (e) => { if (e.key === 'Escape') setAberto(false); };
+    // captura + stopImmediatePropagation: o Esc fecha só o menu (a folha por baixo continua aberta)
+    const tecla = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setAberto(false); botao.current?.focus(); } };
     document.addEventListener('pointerdown', fora);
-    document.addEventListener('keydown', tecla);
-    return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', tecla); };
+    document.addEventListener('keydown', tecla, true);
+    return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', tecla, true); };
+  }, [aberto]);
+  useEffect(() => {
+    if (aberto && pelaTecla.current) caixa.current?.querySelector('[role="menuitem"]')?.focus();
+    pelaTecla.current = false;
   }, [aberto]);
   const visiveis = itens.filter(Boolean);
   if (!visiveis.length) return null;
+  const aoTeclarNoBotao = (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (aberto) caixa.current?.querySelector('[role="menuitem"]')?.focus(); else { pelaTecla.current = true; setAberto(true); } } };
+  const aoTeclarNaLista = (e) => {
+    const todos = Array.from(e.currentTarget.querySelectorAll('[role="menuitem"]'));
+    const i = todos.indexOf(document.activeElement);
+    const vai = { ArrowDown: (i + 1) % todos.length, ArrowUp: (i - 1 + todos.length) % todos.length, Home: 0, End: todos.length - 1 }[e.key];
+    if (vai != null) { e.preventDefault(); todos[vai]?.focus(); }
+    else if (e.key === 'Tab') setAberto(false);
+  };
   return (
     <div className={`b-menumais ${className}`} ref={caixa}>
-      <button type="button" className="botao botao--linha botao--p b-menumais__botao" aria-haspopup="menu" aria-expanded={aberto} aria-label={`${rotulo} opções`} onClick={() => setAberto((x) => !x)}>
+      <button type="button" ref={botao} className="botao botao--linha botao--p b-menumais__botao" aria-haspopup="menu" aria-expanded={aberto} aria-controls={aberto ? id : undefined} aria-label={`${rotulo} opções`}
+        onClick={(e) => { if (!aberto && e.detail === 0) pelaTecla.current = true; setAberto((x) => !x); }} onKeyDown={aoTeclarNoBotao}>
         <span className="b-menumais__texto">{rotulo}</span><span aria-hidden="true" className="b-menumais__pontos">•••</span><span aria-hidden="true" className="b-menumais__seta">▾</span>
       </button>
       {aberto && (
-        <div className="b-menumais__lista" role="menu">
+        <div className="b-menumais__lista" role="menu" id={id} aria-label={rotulo} onKeyDown={aoTeclarNaLista}>
           {visiveis.map((it) => (
-            <button key={it.texto} type="button" role="menuitem" className={`b-menumais__item ${it.className || ''}`} onClick={() => { setAberto(false); it.acao(); }}>
+            <button key={it.texto} type="button" role="menuitem" className={`b-menumais__item ${it.className || ''}`} onClick={() => { setAberto(false); botao.current?.focus(); it.acao(); }}>
               {it.texto}{it.extra ? <span className="b-menumais__extra">{it.extra}</span> : null}
             </button>
           ))}
@@ -445,22 +463,28 @@ export function Cabecalho({ rotulo, titulo, children, acoes, ajuda }) {
 // botão "?" que abre um cartãozinho com a explicação: no lugar de parágrafos longos soltos na tela
 export function Ajuda({ titulo, children, alinhar = 'esquerda' }) {
   const ref = useRef(null);
+  const botao = useRef(null);
+  const id = useId();
   const [aberta, setAberta] = useState(false);
   useEffect(() => {
     if (!aberta) return undefined;
     const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberta(false); };
-    // o Esc fecha só o "?" (captura + stopImmediatePropagation): a folha por baixo continua aberta
-    const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setAberta(false); } };
+    // o Esc fecha só o "?" (captura + stopImmediatePropagation): a folha por baixo continua aberta; o foco volta ao botão
+    const esc = (e) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setAberta(false); botao.current?.focus(); } };
+    // Tab para fora do cartãozinho fecha (quem usa teclado não fica com ele aberto pela tela)
+    const saiu = (e) => { if (ref.current && e.relatedTarget && !ref.current.contains(e.relatedTarget)) setAberta(false); };
     document.addEventListener('mousedown', fora);
     document.addEventListener('touchstart', fora);
     document.addEventListener('keydown', esc, true);
-    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('touchstart', fora); document.removeEventListener('keydown', esc, true); };
+    const el = ref.current;
+    el?.addEventListener('focusout', saiu);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('touchstart', fora); document.removeEventListener('keydown', esc, true); el?.removeEventListener('focusout', saiu); };
   }, [aberta]);
   return (
     <span className="b-ajuda" ref={ref}>
-      <button type="button" className="b-ajuda__botao" aria-label={titulo ? `Como funciona: ${titulo}` : 'Como funciona'} aria-expanded={aberta} onClick={() => setAberta((a) => !a)}>?</button>
+      <button type="button" ref={botao} className="b-ajuda__botao" aria-label={titulo ? `Como funciona: ${titulo}` : 'Como funciona'} aria-expanded={aberta} aria-controls={aberta ? id : undefined} onClick={() => setAberta((a) => !a)}>?</button>
       {aberta && (
-        <span className={`b-ajuda__texto b-ajuda__texto--${alinhar}`} role="note">
+        <span className={`b-ajuda__texto b-ajuda__texto--${alinhar}`} id={id} role="note">
           {titulo && <strong>{titulo}</strong>}
           {children}
         </span>
@@ -470,11 +494,14 @@ export function Ajuda({ titulo, children, alinhar = 'esquerda' }) {
 }
 
 // aviso curto em cartão (no lugar de frase solta): tom = info | ok | aviso | alerta
+// alerta é anunciado na hora (role=alert), ok vira status; o tom também vai por escrito para o leitor de tela (não só pela cor)
+const ROTULO_DO_TOM = { alerta: 'Alerta: ', aviso: 'Atenção: ', ok: '', info: '' };
 export function Aviso({ tom = 'info', titulo, children, acao }) {
   return (
-    <div className={`b-aviso b-aviso--${tom}`} role={tom === 'alerta' ? 'alert' : 'note'}>
+    <div className={`b-aviso b-aviso--${tom}`} role={tom === 'alerta' ? 'alert' : tom === 'ok' ? 'status' : 'note'}>
       <span className="b-aviso__icone" aria-hidden="true">{tom === 'ok' ? '✓' : tom === 'info' ? 'i' : '!'}</span>
       <div className="b-aviso__texto">
+        {ROTULO_DO_TOM[tom] && <span className="b-so-leitor">{ROTULO_DO_TOM[tom]}</span>}
         {titulo && <strong>{titulo}</strong>}
         {children && <span>{children}</span>}
       </div>
@@ -499,7 +526,7 @@ export function Secao({ titulo, ajuda, acoes, children, className = '' }) {
 // carregando com "esqueleto": blocos cinza no lugar do círculo girando
 export function Esqueleto({ linhas = 4, altura = 18 }) {
   return (
-    <div className="b-esqueleto" role="status" aria-label="Carregando">
+    <div className="b-esqueleto" role="status" aria-label="Carregando" aria-busy="true">
       {Array.from({ length: linhas }, (_, i) => <span key={i} style={{ height: altura, width: `${100 - ((i * 13) % 38)}%` }} />)}
     </div>
   );
@@ -526,35 +553,80 @@ export function Tag({ tom = 'neutro', children, title }) {
   return <span className={`b-tag b-tag--${tom}`} title={title}>{children}</span>;
 }
 
+// ---------- foco, rolagem e teclado das camadas (folha, busca, menu do celular) ----------
+// Elementos que o Tab alcança dentro de uma camada
+const FOCAVEIS = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+export function focaveisEm(raiz) {
+  if (!raiz) return [];
+  return Array.from(raiz.querySelectorAll(FOCAVEIS)).filter((e) => !e.closest('[inert], [hidden]') && e.getClientRects().length > 0);
+}
+// Tab/Shift+Tab não saem da camada: do último volta ao primeiro (e ao contrário)
+export function prenderTab(e, raiz) {
+  if (e.key !== 'Tab' || !raiz) return;
+  const lista = focaveisEm(raiz);
+  if (!lista.length) { e.preventDefault(); raiz.focus?.(); return; }
+  const primeiro = lista[0];
+  const ultimo = lista[lista.length - 1];
+  const ativo = document.activeElement;
+  if (e.shiftKey && (ativo === primeiro || ativo === raiz || !raiz.contains(ativo))) { e.preventDefault(); ultimo.focus(); }
+  else if (!e.shiftKey && (ativo === ultimo || !raiz.contains(ativo))) { e.preventDefault(); primeiro.focus(); }
+}
+// quem trava a rolagem do fundo (folha, busca) conta aqui: só destrava quando o último sair
+let travasDeRolagem = 0;
+export function travarRolagem() { travasDeRolagem += 1; document.body.classList.add('b-sem-rolagem'); }
+export function soltarRolagem() { travasDeRolagem = Math.max(0, travasDeRolagem - 1); if (!travasDeRolagem) document.body.classList.remove('b-sem-rolagem'); }
+const OUTRA_CAMADA = '.b-modal, .bg, [role="dialog"]';
+// camada aberta: lembra quem tinha o foco (e devolve ao fechar), puxa o foco de volta se escapar e trava a rolagem
+export function useCamada(raiz, { ativo = true, foco, ehTopo = () => true } = {}) {
+  useEffect(() => {
+    if (!ativo) return undefined;
+    const origem = document.activeElement;
+    travarRolagem();
+    const caixa = raiz.current;
+    const alvo = (typeof foco === 'function' ? foco(caixa) : null) || caixa;
+    alvo?.focus?.({ preventScroll: true });
+    const voltou = (e) => {
+      if (!ehTopo() || !caixa || caixa.contains(e.target) || e.target.closest?.(OUTRA_CAMADA)) return;
+      (focaveisEm(caixa)[0] || caixa).focus({ preventScroll: true });
+    };
+    document.addEventListener('focusin', voltou);
+    return () => {
+      document.removeEventListener('focusin', voltou);
+      soltarRolagem();
+      if (origem && origem !== document.body && origem.isConnected) origem.focus?.({ preventScroll: true });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 // folhas abertas uma sobre a outra (ex.: editar um item dentro da comanda): o Esc fecha só a de cima
 const folhasAbertas = [];
+const PRIMEIRO_CAMPO = '.b-modal__corpo input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([disabled]), .b-modal__corpo select:not([disabled]), .b-modal__corpo textarea:not([disabled])';
 
+// Folha lateral (no celular, de baixo para cima). role=dialog na caixa: foco inicial no primeiro campo (ou na própria folha),
+// Tab preso dentro, Esc fecha só a de cima e o foco volta para o botão que abriu.
 export function Modal({ titulo, rotulo, aoFechar, children, largo }) {
   const ref = useRef(null);
+  const idTitulo = useId();
   const fechar = useRef(aoFechar);
   fechar.current = aoFechar;
+  const eu = useRef({});
   useEffect(() => {
-    const eu = {};
-    folhasAbertas.push(eu);
-    const esc = (e) => e.key === 'Escape' && folhasAbertas[folhasAbertas.length - 1] === eu && fechar.current?.();
+    const marca = eu.current;
+    folhasAbertas.push(marca);
+    const esc = (e) => e.key === 'Escape' && folhasAbertas[folhasAbertas.length - 1] === marca && fechar.current?.();
     document.addEventListener('keydown', esc);
-    document.body.classList.add('b-sem-rolagem');
-    ref.current?.querySelector('.b-modal__corpo input:not([type=checkbox]):not([type=radio]), .b-modal__corpo select, .b-modal__corpo textarea')?.focus();
-    return () => {
-      document.removeEventListener('keydown', esc);
-      folhasAbertas.splice(folhasAbertas.indexOf(eu), 1);
-      if (!folhasAbertas.length) document.body.classList.remove('b-sem-rolagem');
-    };
+    return () => { document.removeEventListener('keydown', esc); folhasAbertas.splice(folhasAbertas.indexOf(marca), 1); };
   }, []);
+  useCamada(ref, { foco: (c) => c?.querySelector(PRIMEIRO_CAMPO), ehTopo: () => folhasAbertas[folhasAbertas.length - 1] === eu.current });
   return (
-    <div className="b-modal" role="dialog" aria-modal="true" aria-label={titulo} onMouseDown={(e) => e.target === e.currentTarget && aoFechar?.()}>
-      <div className={`b-modal__caixa${largo ? ' b-modal__caixa--largo' : ''}`} ref={ref}>
+    <div className="b-modal" onMouseDown={(e) => e.target === e.currentTarget && aoFechar?.()}>
+      <div className={`b-modal__caixa${largo ? ' b-modal__caixa--largo' : ''}`} ref={ref} role="dialog" aria-modal="true" aria-labelledby={idTitulo} tabIndex={-1} onKeyDown={(e) => prenderTab(e, ref.current)}>
         <header className="b-modal__topo">
           <div>
-            <h2 className="b-modal__titulo">{titulo}</h2>
+            <h2 className="b-modal__titulo" id={idTitulo}>{titulo}</h2>
             {rotulo && <p className="b-modal__contexto">{rotulo}</p>}
           </div>
-          {aoFechar && <button type="button" className="b-fechar" aria-label="Fechar" onClick={aoFechar}>×</button>}
+          {aoFechar && <button type="button" className="b-fechar" aria-label="Fechar" onClick={aoFechar}><span aria-hidden="true">×</span></button>}
         </header>
         <div className="b-modal__corpo">{children}</div>
       </div>
@@ -567,36 +639,59 @@ export function Kpi({ rotulo, valor, detalhe, tom }) {
     <div className={`b-kpi${tom ? ' b-kpi--' + tom : ''}`}>
       <span className="b-kpi__rotulo">{rotulo}</span>
       <strong className="b-kpi__valor">{valor}</strong>
+      {(tom === 'alerta' || tom === 'aviso') && <span className="b-so-leitor">{tom === 'alerta' ? 'Alerta' : 'Atenção'}</span>}
       {detalhe && <span className="b-kpi__detalhe">{detalhe}</span>}
     </div>
   );
 }
 
 // navegação de mês: ‹ outubro 2026 ›
-export function SeletorMes({ mes, aoMudar }) {
+export function SeletorMes({ mes, aoMudar, className = '' }) {
   return (
-    <div className="b-mes" role="group" aria-label="Mês">
+    <div className={`b-mes ${className}`.trim()} role="group" aria-label="Mês">
       <button type="button" onClick={() => aoMudar(somarMes(mes, -1))} aria-label="Mês anterior">‹</button>
-      <strong>{mesTexto(mes)}</strong>
+      <strong aria-live="polite">{mesTexto(mes)}</strong>
       <button type="button" onClick={() => aoMudar(somarMes(mes, 1))} aria-label="Próximo mês">›</button>
     </div>
   );
 }
 
+// setas, Home e End trocam de aba (o Tab entra na aba atual e sai da lista): padrão de abas do teclado
+function teclasDeAbas(e, ids, atual, aoMudar) {
+  const teclas = { ArrowRight: 1, ArrowLeft: -1, Home: 'ini', End: 'fim' };
+  if (!(e.key in teclas) || e.altKey || e.ctrlKey || e.metaKey) return;
+  const i = Math.max(0, ids.indexOf(atual));
+  const j = teclas[e.key] === 'ini' ? 0 : teclas[e.key] === 'fim' ? ids.length - 1 : (i + teclas[e.key] + ids.length) % ids.length;
+  e.preventDefault();
+  aoMudar(ids[j]);
+  e.currentTarget.querySelectorAll('[role="tab"]')[j]?.focus();
+}
+const abaAtiva = (itens, atual) => (itens.some(([id]) => id === atual) ? atual : itens[0]?.[0]);
+
 export function Segmento({ itens, atual, aoMudar, rotulo }) {
+  const ativa = abaAtiva(itens, atual);
   return (
-    <div className="b-segmento" role="tablist" aria-label={rotulo}>
-      {itens.map(([id, t]) => <button key={id} type="button" role="tab" aria-selected={atual === id} onClick={() => aoMudar(id)}>{t}</button>)}
+    <div className="b-segmento" role="tablist" aria-label={rotulo} onKeyDown={(e) => teclasDeAbas(e, itens.map(([id]) => id), atual, aoMudar)}>
+      {itens.map(([id, t]) => <button key={id} type="button" role="tab" aria-selected={atual === id} tabIndex={ativa === id ? 0 : -1} onClick={() => aoMudar(id)}>{t}</button>)}
     </div>
   );
 }
 
-export function Abas({ itens, atual, aoMudar }) {
+export function Abas({ itens, atual, aoMudar, rotulo }) {
   const [ref, mais] = useMaisADireita();
+  const ativa = abaAtiva(itens, atual);
+  // a aba escolhida fica à vista na faixa que rola para o lado (sem mexer na rolagem da página)
+  useEffect(() => {
+    const faixa = ref.current;
+    const aba = faixa?.querySelector('[aria-selected="true"]');
+    if (!faixa || !aba) return;
+    if (aba.offsetLeft < faixa.scrollLeft) faixa.scrollLeft = aba.offsetLeft - 12;
+    else if (aba.offsetLeft + aba.offsetWidth > faixa.scrollLeft + faixa.clientWidth) faixa.scrollLeft = aba.offsetLeft + aba.offsetWidth - faixa.clientWidth + 12;
+  }, [atual]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className={`b-abas${mais ? ' b-rola--mais' : ''}`} role="tablist" ref={ref}>
+    <div className={`b-abas${mais ? ' b-rola--mais' : ''}`} role="tablist" aria-label={rotulo} ref={ref} onKeyDown={(e) => teclasDeAbas(e, itens.map(([id]) => id), atual, aoMudar)}>
       {itens.map(([id, texto]) => (
-        <button key={id} type="button" role="tab" aria-selected={atual === id} onClick={() => aoMudar(id)}>{texto}</button>
+        <button key={id} type="button" role="tab" aria-selected={atual === id} tabIndex={ativa === id ? 0 : -1} onClick={() => aoMudar(id)}>{texto}</button>
       ))}
     </div>
   );
@@ -654,7 +749,7 @@ export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por no
   return (
     <div className="b-busca">
       <input type="search" value={q} onChange={(e) => { setQ(e.target.value); setEscolheu(false); }} placeholder={placeholder} autoFocus={autoFocus} aria-label="Buscar cadastro" />
-      {buscando && <span className="b-busca__status">buscando…</span>}
+      {buscando && <span className="b-busca__status" role="status">buscando…</span>}
       {lista.length > 0 && (
         <ul className="b-busca__lista">
           {lista.map((a) => (
@@ -667,7 +762,7 @@ export function BuscaAluno({ aoEscolher, autoFocus, placeholder = 'Buscar por no
           ))}
         </ul>
       )}
-      {q.trim().length >= 2 && !buscando && !escolheu && lista.length === 0 && <p className="b-busca__nada">Ninguém encontrado com essa busca.</p>}
+      {q.trim().length >= 2 && !buscando && !escolheu && lista.length === 0 && <p className="b-busca__nada" role="status">Ninguém encontrado com essa busca.</p>}
     </div>
   );
 }
@@ -680,14 +775,14 @@ export function BotaoAcao({ acao, children, className = 'botao botao--linha bota
   return (
     <>
       {/* disabled depois do {...resto}: enquanto espera o servidor, não dá para tocar de novo (cobrança em dobro) */}
-      <button type="button" className={className} {...resto} disabled={ocupado || resto.disabled}
+      <button type="button" className={className} aria-busy={ocupado || undefined} {...resto} disabled={ocupado || resto.disabled}
         onClick={async () => {
           if (confirmar && !window.confirm(confirmar)) return;
           setOcupado(true);
           setErro('');
           try { await acao(); } catch (e) { setErro(e?.message || 'Não deu certo. Tente de novo.'); } finally { setOcupado(false); }
         }}>
-        {ocupado ? '…' : children}
+        {ocupado ? <><span aria-hidden="true">…</span><span className="b-so-leitor">Aguarde</span></> : children}
       </button>
       {erro && <span className="erro b-erro-botao" role="alert">{erro}</span>}
     </>

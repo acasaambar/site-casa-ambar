@@ -36,7 +36,23 @@ Nunca cortar informação que a equipe usa: o que sai da tela vai para `ajuda` o
 - `<Vazio titulo acao>`, `<Esqueleto linhas />` (carregando: use no lugar do círculo girando em listas e cartões; `Carregando` continua para telas inteiras).
 - `<Kpi rotulo valor detalhe tom>` dentro de `.b-kpis`; `<Tag tom>`; `<Abas>`/`<Segmento>`; `<Modal>` (folha lateral).
 - Classes: `.b-cartao`, `.b-itens` + `.b-item` (`.b-item__corpo`, `.b-item__titulo`, `.b-item__lado`) para listas; `.b-meta` (info miúda separada por ponto); `.b-icone-chip`; `.b-grade-cartoes`; `.b-barra-fixa` (filtros que acompanham a rolagem); `.botao--fantasma`.
-- Tokens: `--r-p/m/g` (cantos), `--sombra-1/2`, `--e-1…5` (espaços), cores `--b-*` (veja `bancada.css`).
+- Tokens: `--r-p/m/g` (cantos), `--sombra-1/2`, `--e-1…5` (espaços), cores `--b-*` (veja `bancada.css`), `--b-foco` / `--b-foco-escuro` (anel de foco).
+- Peças de teclado e leitor de tela (ui.jsx): `useCamada(ref, { foco, ehTopo })` (guarda quem tinha o foco e devolve ao fechar, puxa o foco de volta se escapar, trava a rolagem do fundo), `prenderTab(e, raiz)` (Tab não sai da camada), `focaveisEm(raiz)`, `travarRolagem()`/`soltarRolagem()` (contador: busca e folha podem abrir juntas), classe `.b-so-leitor` (texto só para leitor de tela) e `<SeletorMes className="b-mes--cheio">` (ocupa a largura no celular).
+
+## 3.1 Acessibilidade (regras de toda tela e de toda peça nova)
+
+- **Foco visível**: o anel único está em `css/base.css` (`:focus-visible`, `--b-foco`, 9:1 no papel; claro no fundo verde). Não escreva `outline: none` em componente novo: se precisar de outro destaque, some a ele, nunca tire o anel.
+- **Camadas** (`Modal`, `Busca`, gaveta do menu): `role="dialog"` + `aria-modal` + nome (`aria-labelledby`), foco inicial dentro, Tab preso, Esc fecha só a de cima, foco volta ao botão que abriu. Camada nova: use `useCamada` + `prenderTab`.
+- **Abas e segmentos** (`Abas`, `Segmento`): `role=tablist`, só a aba atual entra no Tab, setas/Home/End trocam. Passe `rotulo` quando houver mais de um conjunto de abas na página.
+- **Avisos**: `alerta` = `role="alert"`, `ok` = `status`, `info`/`aviso` = `note`; o tom também vai por escrito ao leitor de tela (cor nunca é a única pista). `Tag` sempre leva texto.
+- **Botão que espera o servidor** (`BotaoAcao`): `aria-busy`, "Aguarde" ao leitor e o erro aparece em `role="alert"`.
+- **Menu "Mais"** (`MenuMais`): abre com Enter/↓, setas navegam, Esc fecha e devolve o foco.
+- **Casca** (`Bancada.jsx`): botão "Ir para o conteúdo" (primeiro Tab), `<main id="conteudo">`, título da aba do navegador por tela, foco vai para o conteúdo ao trocar de tela, topo do celular é `<header>`, gaveta do menu com foco/Tab/Esc.
+- **Campos**: rótulo ligado ao campo (`<label>` envolvendo, ou `aria-label` quando só há ícone/valor), 16 px e 44 px de altura no celular (a regra de 16 px já vale para todo `input`/`select`/`textarea` até 900 px), alvos de toque de 40 px ou mais (o "?" tem área de 42 px).
+- **Contraste**: texto pequeno AA (4,5:1). Cores de apoio já aprovadas: `--b-suave #6A6C56` (e `#535647` onde a leitura é longa), tags e avisos `--b-*-tinta`, placeholder `#6F715F`. Texto claro sobre caramelo só com `#86653F` ou mais escuro.
+- **Movimento**: `prefers-reduced-motion` corta animações e transições em toda a bancada (base.css). Animação nova não precisa de regra própria.
+- **Impressão**: `.b-pular` e `.b-so-leitor` não saem no papel; as regras de `#vale-impressao`, `.ag-impressao` e `.rel-tela` dependem de `body:has(...)`: não crie elemento filho direto do `body` sem conferir a impressão.
+- Conferir uma tela nova: `node testes/tela.cjs ...` para as fotos e `axe-core` no Playwright (`npm i --no-save axe-core`, `bypassCSP: true`) nas rotas.
 
 ## 4. Tipografia
 
@@ -47,7 +63,7 @@ Títulos de **página e janela**: Italiana (já feito pelo `.b-titulo` e `.b-mod
 1. Veja a tela antes (foto) e liste: texto solto, hierarquia fraca, link sublinhado, tabela crua, vazio seco, aperto no celular.
 2. Refaça **só a apresentação**: JSX e CSS. **Não mude comportamento, dados, nomes de ações da API, chaves de memória, regras de negócio nem o backend (`apps-script/`).**
 3. Estilos novos vão em `src/bancada/css/<area>.css`, importado no topo do `.jsx` da tela (`import './css/agenda.css';`). Esse arquivo carrega **depois** de `bancada.css` e `base.css`, então ganha de regras antigas de mesma especificidade. Ao substituir uma regra antiga por completo, apague-a de `bancada.css` (só se tiver certeza de que ninguém mais usa a classe: `grep -rn "classe" src`).
-4. Não edite `ui.jsx` nem `css/base.css` (compartilhados); precisa de algo novo e genérico? Faça local na sua tela e avise no relatório final.
+4. `ui.jsx`, `css/base.css`, `css/shell.css`, `bancada.css` e `Bancada.jsx` são compartilhados: só quem cuida da estrutura edita. Precisa de algo novo e genérico? Faça local na sua tela e avise.
 5. Rode `npm run lint` e `npm run build`. Rode `npm run teste` se mexeu em algo que o teste toca (só front-end: não precisa).
 6. Fotos: `node testes/tela.cjs --url <vite> --papel admin --rotas a,b --larg 390,820,1280 --saida <pasta> --abas` (veja o cabeçalho do arquivo). Confira **todas** as abas, o estado vazio e pelo menos uma janela (modal/folha) por tela.
 7. Texto de tela que a equipe usa todo dia (Agenda, Comandas, Hoje) deve ficar **mais rápido de ler**, nunca mais escondido.
