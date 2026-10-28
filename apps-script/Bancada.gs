@@ -1021,7 +1021,9 @@ function vendasIguaisNoDia(cpf, itemId, total, dia, ignorar) {
     var t = String(p.tipo_item || '');
     if (t === 'produto' || t === 'vale') return false;
     if (ignorar && (ignorar.nsus[String(p.order_nsu)] || (ignorar.comanda && String(p.comanda) === ignorar.comanda))) return false;
-    if (String(p.pago_em || p.criado_em).slice(0, 10) !== dia) return false;
+    var dp = String(p.pago_em || p.criado_em).slice(0, 10), dc = String(p.criado_em || p.pago_em).slice(0, 10), hoje = hojeTexto();
+    // mesmo dia de recebimento; ou lançada hoje (a nova também é lançada hoje) quando uma das duas é de hoje: lançar com data passada e de novo com a de hoje, ou o contrário
+    if (dp !== dia && !(dc === hoje && (dia === hoje || dp === dc))) return false;
     return Math.abs(totalCobradoDaVenda(p) - total) < 0.01;
   });
 }
@@ -1183,30 +1185,47 @@ function bancada_vendasDuplicadas(d, m) {
   var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? String(d.de) : somarDias(hojeTexto(), -60);
   var ate = /^\d{4}-\d{2}-\d{2}$/.test(String(d.ate)) ? String(d.ate) : hojeTexto();
   var v = valoresAba('Pagamentos'), k = indiceColunas(v[0]);
-  var grupos = {};
+  // vendas pagas do mesmo cliente e item; duas ficam no mesmo grupo se foram recebidas no mesmo dia OU lançadas no mesmo dia
+  // (venda com data passada, como na migração, e de novo com a data de hoje: o dia de recebimento muda, o de lançamento não)
+  var porItem = {};
   for (var i = 1; i < v.length; i++) {
     var l = v[i];
     if (String(l[k.status]) !== 'pago' || !l[k.cpf]) continue;
     var t = String(l[k.tipo_item] || '');
     if (t === 'produto' || t === 'vale') continue;
-    var dia = String(l[k.pago_em] || l[k.criado_em]).slice(0, 10);
-    if (dia < de || dia > ate) continue;
-    var chave = normCpf(l[k.cpf]) + '|' + String(l[k.plano_id]) + '|' + dia;
-    (grupos[chave] = grupos[chave] || []).push(objeto(v[0], l));
+    var dia = String(l[k.pago_em] || l[k.criado_em]).slice(0, 10), diaL = String(l[k.criado_em] || l[k.pago_em]).slice(0, 10);
+    if ((dia < de || dia > ate) && (diaL < de || diaL > ate)) continue;
+    (porItem[normCpf(l[k.cpf]) + '|' + String(l[k.plano_id])] = porItem[normCpf(l[k.cpf]) + '|' + String(l[k.plano_id])] || []).push({ p: objeto(v[0], l), dia: dia, diaL: diaL });
   }
-  var multiplos = Object.keys(grupos).filter(function (c) { return grupos[c].length > 1; });
+  var grupos = {};
+  Object.keys(porItem).forEach(function (c) {
+    var l = porItem[c], pai = l.map(function (x, n) { return n; });
+    var raiz = function (n) { while (pai[n] !== n) n = pai[n]; return n; };
+    for (var x = 0; x < l.length; x++) for (var y = x + 1; y < l.length; y++) {
+      if (l[x].dia === l[y].dia || l[x].diaL === l[y].diaL) pai[raiz(y)] = raiz(x);
+    }
+    var cl = {};
+    l.forEach(function (it, n) { (cl[raiz(n)] = cl[raiz(n)] || []).push(it.p); });
+    Object.keys(cl).forEach(function (r) { if (cl[r].length > 1) grupos[c + '|' + String(cl[r][0].order_nsu)] = cl[r]; });
+  });
+  var multiplos = Object.keys(grupos);
   // de onde veio cada venda: atendimento da agenda ligado a ela
-  var porNsu = {};
+  // (o atendimento fica ligado à venda pelo order_nsu, ou pelo crédito que a venda criou: "C" + o nsu sem a letra, usado quando a sessão sai do pacote/crédito da venda)
+  var porNsu = {}, porCredito = {};
   if (multiplos.length) {
     var va = valoresAba('Atendimentos'), ka = indiceColunas(va[0]);
     for (var j = 1; j < va.length; j++) {
-      var n = String(va[j][ka.order_nsu] || '');
-      if (n) porNsu[n] = { id: String(va[j][ka.id]), data: dataTexto(va[j][ka.data]), hora: String(va[j][ka.hora] || ''), status: String(va[j][ka.status] || ''), servico: String(va[j][ka.servico] || '') };
+      if (String(va[j][ka.status]) === 'cancelado') continue;
+      var at0 = { id: String(va[j][ka.id]), data: dataTexto(va[j][ka.data]), hora: String(va[j][ka.hora] || ''), status: String(va[j][ka.status] || ''), servico: String(va[j][ka.servico] || '') };
+      var n = String(va[j][ka.order_nsu] || ''), cr = String(va[j][ka.credito_id] || '');
+      if (n && !porNsu[n]) porNsu[n] = at0;
+      if (cr && !porCredito[cr]) porCredito[cr] = at0;
     }
   }
   var lista = multiplos.map(function (c) {
     var vendas = grupos[c].map(function (p) {
-      var at = porNsu[String(p.order_nsu)];
+      var nsu = String(p.order_nsu);
+      var at = porNsu[nsu] || porCredito['C' + nsu.slice(1)];
       var origem = p.comanda ? 'comanda' : String(p.origem) === 'site' ? 'site' : at ? 'agenda' : 'balcão';
       var o = pagamentoPublico(p);
       o.ligacao = { tipo: origem, agenda: at || null, comanda: String(p.comanda || '') };
@@ -1219,18 +1238,24 @@ function bancada_vendasDuplicadas(d, m) {
     if (vendas.every(function (x) { return x.conferida; })) return null;
     var contagem = {};
     vendas.forEach(function (x) { contagem[x.total] = (contagem[x.total] || 0) + 1; });
-    var tipo = Object.keys(contagem).some(function (t) { return contagem[t] > 1; }) ? 'igual' : 'parecida';
-    // sugestão: em cada valor repetido, fica a de maior peso (a mais antiga, no empate); as outras sobram
-    var sobra = 0;
-    if (tipo === 'igual') {
-      Object.keys(contagem).filter(function (t) { return contagem[t] > 1; }).forEach(function (t) {
-        var mesmas = vendas.filter(function (x) { return String(x.total) === t; });
-        var fica = mesmas.reduce(function (a, b) { return b.peso > a.peso ? b : a; }, mesmas[0]);
-        mesmas.forEach(function (x) { if (x !== fica && x.peso < 4) { x.sugerida = true; sobra += x.total; } });
-      });
-    }
+    // "igual": o mesmo valor aparece 2+ vezes e (foi recebido no mesmo dia, ou uma está ligada à agenda/comanda/site e a outra está solta no balcão)
+    var sobra = 0, tipo = 'parecida';
+    Object.keys(contagem).filter(function (t) { return contagem[t] > 1; }).forEach(function (t) {
+      var mesmas = vendas.filter(function (x) { return String(x.total) === t; });
+      var dias = {};
+      mesmas.forEach(function (x) { dias[String(x.pagoEm || x.criadoEm).slice(0, 10)] = 1; });
+      var soUmDia = Object.keys(dias).length === 1;
+      if (!soUmDia && !(mesmas.some(function (x) { return x.peso > 1; }) && mesmas.some(function (x) { return x.peso === 1; }))) return;
+      tipo = 'igual';
+      // fica a de maior peso (a mais antiga, no empate); sobram as outras (em dias diferentes, só as avulsas do balcão)
+      var fica = mesmas.reduce(function (a, b) { return b.peso > a.peso ? b : a; }, mesmas[0]);
+      mesmas.forEach(function (x) { if (x !== fica && x.peso < 4 && (soUmDia || x.peso === 1)) { x.sugerida = true; sobra += x.total; } });
+    });
+    var diasDoGrupo = {};
+    vendas.forEach(function (x) { diasDoGrupo[String(x.pagoEm || x.criadoEm).slice(0, 10)] = 1; });
     var p0 = grupos[c][0];
-    return { chave: c, cpf: normCpf(p0.cpf), nome: String(p0.nome), item: String(p0.descricao), dia: String(p0.pago_em || p0.criado_em).slice(0, 10), tipo: tipo,
+    var dias = Object.keys(diasDoGrupo).sort();
+    return { chave: c, cpf: normCpf(p0.cpf), nome: String(p0.nome), item: String(p0.descricao), dia: dias[0], dias: dias, tipo: tipo,
       vendas: vendas, sobra: dinheiro(sobra) };
   }).filter(Boolean).sort(function (a, b) { return a.dia < b.dia ? 1 : a.dia > b.dia ? -1 : (a.tipo === b.tipo ? 0 : a.tipo === 'igual' ? -1 : 1); });
   var iguais = lista.filter(function (g) { return g.tipo === 'igual'; });

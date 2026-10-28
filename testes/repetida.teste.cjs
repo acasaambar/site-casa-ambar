@@ -48,9 +48,18 @@ console.log('— o que NÃO é duplicada passa');
   ok(chamar('b_vender', { token: rec, cpf: cli, planoId: 'pilates-mensal-2x', metodo: 'Pix' }).ok, 'outro item para a mesma pessoa');
   ok(chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-mensal-2x', metodo: 'Pix', valor: 300 }).ok, 'mesmo item com outro valor (negociado)');
   const ontem = ctx.somarDias(hoje, -1);
-  ok(chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-mensal-2x', metodo: 'Pix', dataVenda: ontem }).ok, 'mesma venda em outro dia (lançada com a data de ontem)');
+  const antiga = ctx.somarDias(hoje, -5), outraAntiga = ctx.somarDias(hoje, -9);
+  ok(chamar('b_vender', { token: rec, cpf: outro, planoId: 'pilates-mensal-2x', metodo: 'Pix', dataVenda: antiga }).ok, 'venda com data passada (migração) entra');
+  ok(chamar('b_vender', { token: rec, cpf: outro, planoId: 'pilates-mensal-2x', metodo: 'Pix', dataVenda: outraAntiga }).ok, 'outra venda igual com OUTRA data passada também entra (são sessões diferentes da migração)');
+  r = chamar('b_vender', { token: rec, cpf: outro, planoId: 'pilates-mensal-2x', metodo: 'Pix', dataVenda: antiga });
+  ok(!r.ok && r.codigo === 'VENDA_DUPLICADA', 'mas repetir a mesma data passada é recusado', r.erro);
+  // lançada hoje e de novo com data passada (ou o contrário): o dia de recebimento muda, o de lançamento não
   r = chamar('b_vender', { token: rec, cpf: cli, planoId: 'yoga-mensal-2x', metodo: 'Pix', dataVenda: ontem });
-  ok(!r.ok && r.codigo === 'VENDA_DUPLICADA', 'mas lançar ontem duas vezes é recusado', r.erro);
+  ok(!r.ok && r.codigo === 'VENDA_DUPLICADA', 'venda de hoje + a mesma com a data de ontem: recusada (lançada em dobro)', r.erro);
+  const cliB = novo('Repetida Retro', '85940002014');
+  ok(chamar('b_vender', { token: rec, cpf: cliB, planoId: 'yoga-mensal-2x', metodo: 'Pix', dataVenda: ontem }).ok, 'primeiro com a data de ontem');
+  r = chamar('b_vender', { token: rec, cpf: cliB, planoId: 'yoga-mensal-2x', metodo: 'Pix' });
+  ok(!r.ok && r.codigo === 'VENDA_DUPLICADA', 'e depois a mesma com a data de hoje: recusada', r.erro);
 }
 
 console.log('— estornada ou excluída não conta');
@@ -171,6 +180,21 @@ console.log('— lista das vendas que podem ter sido lançadas em dobro (as que 
   // nova venda igual no mesmo grupo conferido volta a aparecer
   chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150, ...confirma(chamar('b_vender', { token: rec, cpf: outro, planoId: 'yoga-mensal-1x', metodo: 'Pix', valor: 150 })) });
   ok(chamar('b_vendasDuplicadas', { token: rec }).dados.grupos.some((x) => x.cpf === ctx.normCpf(outro)), 'uma venda nova igual depois da conferência volta a aparecer');
+}
+
+console.log('— venda ligada à agenda pelo crédito (venda de serviço + sessão usada do crédito dela)');
+{
+  const cli = novo('Lista Credito', '85940002013');
+  let dia = ctx.somarDias(hoje, 2); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+  const v1 = chamar('b_vender', { token: rec, cpf: cli, planoId: 'limpeza-pele', metodo: 'Pix' });
+  ok(v1.ok, 'venda do serviço no balcão');
+  const ag = chamar('b_agendarServico', { token: rec, servicoId: 'limpeza-pele', profissional: 'Lia Esteticista', data: dia, hora: '09:00', cpf: cli, pagamento: 'pacote' });
+  ok(ag.ok, 'agendado usando o crédito da venda', ag.erro);
+  const v2 = chamar('b_vender', { token: rec, cpf: cli, planoId: 'limpeza-pele', metodo: 'Pix' });
+  chamar('b_vender', { token: rec, cpf: cli, planoId: 'limpeza-pele', metodo: 'Pix', ...confirma(v2) });
+  r = chamar('b_vendasDuplicadas', { token: rec });
+  const g = r.dados.grupos.find((x) => x.cpf === ctx.normCpf(cli));
+  ok(g && g.vendas[0].orderNsu === v1.dados.orderNsu && g.vendas[0].ligacao.tipo === 'agenda' && !g.vendas[0].sugerida && g.vendas[1].sugerida === true, 'a venda cujo crédito a agenda usou fica; a outra sobra', g && g.vendas.map((x) => [x.ligacao.tipo, x.sugerida]));
 }
 
 console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

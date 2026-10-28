@@ -82,7 +82,7 @@ r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' });
 ok(!r.ok && r.codigo === 'JA_COMPROU', 'plano pago hoje: o site não cobra o mesmo plano de novo no mesmo dia', r);
 // no dia seguinte a contratação é nova e pede o contrato de novo
 const ontem = ctx.somarDias(ctx.hojeTexto(), -1);
-ctx.atualizarLinha('Pagamentos', ctx.linhaPagamento(nsu)._linha, { pago_em: ontem + ' 10:00:00' });
+ctx.atualizarLinha('Pagamentos', ctx.linhaPagamento(nsu)._linha, { criado_em: ontem + ' 09:50:00', pago_em: ontem + ' 10:00:00' });
 ctx.atualizarLinha('Contratos', ctx.lerAba('Contratos')[0]._linha, { assinado_em: ontem + ' 09:00:00' });
 r = chamar('comprar', { token: maria.token, planoId: 'yoga-mensal-2x' });
 ok(!r.ok && r.codigo === 'CONTRATO', 'depois de pago, a próxima contratação pede assinar de novo', r);
