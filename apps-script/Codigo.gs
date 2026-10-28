@@ -154,7 +154,9 @@ var ABAS = {
   Alunos: ['cpf', 'nome', 'whatsapp', 'email', 'senha_hash', 'sal', 'criado_em', 'ativo', 'wellhub', 'wellhub_id', 'wellhub_desde', 'obs_internas', 'origem_cadastro',
     'nascimento', 'marketing', 'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'como_conheceu',
     // alerta fixo escrito pela equipe (ex.: "alergia a látex"): aparece na agenda, nas aulas e na comanda
-    'alerta'],
+    'alerta',
+    // aceite da Política de Privacidade no cadastro do site: versão do texto (igual a src/lib/privacidade.js) e data/hora
+    'privacidade_versao', 'privacidade_em'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms', 'lembrete'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -483,6 +485,11 @@ function responder(ok, dados, erro, codigo) {
 // ============================================================
 //  3) ALUNOS E LOGIN (CPF + senha)
 // ============================================================
+// Política de Privacidade (página /privacidade do site): o cadastro só vale com o aceite da versão em vigor.
+// Mudou o texto? Troque a versão aqui E em src/lib/privacidade.js (e a data da página). Os testes desligam a exigência (simulador.cjs).
+var PRIVACIDADE_VERSAO = '2026-10-28';
+var PRIVACIDADE_OBRIGATORIA = true;
+
 function cadastrar(d) {
   // tamanhos primeiro (antes de qualquer outra conta): o cadastro é aberto a qualquer pessoa, sem login
   if (String(d.cpf || '').length > 20 || String(d.nome || '').length > 100 || String(d.email || '').length > 254
@@ -494,6 +501,10 @@ function cadastrar(d) {
   if (!emailValido(d.email)) throw new Error('Informe um e-mail válido. É por ele que você recupera a senha.');
   validarSenhaNova(d.senha);
   var endereco = exigirEndereco(enderecoDe(d.endereco || {}));
+  if (PRIVACIDADE_OBRIGATORIA) {
+    if (!d.privacidade) throw erroCod('Leia e aceite a Política de Privacidade para criar a conta.', 'PRIVACIDADE');
+    if (String(d.privacidade) !== PRIVACIDADE_VERSAO) throw erroCod('A Política de Privacidade foi atualizada. Recarregue a página, leia e aceite de novo.', 'PRIVACIDADE');
+  }
   conferirHumano(d);
   limitarPorMinutos('cadastro', 40, 10);
   // a senha é processada antes da trava (é a parte demorada; a fila anda mais rápido)
@@ -506,7 +517,8 @@ function cadastrar(d) {
     if (buscarAluno(cpf)) throw new Error('Este CPF já tem cadastro. Use "Entrar".');
     adicionarLinha('Alunos', { cpf: cpf, nome: String(d.nome).trim(), whatsapp: soDigitos(d.whatsapp), email: String(d.email).trim().toLowerCase(),
       senha_hash: hash, sal: sal, criado_em: agoraTexto(), ativo: 'SIM', origem_cadastro: 'site', como_conheceu: textoComoConheceu(d.comoConheceu),
-      cep: endereco.cep, endereco: endereco.endereco, numero: endereco.numero, complemento: endereco.complemento || '', bairro: endereco.bairro, cidade: endereco.cidade, uf: endereco.uf });
+      cep: endereco.cep, endereco: endereco.endereco, numero: endereco.numero, complemento: endereco.complemento || '', bairro: endereco.bairro, cidade: endereco.cidade, uf: endereco.uf,
+      privacidade_versao: d.privacidade ? PRIVACIDADE_VERSAO : '', privacidade_em: d.privacidade ? agoraTexto() : '' });
   } finally {
     soltarTrava(trava);
   }

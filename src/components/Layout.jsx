@@ -110,6 +110,7 @@ const TITULOS = {
   '/nova-senha': 'Nova senha',
   '/descadastrar': 'Descadastrar',
   '/confirmar': 'Confirmar horário',
+  '/privacidade': 'Política de privacidade',
 };
 function tituloDaPagina(pathname) {
   if (pathname === '/') return TITULO_INICIO;
@@ -210,6 +211,7 @@ export function Footer() {
       </div>
       <div className="rodape__base">
         <span className="rodape__base-marca"><Sol tamanho={14} /> Casa Âmbar · desde 26</span>
+        <Link className="rodape__privacidade" to="/privacidade">Política de privacidade</Link>
         <span>Fortaleza · Ceará</span>
       </div>
       <Assinatura className="assinatura--rodape" />

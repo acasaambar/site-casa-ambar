@@ -8,6 +8,7 @@ import { CampoSenha, ConfereSenha } from '../components/CampoSenha.jsx';
 import { COMO_CONHECEU, ENDERECO_VAZIO, faltaNoEndereco, campoFaltandoNoEndereco } from '../lib/clientes.js';
 import { EnderecoSite } from '../components/EnderecoSite.jsx';
 import { useVerificacao } from '../components/Verificacao.jsx';
+import { POLITICA_VERSAO } from '../lib/privacidade.js';
 
 export function problemaSenha(s) {
   if (String(s).length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
@@ -26,6 +27,7 @@ export default function Entrar() {
   const [erro, setErro] = useState('');
   // campo que a mensagem de erro aponta ('' = erro geral, que aparece junto do botão)
   const [erroNome, setErroNome] = useState('');
+  const [aceitePrivacidade, setAceitePrivacidade] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const formRef = useRef(null);
   const verif = useVerificacao(modo === 'cadastro');
@@ -78,6 +80,7 @@ export default function Entrar() {
       const problema = problemaSenha(f.senha);
       if (problema) return falhar(problema, 'senha');
       if (f.senha !== f.senha2) return falhar('As senhas não conferem.', 'senha2');
+      if (!aceitePrivacidade) return falhar('Para criar a conta, leia e aceite a Política de Privacidade.', 'privacidade');
       if (verif.falta) return setErro(verif.falta);
     }
     setEnviando(true);
@@ -85,7 +88,7 @@ export default function Entrar() {
       await (
         modo === 'entrar'
           ? await entrar(soDigitos(f.cpf), f.senha)
-          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu, endereco, verificacao: verif.token })
+          : await cadastrar({ nome: f.nome.trim(), cpf: soDigitos(f.cpf), whatsapp: soDigitos(f.whatsapp), email: f.email.trim(), senha: f.senha, comoConheceu: f.comoConheceu, endereco, verificacao: verif.token, privacidade: POLITICA_VERSAO })
       );
       // a ficha de saúde não é pedida aqui: aparece na primeira reserva e na primeira contratação de plano
       nav(destino, { replace: true });
@@ -182,6 +185,23 @@ export default function Entrar() {
                   </label>
                   {erroDe('senha2')}
                 </fieldset>
+
+                <div className="termo-privacidade">
+                  <label className="termo">
+                    <input
+                      type="checkbox"
+                      name="privacidade"
+                      checked={aceitePrivacidade}
+                      aria-describedby={erroNome === 'privacidade' ? 'erro-campo' : undefined}
+                      onChange={(e) => { if (erroNome === 'privacidade') limparErro(); setAceitePrivacidade(e.target.checked); }}
+                    />
+                    <span>
+                      Li e concordo com a{' '}
+                      <Link to="/privacidade" target="_blank" rel="noreferrer">Política de Privacidade<span className="so-leitor"> (abre em outra aba)</span></Link>.
+                    </span>
+                  </label>
+                  {erroDe('privacidade')}
+                </div>
               </>
             ) : (
               <>

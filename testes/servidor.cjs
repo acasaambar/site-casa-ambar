@@ -95,6 +95,7 @@ chamar('b_salvarFichaEstetica', { token: adm, atendimentoId: atHoje[0].id, ficha
 chamar('b_salvarEvolucao', { token: adm, atendimentoId: atHoje[0].id, anotacao: 'Primeira sessão. Pele respondeu bem ao vapor de ozônio; leve vermelhidão na testa.\nOrientado protetor solar a cada 3h.', fotos: [png, png] });
 module.exports = { m, adm, hojeS };
 if (require.main !== module) return;
+ctx.PRIVACIDADE_OBRIGATORIA = true; // o simulador local pede o aceite da política no cadastro, como o site de verdade
 // TURNSTILE_SECRET=x npm run simulador → liga o "não sou robô" (o simulador aceita só a confirmação 'humano-ok')
 if (process.env.TURNSTILE_SECRET) m.props.TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;
 console.log('pronto: admin contato@acasaambar.com.br / ambar2026adm · recepção bia@acasaambar.com.br / recep2026ok · prof ana@gmail.com / anapaula26');

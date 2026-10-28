@@ -95,6 +95,8 @@ function criar(arquivos) {
   for (const a of arquivos) vm.runInContext(fs.readFileSync(a, 'utf8'), ctx, { filename: a });
   // o contrato dos planos (Contrato.gs) já vem ligado; os testes antigos compram plano sem assinar: ligam à mão quando querem testá-lo
   if (ctx.CONTRATO_PRONTO !== undefined) ctx.CONTRATO_PRONTO = false;
+  // a Política de Privacidade no cadastro (exigida no site) também fica desligada nos testes; repetida/privacidade.teste.cjs e o npm run simulador ligam
+  if (ctx.PRIVACIDADE_OBRIGATORIA !== undefined) ctx.PRIVACIDADE_OBRIGATORIA = false;
   // mudança na planilha feita fora de um pedido (o teste mexendo direto, como alguém editando à mão):
   // o cache das abas é esquecido, como no botão "Ler a planilha de novo" dos Ajustes
   const digital = () => JSON.stringify(Object.values(ss.sheets).map((sh) => sh.rows));

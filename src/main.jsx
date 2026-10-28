@@ -12,6 +12,8 @@ import './styles.css';
 import './styles/site-revisao.css';
 // Revisão de interface da área do aluno (janelas, reservas, plano, contrato)
 import './styles/aluno-revisao.css';
+// Política de Privacidade e aceite no cadastro
+import './styles/privacidade.css';
 import App from './App.jsx';
 import ErroTela from './components/ErroTela.jsx';
 import { EXTERNOS } from './externos.js';
