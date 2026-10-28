@@ -2,10 +2,11 @@ import { useMemo, useState } from 'react';
 import './css/vendas.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useEsquecerPedidoDaRota, Esqueleto, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, Aviso, Tag, Vazio, CampoBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, METODOS, ehCartao, faltaBandeira,
+import { useDados, useEsquecerPedidoDaRota, Esqueleto, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, Aviso, Ajuda, Tag, Vazio, CampoBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, METODOS, ehCartao, faltaBandeira,
   real, kpiReal, hojeIso, somarDias, dataBR, dataCurta, cpfFmt, baixarCSV, plural, numBR } from './ui.jsx';
 import { VenderModal } from './Alunos.jsx';
 import { ListaVales } from './Vales.jsx';
+import { filtrarVendas, formasDaVenda, FILTROS_VAZIOS, temFiltro } from './buscaVendas.js';
 
 // Vendas e vales-presente (o vale é sempre vendido, pela comanda)
 export default function Vendas() {
@@ -26,6 +27,7 @@ export default function Vendas() {
 }
 
 // número do pedido da comanda vira o "nº" curto que a comanda mostra (Comanda Q261028083158AAB2F → Comanda nº AAB2F)
+const nomeDeEmail = (e) => { const n = String(e || '').split('@')[0]; return n ? n.charAt(0).toUpperCase() + n.slice(1) : ''; };
 const obsLegivel = (t) => String(t || '').replace(/Comanda Q\d{10,}(\w{5})\b/g, 'Comanda nº $1');
 
 const FILTROS = [['todos', 'Todos'], ['pagos', 'Pagos'], ['pendentes', 'Pendentes'], ['site', 'Site'], ['balcao', 'Balcão'], ['devolver', 'Juros a devolver'], ['estornados', 'Estornados'], ['excluidas', 'Excluídas']];
@@ -50,10 +52,18 @@ function ListaVendas({ abas }) {
   const [filtro, setFiltro] = useState(local.state?.filtro || 'todos');
   const [nova, setNova] = useState(!!local.state?.nova);
   const [aberta, setAberta] = useState(null); // venda aberta na folha (corrigir, excluir, estorno)
+  const [f, setF] = useState(FILTROS_VAZIOS); // busca por texto/valor e filtros de forma, valor e quem lançou
   const { dados, erro, carregando, recarregar } = useDados('pagamentos', { de, ate });
 
-  const lista = useMemo(() => (dados || []).filter((p) => passaNoFiltro(p, filtro)), [dados, filtro]);
-  const contagem = useMemo(() => Object.fromEntries(FILTROS.map(([id]) => [id, (dados || []).filter((p) => passaNoFiltro(p, id)).length])), [dados]);
+  const achadas = useMemo(() => filtrarVendas(dados || [], f, obsLegivel), [dados, f]); // com a busca; os chips contam em cima disto
+  const lista = useMemo(() => achadas.filter((p) => passaNoFiltro(p, filtro)), [achadas, filtro]);
+  const contagem = useMemo(() => Object.fromEntries(FILTROS.map(([id]) => [id, achadas.filter((p) => passaNoFiltro(p, id)).length])), [achadas]);
+  const formas = useMemo(() => [...new Set((dados || []).flatMap(formasDaVenda))].sort(), [dados]);
+  const quemLancou = useMemo(() => [...new Set((dados || []).map((p) => p.registradoPor).filter(Boolean))].sort(), [dados]);
+  const filtrando = temFiltro(f) || filtro !== 'todos';
+  const somaLista = lista.filter((p) => p.status === 'pago').reduce((s, p) => s + p.valor, 0);
+  const mudar = (campo) => (e) => setF((x) => ({ ...x, [campo]: e.target.value }));
+  const limpar = () => { setF(FILTROS_VAZIOS); setFiltro('todos'); };
   const pagos = (dados || []).filter((p) => p.status === 'pago');
   const total = pagos.reduce((s, p) => s + p.valor, 0);
   const verLiquido = pagos.some((p) => p.liquido != null); // só a administração recebe a taxa e o líquido
@@ -84,21 +94,50 @@ function ListaVendas({ abas }) {
         <Kpi rotulo="Juros a devolver" valor={devolver.length} tom={devolver.length ? 'alerta' : ''} detalhe="parcelou dentro do sem juros" />
       </section>
       <div className="b-barra-fixa vn-barra">
+        <div className="vn-busca">
+          <input type="search" value={f.busca} onChange={mudar('busca')} placeholder="Cliente, CPF, item, valor ou código" aria-label="Buscar nas vendas" autoComplete="off" />
+          <Ajuda alinhar="direita">Várias palavras ao mesmo tempo: “maria drenagem”. Um número acha o valor exato (“150” ou “1.200,50”) e, com 3 ou mais dígitos, também o CPF e o código. Faixas: “100-200”, “&gt;300”, “&lt;80”. Também acha cupom, vale, bandeira e observação.</Ajuda>
+        </div>
         <div className="b-filtros vn-chips" role="group" aria-label="Filtrar vendas">
           {FILTROS.map(([id, t]) => (
             <button key={id} type="button" className={`b-chip${filtro === id ? ' b-chip--ativo' : ''}`} onClick={() => setFiltro(id)}>{t}{dados && contagem[id] > 0 && <span>{contagem[id]}</span>}</button>
           ))}
         </div>
       </div>
+      <div className="vn-filtros" role="group" aria-label="Filtrar por forma, valor e quem lançou">
+        <label className="vn-campo"><span>Forma</span>
+          <select value={f.forma} onChange={mudar('forma')}>
+            <option value="">Todas</option>
+            {formas.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+        </label>
+        <label className="vn-campo"><span>Valor de</span><input inputMode="decimal" value={f.min} onChange={mudar('min')} placeholder="R$ 0,00" /></label>
+        <label className="vn-campo"><span>Valor até</span><input inputMode="decimal" value={f.max} onChange={mudar('max')} placeholder="sem limite" /></label>
+        {quemLancou.length > 1 && (
+          <label className="vn-campo"><span>Quem lançou</span>
+            <select value={f.quem} onChange={mudar('quem')}>
+              <option value="">Todos</option>
+              {quemLancou.map((x) => <option key={x} value={x}>{nomeDeEmail(x)}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
       <Erro>{erro}</Erro>
       {carregando && !dados && <Esqueleto linhas={6} altura={58} />}
+      {dados && filtrando && lista.length > 0 && (
+        <p className="vn-achadas" role="status">
+          <span>{plural(lista.length, 'venda encontrada', 'vendas encontradas')} de {dados.length}</span>
+          {somaLista > 0 && <strong>{real(somaLista)} recebidos</strong>}
+          <button type="button" className="botao botao--fantasma botao--p" onClick={limpar}>Limpar busca e filtros</button>
+        </p>
+      )}
       {dados && lista.length === 0 && (
-        <Vazio titulo="Nenhuma venda aqui" forma="equilibrio" acao={
+        <Vazio titulo={filtrando ? 'Nenhuma venda com essa busca' : 'Nenhuma venda aqui'} forma="equilibrio" acao={
           <>
-            {filtro !== 'todos' && <button type="button" className="botao botao--linha botao--p" onClick={() => setFiltro('todos')}>Ver todas</button>}
+            {filtrando && <button type="button" className="botao botao--linha botao--p" onClick={limpar}>Limpar busca e filtros</button>}
             <button type="button" className="botao botao--cheio botao--p" onClick={() => setNova(true)}>Registrar venda</button>
           </>
-        }>Nada neste período e filtro. Mude as datas ou registre uma venda do balcão.</Vazio>
+        }>{filtrando ? 'Confira a grafia, tire um filtro ou aumente o período (De / Até).' : 'Nada neste período. Mude as datas ou registre uma venda do balcão.'}</Vazio>
       )}
       {dados && lista.length > 0 && (
         <ul className="vn-lista">
