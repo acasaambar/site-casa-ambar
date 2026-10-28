@@ -12,7 +12,7 @@ import { lerMedidas, limparMedidas } from '../lib/api.js';
 //  A diferença é a internet + o Google preparando o pedido (não depende do nosso código).
 // ============================================================
 const NOMES = {
-  agendaSemana: 'Agenda (semana)', agendarServico: 'Agendar ou remarcar serviço', agendarServicos: 'Agendar vários serviços', atualizarAtendimento: 'Mudar atendimento (atendido, falta…)',
+  agendaSemana: 'Agenda (semana)', agendaMes: 'Agenda (mês)', agendarServico: 'Agendar ou remarcar serviço', agendarServicos: 'Agendar vários serviços', atualizarAtendimento: 'Mudar atendimento (atendido, falta…)',
   horarios: 'Horários livres', novoAluno: 'Cadastrar cliente', aluno: 'Abrir ficha do cliente', alunos: 'Lista e busca de clientes',
   salvarAluno: 'Salvar ficha do cliente', comanda: 'Abrir comanda', comandas: 'Comandas abertas', salvarComanda: 'Mudar comanda (itens)',
   fecharComanda: 'Fechar comanda', comandaDoAtendimento: 'Comanda do atendimento', resumo: 'Tela Hoje', presenca: 'Presença na aula',

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import './css/agenda.css';
-import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Esqueleto, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, Aviso, Ajuda, Segmento, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
-  DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
+import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Esqueleto, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, Aviso, Ajuda, Segmento, MenuMais, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+  DIAS, DIAS_LONGOS, MESES, MESES_LONGOS, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Lugares, Passo, ClienteEscolhido } from './AgendaPecas.jsx';
-import { iniciais } from './agendaUtil.js';
+import { iniciais, useCelular, mesMais, tituloMes } from './agendaUtil.js';
+import { MesCelular } from './AgendaCelular.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { comNumeros } from '../components/Num.jsx';
 import { AgendaServicos, AgendaSemana } from './Servicos.jsx';
@@ -27,6 +28,10 @@ export default function Agenda() {
     setDiaBruto(d);
     try { sessionStorage.setItem('ambar_agenda_dia', JSON.stringify({ dia: d, quando: Date.now() })); } catch { /* sem armazenamento */ }
   };
+  const celular = useCelular();
+  // "Agenda de quem" no celular (Dia e Mês): só a equipe do balcão escolhe; fica guardado neste aparelho
+  const [pessoa, setPessoaBruto] = useState(() => { try { return localStorage.getItem('ambar_agenda_pessoa') || ''; } catch { return ''; } });
+  const setPessoa = (n) => { setPessoaBruto(n); try { localStorage.setItem('ambar_agenda_pessoa', n); } catch { /* sem armazenamento */ } };
   const [filtro, setFiltro] = useState('Todas');
   const [abertas, setAbertas] = useState(() => (local.state?.abrir ? { [local.state.abrir]: true } : {}));
   const [agendar, setAgendar] = useState(null);
@@ -34,7 +39,7 @@ export default function Agenda() {
   const [ficha, setFicha] = useState(null);
   const [aviso, setAviso] = useState('');
   const [vistaEscolhida, setVista] = useState(local.state?.abrir || local.state?.vista === 'aulas' ? 'aulas' : local.state?.vista === 'trocas' ? 'trocas'
-    : local.state?.vista === 'semana' ? 'semana' : local.state?.novoServico || local.state?.espera || local.state?.vista === 'dia' ? 'dia' : null);
+    : local.state?.vista === 'semana' ? 'semana' : local.state?.vista === 'mes' ? 'mes' : local.state?.novoServico || local.state?.espera || local.state?.vista === 'dia' ? 'dia' : null);
   // "lista de espera" da tela Hoje abre a folha da lista (uma vez só)
   const [abrirEspera] = useState(!!local.state?.espera);
   const [esperaAula, setEsperaAula] = useState(null); // aula em que vai pôr alguém na lista de espera
@@ -61,7 +66,8 @@ export default function Agenda() {
   const equipeBalcao = pode(membro, 'admin', 'recepcao');
   // quem só dá aula (não atende serviços) abre a agenda direto em "Aulas e presença"
   const fazServicos = useFazServicos();
-  const vista = vistaEscolhida || (fazServicos === false ? 'aulas' : 'dia');
+  // o Mês só existe no celular (no computador a grade da semana já mostra tudo)
+  const vista = vistaEscolhida === 'mes' && !celular ? 'dia' : vistaEscolhida || (fazServicos === false ? 'aulas' : 'dia');
 
   const dados = useMemo(() => (pronto ? semana.aulas.filter((a) => a.data === dia) : null), [pronto, semana, dia]);
   const doDia = useMemo(() => (pronto ? {
@@ -146,6 +152,12 @@ export default function Agenda() {
   }
 
   const anda = vista === 'semana' ? 7 : 1;
+  // setas do celular: dia, semana ou mês (no Mês, o dia escolhido vai para o dia 1 do outro mês)
+  const ir = (n) => setDia(vista === 'mes' ? mesMais(dia, n) : somarDias(dia, n * anda));
+  const hojeAqui = vista === 'mes' ? dia.slice(0, 7) === hojeIso().slice(0, 7) : vista === 'semana' ? segundaDe(dia) === segundaDe(hojeIso()) : dia === hojeIso();
+  const tituloCel = vista === 'mes' ? tituloMes(dia)
+    : vista === 'semana' ? (() => { const fim = somarDias(inicioSemana, 6); return `${Number(inicioSemana.slice(8))} ${MESES[Number(inicioSemana.slice(5, 7)) - 1]} – ${Number(fim.slice(8))} ${MESES[Number(fim.slice(5, 7)) - 1]}`; })()
+      : `${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES_LONGOS[Number(dia.slice(5, 7)) - 1]}`;
   // ← e → trocam de dia (de semana, na Semana) no computador, fora de campos e janelas
   useEffect(() => {
     const tecla = (e) => {
@@ -160,10 +172,31 @@ export default function Agenda() {
     document.addEventListener('keydown', tecla);
     return () => document.removeEventListener('keydown', tecla);
   }); // eslint-disable-line react-hooks/exhaustive-deps
+  const faixaDias = vista !== 'semana' && vista !== 'mes' && vista !== 'trocas' && <div className="b-tira ag-tira" role="tablist" aria-label="Dias da semana">
+        {tira.map((d) => (
+          <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}>
+            <span className="b-so-leitor">{DIAS_LONGOS[diaSemana(d)]}, {Number(d.slice(8))}{porDia[d] ? ` · ${plural(porDia[d], 'atendimento', 'atendimentos')}` : ''}</span>
+            <span aria-hidden="true">{DIAS[diaSemana(d)]}</span>
+            <strong aria-hidden="true">{Number(d.slice(8))}</strong>
+            <i className="ag-tira__n" aria-hidden="true">{porDia[d] || ''}</i>
+          </button>
+        ))}
+      </div>;
   return (
     <>
       {vista === 'trocas' ? (
         <Cabecalho titulo="Trocas de profissional">{equipeBalcao ? 'Pedidos, trocas feitas e quem cobriu quem' : 'Seus pedidos e os horários que você cobre'}</Cabecalho>
+      ) : celular ? (
+        <div className="am-topo">
+          <button type="button" className="am-seta" onClick={() => ir(-1)} aria-label={vista === 'mes' ? 'Mês anterior' : vista === 'semana' ? 'Semana anterior' : 'Dia anterior'}>‹</button>
+          <div className="am-topo__centro">
+            <h1>{comNumeros(tituloCel)}</h1>
+            {vista !== 'mes' && <span className={`ag-resumo b-meta${pronto ? '' : ' ag-resumo--carregando'}`}>{resumo()}</span>}
+          </div>
+          {!hojeAqui && <button type="button" className="am-hoje" onClick={() => setDia(hojeIso())}>Hoje</button>}
+          <button type="button" className="am-seta" onClick={() => ir(1)} aria-label={vista === 'mes' ? 'Próximo mês' : vista === 'semana' ? 'Próxima semana' : 'Próximo dia'}>›</button>
+          {!equipeBalcao && <MenuMais rotulo="Mais opções" itens={[{ texto: 'Pedir substituição', acao: () => setPedir({}) }]} />}
+        </div>
       ) : (<>
       <Cabecalho titulo={comNumeros(vista === 'semana' ? tituloSemana(dia) : `${DIAS_LONGOS[diaSemana(dia)]}, ${Number(dia.slice(8))} de ${MESES[Number(dia.slice(5, 7)) - 1]}`)}
         acoes={
@@ -175,22 +208,14 @@ export default function Agenda() {
           </div>
         }><span className={`ag-resumo b-meta${pronto ? '' : ' ag-resumo--carregando'}`}>{resumo()}</span></Cabecalho>
 
-      {vista !== 'semana' && <div className="b-tira ag-tira" role="tablist" aria-label="Dias da semana">
-        {tira.map((d) => (
-          <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}>
-            <span className="b-so-leitor">{DIAS_LONGOS[diaSemana(d)]}, {Number(d.slice(8))}{porDia[d] ? ` · ${plural(porDia[d], 'atendimento', 'atendimentos')}` : ''}</span>
-            <span aria-hidden="true">{DIAS[diaSemana(d)]}</span>
-            <strong aria-hidden="true">{Number(d.slice(8))}</strong>
-            <i className="ag-tira__n" aria-hidden="true">{porDia[d] || ''}</i>
-          </button>
-        ))}
-      </div>}
+      {!celular && faixaDias}
       </>)}
 
       <div className="b-agenda__vista ag-barra-topo">
         <Segmento rotulo="O que mostrar" atual={vista} aoMudar={setVista} itens={[
           ['dia', <><span className="ag-longo">Agenda do dia</span><span className="ag-curto">Dia</span></>],
           ['semana', 'Semana'],
+          ...(celular ? [['mes', 'Mês']] : []),
           ['aulas', <><span className="ag-longo">Aulas e presença</span><span className="ag-curto">Aulas</span></>],
           ['trocas', 'Trocas'],
         ]} />
@@ -203,17 +228,19 @@ export default function Agenda() {
         )}
         <div className="ag-acoes" ref={setSlot}>
           {equipeBalcao && vista !== 'dia' && <button type="button" className="botao botao--linha botao--p" onClick={() => setNaoVem(true)}>Alguém não vem</button>}
-          {!equipeBalcao && vista !== 'trocas' && <button type="button" className="botao botao--linha botao--p" onClick={() => setPedir({})}>Pedir substituição</button>}
+          {!equipeBalcao && !celular && vista !== 'trocas' && <button type="button" className="botao botao--linha botao--p" onClick={() => setPedir({})}>Pedir substituição</button>}
         </div>
       </div>
 
-      {vista === 'semana' && <AgendaSemana dia={dia} semana={pronto ? semana : null} erro={erro} aplicar={aplicar} slot={slot}
+      {celular && faixaDias}
+      {vista === 'semana' && <AgendaSemana dia={dia} semana={pronto ? semana : null} erro={erro} aplicar={aplicar} slot={slot} celular={celular}
         aoAbrirDia={(d) => { setDia(d); setVista('dia'); }} />}
+      {vista === 'mes' && <MesCelular dia={dia} pessoa={pessoa} balcao={equipeBalcao} aoEscolherPessoa={setPessoa} aoAbrirDia={(d) => { setDia(d); setVista('dia'); }} />}
       {vista === 'trocas' && <PainelTrocas dia={dia} aoMudar={recarregar} />}
 
       {vista === 'dia' && (
         <AgendaServicos dia={dia} dados={doDia} erro={erro} recarregar={recarregar} aplicar={aplicar} slot={slot} aoNaoVem={equipeBalcao ? () => setNaoVem(true) : null}
-          abrirNovo={abrirNovoServico} abrirEspera={abrirEspera} aulas={dados || []} aoAbrirAula={(a) => {
+          abrirNovo={abrirNovoServico} abrirEspera={abrirEspera} celular={celular} pessoa={pessoa} aoEscolherPessoa={setPessoa} aulas={dados || []} aoAbrirAula={(a) => {
             setFiltro('Todas');
             setAbertas({ [a.id]: true });
             setVista('aulas');

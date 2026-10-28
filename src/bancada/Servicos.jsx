@@ -13,14 +13,11 @@ import { Avatar, BlocoForm, Interruptor, Barra } from './CatalogoPecas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
 import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
+import { COR_CATEGORIA } from './agendaUtil.js';
+import { DiaLista, Pessoas } from './AgendaCelular.jsx';
 
-// Cor de cada área de cuidado (tons da marca)
-export const COR_CATEGORIA = {
-  'Estética facial': 'facial',
-  'Estética corporal': 'corporal',
-  'Estética capilar': 'capilar',
-  Fisioterapia: 'fisio',
-};
+// Cor de cada área de cuidado (tons da marca): mora em agendaUtil.js (a lista do celular também usa)
+export { COR_CATEGORIA };
 const STATUS = {
   agendado: ['Agendado', 'neutro'],
   confirmado: ['Confirmado', 'ok'],
@@ -55,7 +52,7 @@ import './css/agenda.css';
 // dados: { atendimentos, folgas, equipe } do dia (vêm da semana carregada pela Agenda; null enquanto carrega).
 // slot: lugar na barra da Agenda onde ficam os botões (agendar, bloquear, lista de espera…).
 // aplicar(atendimento): mostra na hora o que foi salvo e atualiza a semana por trás.
-export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, aoNaoVem, aulas = [], aoAbrirAula, abrirNovo, abrirEspera }) {
+export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, aoNaoVem, aulas = [], aoAbrirAula, abrirNovo, abrirEspera, celular = false, pessoa = '', aoEscolherPessoa }) {
   const { membro, chamar } = useBancada();
   const [erroAberto, setErroAberto] = useState('');
   const balcao = pode(membro, 'admin', 'recepcao');
@@ -295,6 +292,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
     <>
       {acoes}
       <Erro>{erro}</Erro>
+      {!celular && (<>
       {balcao && (
         <div className="ag-barra">
           <div className={`ag-grupos${maisGrupos ? ' b-rola--mais' : ''}`} role="group" aria-label="Mostrar na agenda" ref={gruposRef}>
@@ -317,6 +315,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
           </div>
         </div>
       )}
+      </>)}
 
       {colunas.length === 0 && (balcao ? (
         <Vazio titulo="Ninguém atende neste dia" forma="presenca" acao={pode(membro, 'admin') ? <Link className="botao botao--linha botao--p" to="/bancada/grade">Abrir o catálogo</Link> : null}>
@@ -326,6 +325,16 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
         <Vazio titulo="Nada na sua agenda neste dia" forma="presenca">Escolha outro dia acima.</Vazio>
       ))}
 
+      {celular && colunas.length > 0 && (<>
+        {balcao && colunas.length > 1 && (
+          <Pessoas colunas={colunas} pessoa={colunas.some((c) => c.nome === pessoa) ? pessoa : ''} aoEscolher={aoEscolherPessoa}
+            contar={(nome) => lista.filter((a) => a.profissional === nome && a.status !== 'cancelado').length + aulas.filter((a) => a.professor === nome).length} />
+        )}
+        <DiaLista dia={dia} colunas={colunas} pessoa={colunas.some((c) => c.nome === pessoa) ? pessoa : ''} lista={lista} aulas={aulas} folgas={folgas} ehHoje={ehHoje} minutoAgora={minutoAgora}
+          podeAgendar={balcao} aoAtendimento={(a) => setAberto(a)} aoAula={(a) => aoAbrirAula?.(a)} aoFolga={(f) => setFolga(f)} aoAgendar={(inicial) => setNovo(inicial)} />
+      </>)}
+
+      {!celular && (<>
       {mostradas.length > 0 && (
         <div className={`ag${arrasto ? ' ag--arrastando' : ''}`} ref={quadro} style={{ '--visiveis': balcao ? Math.min(visiveis, mostradas.length) : mostradas.length }}>
           <div className="ag-grade" style={{ '--n': mostradas.length, '--alt': `${ALT}px` }}>
@@ -413,6 +422,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
           </div>
         </div>
       )}
+      </>)}
 
       {novo && catalogo && <NovoAtendimento inicial={novo} catalogo={catalogo} aoFechar={() => setNovo(null)} aoSalvar={(r) => { setNovo(null); aplicar(r); }} />}
       {aberto && <DetalheAtendimento a={aberto} erroInicial={erroAberto} aoFechar={() => { setAberto(null); setErroAberto(''); }} aoMudar={(r) => { setAberto(null); aplicar(r); }}
@@ -1729,7 +1739,7 @@ export function OpcoesItens({ itens, comGrupo }) {
 // ============================================================
 
 // semana: a mesma busca da Agenda (atendimentos, folgas, equipe com os turnos de cada dia e aulas); null enquanto carrega
-export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
+export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia, celular = false }) {
   const { membro } = useBancada();
   const balcao = pode(membro, 'admin', 'recepcao');
   const inicio = segundaDe(dia);
@@ -1766,7 +1776,8 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
     aulas.forEach((x) => { a = Math.min(a, min(x.hora)); b = Math.max(b, min(x.hora) + (x.duracao || 60)); });
     return [Math.floor(a / 60) * 60, Math.ceil(b / 60) * 60];
   }, [dados, aulasSem, pessoa]); // eslint-disable-line react-hooks/exhaustive-deps
-  const PX = ALT / SLOT;
+  const alt = celular ? 34 : ALT; // celular: linhas mais baixas, a semana inteira cabe na tela
+  const PX = alt / SLOT;
   const y = (m) => (m - INI) * PX;
   const altura = (FIM - INI) * PX;
   const hoje = hojeIso();
@@ -1814,12 +1825,12 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
           <label className="b-campo sem-pessoa"><span className="rotulo">Agenda de</span>
             <select value={pessoa} onChange={(e) => escolher(e.target.value)}>{pessoas.map((n) => <option key={n}>{n}</option>)}</select>
           </label>
-        ) : <strong className="sem-pessoa__nome">{pessoa}</strong>}
-        <span className="b-meta ag-sem-barra__n"><span><strong>{totalSemana}</strong> {totalSemana === 1 ? 'atendimento' : 'atendimentos'}</span><span><strong>{aulas.length}</strong> {aulas.length === 1 ? 'aula' : 'aulas'}</span><span>na semana</span></span>
+        ) : !celular && <strong className="sem-pessoa__nome">{pessoa}</strong>}
+        {!celular && <span className="b-meta ag-sem-barra__n"><span><strong>{totalSemana}</strong> {totalSemana === 1 ? 'atendimento' : 'atendimentos'}</span><span><strong>{aulas.length}</strong> {aulas.length === 1 ? 'aula' : 'aulas'}</span><span>na semana</span></span>}
       </div>
       {!pessoa ? <Vazio titulo="Ninguém para mostrar" forma="presenca">Cadastre a equipe em Catálogo → Profissionais.</Vazio> : (
-        <div className="ag ag--semana" ref={quadroSem} style={{ '--visiveis': typeof window !== 'undefined' && window.innerWidth < 600 ? 3 : 7 }}>
-          <div className="ag-grade" style={{ '--n': 7, '--alt': `${ALT}px` }}>
+        <div className={`ag ag--semana${celular ? ' ag--mini' : ''}`} ref={quadroSem} style={{ '--visiveis': celular ? 7 : typeof window !== 'undefined' && window.innerWidth < 600 ? 3 : 7 }}>
+          <div className="ag-grade" style={{ '--n': 7, '--alt': `${alt}px` }}>
             <div className="ag-canto" aria-hidden="true" />
             {dias.map((d) => {
               const nDia = atend.filter((a) => a.data === d && a.status !== 'cancelado').length + aulas.filter((a) => a.data === d).length;
@@ -1834,7 +1845,7 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
             <div className="ag-horas" style={{ height: altura }} aria-hidden="true">
               {Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
                 const m = INI + i * SLOT;
-                return <span key={m} className={m % 60 ? 'meia' : ''} style={{ top: i * ALT }}>{hhmm(m)}</span>;
+                return <span key={m} className={m % 60 ? 'meia' : ''} style={{ top: i * alt }}>{hhmm(m)}</span>;
               })}
             </div>
             {dias.map((d) => {
@@ -1842,11 +1853,11 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
               return (
                 <div key={d} className={`ag-col${d === hoje ? ' sem-col--hoje' : ''}`} style={{ height: altura }} role="group" aria-label={`${pessoa}, ${dataBR(d)}`}>
                   {fora(d).map(([a, b]) => <div key={a} className="ag-fora" style={{ top: y(a), height: (b - a) * PX }} />)}
-                  {balcao && eq && d >= hoje && Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
+                  {balcao && eq && !celular && d >= hoje && Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
                     const m = INI + i * SLOT;
                     const livre = (t || []).some(([a, b]) => m >= a && m < b);
                     return livre && (
-                      <button key={m} type="button" className="ag-vago" style={{ top: i * ALT, height: ALT }} aria-label={`Agendar com ${pessoa} em ${dataBR(d)} às ${hora(hhmm(m))}`}
+                      <button key={m} type="button" className="ag-vago" style={{ top: i * alt, height: alt }} aria-label={`Agendar com ${pessoa} em ${dataBR(d)} às ${hora(hhmm(m))}`}
                         onClick={() => setNovo({ data: d, profissional: pessoa, hora: hhmm(m) })}><span>+ {hora(hhmm(m))}</span></button>
                     );
                   })}

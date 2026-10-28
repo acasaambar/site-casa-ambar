@@ -294,7 +294,7 @@ function atendimentosDoPeriodo(de, ate) {
 
 function bancada_atendimentos(d, m) {
   var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? d.de : hojeTexto();
-  var ate = somarDias(de, Math.min(Math.max(Number(d.dias) || 1, 1), 31) - 1);
+  var ate = somarDias(de, Math.min(Math.max(Number(d.dias) || 1, 1), 42) - 1);
   var lista = atendimentosDoPeriodo(de, ate).filter(function (a) {
     if (!a.id) return false;
     if (!d.incluirCancelados && a.status === 'cancelado') return false;
@@ -303,7 +303,7 @@ function bancada_atendimentos(d, m) {
     return true;
   }).map(function (a) { return atendimentoPublico(a, m); })
     .sort(function (a, b) { return (a.data + a.hora).localeCompare(b.data + b.hora); });
-  var folgas = bancada_folgas({ de: de, dias: Math.min(Math.max(Number(d.dias) || 1, 1), 31) }, m);
+  var folgas = bancada_folgas({ de: de, dias: Math.min(Math.max(Number(d.dias) || 1, 1), 42) }, m);
   var profs = listarProfissionais();
   return { atendimentos: lista, profissionais: profs.map(function (p) { return p.nome; }), folgas: folgas,
     // quem atende e em que turnos no primeiro dia (a agenda marca o resto como "fora do horário")
@@ -336,6 +336,21 @@ function bancada_agendaSemana(d, m) {
   });
   s.duracaoAula = AJUSTES.duracaoAulaMin;
   return s;
+}
+
+// Agenda do mês (tela Agenda → Mês, no celular): só o que o calendário mostra (hora, cor e quem), sem reservas nem dados da cliente.
+// 6 semanas de uma vez (a tela manda a segunda-feira em que o calendário começa); a profissional recebe só o que é dela.
+function bancada_agendaMes(d, m) {
+  var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? d.de : hojeTexto();
+  var dias = Math.min(Math.max(Number(d.dias) || 42, 7), 42);
+  var s = bancada_atendimentos({ de: de, dias: dias }, m);
+  var aulas = bancada_agenda({ de: de, dias: dias }, m);
+  return {
+    de: de, dias: dias,
+    atendimentos: s.atendimentos.map(function (a) { return { id: a.id, data: a.data, hora: a.hora, duracao: a.duracao, categoria: a.categoria, profissional: a.profissional, status: a.status, nome: a.nome }; }),
+    aulas: aulas.map(function (a) { return { id: a.id, data: a.data, hora: a.hora, duracao: a.duracao, modalidade: a.modalidade, professor: a.professor, ocupadosQtd: a.ocupadosQtd, capacidade: a.capacidade }; }),
+    folgas: s.folgas.map(function (f) { return { id: f.id, data: f.data, profissional: f.profissional, diaTodo: f.diaTodo, inicio: f.inicio, fim: f.fim, motivo: f.motivo }; }),
+  };
 }
 
 function bancada_catalogoServicos(d, m) {

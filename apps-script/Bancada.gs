@@ -54,6 +54,7 @@ var PERMISSOES = {
   b_catalogoServicos: ['admin', 'recepcao', 'professora'],
   b_atendimentos: ['admin', 'recepcao', 'professora'],
   b_agendaSemana: ['admin', 'recepcao', 'professora'],
+  b_agendaMes: ['admin', 'recepcao', 'professora'],
   b_atualizarAtendimento: ['admin', 'recepcao', 'professora'],
   b_horarios: ['admin', 'recepcao'],
   b_agendarServico: ['admin', 'recepcao'],
@@ -473,7 +474,7 @@ function mesmaProfessora(nomeAula, m) {
 // ============================================================
 function bancada_agenda(d, m) {
   var de = /^\d{4}-\d{2}-\d{2}$/.test(String(d.de)) ? d.de : hojeTexto();
-  var dias = Math.min(Math.max(Number(d.dias) || 1, 1), 31);
+  var dias = Math.min(Math.max(Number(d.dias) || 1, 1), 42);
   var reservas = todasReservas();
   var alunos = mapaAlunos();
   var fichas = mapaAnamneses();

@@ -18,7 +18,7 @@ const avisar = () => ouvintes.forEach((f) => f(ativos));
 
 // ---------- o que fica guardado no navegador ----------
 const FIXOS = { catalogoServicos: 1, planos: 1 }; // sem dados pessoais: ficam no computador
-const DA_ABA = { agendaSemana: 1, alunos: 1, comandas: 1, resumo: 1, espera: 1, minhasClientes: 1 }; // até fechar a aba
+const DA_ABA = { agendaSemana: 1, agendaMes: 1, alunos: 1, comandas: 1, resumo: 1, espera: 1, minhasClientes: 1 }; // até fechar a aba
 const MAX_GUARDAR = 2_500_000; // caracteres: maior que isso fica só na memória (o navegador guarda ~5 MB)
 const PREFIXO_ABA = 'ambar_mem|';
 const PREFIXO_FIXO = 'ambar_fixo|';
@@ -75,7 +75,7 @@ export const estaFresco = (chave) => frescos.has(chave);
 // a cada tela aberta: catálogo e planos valem 10 min; agenda, clientes e comandas, alguns segundos
 // (abrir e voltar de uma tela não repete o pedido). Depois de salvar, recarregar() busca sempre.
 const VALIDADE = { catalogoServicos: 600, planos: 600, ajustes: 600, produtos: 300, equipe: 300, grade: 300, cupons: 120, promocoes: 120, campanhas: 120,
-  retornos: 120, agendaSemana: 45, agenda: 30, alunos: 60, comandas: 30, espera: 60, resumo: 30, caixa: 20, pagamentos: 30, minhasClientes: 60, bloqueios: 60,
+  retornos: 120, agendaSemana: 45, agendaMes: 45, agenda: 30, alunos: 60, comandas: 30, espera: 60, resumo: 30, caixa: 20, pagamentos: 30, minhasClientes: 60, bloqueios: 60,
   substituicoes: 60, vales: 60, despesas: 60 };
 export function aindaVale(chave) {
   const quando = frescos.get(chave);
