@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
 import './css/shell.css';
+import './css/catalogo.css';
 import { Cabecalho, BotaoAcao, Erro, Vazio, Aviso, Ajuda, plural } from './ui.jsx';
 import { Icone } from './icones.jsx';
 import { lerMedidas, limparMedidas } from '../lib/api.js';
@@ -11,21 +12,27 @@ import { lerMedidas, limparMedidas } from '../lib/api.js';
 //  A diferença é a internet + o Google preparando o pedido (não depende do nosso código).
 // ============================================================
 const NOMES = {
-  b_agendaSemana: 'Agenda (semana)', b_agendarServico: 'Agendar ou remarcar serviço', b_atualizarAtendimento: 'Mudar atendimento (atendido, falta…)',
-  b_horarios: 'Horários livres', b_novoAluno: 'Cadastrar cliente', b_aluno: 'Abrir ficha do cliente', b_alunos: 'Lista e busca de clientes',
-  b_salvarAluno: 'Salvar ficha do cliente', b_comanda: 'Abrir comanda', b_comandas: 'Comandas abertas', b_salvarComanda: 'Mudar comanda (itens)',
-  b_fecharComanda: 'Fechar comanda', b_comandaDoAtendimento: 'Comanda do atendimento', b_resumo: 'Tela Hoje', b_presenca: 'Presença na aula',
-  b_catalogoServicos: 'Catálogo', b_caixa: 'Caixa do dia', b_espera: 'Lista de espera', b_entrar: 'Entrar na bancada', b_agendar: 'Agendar aluno na aula',
-  b_planos: 'Planos', b_eu: 'Conferir login', regras: 'Regras do site', b_atendimentos: 'Atendimentos do dia', b_agenda: 'Aulas do dia', b_minhasClientes: 'Minhas clientes',
-  b_registro: 'Registro de ações', b_lerPlanilhaDeNovo: 'Ler a planilha de novo', b_cancelarReserva: 'Cancelar reserva', b_lembretesAuto: 'Lembretes automáticos', b_pagamentos: 'Vendas', b_financeiro: 'Financeiro',
+  agendaSemana: 'Agenda (semana)', agendarServico: 'Agendar ou remarcar serviço', agendarServicos: 'Agendar vários serviços', atualizarAtendimento: 'Mudar atendimento (atendido, falta…)',
+  horarios: 'Horários livres', novoAluno: 'Cadastrar cliente', aluno: 'Abrir ficha do cliente', alunos: 'Lista e busca de clientes',
+  salvarAluno: 'Salvar ficha do cliente', comanda: 'Abrir comanda', comandas: 'Comandas abertas', salvarComanda: 'Mudar comanda (itens)',
+  fecharComanda: 'Fechar comanda', comandaDoAtendimento: 'Comanda do atendimento', resumo: 'Tela Hoje', presenca: 'Presença na aula',
+  catalogoServicos: 'Catálogo', caixa: 'Caixa do dia', espera: 'Lista de espera', entrar: 'Entrar na bancada', agendar: 'Agendar cliente na aula',
+  planos: 'Planos', eu: 'Conferir login', regras: 'Regras do site', atendimentos: 'Atendimentos do dia', agenda: 'Aulas do dia', minhasClientes: 'Minhas clientes',
+  registro: 'Registro de ações', lerPlanilhaDeNovo: 'Ler a planilha de novo', cancelarReserva: 'Cancelar reserva', lembretesAuto: 'Lembretes automáticos', pagamentos: 'Vendas', financeiro: 'Financeiro',
+  grade: 'Grade de aulas', equipe: 'Equipe', ajustes: 'Ajustes', despesas: 'Despesas', comissoes: 'Comissões', relatorio: 'Relatórios', relatorioProfissional: 'Relatório do mês por pessoa',
+  pagamentoAulas: 'Valores das aulas', meusGanhos: 'Meus ganhos', bloqueios: 'Feriados e bloqueios', produtos: 'Produtos', movimentos: 'Movimentos de estoque',
+  promocoes: 'Promoções', cupons: 'Cupons', vales: 'Vales-presente', campanhas: 'Campanhas', lembretes: 'Lembretes', retornos: 'Retornos sugeridos',
+  vender: 'Vender no balcão', receberAula: 'Receber aula', substituicoes: 'Trocas de profissional', vendasDuplicadas: 'Vendas duplicadas?', prontuario: 'Ficha de estética e evolução',
+  ficha: 'Ficha do cliente', foto: 'Foto da evolução', anamnesesProf: 'Anamneses', creditosServico: 'Pacotes e créditos',
 };
-const nomeDe = (a) => NOMES[a] || String(a).replace(/^b_/, '');
+const nomeDe = (a) => { const k = String(a).replace(/^b_/, ''); return NOMES[k] || k; };
 const mediana = (l) => {
   const v = l.filter((x) => x != null).sort((a, b) => a - b);
   if (!v.length) return null;
   const m = Math.floor(v.length / 2);
   return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
 };
+const qtdTxt = (n) => (n == null ? '—' : Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
 const seg = (ms) => (ms == null ? '—' : `${(ms / 1000).toFixed(1).replace('.', ',')} s`);
 
 export function PainelVelocidade() {
@@ -54,7 +61,7 @@ export function PainelVelocidade() {
     `Velocidade da bancada (${medidas.length} pedidos, ${new Date().toLocaleString('pt-BR')})`,
     `Geral: total ${seg(geral.total)} · servidor ${seg(geral.servidor)} · internet + Google ${seg(fora)}`,
     ...(textoTrocas ? [textoTrocas] : []),
-    ...linhas.map((l) => `${l.nome}: ${l.vezes}x · total ${seg(l.total)} · servidor ${seg(l.servidor)} · planilha ${l.planilha == null ? '—' : l.planilha.toFixed(1)} · cache ${l.cache == null ? '—' : l.cache.toFixed(1)}`),
+    ...linhas.map((l) => `${l.nome}: ${l.vezes}x · total ${seg(l.total)} · servidor ${seg(l.servidor)} · planilha ${qtdTxt(l.planilha)} · cache ${qtdTxt(l.cache)}`),
   ].join('\n');
 
   const maxTotal = Math.max(1, ...linhas.map((l) => l.total || 0));
@@ -101,8 +108,8 @@ export function PainelVelocidade() {
                     </span>
                   </td>
                   <td data-rotulo="Servidor">{seg(l.servidor)}</td>
-                  <td data-rotulo="Abas da planilha">{l.planilha == null ? '—' : l.planilha.toFixed(1).replace('.', ',')}</td>
-                  <td data-rotulo="Abas do cache">{l.cache == null ? '—' : l.cache.toFixed(1).replace('.', ',')}</td>
+                  <td data-rotulo="Abas da planilha">{qtdTxt(l.planilha)}</td>
+                  <td data-rotulo="Abas do cache">{qtdTxt(l.cache)}</td>
                 </tr>
               ))}
             </tbody>

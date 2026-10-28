@@ -83,7 +83,7 @@ function Bloqueios() {
         </Secao>
       </section>
       {afetados && (
-        <Modal rotulo="Bloqueio feito" titulo={afetados.length ? `Avise ${afetados.length} aluno${afetados.length > 1 ? 's' : ''}` : 'Nenhuma reserva afetada'} aoFechar={() => setAfetados(null)}>
+        <Modal rotulo="Bloqueio feito" titulo={afetados.length ? `Avise ${plural(afetados.length, 'cliente', 'clientes')}` : 'Nenhuma reserva afetada'} aoFechar={() => setAfetados(null)}>
           {afetados.length === 0 ? <p>Ninguém tinha reservado nesse período.</p> : (
             <ul className="cg-lista">
               {afetados.map((a, i) => (
@@ -126,6 +126,7 @@ function GradeSemanal() {
         <button type="button" className="botao botao--linha botao--p" onClick={() => setLinhas((ls) => [...ls, NOVA_AULA()])}>+ Adicionar horário</button>
       </Barra>
       {linhas.length === 0 && <Vazio titulo="Nenhuma aula na grade" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => setLinhas([NOVA_AULA()])}>+ Adicionar horário</button>} />}
+      <datalist id="cg-profs">{[...new Set(linhas.map((l) => l.professor).filter(Boolean))].sort().map((n) => <option key={n} value={n} />)}</datalist>
       <div className="cg-grade">
         {dias.length > 0 && (
           <div className="cg-aula-cab" aria-hidden="true"><span>Dia</span><span>Horário</span><span>Modalidade</span><span>Profissional</span><span>Vagas</span><span>Situação</span><span /></div>
@@ -143,7 +144,7 @@ function GradeSemanal() {
                   <label className="cg-f cg-f--mod"><span>Modalidade</span>
                     <select value={l.modalidade} onChange={(e) => mudar(l._k, 'modalidade', e.target.value)}><option>Yoga</option><option>Pilates</option></select></label>
                   <label className="cg-f cg-f--prof"><span>Profissional</span>
-                    <input value={l.professor} onChange={(e) => mudar(l._k, 'professor', e.target.value)} /></label>
+                    <input value={l.professor} list="cg-profs" onChange={(e) => mudar(l._k, 'professor', e.target.value)} /></label>
                   <label className="cg-f cg-f--vagas"><span>Vagas</span>
                     <input type="number" min={1} max={30} value={l.capacidade} onChange={(e) => mudar(l._k, 'capacidade', Number(e.target.value))} /></label>
                   <Interruptor className="cg-f--ativa" checked={l.ativo} onChange={(e) => mudar(l._k, 'ativo', e.target.checked)} aria-label="Aula ativa">Ativa</Interruptor>
@@ -195,7 +196,7 @@ function Planos() {
                         <span>{p.tipo}</span>
                         <span>{p.aulasSemana ? `${p.aulasSemana}x por semana` : plural(p.aulasTotal, 'aula', 'aulas')}</span>
                         <span>{plural(p.validadeDias, 'dia', 'dias')}</span>
-                        <span>até {p.semJurosAte}x sem juros</span>
+                        <span>{p.semJurosAte > 1 ? `até ${p.semJurosAte}x sem juros` : 'sem parcelamento'}</span>
                       </span>
                     </div>
                     <div className="b-item__lado">

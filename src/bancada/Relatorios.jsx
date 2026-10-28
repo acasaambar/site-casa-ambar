@@ -62,7 +62,7 @@ export default function Relatorios() {
           )}
         </div>
       </div>
-      <Abas atual={aba} aoMudar={setAba} itens={[['financeiro', 'Financeiro'], ['aulas', 'Aulas e horários'], ['servicos', 'Serviços'], ['alunos', 'Alunos e marketing'], ['vales', 'Vales e cupons']]} />
+      <Abas atual={aba} aoMudar={setAba} itens={[['financeiro', 'Financeiro'], ['aulas', 'Aulas e horários'], ['servicos', 'Serviços'], ['alunos', 'Clientes e marketing'], ['vales', 'Vales e cupons']]} />
       <Erro>{erro}</Erro>
       {carregando && !atual && <Esqueleto linhas={6} altura={28} />}
       {r && atual && (
@@ -99,7 +99,7 @@ function Financeiro({ f, de, ate }) {
           etiqueta={f.variacao == null ? null : `${f.variacao >= 0 ? '▲' : '▼'} ${pct(Math.abs(f.variacao))}`} etiquetaTom={f.variacao == null ? undefined : f.variacao >= 0 ? 'ok' : 'alerta'}
           detalhe={f.variacao == null ? 'sem período anterior para comparar' : `vs período anterior (${realCurto(f.receitaAnterior)})`} />
         <KpiG icone="recibo" rotulo="Vendas" valor={f.vendas} detalhe={`ticket médio ${real(f.ticketMedio)}`} />
-        <KpiG icone="link" rotulo="Conversão no site" valor={pct(f.conversaoSite)} detalhe={`${f.linksSite} pagamentos iniciados · ${f.abandonados} não concluídos`} />
+        <KpiG icone="link" rotulo="Conversão no site" valor={pct(f.conversaoSite)} detalhe={`${plural(f.linksSite, 'pagamento iniciado', 'pagamentos iniciados')} · ${plural(f.abandonados, 'não concluído', 'não concluídos')}`} />
         <KpiG icone="cupom" rotulo="Descontos com cupom" valor={realCurto(f.descontosCupom)} detalhe={f.estornos ? `${f.estornos} estornos (${real(f.valorEstornado)})` : 'nenhum estorno'} />
       </section>
       <Grafico titulo={f.seriePorMes ? 'Faturamento por mês' : 'Faturamento por dia'} ajuda="Passe o mouse (ou toque) numa coluna para ver o valor e o número de vendas. A coluna terracota é o melhor momento do período."
@@ -132,7 +132,7 @@ function Financeiro({ f, de, ate }) {
           {f.porParcelas.length > 0 && (
             <div className="gs-subbloco">
               <h3 className="gs-subbloco__titulo">Parcelas no cartão</h3>
-              <ul className="gs-chips">{f.porParcelas.map((p) => <li key={p.nome}><span>{p.nome}</span><strong>{p.qtd}</strong></li>)}</ul>
+              <ul className="gs-chips">{f.porParcelas.map((p) => <li key={p.nome}><span>{p.nome}</span><strong>{plural(p.qtd, 'venda', 'vendas')}</strong></li>)}</ul>
             </div>
           )}
         </Grafico>
@@ -224,7 +224,7 @@ function Alunos({ a }) {
   return (
     <>
       <section className="gs-kpis" aria-label="Resumo de clientes">
-        <KpiG icone="pessoa" rotulo="Alunos com plano ou aula" valor={a.ativos} detalhe={`${a.comPlano} com plano mensal/trimestral`} />
+        <KpiG icone="pessoa" rotulo="Clientes com plano ou aula" valor={a.ativos} detalhe={`${a.comPlano} com plano mensal/trimestral`} />
         <KpiG icone="novos" rotulo="Novos no período" valor={a.novosNoPeriodo} detalhe={`${a.total} cadastrados no total`} />
         <KpiG icone="renovar" rotulo="Renovação" valor={pct(a.renovacao.taxa)} detalhe={`${a.renovacao.renovaram} de ${a.renovacao.terminaram} planos que venceram`} />
         <KpiG icone="alerta" tom={a.semFicha ? 'aviso' : undefined} rotulo="Sem ficha de saúde" valor={a.semFicha} detalhe={`${a.wellhub} usam Wellhub`} />
@@ -247,7 +247,7 @@ function Alunos({ a }) {
           : <VazioG icone="vazio" titulo="Ainda ninguém com bairro cadastrado">Preencha o endereço em Clientes → editar.</VazioG>}
       </Grafico>
       <Grafico titulo="Novos cadastros por mês" sub="Últimos 12 meses">
-        <Colunas serie={a.novosPorMes.map((m) => ({ chave: m.chave, valor: m.qtd }))} rotuloX={rotuloSerie(true)} formato={(v) => `${v} aluno${v === 1 ? '' : 's'}`} altura={190} legenda="Novos cadastros" />
+        <Colunas serie={a.novosPorMes.map((m) => ({ chave: m.chave, valor: m.qtd }))} rotuloX={rotuloSerie(true)} formato={(v) => plural(v, 'cadastro', 'cadastros')} altura={190} legenda="Novos cadastros" />
       </Grafico>
       <div className="gs-duas">
         <ListaContatos titulo="Planos vencendo" sub="Nos próximos 10 dias" ajuda="Hora de lembrar da renovação. O botão de WhatsApp já leva a mensagem pronta." itens={a.vencendo} nomeCsv="planos-vencendo"
