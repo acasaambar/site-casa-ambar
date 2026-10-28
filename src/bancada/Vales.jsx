@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import './css/vendas.css';
 import { useBancada } from './sessao.jsx';
-import { useDados, Esqueleto, Erro, Tag, Modal, BotaoAcao, Vazio, Aviso, Secao, Kpi, real, realCurto, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
+import { useDados, Esqueleto, Erro, Tag, Modal, BotaoAcao, Vazio, Aviso, Secao, Kpi, real, kpiReal, dataBR, linkWhats, baixarCSV, cpfFmt } from './ui.jsx';
 import { Sol, Forma, IconeWhatsapp, Logo } from '../components/Marca.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { ComandaModal } from './Comandas.jsx';
@@ -39,7 +39,7 @@ export function ListaVales({ abrirNovo }) {
       {dados && (
         <section className="b-kpis">
           <Kpi rotulo="Vales ativos" valor={ativos.length} detalhe="dentro da validade" />
-          <Kpi rotulo="Valor a usar" valor={Math.abs(aberto) >= 100000 ? realCurto(aberto) : real(aberto)} detalhe="saldo dos vales ativos" />
+          <Kpi rotulo="Valor a usar" valor={kpiReal(aberto)} detalhe="saldo dos vales ativos" />
           <Kpi rotulo="Ainda não entregues" valor={naoEntregues} tom={naoEntregues ? 'aviso' : ''} detalhe="ativos sem entrega" />
         </section>
       )}

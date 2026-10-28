@@ -3,7 +3,7 @@ import './css/vendas.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import { useDados, useEsquecerPedidoDaRota, Esqueleto, Erro, Cabecalho, Kpi, Modal, BotaoAcao, Abas, Segmento, Aviso, Tag, Vazio, CampoBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, METODOS, ehCartao, faltaBandeira,
-  real, realCurto, hojeIso, somarDias, dataBR, dataCurta, cpfFmt, baixarCSV, plural, numBR } from './ui.jsx';
+  real, kpiReal, hojeIso, somarDias, dataBR, dataCurta, cpfFmt, baixarCSV, plural, numBR } from './ui.jsx';
 import { VenderModal } from './Alunos.jsx';
 import { ListaVales } from './Vales.jsx';
 
@@ -27,8 +27,6 @@ export default function Vendas() {
 
 // número do pedido da comanda vira o "nº" curto que a comanda mostra (Comanda Q261028083158AAB2F → Comanda nº AAB2F)
 const obsLegivel = (t) => String(t || '').replace(/Comanda Q\d{10,}(\w{5})\b/g, 'Comanda nº $1');
-// valores dos cartões inteiros, com centavos (só abrevia a partir de 100 mil)
-const kpiReal = (v) => (Math.abs(Number(v || 0)) >= 100000 ? realCurto(v) : real(v));
 
 const FILTROS = [['todos', 'Todos'], ['pagos', 'Pagos'], ['pendentes', 'Pendentes'], ['site', 'Site'], ['balcao', 'Balcão'], ['devolver', 'Juros a devolver'], ['estornados', 'Estornados'], ['excluidas', 'Excluídas']];
 const passaNoFiltro = (p, filtro) => {
@@ -107,11 +105,9 @@ function ListaVendas({ abas }) {
           {lista.map((p) => {
             const devolverEsta = /^DEVOLVER/.test(p.observacao);
             return (
-              <li key={p.orderNsu} className={`vn-venda${p.status === 'excluido' ? ' vn-venda--excluida' : ''}`} tabIndex={0} role="button" aria-label={`Abrir venda de ${p.nome}`}
-                onClick={(e) => { if (!e.target.closest('button, a')) setAberta(p); }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setAberta(p); }}>
+              <li key={p.orderNsu} className={`vn-venda${p.status === 'excluido' ? ' vn-venda--excluida' : ''}`}>
                 <div className="vn-venda__corpo">
-                  <span className="vn-venda__quem"><strong>{p.nome}</strong><Tag tom={TOM_SITUACAO[p.status] || 'neutro'}>{NOME_SITUACAO[p.status] || p.status}</Tag></span>
+                  <span className="vn-venda__quem"><button type="button" className="vn-venda__abrir" aria-label={`Abrir venda de ${p.nome}`} onClick={() => setAberta(p)}>{p.nome}</button><Tag tom={TOM_SITUACAO[p.status] || 'neutro'}>{NOME_SITUACAO[p.status] || p.status}</Tag></span>
                   <span className="vn-venda__item">{p.descricao}</span>
                   {(p.cupom || p.vale || p.observacao) && (
                     <span className="vn-venda__nota">

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import RelatorioProfissional from './RelatorioProfissional.jsx';
 import { useBancada } from './sessao.jsx';
-import { useDados, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Kpi, Abas, Aviso, Secao, Ajuda, Esqueleto, SeletorMes, real, realCurto, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
+import { useDados, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Kpi, Abas, Aviso, Secao, Ajuda, Esqueleto, SeletorMes, real, realCurto, kpiReal, dataBR, dataCurta, hojeIso, numBR, baixarCSV,
   METODOS, MESES, mesTexto, plural } from './ui.jsx';
 import { BarrasH } from './Graficos.jsx';
 import { Ic, KpiG, BotaoCsv, CartaoG, VazioG, DiaChip } from './GestaoPecas.jsx';
@@ -42,19 +42,19 @@ function Mes({ mes, irPara }) {
   return (
     <>
       <section className="gs-kpis gs-kpis--hero" aria-label="Resumo do mês">
-        <KpiG icone="entra" rotulo="Entradas" valor={realCurto(f.entradas)}
+        <KpiG icone="entra" rotulo="Entradas" valor={kpiReal(f.entradas)}
           etiqueta={varia == null ? null : `${varia >= 0 ? '▲' : '▼'} ${String(Math.abs(varia)).replace('.', ',')}%`} etiquetaTom={varia == null ? undefined : varia >= 0 ? 'ok' : 'alerta'}
           detalhe={varia == null ? 'sem mês anterior' : 'vs mês anterior'} />
-        <KpiG icone="sai" rotulo="Saídas pagas" valor={realCurto(f.saidas)} detalhe={`mês anterior ${realCurto(f.saidasAnterior)}`} />
+        <KpiG icone="sai" rotulo="Saídas pagas" valor={kpiReal(f.saidas)} detalhe={`mês anterior ${kpiReal(f.saidasAnterior)}`} />
         {f.taxasConfiguradas ? (
-          <KpiG destaque icone="moeda" tom={f.liquido < 0 ? 'alerta' : undefined} rotulo="Resultado líquido" valor={realCurto(f.liquido)}
-            ajuda={`Entradas − taxas da maquininha (${realCurto(f.taxas)}) − saídas pagas.`} detalhe={`depois de ${realCurto(f.taxas)} em taxas e das saídas`} />
+          <KpiG destaque icone="moeda" tom={f.liquido < 0 ? 'alerta' : undefined} rotulo="Resultado líquido" valor={kpiReal(f.liquido)}
+            ajuda={`Entradas − taxas da maquininha (${kpiReal(f.taxas)}) − saídas pagas.`} detalhe={`depois de ${kpiReal(f.taxas)} em taxas e das saídas`} />
         ) : (
-          <KpiG destaque icone="moeda" tom={f.resultado < 0 ? 'alerta' : undefined} rotulo="Resultado" valor={realCurto(f.resultado)}
+          <KpiG destaque icone="moeda" tom={f.resultado < 0 ? 'alerta' : undefined} rotulo="Resultado" valor={kpiReal(f.resultado)}
             ajuda="Entradas − saídas pagas." detalhe="entradas menos saídas pagas" />
         )}
-        <KpiG icone="relogio" tom={f.aPagar + f.comissoesAPagar > 0 ? 'aviso' : undefined} rotulo="Ainda a pagar" valor={realCurto(f.aPagar + f.comissoesAPagar)}
-          detalhe={`${plural(f.aPagarQtd, 'conta', 'contas')} · comissões ${realCurto(f.comissoesAPagar)}`} />
+        <KpiG icone="relogio" tom={f.aPagar + f.comissoesAPagar > 0 ? 'aviso' : undefined} rotulo="Ainda a pagar" valor={kpiReal(f.aPagar + f.comissoesAPagar)}
+          detalhe={`${plural(f.aPagarQtd, 'conta', 'contas')} · comissões ${kpiReal(f.comissoesAPagar)}`} />
       </section>
 
       <CartaoG titulo="O mês dia a dia" ajuda="Para cima, o que entrou. Para baixo, o que saiu. Toque ou passe o mouse num dia para ver os valores."
@@ -197,8 +197,8 @@ function Despesas({ mes }) {
   const Linha = ({ x }) => (
     <li className={`gs-desp gs-desp--${x.status}${x.status === 'a_pagar' && x.data < hojeIso() ? ' gs-desp--atrasada' : ''}`}>
       <DiaChip dia={diaDe(x.data)} mes={mesAbrev(x.data)} tom={x.status === 'a_pagar' ? 'terracota' : undefined} />
-      <button type="button" className="gs-desp__nome" onClick={() => setEditar(x)} aria-label={`Editar ${x.descricao}`}>
-        <strong>{x.descricao}</strong>
+      <button type="button" className="gs-desp__nome" onClick={() => setEditar(x)}>
+        <strong><span className="b-so-leitor">Editar </span>{x.descricao}</strong>
         <span className="b-meta">
           <span>{x.categoria}</span>
           {x.fornecedor && <span>{x.fornecedor}</span>}

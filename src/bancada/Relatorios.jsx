@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useDados, Erro, Cabecalho, Abas, Segmento, Vazio, Aviso, Esqueleto, real, realCurto, dataBR, dataCurta, hojeIso, somarDias, MESES, linkWhats, primeiro,
+import { useDados, Erro, Cabecalho, Abas, Segmento, Vazio, Aviso, Esqueleto, real, realCurto, kpiReal, dataBR, dataCurta, hojeIso, somarDias, MESES, linkWhats, primeiro,
   telFmt, baixarCSV, plural } from './ui.jsx';
 import { BarrasH, Colunas, MapaCalor } from './Graficos.jsx';
 import { Ic, KpiG, CartaoG, VazioG } from './GestaoPecas.jsx';
@@ -95,12 +95,12 @@ function Financeiro({ f, de, ate }) {
   return (
     <>
       <section className="gs-kpis" aria-label="Resumo financeiro">
-        <KpiG icone="moeda" rotulo="Faturamento" valor={realCurto(f.receita)}
+        <KpiG icone="moeda" rotulo="Faturamento" valor={kpiReal(f.receita)}
           etiqueta={f.variacao == null ? null : `${f.variacao >= 0 ? '▲' : '▼'} ${pct(Math.abs(f.variacao))}`} etiquetaTom={f.variacao == null ? undefined : f.variacao >= 0 ? 'ok' : 'alerta'}
-          detalhe={f.variacao == null ? 'sem período anterior para comparar' : `vs período anterior (${realCurto(f.receitaAnterior)})`} />
+          detalhe={f.variacao == null ? 'sem período anterior para comparar' : `vs período anterior (${kpiReal(f.receitaAnterior)})`} />
         <KpiG icone="recibo" rotulo="Vendas" valor={f.vendas} detalhe={`ticket médio ${real(f.ticketMedio)}`} />
         <KpiG icone="link" rotulo="Conversão no site" valor={pct(f.conversaoSite)} detalhe={`${plural(f.linksSite, 'pagamento iniciado', 'pagamentos iniciados')} · ${plural(f.abandonados, 'não concluído', 'não concluídos')}`} />
-        <KpiG icone="cupom" rotulo="Descontos com cupom" valor={realCurto(f.descontosCupom)} detalhe={f.estornos ? `${f.estornos} estornos (${real(f.valorEstornado)})` : 'nenhum estorno'} />
+        <KpiG icone="cupom" rotulo="Descontos com cupom" valor={kpiReal(f.descontosCupom)} detalhe={f.estornos ? `${f.estornos} estornos (${real(f.valorEstornado)})` : 'nenhum estorno'} />
       </section>
       <Grafico titulo={f.seriePorMes ? 'Faturamento por mês' : 'Faturamento por dia'} ajuda="Passe o mouse (ou toque) numa coluna para ver o valor e o número de vendas. A coluna terracota é o melhor momento do período."
         csv={() => baixarCSV(`faturamento-${de}-a-${ate}`, [['chave', 'Data'], [(s) => String(s.valor).replace('.', ','), 'Valor (R$)'], ['qtd', 'Vendas']], f.serie)}>
@@ -276,8 +276,8 @@ function ValesCupons({ v, f }) {
   return (
     <>
       <section className="gs-kpis" aria-label="Resumo de vales e cupons">
-        <KpiG icone="presente" rotulo="Vales vendidos" valor={v.gerados} detalhe={`${realCurto(v.valorGerado)} em vales`} />
-        <KpiG icone="check" rotulo="Vales usados" valor={v.resgatados} detalhe={`${realCurto(v.valorResgatado)} usados no período`} />
+        <KpiG icone="presente" rotulo="Vales vendidos" valor={v.gerados} detalhe={`${kpiReal(v.valorGerado)} em vales`} />
+        <KpiG icone="check" rotulo="Vales usados" valor={v.resgatados} detalhe={`${kpiReal(v.valorResgatado)} usados no período`} />
         <KpiG icone="relogio" rotulo="Vales em aberto" valor={v.abertos} detalhe="ainda podem ser usados" />
         <KpiG icone="pessoa" rotulo="Aulas cortesia" valor={v.aulasCortesia} detalhe="agendadas pela bancada" />
       </section>
@@ -303,7 +303,7 @@ function ServicosRel({ s }) {
   return (
     <>
       <section className="gs-kpis" aria-label="Resumo dos serviços">
-        <KpiG icone="moeda" rotulo="Faturamento com serviços" valor={realCurto(s.receita)} detalhe={`${s.pacotesVendidos} pacote${s.pacotesVendidos === 1 ? '' : 's'} vendido${s.pacotesVendidos === 1 ? '' : 's'}`} />
+        <KpiG icone="moeda" rotulo="Faturamento com serviços" valor={kpiReal(s.receita)} detalhe={`${s.pacotesVendidos} pacote${s.pacotesVendidos === 1 ? '' : 's'} vendido${s.pacotesVendidos === 1 ? '' : 's'}`} />
         <KpiG icone="calendario" rotulo="Atendimentos" valor={s.agendados} detalhe={`${s.atendidos} já atendidos`} />
         <KpiG icone="alerta" rotulo="Faltas" valor={pct(s.taxaFalta)} detalhe={`${plural(s.faltas, 'falta', 'faltas')} · ${plural(s.cancelados, 'cancelado', 'cancelados')}`} tom={s.taxaFalta > 15 ? 'alerta' : undefined} />
       </section>

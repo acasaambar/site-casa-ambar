@@ -37,6 +37,13 @@ export function Alunos() {
 
   const hoje = hojeIso();
   const em7 = somarDias(hoje, 7);
+  // "Última visita" só vale com presença ou serviço feito; aula só reservada (hoje ou daqui para frente) vira "Aula reservada"
+  const visitaDe = (a) => {
+    const data = a.ultimaVisita || a.ultimaAula || '';
+    if (a.presencas + (a.servicos || 0) > 0) return { rotulo: 'Última visita', data };
+    if (data && data >= hoje) return { rotulo: 'Aula reservada', data };
+    return { rotulo: 'Última visita', data: '' };
+  };
   const lista = useMemo(() => {
     const q = buscaAdiada.trim().toLowerCase();
     const d = soDigitos(q);
@@ -78,7 +85,7 @@ export function Alunos() {
     ['wellhub', 'Wellhub'], ['wellhub-pendente', 'Wellhub a confirmar'], ['inativos', 'Desativados']];
   const colunasCsv = [
     ['nome', 'Nome'], [(a) => cpfFmt(a.cpf), 'CPF'], [(a) => telFmt(a.whatsapp), 'WhatsApp'], ['email', 'E-mail'], ['plano', 'Plano ativo'],
-    [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(a.ultimaVisita || a.ultimaAula), 'Última visita'], ['presencas', 'Presenças em aula'], ['servicos', 'Serviços feitos'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
+    [(a) => dataBR(a.planoFim), 'Plano até'], [(a) => dataBR(visitaDe(a).rotulo === 'Última visita' ? visitaDe(a).data : ''), 'Última visita'], [(a) => dataBR(visitaDe(a).rotulo === 'Aula reservada' ? visitaDe(a).data : ''), 'Aula reservada'], ['presencas', 'Presenças em aula'], ['servicos', 'Serviços feitos'], [(a) => (a.ficha ? 'sim' : 'não'), 'Ficha'],
     ['wellhub', 'Wellhub'], [(a) => dataBR(a.criadoEm), 'Cadastro']];
 
   return (
@@ -133,8 +140,8 @@ export function Alunos() {
                     {a.planoFim && <small>até {dataCurta(a.planoFim)}</small>}
                   </span>
                   <span className="cl-linha__visita">
-                    <small>Última visita</small>
-                    <strong>{a.ultimaVisita || a.ultimaAula ? dataCurta(a.ultimaVisita || a.ultimaAula) : '—'}</strong>
+                    <small>{visitaDe(a).rotulo}</small>
+                    <strong>{visitaDe(a).data ? dataCurta(visitaDe(a).data) : '—'}</strong>
                     <em>{plural(a.presencas + (a.servicos || 0), 'visita', 'visitas')}</em>
                   </span>
                   <span className="cl-linha__tags">

@@ -166,6 +166,12 @@ export const realCurto = (v) => {
   if (Math.abs(n) >= 10000) return 'R$ ' + (n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
   return Number.isInteger(n) ? 'R$ ' + n.toLocaleString('pt-BR') : real(n);
 };
+// valor de cartão de número (KPI): sempre com centavos, igual em todas as telas; só abrevia a partir de 100 mil
+export const kpiReal = (v) => {
+  const n = Number(v || 0);
+  if (Math.abs(n) >= 100000) return realCurto(n);
+  return n < 0 ? '−\u2060' + real(-n) : real(n);
+};
 export const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 export const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 export const DIAS_LONGOS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -354,6 +360,8 @@ export function preCarregar(chamar, token, acao, params = {}) {
 
 // Menu "Mais" (ações que não cabem na barra). itens: [{ texto, acao, className? }]; fecha ao escolher, ao tocar fora ou com Esc.
 // Teclado: Enter/↓ abre no primeiro item, ↑ ↓ Home End navegam, Esc fecha e devolve o foco ao botão, Tab fecha.
+// itens do menu que aparecem de fato (alguns só existem em tela estreita: ficam ocultos nas outras e não recebem foco)
+const itensDoMenu = (raiz) => Array.from(raiz?.querySelectorAll('[role="menuitem"]') || []).filter((el) => el.getClientRects().length > 0);
 export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef(null);
@@ -371,7 +379,7 @@ export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
     return () => { document.removeEventListener('pointerdown', fora); document.removeEventListener('keydown', tecla, true); };
   }, [aberto]);
   useEffect(() => {
-    if (aberto && pelaTecla.current) caixa.current?.querySelector('[role="menuitem"]')?.focus();
+    if (aberto && pelaTecla.current) itensDoMenu(caixa.current)[0]?.focus();
     pelaTecla.current = false;
   }, [aberto]);
   // a lista sempre cabe na tela: se passaria da borda direita ancora pela direita do botão, se passaria da esquerda, pela esquerda
@@ -389,9 +397,9 @@ export function MenuMais({ itens, rotulo = 'Mais', className = '' }) {
   }, [aberto]);
   const visiveis = itens.filter(Boolean);
   if (!visiveis.length) return null;
-  const aoTeclarNoBotao = (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (aberto) caixa.current?.querySelector('[role="menuitem"]')?.focus(); else { pelaTecla.current = true; setAberto(true); } } };
+  const aoTeclarNoBotao = (e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (aberto) itensDoMenu(caixa.current)[0]?.focus(); else { pelaTecla.current = true; setAberto(true); } } };
   const aoTeclarNaLista = (e) => {
-    const todos = Array.from(e.currentTarget.querySelectorAll('[role="menuitem"]'));
+    const todos = itensDoMenu(e.currentTarget);
     const i = todos.indexOf(document.activeElement);
     const vai = { ArrowDown: (i + 1) % todos.length, ArrowUp: (i - 1 + todos.length) % todos.length, Home: 0, End: todos.length - 1 }[e.key];
     if (vai != null) { e.preventDefault(); todos[vai]?.focus(); }

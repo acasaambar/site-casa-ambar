@@ -174,10 +174,10 @@ export function MapaCalor({ celulas, dias = [1, 2, 3, 4, 5, 6], nomesDias }) {
   if (!horas.length) return <p className="g-vazio">Sem aulas no período.</p>;
   const achar = (h, d) => celulas.find((c) => c.hora === h && c.dia === d);
   return (
-    <div className="g-calor" ref={caixa} onMouseLeave={esconder}>
+    <div className="g-calor" ref={caixa} onMouseLeave={esconder} role="region" aria-label="Ocupação por dia e horário" tabIndex={0}>
       <table>
         <thead>
-          <tr><th />{dias.map((d) => <th key={d} scope="col">{nomesDias[d]}</th>)}</tr>
+          <tr><th scope="col"><span className="b-so-leitor">Horário</span></th>{dias.map((d) => <th key={d} scope="col">{nomesDias[d]}</th>)}</tr>
         </thead>
         <tbody>
           {horas.map((h) => (

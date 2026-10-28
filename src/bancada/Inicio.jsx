@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import './css/shell.css';
 import './css/clientes.css';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, useFazServicos, Erro, realCurto, hora, primeiro, DIAS_LONGOS, MESES, diaSemana } from './ui.jsx';
+import { useDados, useFazServicos, Erro, kpiReal, hora, primeiro, DIAS_LONGOS, MESES, diaSemana } from './ui.jsx';
 import { Sol } from '../components/Marca.jsx';
 import { COR_CATEGORIA } from './Servicos.jsx';
 import { Icone } from './icones.jsx';
@@ -76,10 +76,10 @@ function LinhaDoDia({ aulas, servicos, agora, faixas = ['Yoga', 'Pilates', 'Serv
   for (let h = 6; h <= 20; h += 2) horas.push(h);
   const aula = (a, estilo, passou, andando) => (
     <Link key={a.id} to="/bancada/agenda" state={{ abrir: a.id }} title={`${a.modalidade} ${hora(a.hora)} com ${a.professor} · ${a.reservas} de ${a.capacidade}`}
-      aria-label={`${a.modalidade} ${hora(a.hora)} com ${a.professor}, ${a.reservas} de ${a.capacidade} lugares`}
       className={`pedra pedra--${a.modalidade.toLowerCase()}${passou ? ' pedra--passou' : ''}${andando ? ' pedra--agora' : ''}`} style={estilo}>
+      <span className="b-so-leitor">{a.modalidade} com {a.professor}, </span>
       <strong>{hora(a.hora)}</strong>
-      <span>{a.reservas}/{a.capacidade}</span>
+      <span>{a.reservas}/{a.capacidade}<span className="b-so-leitor"> lugares ocupados</span></span>
     </Link>
   );
   return (
@@ -91,8 +91,8 @@ function LinhaDoDia({ aulas, servicos, agora, faixas = ['Yoga', 'Pilates', 'Serv
           {faixas.includes('Pilates') && <Faixa nome="Pilates" unidade="aulas" itens={aulas.filter((a) => a.modalidade === 'Pilates')} m={m} dentro={dentro} render={aula} />}
           {faixas.includes('Serviços') && <Faixa nome="Serviços" unidade="atend." itens={servicos} m={m} dentro={dentro} render={(a, estilo, passou, andando) => (
             <Link key={a.id} to="/bancada/agenda" state={{ vista: 'servicos' }} title={`${hora(a.hora)} · ${a.servico} · ${a.nome} com ${a.profissional}`}
-              aria-label={`${hora(a.hora)}, ${a.servico}, ${a.nome} com ${a.profissional}`}
               className={`pedra pedra--s pedra--${COR_CATEGORIA[a.categoria] || 'facial'}${passou ? ' pedra--passou' : ''}${andando ? ' pedra--agora' : ''}`} style={estilo}>
+              <span className="b-so-leitor">{a.servico}, com {a.profissional}, </span>
               <strong>{hora(a.hora)}</strong>
               <span>{primeiro(a.nome)}</span>
             </Link>
@@ -219,9 +219,9 @@ export default function Inicio() {
             {daAula && <Numero icone="reservas" rotulo="Reservas de aula hoje" valor={r.reservasHoje} detalhe={`${r.presentesHoje} com presença marcada`}
               progresso={r.reservasHoje ? r.presentesHoje / r.reservasHoje : 0} />}
             {daServico && <Numero icone="atendimento" rotulo="Atendimentos hoje" valor={r.servicosHoje || 0} detalhe="estética e fisioterapia" />}
-            {balcao && <Numero icone="moeda" rotulo="Recebido hoje" valor={realCurto(r.vendasHoje)} detalhe={statusCaixa[1]} tomDetalhe={statusCaixa[0]} />}
-            {balcao && <Numero icone="mes" rotulo="Recebido no mês" valor={realCurto(r.vendasMes)} />}
-            {!balcao && <Numero icone="ganhos" rotulo="Meus ganhos no mês" valor={realCurto(r.meusGanhosMes || 0)} detalhe="comissões" />}
+            {balcao && <Numero icone="moeda" rotulo="Recebido hoje" valor={kpiReal(r.vendasHoje)} detalhe={statusCaixa[1]} tomDetalhe={statusCaixa[0]} />}
+            {balcao && <Numero icone="mes" rotulo="Recebido no mês" valor={kpiReal(r.vendasMes)} />}
+            {!balcao && <Numero icone="ganhos" rotulo="Meus ganhos no mês" valor={kpiReal(r.meusGanhosMes || 0)} detalhe="comissões" />}
           </section>
 
           {folgas.length > 0 && (

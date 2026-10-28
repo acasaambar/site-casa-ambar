@@ -242,9 +242,11 @@
 .bancada .pedra--s { border-radius: 15px 12px 16px 13px; }
 .bancada .pedra { min-width: 58px; padding: 0 5px; }
 .bancada .pedra:hover, .bancada .pedra:focus-visible { z-index: 3; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 16px -8px rgba(0, 0, 0, 0.7); }
-.bancada .pedra--passou { opacity: 0.4; box-shadow: none; }
+/* já passou: escurece a cor por cima (opacidade deixava o texto abaixo de 4,5:1); o texto continua claro e legível */
+.bancada .pedra--passou { background-image: linear-gradient(rgba(38, 45, 25, 0.6), rgba(38, 45, 25, 0.6)); color: #EFE4CC; box-shadow: none; }
+.bancada .pedra--passou span { opacity: 1; }
 /* o que está acontecendo agora ganha um anel âmbar */
-.bancada .pedra--agora { opacity: 1; box-shadow: 0 0 0 2px #E7B65E, 0 0 20px rgba(217, 162, 74, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25); z-index: 2; }
+.bancada .pedra--agora { background-image: none; color: #FBF3E2; opacity: 1; box-shadow: 0 0 0 2px #E7B65E, 0 0 20px rgba(217, 162, 74, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25); z-index: 2; }
 .bancada .linha__agora { z-index: 4; border-left-style: solid; border-left-color: rgba(231, 182, 94, 0.55); top: 18px; }
 .bancada .linha__agora-hora {
   position: absolute; top: -12px; left: 20px; padding: 1px 9px; border-radius: 999px; white-space: nowrap; font-size: 13px; font-weight: 600; line-height: 1.5; font-variant-numeric: tabular-nums;
@@ -451,13 +453,14 @@
 .vel-cartao--destaque .rotulo, .bancada .vel-cartao--destaque .rotulo { color: #D9CFB7; }
 .vel-cartao--destaque strong { color: #FFF8E8; }
 .vel-cartao--destaque .vel-cartao__icone { color: #E3C592; background: rgba(233, 221, 197, 0.14); }
-.vel-resumo strong { font-size: 28px; line-height: 1.15; letter-spacing: -0.01em; }
+.vel-resumo strong { font-size: 26px; line-height: 1.15; letter-spacing: -0.01em; }
 .vel-divisao { display: flex; height: 30px; border-radius: 999px; overflow: hidden; background: rgba(47, 56, 33, 0.08); font-size: 13px; font-weight: 600; line-height: 30px; }
 .vel-divisao span { display: block; padding: 0 14px; white-space: nowrap; overflow: hidden; }
 .vel-divisao__servidor { color: #FFF8E8; background: #55603A; }
 .vel-divisao__fora { flex: 1; color: #6B4512; background: rgba(166, 132, 94, 0.3); text-align: right; }
 .vel-tabela { box-shadow: var(--sombra-1); }
 .vel-nome { font-weight: 600; }
+.vel-tabela td:first-child { font-weight: 600; }
 .vel-total { display: flex; align-items: center; gap: 10px; min-width: 130px; }
 .vel-tempo { min-width: 54px; font-variant-numeric: tabular-nums; }
 .vel-tempo--ok { color: #3C4628; }
@@ -465,8 +468,20 @@
 .vel-tempo--alerta { color: #8A2E12; }
 .vel-barra { flex: 1; height: 6px; min-width: 50px; border-radius: 999px; background: rgba(47, 56, 33, 0.09); overflow: hidden; }
 .vel-barra i { display: block; height: 100%; border-radius: inherit; background: #6F784D; }
-.vel-botoes .botao { gap: 8px; }
 @media (max-width: 560px) {
-  .vel-resumo > .vel-cartao { padding-left: 64px; }
-  .vel-total { min-width: 0; }
+  .vel .vel-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e-2); }
+  .vel .vel-resumo > .vel-cartao { padding: 12px 14px; }
+  .vel .vel-resumo > .vel-cartao--destaque { grid-column: 1 / -1; }
+  .vel .vel-cartao__icone { display: none; }
+  .vel .vel-resumo .rotulo { font-size: 13px; line-height: 1.25; }
+  .vel .vel-resumo strong { font-size: 24px; }
+  .vel .vel-divisao { font-size: 13px; }
+  .vel-tabela tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
+  .vel-tabela td { display: flex; flex-direction: column; gap: 0; padding: 0; }
+  .vel-tabela td:first-child { grid-column: 1 / -1; font-size: 15px; }
+  .vel-tabela td:first-child::before { display: none; }
+  .vel-tabela td::before { font-size: 13px; padding: 0; }
+  .vel-tabela .vel-total { min-width: 0; gap: 6px; }
+  .vel-tabela .vel-barra { min-width: 0; }
 }
+.vel-botoes .botao { gap: 8px; }

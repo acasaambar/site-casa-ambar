@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './css/marketing.css';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Esqueleto, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, Aviso, Secao, real, dataBR, dataCurta, hora, linkWhats, primeiro, telFmt, somarDias, hojeIso,
+import { useDados, Esqueleto, Erro, Cabecalho, Modal, BotaoAcao, Vazio, Tag, Abas, Segmento, Aviso, Secao, real, dataBR, dataCurta, hora, linkWhats, primeiro, telFmt, somarDias, hojeIso,
   numBR, MESES_LONGOS, DIAS_LONGOS, diaSemana, plural } from './ui.jsx';
 import { Cupons } from './Vales.jsx';
 import { useCatalogoComanda } from './Comandas.jsx';
@@ -282,10 +282,7 @@ function Campanhas({ admin }) {
                 <header className="mk-passo__topo"><span className="mk-passo__num">2</span><h3>A mensagem</h3></header>
                 <div className="mk-mensagem">
                   <div className="mk-mensagem__editor">
-                    <div className="b-segmento" role="tablist" aria-label="Canal">
-                      <button type="button" role="tab" aria-selected={canal === 'whatsapp'} onClick={() => setCanal('whatsapp')}>WhatsApp</button>
-                      <button type="button" role="tab" aria-selected={canal === 'email'} onClick={() => setCanal('email')}>E-mail</button>
-                    </div>
+                    <Segmento rotulo="Canal" atual={canal} aoMudar={setCanal} itens={[['whatsapp', 'WhatsApp'], ['email', 'E-mail']]} />
                     {canal === 'email' && <label className="b-campo"><span className="rotulo">Assunto</span><input value={assunto} onChange={(e) => setAssunto(e.target.value)} /></label>}
                     <label className="b-campo"><span className="rotulo">Texto · {'{nome}'} vira o primeiro nome</span><textarea rows={7} value={mensagem} onChange={(e) => setMensagem(e.target.value)} /></label>
                   </div>

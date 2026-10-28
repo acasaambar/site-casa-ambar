@@ -61,9 +61,10 @@ export function useAtalhoBusca(abrir) {
 export function BotaoBusca({ aoAbrir, className = '' }) {
   const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   return (
-    <button type="button" className={`bg-botao ${className}`} onClick={aoAbrir} aria-label={`Buscar (${mac ? '⌘' : 'Ctrl'}+K)`} aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">
+    <button type="button" className={`bg-botao ${className}`} onClick={aoAbrir} aria-label={`Buscar ${mac ? '⌘ K' : 'Ctrl K'}`} aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">
       <Icone nome="busca" tamanho={18} tracado={1.8} />
       <span className="bg-botao__texto">Buscar</span>
+      {' '}
       <kbd className="bg-botao__tecla">{mac ? '⌘ K' : 'Ctrl K'}</kbd>
     </button>
   );
@@ -134,7 +135,7 @@ export function Busca({ aoFechar }) {
           <input ref={campo} type="search" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={tecla} enterKeyHint="go"
             placeholder={balcao ? 'Cliente, comanda, horário de hoje ou tela…' : 'Cliente, horário de hoje ou tela…'} aria-label="Buscar" role="combobox" aria-expanded={itens.length > 0} aria-autocomplete="list" aria-controls="bg-lista"
             aria-activedescendant={itens[sel] ? idDe(itens[sel]) : undefined} autoComplete="off" />
-          <button type="button" className="bg__fechar" aria-label="Fechar busca" onClick={aoFechar}><span className="bg__fechar-texto">Fechar</span><kbd>Esc</kbd></button>
+          <button type="button" className="bg__fechar" aria-label="Fechar Esc" onClick={aoFechar}><span className="bg__fechar-texto">Fechar</span>{' '}<kbd>Esc</kbd></button>
         </div>
         <div className="bg__lista">
           <p className="b-so-leitor" role="status">{termo ? (itens.length ? `${itens.length} ${itens.length === 1 ? 'resultado' : 'resultados'}` : buscando ? 'Buscando clientes' : 'Nada encontrado') : ''}</p>

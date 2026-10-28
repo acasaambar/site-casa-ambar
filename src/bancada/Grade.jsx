@@ -133,7 +133,7 @@ function GradeSemanal() {
         )}
         {dias.map(({ dia, aulas }) => (
           <section key={dia} className="cg-dia">
-            <h3 className="cg-dia__titulo">{DIAS_LONGOS[dia]}<span>{plural(aulas.filter((l) => l.ativo).length, 'aula', 'aulas')}</span></h3>
+            <h2 className="cg-dia__titulo">{DIAS_LONGOS[dia]}<span>{plural(aulas.filter((l) => l.ativo).length, 'aula', 'aulas')}</span></h2>
             <div className="b-itens">
               {aulas.map((l) => (
                 <div key={l._k} className={`cg-aula cg-aula--${l.modalidade === 'Pilates' ? 'pilates' : 'yoga'}${l.ativo ? '' : ' cg-aula--off'}`}>

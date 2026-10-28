@@ -12,7 +12,6 @@ import { useDados, Carregando, Esqueleto, Aviso, Ajuda, Secao, Erro, Modal, Bota
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { Passo } from './AgendaPecas.jsx';
 import { iniciais } from './agendaUtil.js';
-import './css/agenda.css';
 
 const MOTIVOS_TROCA = ['Faltou', 'Atestado/saúde', 'Troca combinada', 'Curso/evento', 'Outro'];
 

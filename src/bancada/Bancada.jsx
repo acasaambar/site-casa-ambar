@@ -104,9 +104,10 @@ function Painel() {
   useEffect(() => { document.title = `${tela ? tela + ' · ' : ''}Bancada · Casa Âmbar`; }, [tela]);
   useEffect(() => () => { document.title = 'Casa Âmbar · harmonia em estado natural'; }, []);
   // trocou de tela: o foco vai para o conteúdo (quem usa teclado ou leitor de tela não fica no menu da tela anterior)
-  const primeiraTela = useRef(true);
+  const telaAnterior = useRef(local.pathname); // compara com a tela anterior (vale também no modo de desenvolvimento, que roda o efeito duas vezes)
   useEffect(() => {
-    if (primeiraTela.current) { primeiraTela.current = false; return undefined; }
+    if (telaAnterior.current === local.pathname) return undefined;
+    telaAnterior.current = local.pathname;
     // espera o quadro seguinte: se a gaveta do menu estava aberta, o conteúdo só deixa de ser "inert" depois de ela fechar
     const q = requestAnimationFrame(() => {
       const ativo = document.activeElement;

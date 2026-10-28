@@ -152,7 +152,7 @@
 .b-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; cursor: pointer; }
 .b-check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--verde); flex-shrink: 0; }
 .b-opcoes { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
-.b-opcoes legend { margin-bottom: 8px; font-size: 10.5px; color: var(--tinta-suave); }
+.b-opcoes legend { margin-bottom: 8px; font-size: 13px; color: var(--tinta-suave); }
 .b-opcoes--linha { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 560px) { .b-opcoes--linha { grid-template-columns: 1fr; } }
 .b-opcoes label { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(47, 56, 33, 0.16); background: var(--branco); cursor: pointer; }
@@ -478,7 +478,6 @@
 .pedra--capilar { background: var(--c-capilar); }
 .pedra--fisio { background: #66715A; }
 .pedra--s { border-radius: 17px 13px 18px 14px; }
-.pedra--passou { opacity: 0.38; }
 .linha__horas { position: absolute; left: 0; right: 0; bottom: 14px; height: 18px; }
 .linha__horas span { position: absolute; transform: translateX(-50%); font-family: var(--display); font-size: 16px; color: rgba(233, 221, 197, 0.55); }
 .linha__agora { position: absolute; top: 16px; bottom: 38px; width: 0; border-left: 1px dashed rgba(217, 162, 74, 0.7); z-index: 2; pointer-events: none; }
@@ -1067,7 +1066,7 @@
 .pedra { min-width: 54px; padding: 0 6px; color: #FFFDF6; }
 .pedra:hover, .pedra:focus-visible { z-index: 2; }
 .pedra span { opacity: 0.92; }
-.pedra--facial { background: #8A6A45; }
+.pedra--facial { background: #86653F; }
 .pedra--corporal { background: #66704A; }
 .pedra--yoga { background: #5E6A42; }
 .linha__vazia { margin: 0; padding: 14px 0 6px; font-size: 14px; color: rgba(233, 221, 197, 0.85); }

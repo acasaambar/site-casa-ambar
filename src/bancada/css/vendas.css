@@ -44,12 +44,18 @@
 }
 .vn-venda:first-child { border-top: 0; }
 @media (hover: hover) { .vn-venda:hover { background: rgba(166, 132, 94, 0.08); } }
-.vn-venda:focus-visible { outline: 2px solid var(--b-oliva); outline-offset: -2px; }
+.vn-venda { position: relative; }
+/* o botão com o nome da pessoa cobre a linha inteira (::after); Editar, Recibo e "Já devolvi" ficam acima, como irmãos */
+.vn-venda__abrir { font-family: inherit; line-height: 1.3; color: var(--b-tinta); background: none; border: 0; padding: 0; margin: 0; text-align: left; cursor: pointer; }
+.vn-venda__abrir::after { content: ''; position: absolute; inset: 0; z-index: 1; }
+.vn-venda__abrir:focus-visible::after { outline: 2px solid var(--b-foco); outline-offset: -2px; }
+.vn-venda__acoes { pointer-events: none; }
+.vn-venda__acoes > * { position: relative; z-index: 2; pointer-events: auto; }
 .vn-venda__rodape { display: contents; }
 .vn-venda__data { grid-area: data; font-size: 14px; font-weight: 600; color: var(--b-suave); white-space: nowrap; }
 .vn-venda__corpo { grid-area: corpo; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .vn-venda__quem { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
-.vn-venda__quem strong { font-size: 16px; font-weight: 600; color: var(--b-tinta); }
+.vn-venda__quem strong, .vn-venda__abrir { font-size: 16px; font-weight: 600; color: var(--b-tinta); }
 .vn-venda__item { font-size: 14px; color: var(--b-tinta); overflow-wrap: anywhere; }
 .vn-venda__nota { display: flex; flex-direction: column; gap: 1px; font-size: 13px; color: var(--b-suave); overflow-wrap: anywhere; }
 .vn-venda__desconto { color: var(--b-oliva); font-weight: 600; }
@@ -60,7 +66,7 @@
 .vn-venda__valor small { font-size: 13px; color: var(--b-suave); white-space: nowrap; }
 .vn-venda__acoes { grid-area: acoes; display: flex; gap: 2px; justify-content: flex-end; align-items: center; min-width: 96px; }
 .vn-venda--excluida { background: rgba(47, 56, 33, 0.03); }
-.vn-venda--excluida .vn-venda__quem strong, .vn-venda--excluida .vn-venda__item { color: var(--b-suave); }
+.vn-venda--excluida .vn-venda__abrir, .vn-venda--excluida .vn-venda__item { color: var(--b-suave); }
 
 @media (max-width: 1100px) {
   .vn-venda { grid-template-columns: 52px minmax(0, 1fr) 140px 108px auto; column-gap: 12px; }

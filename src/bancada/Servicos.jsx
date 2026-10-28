@@ -2,14 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, preCarregar, Alertas, MenuMais, segundaDe, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
+import { useDados, preCarregar, Alertas, MenuMais, segundaDe, useMaisADireita, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Erro, Modal, BuscaAluno, BotaoAcao, Vazio, Tag, Ajuda, Aviso, Esqueleto, real, hora, hojeIso, linkWhats, primeiro, telFmt, dataBR, DIAS_LONGOS,
   MESES, diaSemana, plural, ehDela, somarDias } from './ui.jsx';
 import { mascaraTelefone, soDigitos } from '../lib/util.js';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioModal } from './Prontuario.jsx';
 import { HorarioSemanal, DiasEspeciais, horariosIniciais, resumoHorario } from './Horarios.jsx';
-import { Aviso, Esqueleto, Ajuda } from './ui.jsx';
 import { Avatar, BlocoForm, Interruptor, Barra } from './CatalogoPecas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
@@ -51,7 +50,6 @@ const gravarLocal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v))
 const iniciais = (n) => n.replace(/^(dra?\.?|prof\.?)\s+/i, '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
 
 import { Passo, ClienteEscolhido } from './AgendaPecas.jsx';
-import { Ajuda as AjudaAg, Aviso as AvisoAg, Esqueleto as EsqueletoAg } from './ui.jsx';
 import './css/agenda.css';
 
 // dados: { atendimentos, folgas, equipe } do dia (vêm da semana carregada pela Agenda; null enquanto carrega).
@@ -290,7 +288,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
   if (!dados) {
     return (<>
       {acoes}
-      {erro ? <Erro>{erro}</Erro> : <EsqueletoAg linhas={8} altura={46} />}
+      {erro ? <Erro>{erro}</Erro> : <Esqueleto linhas={8} altura={46} />}
     </>);
   }
   return (
@@ -311,11 +309,11 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
               <span>Colunas</span>
               {[2, 3, 5, 8].map((n) => <button key={n} type="button" aria-pressed={visiveis === n} onClick={() => mudarVisiveis(n)}>{n}</button>)}
             </div>
-            <AjudaAg titulo="Como usar a agenda" alinhar="direita">
+            <Ajuda titulo="Como usar a agenda" alinhar="direita">
               <span><strong>Agendar:</strong> toque num horário vazio da coluna.</span>
               <span><strong>Remarcar:</strong> arraste o atendimento até o novo horário. No celular e no iPad, toque, segure e arraste.</span>
               <span><strong>Listrado:</strong> fora do horário de atendimento.</span>
-            </AjudaAg>
+            </Ajuda>
           </div>
         </div>
       )}
@@ -474,7 +472,7 @@ function EsperaServicos({ dia, lista, catalogo, aoFechar, aoMudar }) {
           <span className="ag-esp-topo__n">
             <strong>{lista.length}</strong> {lista.length === 1 ? 'pessoa esperando' : 'pessoas esperando'}
             {nDoDia > 0 && <Tag tom="ok">{plural(nDoDia, 'para este dia', 'para este dia')}</Tag>}
-            <AjudaAg titulo="Lista de espera">Anote quem quer um horário que estava ocupado. Quando abrir uma vaga, avise pelo WhatsApp e agende por aqui.</AjudaAg>
+            <Ajuda titulo="Lista de espera">Anote quem quer um horário que estava ocupado. Quando abrir uma vaga, avise pelo WhatsApp e agende por aqui.</Ajuda>
           </span>
           {!novo && <button type="button" className="botao botao--cheio botao--p" onClick={() => setNovo(true)}>Pôr alguém na lista</button>}
         </div>
@@ -587,7 +585,7 @@ function MoverAtendimento({ m, aoFechar, aoMover }) {
           <span className="ag-mover__seta" aria-hidden="true">→</span>
           <div><span className="rotulo">Fica</span><strong>{hora(m.hora)}</strong><span>com {m.profissional}</span></div>
         </div>
-        <AvisoAg tom={outra ? 'aviso' : 'info'}>{outra ? `Muda de profissional: vale o tempo do serviço de ${primeiro(m.profissional)}. ` : ''}Pagamento, pacote e comanda continuam os mesmos.</AvisoAg>
+        <Aviso tom={outra ? 'aviso' : 'info'}>{outra ? `Muda de profissional: vale o tempo do serviço de ${primeiro(m.profissional)}. ` : ''}Pagamento, pacote e comanda continuam os mesmos.</Aviso>
         <Erro>{erro}</Erro>
         <div className="b-botoes">
           <BotaoAcao className="botao botao--cheio" acao={async () => {
@@ -760,7 +758,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             {lote.criados.map((x) => <li key={x.id}><span className="sr-ok" aria-hidden="true">✓</span><strong>{hora(x.hora)} · {x.servico}</strong><small>com {x.profissional}</small></li>)}
             {lote.falhas.map((x, i) => <li key={i} className="sr-pulado"><span className="sr-nao" aria-hidden="true">×</span><strong>{x.servico}{x.hora ? ` · ${hora(x.hora)}` : ''}</strong><small>{x.motivo}</small></li>)}
           </ul>
-          <AvisoAg tom="aviso">Os itens com × não foram marcados. Marque-os de novo pela agenda, em outro horário.</AvisoAg>
+          <Aviso tom="aviso">Os itens com × não foram marcados. Marque-os de novo pela agenda, em outro horário.</Aviso>
           <button type="button" className="botao botao--cheio" onClick={() => aoSalvar(lote.criados[0])}>Ok</button>
         </div>
       </Modal>
@@ -775,7 +773,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             {serie.criados.map((x) => <li key={x.id}><span className="sr-ok" aria-hidden="true">✓</span><strong>{DIAS_LONGOS[diaSemana(x.data)]}, {dataBR(x.data)}</strong><small>{nomePg[x.pagamento] || x.pagamento}</small></li>)}
             {serie.pulados.map((x) => <li key={x.data} className="sr-pulado"><span className="sr-nao" aria-hidden="true">×</span><strong>{DIAS_LONGOS[diaSemana(x.data)]}, {dataBR(x.data)}</strong><small>{x.motivo}</small></li>)}
           </ul>
-          {serie.pulados.length > 0 && <AvisoAg tom="aviso">Os dias com × não foram marcados. Escolha outro horário para eles pela agenda.</AvisoAg>}
+          {serie.pulados.length > 0 && <Aviso tom="aviso">Os dias com × não foram marcados. Escolha outro horário para eles pela agenda.</Aviso>}
           <button type="button" className="botao botao--cheio" onClick={aoSalvar}>Ok</button>
         </div>
       </Modal>
@@ -803,7 +801,7 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             </div>
           )}
           {serv && profs.length === 0 && (
-            <AvisoAg tom="alerta">Ninguém faz {serv.nome}. Acerte em Catálogo → Serviços → "Quem faz este serviço".</AvisoAg>
+            <Aviso tom="alerta">Ninguém faz {serv.nome}. Acerte em Catálogo → Serviços → "Quem faz este serviço".</Aviso>
           )}
         </Passo>
 
@@ -819,9 +817,9 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             <label className="b-campo"><span className="rotulo">Dia</span><input type="date" value={data} min={re ? hojeIso() : limitePassado} onChange={(e) => { setData(e.target.value); setHoraSel(''); }} /></label>
           </div>
           {passado && (
-            <AvisoAg tom="aviso" titulo={data < limitePassado ? 'Dá para lançar atendimentos de até 120 dias atrás' : 'Dia que já passou'}>
+            <Aviso tom="aviso" titulo={data < limitePassado ? 'Dá para lançar atendimentos de até 120 dias atrás' : 'Dia que já passou'}>
               {data < limitePassado ? '' : `Entra como atendido, com comissão. Se já pagou, a venda vai para o caixa de ${dataBR(data)}.`}
-            </AvisoAg>
+            </Aviso>
           )}
 
           {serv && profissional && passado && (
@@ -945,9 +943,9 @@ export function NovoAtendimento({ inicial, catalogo, aoFechar, aoSalvar }) {
             </fieldset>
             {pagamento === 'pago' && <CamposPagamento metodos={METODOS} p={pg} aoMudar={setPg} itemId={comboValido ? combo : servicoId} cpf={cliente?.cpf} data={data} parcelas semDividir={extras.length > 0} />}
             {extras.length > 0 && pagamento === 'pago' && (
-              <AvisoAg tom="info" titulo={`Total ${real(serv.preco + extras.reduce((t, x) => t + (servicos.find((y) => y.id === x.servicoId)?.preco || 0), 0))} · ${plural(extras.length + 1, 'serviço', 'serviços')}`}>
+              <Aviso tom="info" titulo={`Total ${real(serv.preco + extras.reduce((t, x) => t + (servicos.find((y) => y.id === x.servicoId)?.preco || 0), 0))} · ${plural(extras.length + 1, 'serviço', 'serviços')}`}>
                 Cada serviço é cobrado pelo preço dele. Vale-presente, cupom e valor combinado só com um serviço: receba pela comanda.
-              </AvisoAg>
+              </Aviso>
             )}
           </Passo>
         )}
@@ -1019,7 +1017,7 @@ function ServicoExtra({ n, item, catalogo, data, outros, depoisDe, aoMudar, aoTi
           </select>
         </label>
       )}
-      {serv && profs.length === 0 && <AvisoAg tom="alerta">Ninguém faz {serv.nome}. Acerte em Catálogo → Serviços.</AvisoAg>}
+      {serv && profs.length === 0 && <Aviso tom="alerta">Ninguém faz {serv.nome}. Acerte em Catálogo → Serviços.</Aviso>}
       {serv && item.profissional && (
         <fieldset className="s-horarios">
           <legend className="rotulo">Horário livre · {dur} min</legend>
@@ -1061,10 +1059,10 @@ function BloquearHorario({ inicial, profissionais, aoFechar, aoSalvar }) {
     return (
       <Modal titulo="Horário bloqueado" aoFechar={aoSalvar}>
         <div className="b-form">
-          <AvisoAg tom="ok" titulo={plural(aviso.criadas, 'bloqueio criado', 'bloqueios criados')} />
+          <Aviso tom="ok" titulo={plural(aviso.criadas, 'bloqueio criado', 'bloqueios criados')} />
           {aviso.conflitos.length > 0 && (
             <div className="ag-conflitos">
-              <AvisoAg tom="alerta" titulo="Já havia atendimento marcado nesse horário">Reagende esses horários pela agenda.</AvisoAg>
+              <Aviso tom="alerta" titulo="Já havia atendimento marcado nesse horário">Reagende esses horários pela agenda.</Aviso>
               <ul>{aviso.conflitos.map((c) => <li key={c}>{c}</li>)}</ul>
             </div>
           )}
@@ -1164,9 +1162,9 @@ function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRap
       </div>
       <Alertas lista={a.alertas} />
       {pedeRemarcar(a) && (
-        <AvisoAg tom="alerta" titulo="Pediu para remarcar pelo link">{a.respostaEm ? `Em ${dataBR(a.respostaEm)} às ${hora(a.respostaEm.slice(11, 16))}. ` : ''}Combine um novo horário pelo WhatsApp e use “Reagendar”.</AvisoAg>
+        <Aviso tom="alerta" titulo="Pediu para remarcar pelo link">{a.respostaEm ? `Em ${dataBR(a.respostaEm)} às ${hora(a.respostaEm.slice(11, 16))}. ` : ''}Combine um novo horário pelo WhatsApp e use “Reagendar”.</Aviso>
       )}
-      {a.resposta === 'confirmou' && a.status !== 'atendido' && <AvisoAg tom="ok">Confirmou pelo link{a.respostaEm ? ` em ${dataBR(a.respostaEm)}` : ''}.</AvisoAg>}
+      {a.resposta === 'confirmou' && a.status !== 'atendido' && <Aviso tom="ok">Confirmou pelo link{a.respostaEm ? ` em ${dataBR(a.respostaEm)}` : ''}.</Aviso>}
       <Erro>{erro}</Erro>
 
       {balcao && a.status !== 'cancelado' && !(a.status === 'atendido' && a.pagamento === 'pago') && (
@@ -1247,7 +1245,7 @@ export function CatalogoServicos() {
           if (!lista.length) return null;
           return (
             <section key={c} className={`cg-cat cg-cat--${COR_CATEGORIA[c]}`}>
-              <h3 className="cg-cat__titulo"><i aria-hidden="true" />{c}<span>{plural(lista.length, 'serviço', 'serviços')}</span></h3>
+              <h2 className="cg-cat__titulo"><i aria-hidden="true" />{c}<span>{plural(lista.length, 'serviço', 'serviços')}</span></h2>
               <ul className="b-itens">
                 {lista.map((s) => {
                   const pacs = dados.pacotes.filter((p) => p.servicoId === s.id);
@@ -1806,7 +1804,7 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
       <span aria-hidden="true">+</span> Agendar serviço
     </button>, slot);
 
-  if (!dados) return <>{acoes}{erro ? <Erro>{erro}</Erro> : <EsqueletoAg linhas={8} altura={46} />}</>;
+  if (!dados) return <>{acoes}{erro ? <Erro>{erro}</Erro> : <Esqueleto linhas={8} altura={46} />}</>;
   return (
     <>
       {acoes}
@@ -1842,7 +1840,7 @@ export function AgendaSemana({ dia, semana, erro, aplicar, slot, aoAbrirDia }) {
             {dias.map((d) => {
               const t = turnosDia(d);
               return (
-                <div key={d} className={`ag-col${d === hoje ? ' sem-col--hoje' : ''}`} style={{ height: altura }} aria-label={`${pessoa}, ${dataBR(d)}`}>
+                <div key={d} className={`ag-col${d === hoje ? ' sem-col--hoje' : ''}`} style={{ height: altura }} role="group" aria-label={`${pessoa}, ${dataBR(d)}`}>
                   {fora(d).map(([a, b]) => <div key={a} className="ag-fora" style={{ top: y(a), height: (b - a) * PX }} />)}
                   {balcao && eq && d >= hoje && Array.from({ length: (FIM - INI) / SLOT }, (_, i) => {
                     const m = INI + i * SLOT;

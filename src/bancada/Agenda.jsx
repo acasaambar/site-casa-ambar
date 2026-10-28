@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
 import './css/agenda.css';
-import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Esqueleto, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, Aviso, Ajuda, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
+import { useDados, preCarregar, segundaDe, Alertas, useAtualizarSozinho, useEsquecerPedidoDaRota, useFazServicos, CamposPagamento, PAGAMENTO_INICIAL, faltaPagamento, Carregando, Esqueleto, Erro, Cabecalho, Tag, Modal, BuscaAluno, BotaoAcao, Vazio, Aviso, Ajuda, Segmento, STATUS_RESERVA, hora, hojeIso, somarDias, diaSemana,
   DIAS, DIAS_LONGOS, MESES, linkWhats, primeiro, telFmt, plural } from './ui.jsx';
 import { Lugares, Passo, ClienteEscolhido } from './AgendaPecas.jsx';
 import { iniciais } from './agendaUtil.js';
@@ -177,10 +177,10 @@ export default function Agenda() {
 
       {vista !== 'semana' && <div className="b-tira ag-tira" role="tablist" aria-label="Dias da semana">
         {tira.map((d) => (
-          <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}
-            aria-label={`${DIAS_LONGOS[diaSemana(d)]}, ${Number(d.slice(8))}${porDia[d] ? ` · ${plural(porDia[d], 'atendimento', 'atendimentos')}` : ''}`}>
-            <span>{DIAS[diaSemana(d)]}</span>
-            <strong>{Number(d.slice(8))}</strong>
+          <button key={d} type="button" role="tab" aria-selected={d === dia} onClick={() => setDia(d)} className={d === hojeIso() ? 'hoje' : ''}>
+            <span className="b-so-leitor">{DIAS_LONGOS[diaSemana(d)]}, {Number(d.slice(8))}{porDia[d] ? ` · ${plural(porDia[d], 'atendimento', 'atendimentos')}` : ''}</span>
+            <span aria-hidden="true">{DIAS[diaSemana(d)]}</span>
+            <strong aria-hidden="true">{Number(d.slice(8))}</strong>
             <i className="ag-tira__n" aria-hidden="true">{porDia[d] || ''}</i>
           </button>
         ))}
@@ -188,12 +188,12 @@ export default function Agenda() {
       </>)}
 
       <div className="b-agenda__vista ag-barra-topo">
-        <div className="b-segmento" role="tablist" aria-label="O que mostrar">
-          <button type="button" role="tab" aria-selected={vista === 'dia'} onClick={() => setVista('dia')}><span className="ag-longo">Agenda do dia</span><span className="ag-curto">Dia</span></button>
-          <button type="button" role="tab" aria-selected={vista === 'semana'} onClick={() => setVista('semana')}>Semana</button>
-          <button type="button" role="tab" aria-selected={vista === 'aulas'} onClick={() => setVista('aulas')}><span className="ag-longo">Aulas e presença</span><span className="ag-curto">Aulas</span></button>
-          <button type="button" role="tab" aria-selected={vista === 'trocas'} onClick={() => setVista('trocas')}>Trocas</button>
-        </div>
+        <Segmento rotulo="O que mostrar" atual={vista} aoMudar={setVista} itens={[
+          ['dia', <><span className="ag-longo">Agenda do dia</span><span className="ag-curto">Dia</span></>],
+          ['semana', 'Semana'],
+          ['aulas', <><span className="ag-longo">Aulas e presença</span><span className="ag-curto">Aulas</span></>],
+          ['trocas', 'Trocas'],
+        ]} />
         {vista === 'aulas' && (equipeBalcao || modalidades.size > 1) && (
           <div className="b-filtros">
             {['Todas', 'Yoga', 'Pilates'].map((f) => (

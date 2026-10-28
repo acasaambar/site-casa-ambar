@@ -378,23 +378,3 @@ ul.b-itens { list-style: none; margin: 0; padding: 0; }
 
 .cg-mais-itens { display: flex; align-items: center; justify-content: space-between; gap: var(--e-3); flex-wrap: wrap; padding: var(--e-2) 2px; font-size: 14px; }
 
-/* ---------- Ajustes · Velocidade ---------- */
-.vel-resumo > div { border-radius: var(--r-m); }
-.vel-resumo strong { font-size: 26px; }
-.vel-tabela td:first-child { font-weight: 600; }
-@media (max-width: 560px) {
-  .vel .vel-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--e-2); }
-  .vel .vel-resumo > .vel-cartao { padding: 12px 14px; }
-  .vel .vel-resumo > .vel-cartao--destaque { grid-column: 1 / -1; }
-  .vel .vel-cartao__icone { display: none; }
-  .vel .vel-resumo .rotulo { font-size: 13px; line-height: 1.25; }
-  .vel .vel-resumo strong { font-size: 24px; }
-  .vel .vel-divisao { font-size: 13px; }
-  .vel-tabela tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
-  .vel-tabela td { display: flex; flex-direction: column; gap: 0; padding: 0; }
-  .vel-tabela td:first-child { grid-column: 1 / -1; font-size: 15px; }
-  .vel-tabela td:first-child::before { display: none; }
-  .vel-tabela td::before { font-size: 13px; padding: 0; }
-  .vel-tabela .vel-total { min-width: 0; gap: 6px; }
-  .vel-tabela .vel-barra { min-width: 0; }
-}
