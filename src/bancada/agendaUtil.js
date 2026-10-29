@@ -45,3 +45,7 @@ export const mesMais = (iso, n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 };
 export const tituloMes = (iso) => `${MESES_NOME[Number(iso.slice(5, 7)) - 1].replace(/^./, (c) => c.toUpperCase())} de ${iso.slice(0, 4)}`;
+
+// observação do atendimento: o "Reagendado de …" é do sistema; o resto é da equipe
+export const prefixoDeReagendado = (obs) => (String(obs || '').match(/^(Reagendado de [^.]*\.\s*)+/) || [''])[0].trim();
+export const obsDaEquipe = (obs) => String(obs || '').replace(/^(Reagendado de [^.]*\.\s*)+/, '').trim();

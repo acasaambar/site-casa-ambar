@@ -13,7 +13,7 @@ import { Avatar, BlocoForm, Interruptor, Barra } from './CatalogoPecas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
 import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
-import { COR_CATEGORIA } from './agendaUtil.js';
+import { COR_CATEGORIA, obsDaEquipe, prefixoDeReagendado } from './agendaUtil.js';
 import { DiaLista, Pessoas } from './AgendaCelular.jsx';
 
 // Cor de cada área de cuidado (tons da marca): mora em agendaUtil.js (a lista do celular também usa)
@@ -400,7 +400,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                     className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}${a.duracao < 30 ? ' ag-bloco--curto' : ''}${a.duracao >= 90 ? ' ag-bloco--longo' : ''}`}
                     style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }} title={`${a.nome} · ${a.servico}`}>
                     <span className="ag-bloco__hora" title={`${hora(a.hora)}–${hora(fimDe(a))}`}>{a.duracao < 30 ? hora(a.hora) : `${hora(a.hora)}–${hora(fimDe(a))}`}{pedeRemarcar(a) ? ' · quer remarcar' : ''}</span>
-                    <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" title={a.alertas.join(' · ')} aria-label="Atenção: ver alertas">!</i>}{a.nome}</strong>
+                    <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" title={a.alertas.join(' · ')} aria-label="Atenção: ver alertas">!</i>}{obsDaEquipe(a.obs) && <i className="ag-bloco__nota" title={obsDaEquipe(a.obs)} aria-label="Tem observação">✎</i>}{a.nome}</strong>
                     {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
                     {a.titular && a.duracao >= 60 && <span className="ag-bloco__info ag-bloco__troca">cobrindo {primeiro(a.titular)}</span>}
                     {a.status === 'atendido' && <i className="ag-bloco__sel ag-sel--atendido" title="Atendido" aria-hidden="true">✓</i>}
@@ -428,6 +428,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
       {aberto && <DetalheAtendimento a={aberto} erroInicial={erroAberto} aoFechar={() => { setAberto(null); setErroAberto(''); }} aoMudar={(r) => { setAberto(null); aplicar(r); }}
         // confirmou, faltou, atendido sem cobrança: aparece na hora e o servidor confere por trás;
         // se ele recusar, volta como estava e a ficha reabre com o motivo
+        aoSalvouObs={(r) => aplicar(r, true)}
         aoMudarRapido={(a, status) => {
           setAberto(null);
           setErroAberto('');
@@ -1137,8 +1138,11 @@ function DetalheFolga({ f, aoFechar, aoMudar }) {
   );
 }
 
-function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRapido, aoReagendar, aoComanda, aoProntuario, aoTrocar, aoPedir }) {
+function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRapido, aoSalvouObs, aoReagendar, aoComanda, aoProntuario, aoTrocar, aoPedir }) {
   const { membro, chamar } = useBancada();
+  const [obs, setObs] = useState(() => obsDaEquipe(a.obs)); // observação: campo livre da equipe sobre este horário
+  const [obsSalva, setObsSalva] = useState(() => obsDaEquipe(a.obs));
+  const [obsOk, setObsOk] = useState(false);
   const balcao = pode(membro, 'admin', 'recepcao');
   const [pg, setPg] = useState(PAGAMENTO_INICIAL);
   const [semCombo, setSemCombo] = useState(false); // combo escolhido no agendamento: desmarcar = cobra só a sessão
@@ -1167,10 +1171,28 @@ function DetalheAtendimento({ a, erroInicial = '', aoFechar, aoMudar, aoMudarRap
           {a.whatsapp && <div><dt>WhatsApp</dt><dd><a href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! Aqui é da Casa Âmbar.`)} target="_blank" rel="noreferrer">{telFmt(a.whatsapp)}</a></dd></div>}
           <div><dt>Profissional</dt><dd>{a.profissional}{a.titular && <small>no lugar de {a.titular}</small>}</dd></div>
           {balcao && <div><dt>Pagamento</dt><dd>{PAGAMENTO[a.pagamento] || a.pagamento}{a.combo ? <small>vai levar {a.combo.nome} ({real(a.combo.preco)})</small> : a.valor ? <small>{real(a.valor)}</small> : null}</dd></div>}
-          {a.obs && <div className="ag-fatos__largo"><dt>Observação</dt><dd>{a.obs}</dd></div>}
         </dl>
       </div>
       <Alertas lista={a.alertas} />
+      <section className="ag-obs" aria-label="Observação do atendimento">
+        <label className="ag-obs__rotulo" htmlFor={`obs-${a.id}`}>Observação</label>
+        {prefixoDeReagendado(a.obs) && <small className="ag-obs__sistema">{prefixoDeReagendado(a.obs)}</small>}
+        <textarea id={`obs-${a.id}`} rows={2} maxLength={400} value={obs} onChange={(e) => { setObs(e.target.value); setObsOk(false); }}
+          placeholder="Algum detalhe a mais deste horário? Ex.: chega 10 min antes, prefere sala silenciosa, trazer exames…" />
+        {obs.trim() !== obsSalva.trim() && (
+          <div className="ag-obs__acoes">
+            <BotaoAcao className="botao botao--cheio botao--p" acao={async () => {
+              const r = await chamar('observacaoAtendimento', { id: a.id, obs });
+              setObsSalva(obsDaEquipe(r.obs));
+              setObs(obsDaEquipe(r.obs));
+              setObsOk(true);
+              aoSalvouObs?.(r);
+            }}>Salvar observação</BotaoAcao>
+            <button type="button" className="botao botao--fantasma botao--p" onClick={() => setObs(obsSalva)}>Descartar</button>
+          </div>
+        )}
+        {obsOk && obs.trim() === obsSalva.trim() && <small className="ag-obs__ok" role="status">Observação salva.</small>}
+      </section>
       {pedeRemarcar(a) && (
         <Aviso tom="alerta" titulo="Pediu para remarcar pelo link">{a.respostaEm ? `Em ${dataBR(a.respostaEm)} às ${hora(a.respostaEm.slice(11, 16))}. ` : ''}Combine um novo horário pelo WhatsApp e use “Reagendar”.</Aviso>
       )}

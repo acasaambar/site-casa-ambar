@@ -457,3 +457,18 @@
 /* ============================================================
    IMPRESSÃO: continua como era (o que está em bancada.css vale)
    ============================================================ */
+
+/* ---------- observação do atendimento (detalhe da agenda) ---------- */
+.ag-obs { display: grid; gap: 8px; padding: 14px 16px; border-radius: var(--r-m); background: var(--b-linho); border: 1px solid var(--b-linha); }
+.ag-obs__rotulo { font-size: 15px; font-weight: 600; color: var(--b-tinta); }
+.ag-obs__sistema { font-size: 13.5px; color: var(--b-suave); }
+.ag-obs textarea {
+  width: 100%; min-height: 64px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(47, 56, 33, 0.22); background: #fff; color: var(--b-tinta);
+  font: 400 15px/1.45 'IBM Plex Sans', system-ui, sans-serif; resize: vertical;
+}
+.ag-obs textarea:focus { outline: none; border-color: var(--b-oliva); box-shadow: 0 0 0 3px rgba(111, 120, 77, 0.22); }
+.ag-obs__acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ag-obs__ok { font-size: 13.5px; font-weight: 600; color: var(--b-oliva); }
+@media (max-width: 720px) { .ag-obs textarea { font-size: 16px; } }
+/* marca de "tem observação" no bloco da agenda */
+.bancada .ag-bloco__nota { display: inline-block; margin-right: 4px; font-style: normal; font-size: 13px; line-height: 1; color: var(--b-terracota); }

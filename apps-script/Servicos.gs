@@ -619,6 +619,20 @@ function encerrarPedidosDeTroca(tipo, ref, motivo) {
 }
 
 // status: confirmado | atendido | falta | cancelado | agendado. Ao marcar atendido com pagamento no dia, registra o recebimento.
+// Observação do atendimento (campo livre no detalhe da agenda, para qualquer detalhe a mais daquele horário).
+// O "Reagendado de …" que o sistema põe na frente fica como está; a pessoa edita só o resto.
+function bancada_observacaoAtendimento(d, m) {
+  var a = lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0];
+  if (!a) throw new Error('Atendimento não encontrado.');
+  if (m.papel === 'professora' && !mesmaProfessora(a.profissional, m)) throw new Error('Este atendimento não é seu.');
+  var texto = String(d.obs == null ? '' : d.obs).replace(/\r/g, '').trim().slice(0, 400);
+  var prefixo = (String(a.obs || '').match(/^(Reagendado de [^.]*\.\s*)+/) || [''])[0];
+  var obs = (prefixo + texto).slice(0, 500);
+  atualizarLinha('Atendimentos', a._linha, { obs: obs, atualizado_em: agoraTexto() });
+  registrar(m, 'observação do atendimento', a.nome + ' · ' + a.servico + ' · ' + dataTexto(a.data) + ' ' + horaTexto(a.hora));
+  return atendimentoPublico(Object.assign({}, a, { obs: obs }), m);
+}
+
 function bancada_atualizarAtendimento(d, m) {
   var a = lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0];
   if (!a) throw new Error('Atendimento não encontrado.');

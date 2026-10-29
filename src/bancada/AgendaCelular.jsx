@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import './css/agenda-celular.css';
 import { useDados, Erro, Esqueleto, Vazio, hora, hojeIso, somarDias, segundaDe, diaSemana, primeiro as primeiroNome, plural, MESES_LONGOS } from './ui.jsx';
-import { COR_CATEGORIA, iniciais, primeiroDoMes, mesMais, tituloMes } from './agendaUtil.js';
+import { COR_CATEGORIA, iniciais, primeiroDoMes, mesMais, tituloMes, obsDaEquipe } from './agendaUtil.js';
 
 // ============================================================
 //  AGENDA NO CELULAR (pedido das profissionais, out/2026: "como no app do Avec")
@@ -145,6 +145,7 @@ export function DiaLista({ dia, colunas, pessoa, lista, aulas, folgas, ehHoje, m
                 {est && <span className="am-so-leitor">{est[1]}</span>}
               </span>
               <span className="am-card__serv">{a.servico}</span>
+              {obsDaEquipe(a.obs) && <span className="am-card__obs">{obsDaEquipe(a.obs)}</span>}
               <span className="am-card__rodape">
                 {!unica && <span>{primeiro(a.profissional)}</span>}
                 <span>{a.duracao} min</span>

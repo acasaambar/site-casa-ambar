@@ -56,6 +56,7 @@ var PERMISSOES = {
   b_agendaSemana: ['admin', 'recepcao', 'professora'],
   b_agendaMes: ['admin', 'recepcao', 'professora'],
   b_atualizarAtendimento: ['admin', 'recepcao', 'professora'],
+  b_observacaoAtendimento: ['admin', 'recepcao', 'professora'],
   b_horarios: ['admin', 'recepcao'],
   b_agendarServico: ['admin', 'recepcao'],
   b_agendarServicos: ['admin', 'recepcao'],

@@ -141,3 +141,5 @@ button.am-livre:active { background: rgba(111, 120, 77, 0.1); }
 .am-mais { font-size: 13px; font-weight: 600; color: var(--b-suave); line-height: 1.2; }
 .am-mes__total { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin: 6px 0 84px; font-size: 14px; color: var(--b-suave); }
 .am-mes__total strong { color: var(--b-tinta); font-weight: 700; }
+
+.am-card__obs { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; font-style: italic; color: var(--b-terracota); overflow-wrap: anywhere; }
