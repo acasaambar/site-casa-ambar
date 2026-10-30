@@ -10,7 +10,12 @@
 var CATEGORIAS_PRODUTO = ['Revenda (home care)', 'Insumo de cabine', 'Descartáveis', 'Limpeza e copa', 'Outros'];
 var CATEGORIAS_DESPESA = ['Aluguel e condomínio', 'Água, luz e internet', 'Salários e pró-labore', 'Comissões', 'Produtos e insumos', 'Marketing',
   'Manutenção', 'Impostos e taxas', 'Sistemas e assinaturas', 'Outros'];
-var METODOS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Vale-presente'];
+var METODOS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Vale-presente', 'Permuta'];
+// formas que contam como pago na comanda mas não são dinheiro recebido agora (não entram no caixa nem na maquininha)
+// Permuta: a Casa assume o pagamento em troca de divulgação (blogueiro, parceiro…); a comissão segue sobre o valor cheio
+function entraNoCaixa(metodo) { return metodo !== 'Vale-presente' && metodo !== 'Permuta'; }
+// texto livre lido da planilha: tira a aspa que protege contra fórmula (seguro() põe na frente de textos que começam com @, =, + ou -)
+function semAspaDeFormula(t) { return String(t == null ? '' : t).replace(/^'/, ''); }
 // bandeira do cartão (para conferir com o extrato da maquininha)
 var BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', 'Hiper', 'Diners', 'Cabal', 'Outra'];
 function ehCartao(metodo) { return metodo === 'Cartão de crédito' || metodo === 'Cartão de débito'; }
@@ -445,7 +450,7 @@ function bancada_comissoes(d) {
 function bancada_pagarComissoes(d, m) {
   var ids = (d.ids || []).map(String);
   if (!ids.length) throw new Error('Escolha as comissões.');
-  var forma = METODOS_PAGAMENTO.indexOf(d.forma) >= 0 ? d.forma : 'Pix';
+  var forma = METODOS_PAGAMENTO.indexOf(d.forma) >= 0 && entraNoCaixa(d.forma) ? d.forma : 'Pix';
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   var pagas = 0;
@@ -722,7 +727,7 @@ function formasDasVendas(pags) {
   if (Object.keys(comandas).length) {
     lerAba('Comandas').forEach(function (c) {
       if (!comandas[String(c.id)]) return;
-      parseJson(c.pagamentos, []).forEach(function (x) { if (x.metodo !== 'Vale-presente') soma(x.metodo, numero(x.valor)); });
+      parseJson(c.pagamentos, []).forEach(function (x) { if (entraNoCaixa(x.metodo)) soma(x.metodo, numero(x.valor)); });
     });
   }
   return r;
@@ -745,7 +750,7 @@ function partesRecebidas(pags) {
     lerAba('Comandas').forEach(function (c) {
       if (!comandas[String(c.id)]) return;
       parseJson(c.pagamentos, []).forEach(function (x) {
-        if (x.metodo !== 'Vale-presente') partes.push({ metodo: x.metodo, bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) });
+        if (entraNoCaixa(x.metodo)) partes.push({ metodo: x.metodo, bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) });
       });
     });
   }
@@ -788,13 +793,13 @@ function taxaPctDaParte(x) {
 function taxaDaParte(x) { return dinheiro(numero(x.valor) * taxaPctDaParte(x).pct / 100); }
 
 // ---- valor líquido (depois da taxa da maquininha) ----
-// Fator (0 a 1) do que sobra de uma venda: 1 − taxas ÷ total pago (vale-presente e cortesia não têm taxa, mas contam no total).
+// Fator (0 a 1) do que sobra de uma venda: 1 − taxas ÷ total pago (vale-presente, permuta e cortesia não têm taxa, mas contam no total).
 function fatorDePartes(partes, totalPago) {
   if (AJUSTES.comissaoLiquida === false) return 1;
   var taxa = 0, bruto = 0;
   (partes || []).forEach(function (x) {
     bruto += numero(x.valor);
-    if (x.metodo === 'Vale-presente' || x.metodo === 'Cortesia') return;
+    if (x.metodo === 'Vale-presente' || x.metodo === 'Cortesia' || x.metodo === 'Permuta') return;
     taxa += numero(x.valor) * taxaPctDaParte(x).pct / 100;
   });
   var base = totalPago > 0 ? totalPago : bruto;
@@ -986,6 +991,14 @@ function resumoCaixa(data) {
   var movs = c ? parseJson(c.movimentos, []) : [];
   var pags = lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && String(p.pago_em).slice(0, 10) === data && numero(p.valor) > 0; });
   var formas = formasDasVendas(pags);
+  // permutas do dia (a Casa assume; não entram no caixa): uma linha por comanda
+  var permutasDoDia = {};
+  lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && String(p.pago_em).slice(0, 10) === data && numero(p.permuta) > 0; }).forEach(function (p) {
+    var k = String(p.comanda || p.order_nsu);
+    var x = permutasDoDia[k] = permutasDoDia[k] || { nome: String(p.nome || ''), com: semAspaDeFormula(p.permuta_com), comanda: String(p.comanda || ''), valor: 0 };
+    x.valor = dinheiro(x.valor + numero(p.permuta));
+  });
+  var listaPermutas = Object.keys(permutasDoDia).map(function (k) { return permutasDoDia[k]; });
   var abertura = c ? dinheiro(c.abertura) : 0;
   var tot = function (t) { return dinheiro(movs.filter(function (x) { return x.tipo === t; }).reduce(function (s, x) { return s + numero(x.valor); }, 0)); };
   var dinheiroVendas = formas['Dinheiro'] || 0;
@@ -1000,6 +1013,7 @@ function resumoCaixa(data) {
     depoisDoFechamento: depois,
     data: data, status: c ? String(c.status) : 'nao_aberto', abertura: abertura, abertoPor: c ? String(c.aberto_por || '').split('@')[0] : '',
     abertoEm: c ? String(c.aberto_em || '') : '', movimentos: movs, porForma: Object.keys(formas).map(function (k) { return { nome: k, valor: formas[k] }; }),
+    permutas: listaPermutas, permutaTotal: dinheiro(listaPermutas.reduce(function (s, x) { return s + x.valor; }, 0)),
     vendas: dinheiro(pags.reduce(function (s, p) { return s + numero(p.valor); }, 0)), qtdVendas: pags.length,
     dinheiroVendas: dinheiroVendas, suprimentos: tot('suprimento'), sangrias: tot('sangria'), despesas: tot('despesa'), esperado: esperado,
     contado: c && c.contado !== '' ? dinheiro(c.contado) : null, diferenca: c && c.diferenca !== '' ? dinheiro(c.diferenca) : null,
@@ -1543,8 +1557,8 @@ function bancada_corrigirFormasComanda(d, m) {
     if (!c) throw new Error('Comanda não encontrada.');
     if (c.status !== 'fechada') throw new Error('Só dá para corrigir a forma de pagamento de uma comanda fechada.');
     var atuais = parseJson(c.pagamentos, []);
-    var vales = atuais.filter(function (x) { return x.metodo === 'Vale-presente'; });
-    var reais = atuais.filter(function (x) { return x.metodo !== 'Vale-presente'; });
+    var vales = atuais.filter(function (x) { return !entraNoCaixa(x.metodo); }); // vale-presente e permuta ficam como estão
+    var reais = atuais.filter(function (x) { return entraNoCaixa(x.metodo); });
     var dia = String(c.fechada_em || '').slice(0, 10);
     if (m.papel !== 'admin') {
       if (dia !== hojeTexto()) throw new Error('A recepção corrige só comandas fechadas hoje. Para as outras, peça à administração.');
@@ -1744,13 +1758,19 @@ function bancada_fecharComanda(d, m) {
     var pags = (d.pagamentos || []).map(function (p) {
       var metodo = METODOS_PAGAMENTO.indexOf(p.metodo) >= 0 ? p.metodo : '';
       if (!metodo) throw new Error('Forma de pagamento inválida.');
+      var parceiro = metodo === 'Permuta' ? String(p.parceiro || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+      if (metodo === 'Permuta' && dinheiro(p.valor) > 0 && parceiro.length < 3) throw new Error('Permuta: diga com quem foi combinada (blogueiro, parceiro…).');
       return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
-        codigo: metodo === 'Vale-presente' ? codigoLimpo(p.codigo) : '', bandeira: bandeiraDe(metodo, p.bandeira, true) };
+        codigo: metodo === 'Vale-presente' ? codigoLimpo(p.codigo) : '', bandeira: bandeiraDe(metodo, p.bandeira, true), parceiro: parceiro };
     }).filter(function (p) { return p.valor > 0; });
     var pago = dinheiro(pags.reduce(function (s, p) { return s + p.valor; }, 0));
     if (Math.abs(pago - total) > 0.01) throw new Error('Os pagamentos somam ' + brl(pago) + ', mas a comanda é de ' + brl(total) + '.');
     var vales = pags.filter(function (p) { return p.metodo === 'Vale-presente'; });
     if (vales.length > 1) throw new Error('Use um vale-presente por comanda.');
+    var permutas = pags.filter(function (p) { return p.metodo === 'Permuta'; });
+    if (permutas.length > 1) throw new Error('Use uma permuta por comanda.');
+    if (permutas.length && calc.some(function (i) { return i.tipo === 'vale'; })) throw new Error('Um vale-presente não pode ser pago com permuta.');
+    var permuta = permutas.length ? { resta: permutas[0].valor, com: permutas[0].parceiro } : null;
     if (vales.length && calc.some(function (i) { return i.tipo === 'vale'; })) throw new Error('Um vale-presente não pode ser pago com outro vale.');
     var vale = null;
     if (vales.length) {
@@ -1766,12 +1786,12 @@ function bancada_fecharComanda(d, m) {
     var repetidaComanda = conferirVendaRepetida(cm.cpf, calc.filter(function (i) {
       return !i.pago && !i.pacote && (i.tipo === 'servico' || i.tipo === 'plano' || i.tipo === 'pacote');
     }).map(function (i) { return { id: i.id, nome: i.nome, total: dinheiro(i.total + (i.vale ? numero(i.valeUsado) * i.qtd : 0)) }; }), hojeTexto(), m, { nsus: {}, comanda: String(cm.id) });
-    var reais = pags.filter(function (p) { return p.metodo !== 'Vale-presente'; });
+    var reais = pags.filter(function (p) { return entraNoCaixa(p.metodo); });
     var metodosDistintos = reais.map(function (p) { return p.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
-    var metodo = metodosDistintos.length === 1 ? metodosDistintos[0] : metodosDistintos.length ? 'Misto' : vale ? 'Vale-presente' : 'Cortesia';
+    var metodo = metodosDistintos.length === 1 ? metodosDistintos[0] : metodosDistintos.length ? 'Misto' : vale ? 'Vale-presente' : permuta ? 'Permuta' : 'Cortesia';
     var parcelas = Math.max.apply(null, [1].concat(reais.map(function (p) { return p.parcelas; })));
     var bandeiras = reais.map(function (p) { return p.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
-    var obsPag = 'Comanda ' + cm.id + (pags.length > 1 ? ' · ' + pags.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '');
+    var obsPag = 'Comanda ' + cm.id + (pags.length > 1 || permuta ? ' · ' + pags.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + (p.parceiro ? ' (' + p.parceiro + ')' : '') + ' ' + brl(p.valor); }).join(' + ') : '');
     if (repetidaComanda) obsPag += ' · venda repetida de propósito: ' + repetidaComanda;
     var hoje = hojeTexto();
     var valesCriados = [];
@@ -1842,12 +1862,19 @@ function bancada_fecharComanda(d, m) {
         valorLinha = dinheiro(valorLinha - usa);
         vale.resta = dinheiro(vale.resta - usa);
       }
+      // permuta: a Casa assume esta parte (não entra no caixa); a comissão continua sobre o valor cheio
+      var permutaUsada = 0;
+      if (permuta && permuta.resta > 0.009 && valorLinha > 0.009) {
+        permutaUsada = dinheiro(Math.min(permuta.resta, valorLinha));
+        valorLinha = dinheiro(valorLinha - permutaUsada);
+        permuta.resta = dinheiro(permuta.resta - permutaUsada);
+      }
       var nsu = novoNsu('Q');
       adicionarLinha('Pagamentos', { order_nsu: nsu, cpf: cm.cpf, nome: cm.nome, plano_id: it.id,
         descricao: it.tipo === 'produto' ? 'Produto · ' + it.nome + (it.qtd > 1 ? ' × ' + it.qtd : '') : it.nome, valor: valorLinha, status: 'pendente',
         criado_em: agoraTexto(), valor_original: dinheiro(it.preco * it.qtd), desconto: dinheiro(it.desconto + (it.vale ? 0 : valeUsado)), cupom: it.cupom, vale: valeCod,
         vale_usado: valeUsado, origem: 'balcão', registrado_por: m.email, observacao: obsPag, promocao: it.promocao, comanda: cm.id, tipo_item: it.tipo,
-        profissional: it.profissional, bandeira: bandeiras });
+        profissional: it.profissional, bandeira: bandeiras, permuta: permutaUsada, permuta_com: permutaUsada ? permuta.com : '' });
       SpreadsheetApp.flush();
       var creditoId = concluirPagamento(linhaPagamento(nsu), { metodo: metodo, parcelas: parcelas, valor_pago: valorLinha, inicio: it.data || hoje,
         origemCredito: 'comanda', observacao: obsPag, semCredito: it.tipo === 'produto' || it.tipo === 'vale' });

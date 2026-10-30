@@ -23,7 +23,7 @@ chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Maria S
 let r;
 
 console.log('— comanda editável');
-let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+let dia = ctx.somarDias(hoje, 1); while (new Date(dia + 'T12:00:00Z').getUTCDay() % 6 === 0) dia = ctx.somarDias(dia, 1);
 const at = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '10:00', cpf: '52998224725', pagamento: 'no_dia' }).dados.id;
 ok(!!at, 'atendimento da Lia (drenagem)');
 let cm = chamar('b_comandaDoAtendimento', { token: rec, atendimentoId: at }).dados;

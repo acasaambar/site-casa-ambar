@@ -65,7 +65,7 @@ r = chamar('b_pagamentos', { token: adm, de: hoje, ate: hoje });
 ok(r.ok && r.dados.find((p) => p.orderNsu === v1).formas.length === 2, 'a lista de vendas traz as partes', r.dados && r.dados.find((p) => p.orderNsu === v1));
 
 console.log('— agenda: serviço pago em duas formas');
-let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+let dia = ctx.somarDias(hoje, 1); while (new Date(dia + 'T12:00:00Z').getUTCDay() % 6 === 0) dia = ctx.somarDias(dia, 1);
 const serv = preco('drenagem');
 r = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '10:00', cpf: '52998224725', pagamento: 'pago', metodo: 'Pix', formas: [{ metodo: 'Pix', valor: 50 }, { metodo: 'Dinheiro', valor: '' }] });
 const pa = r.ok && pg(r.dados.orderNsu);

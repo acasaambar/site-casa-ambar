@@ -171,7 +171,7 @@ function Fechadas({ aoAbrir }) {
                 </span>
                 <span className="b-item__lado cm-fechada__lado">
                   <span className="cm-fechada__formas">
-                    {c.pagamentos.length === 0 ? <Tag tom="apagado">sem cobrança</Tag> : c.pagamentos.map((p, k) => <Tag key={k}>{p.metodo}{p.bandeira ? ` ${p.bandeira}` : ''}</Tag>)}
+                    {c.pagamentos.length === 0 ? <Tag tom="apagado">sem cobrança</Tag> : c.pagamentos.map((p, k) => <Tag key={k}>{p.metodo}{p.bandeira ? ` ${p.bandeira}` : ''}{p.parceiro ? ` · ${p.parceiro}` : ''}</Tag>)}
                   </span>
                   <strong className="cm-fechada__total">{real(c.total)}</strong>
                 </span>
@@ -489,7 +489,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
               <ul>
                 {c.pagamentos.map((p, i) => (
                   <li key={i}>
-                    <span>{p.metodo}{p.bandeira ? ` · ${p.bandeira}` : ''}{p.parcelas > 1 ? ` · ${p.parcelas}x` : ''}</span>
+                    <span>{p.metodo}{p.parceiro ? ` · ${p.parceiro}` : ''}{p.bandeira ? ` · ${p.bandeira}` : ''}{p.parcelas > 1 ? ` · ${p.parcelas}x` : ''}</span>
                     <strong>{real(p.valor)}</strong>
                   </li>
                 ))}
@@ -562,7 +562,7 @@ export function ComandaModal({ id, inicial, aoFechar }) {
             )
           ) : (balcao || admin) && (
             <div className="cm-corrigir">
-              {balcao && c.pagamentos.some((p) => p.metodo !== 'Vale-presente') && (
+              {balcao && c.pagamentos.some((p) => p.metodo !== 'Vale-presente' && p.metodo !== 'Permuta') && (
                 <button type="button" className="botao botao--linha botao--p cm-corrigir-forma" onClick={() => setCorrigindoForma(true)}>Corrigir forma de pagamento</button>
               )}
               {admin && (
@@ -966,21 +966,22 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
   const refPagar = useRolarAteAqui();
   const [linhas, setLinhas] = useState([{ ...LINHA_PAGAMENTO, valor: String(c.total.toFixed(2)).replace('.', ',') }]);
   const [erro, setErro] = useState('');
-  const { falta, semBandeira } = resumoLinhas(linhas, c.total);
+  const { falta, semBandeira, semParceiro } = resumoLinhas(linhas, c.total);
   const troco = linhas.find((l) => l.metodo === 'Dinheiro');
   // um vale-presente vendido não se paga com outro vale
-  const formas = semVale ? METODOS : METODOS.concat(['Vale-presente']);
+  const formas = semVale ? METODOS : METODOS.concat(['Vale-presente', 'Permuta']);
   return (
     <>
       <section className="cm-pagar" aria-label="Pagamento" ref={refPagar}>
         <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
         <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={c.total} formas={formas} />
-        {semVale && <Aviso tom="info">Esta comanda vende um vale-presente: não dá para pagar com outro vale.</Aviso>}
+        {semVale && <Aviso tom="info">Esta comanda vende um vale-presente: não dá para pagar com outro vale nem com permuta.</Aviso>}
+        {linhas.some((l) => l.metodo === 'Permuta') && <Aviso tom="info" titulo="Permuta">A Casa assume este pagamento (troca por divulgação). Não entra no caixa; a comissão de quem atendeu segue sobre o valor cheio.</Aviso>}
         {troco && <TrocoCalc valor={numBR(troco.valor)} />}
       </section>
-      <RodapeAcao rotulo="A receber" valor={c.total} erro={erro} aviso={semBandeira && <small className="b-alerta-txt">Escolha a bandeira do cartão</small>}>
+      <RodapeAcao rotulo="A receber" valor={c.total} erro={erro} aviso={semBandeira ? <small className="b-alerta-txt">Escolha a bandeira do cartão</small> : semParceiro ? <small className="b-alerta-txt">Diga com quem é a permuta</small> : null}>
         <button type="button" className="botao botao--linha" onClick={aoVoltar}>Voltar</button>
-        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || semBandeira} acao={async () => {
+        <BotaoAcao className="botao botao--cheio" disabled={Math.abs(falta) > 0.009 || semBandeira || semParceiro} acao={async () => {
           setErro('');
           try {
             aoFechar(await chamar('fecharComanda', { id: c.id, pagamentos: linhas.map((l) => ({ ...l, valor: numBR(l.valor) })) }));
@@ -995,8 +996,8 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
 function CorrigirFormas({ c, aoCorrigir, aoCancelar }) {
   const { chamar } = useBancada();
   const refCorrigir = useRolarAteAqui();
-  const reais = (c.pagamentos || []).filter((p) => p.metodo !== 'Vale-presente');
-  const vale = (c.pagamentos || []).filter((p) => p.metodo === 'Vale-presente').reduce((t, p) => t + Number(p.valor || 0), 0);
+  const reais = (c.pagamentos || []).filter((p) => p.metodo !== 'Vale-presente' && p.metodo !== 'Permuta');
+  const vale = (c.pagamentos || []).filter((p) => p.metodo === 'Vale-presente' || p.metodo === 'Permuta').reduce((t, p) => t + Number(p.valor || 0), 0);
   const total = Math.round(reais.reduce((t, p) => t + Number(p.valor || 0), 0) * 100) / 100;
   const [linhas, setLinhas] = useState(() => reais.map((p) => ({ ...LINHA_PAGAMENTO, metodo: p.metodo, valor: String(p.valor).replace('.', ','), parcelas: p.parcelas || 1, bandeira: p.bandeira || '' })));
   const [motivo, setMotivo] = useState('');
@@ -1007,7 +1008,7 @@ function CorrigirFormas({ c, aoCorrigir, aoCancelar }) {
       <section className="cm-pagar cm-pagar--corrigir" aria-label="Corrigir forma de pagamento" ref={refCorrigir}>
         <h3 className="cm-pagar__titulo">Corrigir como foi pago</h3>
         <Aviso tom="info" titulo={`Total pago em dinheiro, cartão ou Pix: ${real(total)}`}>
-          {vale > 0 ? `Mais ${real(vale)} em vale-presente, que não muda. ` : ''}Mude a divisão: o caixa e os relatórios acompanham.
+          {vale > 0 ? `Mais ${real(vale)} em vale-presente ou permuta, que não muda. ` : ''}Mude a divisão: o caixa e os relatórios acompanham.
         </Aviso>
         <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={total} formas={METODOS} />
         <label className="b-campo"><span className="rotulo">Motivo da correção</span>
@@ -1195,6 +1196,18 @@ function CaixaDia({ dia, passado, admin, aoAbrirDia }) {
               </ul>
             )}
           </Secao>
+          {cx.permutas?.length > 0 && (
+            <Secao titulo="Permutas do dia" className="b-cartao cx-cartao" ajuda="A Casa assumiu estes pagamentos (troca por divulgação). Não entram nas entradas nem no dinheiro da gaveta.">
+              <ul className="cx-formas">
+                {cx.permutas.map((x, i) => (
+                  <li key={i}>
+                    <span className="cx-formas__nome">{x.nome}<small> · {x.com}</small></span>
+                    <strong>{real(x.valor)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </Secao>
+          )}
           <Secao titulo="Dinheiro na gaveta" className="b-cartao cx-cartao">
             <dl className="cx-conta">
               <dt>Troco inicial</dt><dd>{real(cx.abertura)}</dd>

@@ -148,9 +148,10 @@ function ListaVendas({ abas }) {
                 <div className="vn-venda__corpo">
                   <span className="vn-venda__quem"><button type="button" className="vn-venda__abrir" aria-label={`Abrir venda de ${p.nome}`} onClick={() => setAberta(p)}>{p.nome}</button><Tag tom={TOM_SITUACAO[p.status] || 'neutro'}>{NOME_SITUACAO[p.status] || p.status}</Tag></span>
                   <span className="vn-venda__item">{p.descricao}</span>
-                  {(p.cupom || p.vale || p.observacao) && (
+                  {(p.cupom || p.vale || p.permuta > 0 || p.observacao) && (
                     <span className="vn-venda__nota">
                       {(p.cupom || p.vale) && <span className="vn-venda__desconto">{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span>}
+                      {p.permuta > 0 && <span className="vn-venda__desconto">permuta {real(p.permuta)} · {p.permutaCom}</span>}
                       {p.observacao && <span className={devolverEsta ? 'b-alerta-txt' : undefined}>{obsLegivel(p.observacao)}</span>}
                     </span>
                   )}

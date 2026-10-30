@@ -91,7 +91,7 @@ console.log('— venda com vários itens');
 console.log('— agenda: "Já pagou" e Vendas valem como a mesma porta');
 {
   const cli = novo('Repetida Sete', '85940002007');
-  let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+  let dia = ctx.somarDias(hoje, 1); while (new Date(dia + 'T12:00:00Z').getUTCDay() % 6 === 0) dia = ctx.somarDias(dia, 1);
   chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Lia Esteticista', categorias: ['Estética facial', 'Estética corporal'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', comissao: 40 } });
   const ag = (hora, extra = {}) => chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora, cpf: cli, pagamento: 'pago', metodo: 'Pix', ...extra });
   r = ag('10:00');
@@ -145,7 +145,7 @@ console.log('— site: a venda paga pelo site aparece para quem lança no balcã
 console.log('— lista das vendas que podem ter sido lançadas em dobro (as que já estavam na planilha)');
 {
   const cli = novo('Lista Dupla', '85940002010');
-  let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+  let dia = ctx.somarDias(hoje, 1); while (new Date(dia + 'T12:00:00Z').getUTCDay() % 6 === 0) dia = ctx.somarDias(dia, 1);
   // a situação da dona: "Já pagou" na agenda e de novo em Vendas (a proteção ainda não existia: lança de propósito)
   const ag = chamar('b_agendarServico', { token: rec, servicoId: 'drenagem', profissional: 'Lia Esteticista', data: dia, hora: '16:00', cpf: cli, pagamento: 'pago', metodo: 'Pix' });
   ok(ag.ok, 'serviço pago na agenda');
@@ -185,7 +185,7 @@ console.log('— lista das vendas que podem ter sido lançadas em dobro (as que 
 console.log('— venda ligada à agenda pelo crédito (venda de serviço + sessão usada do crédito dela)');
 {
   const cli = novo('Lista Credito', '85940002013');
-  let dia = ctx.somarDias(hoje, 2); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+  let dia = ctx.somarDias(hoje, 4); while (new Date(dia + 'T12:00:00Z').getUTCDay() % 6 === 0) dia = ctx.somarDias(dia, 1);
   const v1 = chamar('b_vender', { token: rec, cpf: cli, planoId: 'limpeza-pele', metodo: 'Pix' });
   ok(v1.ok, 'venda do serviço no balcão');
   const ag = chamar('b_agendarServico', { token: rec, servicoId: 'limpeza-pele', profissional: 'Lia Esteticista', data: dia, hora: '09:00', cpf: cli, pagamento: 'pacote' });

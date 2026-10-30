@@ -18,7 +18,7 @@ chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Lia Estetici
 chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Mara Facial', categorias: ['Estética facial', 'Estética corporal'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', comissao: 30 } });
 chamar('cadastrar', { endereco: END_TESTE, cpf: '529.982.247-25', nome: 'Maria Souza', whatsapp: '85999990000', email: 'maria@gmail.com', senha: 'abc12345' });
 let r;
-let dia = ctx.somarDias(hoje, 1); if (new Date(dia + 'T12:00:00Z').getUTCDay() === 0) dia = ctx.somarDias(dia, 1);
+let dia = ctx.somarDias(hoje, 1); while (new Date(dia + 'T12:00:00Z').getUTCDay() % 6 === 0) dia = ctx.somarDias(dia, 1);
 const preco = (id) => ctx.buscarItemVenda(id).preco;
 const pagBalcao = () => ctx.lerAba('Pagamentos').filter((p) => p.origem === 'balcão');
 

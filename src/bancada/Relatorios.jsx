@@ -101,7 +101,15 @@ function Financeiro({ f, de, ate }) {
         <KpiG icone="recibo" rotulo="Vendas" valor={f.vendas} detalhe={`ticket médio ${real(f.ticketMedio)}`} />
         <KpiG icone="link" rotulo="Conversão no site" valor={pct(f.conversaoSite)} detalhe={`${plural(f.linksSite, 'pagamento iniciado', 'pagamentos iniciados')} · ${plural(f.abandonados, 'não concluído', 'não concluídos')}`} />
         <KpiG icone="cupom" rotulo="Descontos com cupom" valor={kpiReal(f.descontosCupom)} detalhe={f.estornos ? `${f.estornos} estornos (${real(f.valorEstornado)})` : 'nenhum estorno'} />
+        {f.permutas?.total > 0 && <KpiG icone="presente" rotulo="Permutas" valor={kpiReal(f.permutas.total)} detalhe={`${plural(f.permutas.qtd, 'comanda', 'comandas')} · fora do faturamento`} />}
       </section>
+      {f.permutas?.total > 0 && (
+        <Grafico titulo="Permutas do período" ajuda="Serviços e produtos pagos pela Casa em troca de divulgação. Não entram no faturamento nem no caixa; a comissão de quem atendeu segue sobre o valor cheio.">
+          <ul className="b-itens gs-itens">{f.permutas.porParceiro.map((x) => (
+            <li key={x.nome} className="b-item"><div className="b-item__corpo"><span className="b-item__titulo">{x.nome}</span><span className="b-meta"><span>{plural(x.qtd, 'item', 'itens')}</span></span></div><strong>{real(x.valor)}</strong></li>
+          ))}</ul>
+        </Grafico>
+      )}
       <Grafico titulo={f.seriePorMes ? 'Faturamento por mês' : 'Faturamento por dia'} ajuda="Passe o mouse (ou toque) numa coluna para ver o valor e o número de vendas. A coluna terracota é o melhor momento do período."
         csv={() => baixarCSV(`faturamento-${de}-a-${ate}`, [['chave', 'Data'], [(s) => String(s.valor).replace('.', ','), 'Valor (R$)'], ['qtd', 'Vendas']], f.serie)}>
         <Colunas serie={f.serie} rotuloX={rotuloSerie(f.seriePorMes)} formato={real} legenda="Faturamento" dicaExtra={(d) => ` · ${d.qtd} venda${d.qtd === 1 ? '' : 's'}`} />

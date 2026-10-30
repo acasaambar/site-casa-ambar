@@ -104,6 +104,14 @@ function relFinanceiro(pagamentos, planos, de, ate, dias) {
     estornos: estornos.length,
     valorEstornado: soma(estornos, function (p) { return numero(p.valor); }),
     jurosDevolver: pagamentos.filter(function (p) { return /^DEVOLVER/.test(String(p.observacao)); }).map(pagamentoPublico),
+    // permutas (a Casa assumiu o pagamento em troca de divulgação): não entram no faturamento; total e por parceiro
+    permutas: (function () {
+      var lista = pagos.filter(function (p) { return numero(p.permuta) > 0; });
+      var comandas = {};
+      lista.forEach(function (p) { comandas[String(p.comanda || p.order_nsu)] = 1; });
+      return { qtd: Object.keys(comandas).length, total: soma(lista, function (p) { return numero(p.permuta); }),
+        porParceiro: agrupar(lista, function (p) { return semAspaDeFormula(p.permuta_com) || 'Sem nome'; }, function (p) { return numero(p.permuta); }) };
+    })(),
     lista: vendas.map(pagamentoPublico).reverse(),
   };
 }
@@ -319,7 +327,7 @@ function partesDasVendas(vendas) {
     lerAba('Comandas').forEach(function (c) {
       if (!comandas[String(c.id)]) return;
       parseJson(c.pagamentos, []).forEach(function (x) {
-        if (x.metodo === 'Vale-presente') return;
+        if (!entraNoCaixa(x.metodo)) return;
         partes.push({ metodo: String(x.metodo), bandeira: String(x.bandeira || '').trim(), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) });
       });
     });

@@ -69,7 +69,8 @@ const cat0 = chamar('b_catalogoServicos', { token: adm }).dados;
 const lp = cat0.servicos.find((x) => x.id === 'limpeza-pele');
 chamar('b_salvarServico', { token: adm, servico: { ...lp, consumo: [{ produtoId: prods.find((p) => p.nome.startsWith('Máscara')).id, qtd: 30 }, { produtoId: prods.find((p) => p.nome.startsWith('Luvas')).id, qtd: 1 }] } });
 chamar('b_salvarPromocao', { token: adm, promocao: { nome: 'Terça da pele', descricao: 'Estética facial com 15% às terças', tipo: 'percentual', valor: 15, grupos: ['Estética facial'], dias: [2], onde: 'bancada' } });
-chamar('b_salvarPromocao', { token: adm, promocao: { nome: 'Novembro leve', tipo: 'preco_fixo', valor: 169, itens: ['drenagem'], de: hojeS.slice(0, 4) + '-11-01', ate: hojeS.slice(0, 4) + '-11-30', onde: 'ambos' } });
+// promoção de um período futuro (nunca cai nos dias que os testes usam: amanhã, depois de amanhã…)
+chamar('b_salvarPromocao', { token: adm, promocao: { nome: 'Promoção do mês que vem', tipo: 'preco_fixo', valor: 169, itens: ['drenagem'], de: ctx.somarDias(hojeS, 40), ate: ctx.somarDias(hojeS, 70), onde: 'ambos' } });
 chamar('b_salvarPromocao', { token: adm, promocao: { nome: 'Aula experimental', tipo: 'valor', valor: 13, itens: ['yoga-avulsa'], onde: 'site' } });
 chamar('b_salvarFolga', { token: adm, profissional: 'Rafaela Costa', data: hojeS, inicio: '12:00', fim: '13:30', motivo: 'Almoço', repetirSemanas: 3 });
 chamar('b_salvarFolga', { token: adm, profissional: 'Lia Moura', data: hojeS, inicio: '17:00', fim: '19:00', motivo: 'Curso de peeling' });

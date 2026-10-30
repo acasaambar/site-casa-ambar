@@ -980,7 +980,7 @@ function pagamentoPublico(p) {
     status: p.status, criadoEm: String(p.criado_em || ''), pagoEm: String(p.pago_em || ''), metodo: String(p.metodo || ''), parcelas: p.parcelas,
     valorPago: numero(p.valor_pago), origem: String(p.origem || 'site'), observacao: String(p.observacao || ''), recibo: String(p.recibo || ''),
     registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado),
-    formas: partesDoPagamento(p) || [] };
+    formas: partesDoPagamento(p) || [], permuta: numero(p.permuta), permutaCom: semAspaDeFormula(p.permuta_com) };
 }
 
 // Data da venda escolhida no balcão (migração do Avec, venda esquecida): vazio ou hoje = agora.
