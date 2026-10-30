@@ -976,7 +976,7 @@ function Pagamento({ c, semVale, aoVoltar, aoFechar }) {
         <h3 className="cm-pagar__titulo">Forma de pagamento</h3>
         <LinhasDePagamento linhas={linhas} aoMudar={setLinhas} total={c.total} formas={formas} />
         {semVale && <Aviso tom="info">Esta comanda vende um vale-presente: não dá para pagar com outro vale nem com permuta.</Aviso>}
-        {linhas.some((l) => l.metodo === 'Permuta') && <Aviso tom="info" titulo="Permuta">A Casa assume este pagamento (troca por divulgação). Não entra no caixa; a comissão de quem atendeu segue sobre o valor cheio.</Aviso>}
+        {linhas.some((l) => l.metodo === 'Permuta') && <Aviso tom="info" titulo="Permuta">A Casa assume este pagamento.</Aviso>}
         {troco && <TrocoCalc valor={numBR(troco.valor)} />}
       </section>
       <RodapeAcao rotulo="A receber" valor={c.total} erro={erro} aviso={semBandeira ? <small className="b-alerta-txt">Escolha a bandeira do cartão</small> : semParceiro ? <small className="b-alerta-txt">Diga com quem é a permuta</small> : null}>
