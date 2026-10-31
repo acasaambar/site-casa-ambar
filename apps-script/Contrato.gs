@@ -29,7 +29,7 @@
  */
 
 var CONTRATO_PRONTO = true;
-var CONTRATO_VERSAO = '2026-10-27';
+var CONTRATO_VERSAO = '2026-10-31';
 var CONTRATO_TITULO = 'Contrato de prestação de serviços';
 // true: assina de novo a cada plano que contratar. false: assina uma vez por versão do contrato.
 var CONTRATO_A_CADA_COMPRA = true;
@@ -38,7 +38,7 @@ var PASTA_CONTRATOS = 'Casa Âmbar · Contratos';
 // Os Anexos I (declaração de saúde, que no site é a ficha de saúde) e II (consentimento de procedimentos de estética/fisioterapia) não entram.
 // {imagem} = escolha da pessoa sobre o uso de imagem (marcada na tela de assinatura).
 var CONTRATO_TEXTO = [
-  'CASA AMBAR LTDA, CNPJ nº 64.075.396/0001-19, com sede na Rua Eduardo Salgado, nº 448, Aldeota, Fortaleza/CE, CEP 60.150-140, e-mail contato@acasaambar.com.br, telefone (85) 9844-3720, doravante CASA AMBAR;',
+  'CASA AMBAR LTDA, CNPJ nº 64.075.396/0001-19, com sede na Rua Eduardo Salgado, nº 448, Aldeota, Fortaleza/CE, CEP 60.150-140, e-mail contato@acasaambar.com.br, telefone (85) 99185-6528, doravante CASA AMBAR;',
   'CLIENTE: Nome: {nome} · CPF: {cpf} · Data de nascimento: {nascimento} · Endereço: {endereco} · Telefone/WhatsApp: {whatsapp} · E-mail: {email}.',
   'Se o CLIENTE for menor de 18 anos, a contratação é feita e assinada pelo seu responsável legal, que responde por este contrato.',
   '# Cláusula primeira – Do objeto',
