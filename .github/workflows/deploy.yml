@@ -24,6 +24,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # teste vermelho = o site não é publicado (o que está no ar continua)
+      - run: npm run lint
+      - run: npm run teste
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

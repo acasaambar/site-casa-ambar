@@ -446,6 +446,9 @@ function doPost(e) {
     if (/permiss|authoriz|autoriza/i.test(msg)) {
       Logger.log('Falta autorização: ' + msg);
       msg = 'Esta função está sendo ativada pela Casa Âmbar. Tente de novo mais tarde ou fale com a recepção.';
+    } else if (/too many times.*email|email.*too many times|mail.*quota/i.test(msg)) {
+      Logger.log('Cota de e-mail do dia acabou em ' + (corpo && corpo.acao) + ': ' + msg);
+      msg = 'O limite de e-mails do dia acabou; o envio volta amanhã. Se for para criar senha, fale com a recepção.';
     } else if (/lock|timeout|too many times|quota|Exception:|Service .*(unavailable|error)|limit exceeded/i.test(msg)) {
       Logger.log('Google ocupado em ' + (corpo && corpo.acao) + ': ' + msg);
       msg = 'O sistema está muito ocupado agora. Tente de novo em alguns segundos.';
@@ -987,6 +990,20 @@ function linhaAnamnese(cpf) {
 
 function pastaAnamneses() {
   return pastaPrivada(PASTA_ANAMNESES, 'PASTA_ANAMNESES_ID');
+}
+
+// Backup diário da planilha (cópia no Drive, pasta privada "Casa Âmbar · Backups", guarda as últimas 30).
+// Gatilho criado à mão pelo dono: Acionadores → Adicionar → backupDiario → Baseado em tempo → Diário → 2h às 3h.
+var BACKUPS_GUARDADOS = 30;
+function backupDiario() {
+  var pasta = pastaPrivada('Casa Âmbar · Backups', 'PASTA_BACKUPS_ID');
+  var nome = 'Backup Casa Âmbar · ' + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyyy-MM-dd HH:mm');
+  DriveApp.getFileById(PLANILHA_ID).makeCopy(nome, pasta);
+  var arquivos = [], it = pasta.getFiles();
+  while (it.hasNext()) { var f = it.next(); if (/^Backup Casa Âmbar · /.test(f.getName())) arquivos.push(f); }
+  arquivos.sort(function (a, b) { return a.getName().localeCompare(b.getName()); });
+  arquivos.slice(0, Math.max(0, arquivos.length - BACKUPS_GUARDADOS)).forEach(function (f) { f.setTrashed(true); });
+  Logger.log('Backup feito: ' + nome);
 }
 
 // Pasta privada da Casa no Drive (anamneses, fotos). Guarda o ID nas Propriedades.

@@ -644,7 +644,8 @@ export function Modal({ titulo, rotulo, aoFechar, children, largo }) {
     document.addEventListener('keydown', esc);
     return () => { document.removeEventListener('keydown', esc); folhasAbertas.splice(folhasAbertas.indexOf(marca), 1); };
   }, []);
-  useCamada(ref, { foco: (c) => c?.querySelector(PRIMEIRO_CAMPO), ehTopo: () => folhasAbertas[folhasAbertas.length - 1] === eu.current });
+  // no celular/iPad não foca o primeiro campo (o teclado subia sozinho ao abrir o detalhe do atendimento)
+  useCamada(ref, { foco: (c) => (window.matchMedia?.('(pointer: coarse)').matches ? null : c?.querySelector(PRIMEIRO_CAMPO)), ehTopo: () => folhasAbertas[folhasAbertas.length - 1] === eu.current });
   return (
     <div className="b-modal" onMouseDown={(e) => e.target === e.currentTarget && aoFechar?.()}>
       <div className={`b-modal__caixa${largo ? ' b-modal__caixa--largo' : ''}`} ref={ref} role="dialog" aria-modal="true" aria-labelledby={idTitulo} tabIndex={-1} onKeyDown={(e) => prenderTab(e, ref.current)}>

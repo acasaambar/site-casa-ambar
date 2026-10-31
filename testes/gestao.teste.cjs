@@ -37,7 +37,8 @@ const protetor = r.dados.produtos.find((p) => p.nome.startsWith('Protetor')).id;
 ok(r.ok && protetor, 'produto de revenda', r);
 r = chamar('b_movimentarEstoque', { token: adm, produtoId: protetor, tipo: 'entrada', qtd: 3, custo: 55, lancarDespesa: true, pago: true, forma: 'Pix' });
 ok(r.ok && r.dados.produtos.find((p) => p.id === protetor).estoque === 8 && r.dados.produtos.find((p) => p.id === protetor).custo === 55, 'compra entra no estoque e atualiza custo', r);
-r = chamar('b_movimentarEstoque', { token: rec, produtoId: argila, tipo: 'ajuste', qtd: 480 });
+ok(!chamar('b_movimentarEstoque', { token: rec, produtoId: argila, tipo: 'ajuste', qtd: 480 }).ok, 'recepção não mexe no estoque');
+r = chamar('b_movimentarEstoque', { token: adm, produtoId: argila, tipo: 'ajuste', qtd: 480 });
 ok(r.ok && r.dados.produtos.find((p) => p.id === argila).estoque === 480, 'ajuste por contagem', r);
 // serviço usa 30 g de argila por sessão
 r = chamar('b_catalogoServicos', { token: adm });
@@ -220,7 +221,8 @@ const codigos = ctx.lerAba('Alunos').filter((a) => /^Lote /.test(a.nome)).map((a
 ok(codigos.length === 60 && new Set(codigos).size === 60, 'dois lotes seguidos: 60 códigos internos diferentes', codigos.length + ' / ' + new Set(codigos).size);
 
 console.log('— campanhas e descadastro');
-r = chamar('b_publicoCampanha', { token: rec, filtro: { tipo: 'aniversariantes' } });
+ok(!chamar('b_publicoCampanha', { token: rec, filtro: { tipo: 'aniversariantes' } }).ok, 'recepção não monta campanha');
+r = chamar('b_publicoCampanha', { token: adm, filtro: { tipo: 'aniversariantes' } });
 ok(r.ok && r.dados.pessoas.some((p) => p.nome === 'Fernanda Lopes' && p.dia === 12), 'aniversariantes do mês (data importada)', r.dados);
 r = chamar('b_enviarCampanha', { token: rec, filtro: { tipo: 'aniversariantes' }, assunto: 'Feliz aniversário', mensagem: 'Oi, {nome}!\n\nPresente para você.' });
 ok(!r.ok, 'só a administração dispara e-mail em massa');
@@ -235,7 +237,7 @@ r = chamar('sairLista', { t: 'f'.repeat(32) }); ok(!r.ok, 'token falso recusado'
 r = chamar('sairLista', { t }); ok(r.ok && r.dados.nome === 'Fernanda', 'descadastro pelo link', r);
 r = chamar('b_publicoCampanha', { token: adm, filtro: { tipo: 'aniversariantes' } });
 ok(r.dados.pessoas.find((p) => p.nome === 'Fernanda Lopes').aceitaEmail === false, 'quem saiu da lista não recebe mais e-mail');
-r = chamar('b_registrarCampanha', { token: rec, nome: 'Aniversário WhatsApp', filtro: { tipo: 'aniversariantes' }, total: 2, enviados: 2 });
+r = chamar('b_registrarCampanha', { token: adm, nome: 'Aniversário WhatsApp', filtro: { tipo: 'aniversariantes' }, total: 2, enviados: 2 });
 ok(r.ok && r.dados.length === 2, 'histórico de campanhas', r.dados);
 
 console.log('— lembretes da véspera');

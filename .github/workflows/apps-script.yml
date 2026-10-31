@@ -4,10 +4,15 @@ name: Publicar Apps Script
 # implantação do App da Web (a URL /exec continua a mesma).
 # Roda sozinho quando algo dentro de apps-script/ muda na branch main.
 #
-# Precisa de 3 segredos em Settings → Secrets and variables → Actions:
-#   CLASPRC_JSON   conteúdo do arquivo ~/.clasprc.json (gerado pelo "clasp login")
+# Antes de publicar, roda os testes do backend (npm run teste): teste vermelho = nada é publicado.
+#
+# Segredos em Settings → Secrets and variables → Actions:
 #   SCRIPT_ID      ID do projeto (Apps Script → Configurações do projeto → ID do script)
 #   DEPLOYMENT_ID  ID da implantação (Implantar → Gerenciar implantações → ID da implantação)
+# e UM dos dois jeitos de entrar no Google:
+#   GAS_CLIENT_ID + GAS_CLIENT_SECRET + GAS_REFRESH_TOKEN  (recomendado: API oficial, cliente OAuth da Casa,
+#       não vence a cada 16 h; ver .github/publicar-apps-script.mjs)
+#   CLASPRC_JSON   conteúdo do ~/.clasprc.json do "clasp login" (jeito antigo; vence com a regra de sessão do Workspace)
 
 on:
   push:
@@ -33,23 +38,45 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - name: Conferir segredos
+      - run: npm ci
+
+      - name: Testar o backend antes de publicar
+        run: npm run teste
+
+      - name: Escolher o jeito de publicar
+        id: jeito
         env:
+          GAS_REFRESH_TOKEN: ${{ secrets.GAS_REFRESH_TOKEN }}
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
           DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
         run: |
           faltando=""
-          [ -z "$CLASPRC_JSON" ] && faltando="$faltando CLASPRC_JSON"
           [ -z "$SCRIPT_ID" ] && faltando="$faltando SCRIPT_ID"
           [ -z "$DEPLOYMENT_ID" ] && faltando="$faltando DEPLOYMENT_ID"
+          [ -z "$GAS_REFRESH_TOKEN" ] && [ -z "$CLASPRC_JSON" ] && faltando="$faltando GAS_REFRESH_TOKEN(ou CLASPRC_JSON)"
           if [ -n "$faltando" ]; then
             echo "::error::Faltam os segredos:$faltando (Settings → Secrets and variables → Actions)"
             exit 1
           fi
+          if [ -n "$GAS_REFRESH_TOKEN" ]; then echo "api=1" >> "$GITHUB_OUTPUT"; else echo "api=0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Publicar pela API oficial
+        if: steps.jeito.outputs.api == '1'
+        env:
+          GAS_CLIENT_ID: ${{ secrets.GAS_CLIENT_ID }}
+          GAS_CLIENT_SECRET: ${{ secrets.GAS_CLIENT_SECRET }}
+          GAS_REFRESH_TOKEN: ${{ secrets.GAS_REFRESH_TOKEN }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          export DESCRICAO="Automático · ${GITHUB_SHA::7} · $(date -u +%Y-%m-%d)"
+          node .github/publicar-apps-script.mjs
 
       - name: Preparar credenciais do clasp
+        if: steps.jeito.outputs.api != '1'
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
@@ -57,7 +84,8 @@ jobs:
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
           printf '{"scriptId":"%s","rootDir":"apps-script"}' "$SCRIPT_ID" > .clasp.json
 
-      - name: Enviar código
+      - name: Enviar código (clasp)
+        if: steps.jeito.outputs.api != '1'
         run: |
           if ! out=$(npx --yes @google/clasp@2.4.2 push --force 2>&1); then
             echo "$out"
@@ -66,7 +94,8 @@ jobs:
           fi
           echo "$out"
 
-      - name: Atualizar implantação (mesma URL)
+      - name: Atualizar implantação (clasp, mesma URL)
+        if: steps.jeito.outputs.api != '1'
         env:
           DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
         run: |

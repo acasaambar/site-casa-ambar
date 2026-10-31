@@ -269,7 +269,7 @@ function atendimentoPublico(a, m) {
   var esconder = m && m.papel === 'professora';
   return { id: String(a.id), data: dataTexto(a.data), hora: horaTexto(a.hora), duracao: numero(a.duracao_min) || 60, servicoId: String(a.servico_id), servico: String(a.servico),
     categoria: String(a.categoria), profissional: String(a.profissional), cpf: esconder ? '' : (a.cpf ? normCpf(a.cpf) : ''), nome: String(a.nome),
-    whatsapp: esconder ? '' : String(a.whatsapp || ''), status: String(a.status), pagamento: String(a.pagamento), valor: numero(a.valor), obs: String(a.obs || ''),
+    whatsapp: esconder ? '' : String(a.whatsapp || ''), status: String(a.status), pagamento: String(a.pagamento), valor: numero(a.valor), obs: semAspaDeFormula(a.obs),
     creditoId: String(a.credito_id || ''), orderNsu: String(a.order_nsu || ''), titular: String(a.titular || ''), alertas: alertasDe(a.cpf),
     resposta: String(a.resposta || ''), respostaEm: String(a.resposta_em || ''), combo: comboPublico(a),
     // link "confirmo / preciso remarcar" para o lembrete pelo WhatsApp (só para o balcão)
@@ -625,6 +625,7 @@ function bancada_observacaoAtendimento(d, m) {
   var a = lerAba('Atendimentos').filter(function (x) { return x.id === d.id; })[0];
   if (!a) throw new Error('Atendimento não encontrado.');
   if (m.papel === 'professora' && !mesmaProfessora(a.profissional, m)) throw new Error('Este atendimento não é seu.');
+  if (d.obs != null && typeof d.obs !== 'string') throw new Error('Observação inválida.');
   var texto = String(d.obs == null ? '' : d.obs).replace(/\r/g, '').trim().slice(0, 400);
   var prefixo = (String(a.obs || '').match(/^(Reagendado de [^.]*\.\s*)+/) || [''])[0];
   var obs = (prefixo + texto).slice(0, 500);

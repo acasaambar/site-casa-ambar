@@ -33,6 +33,8 @@ function novoId(prefixo) {
   return prefixo + Utilities.formatDate(new Date(), AJUSTES.fuso, 'yyMMddHHmmss') + Utilities.getUuid().replace(/-/g, '').slice(0, 5).toUpperCase();
 }
 function dinheiro(v) { return Math.round(numero(v) * 100) / 100; }
+// uid de item de comanda: só o formato que o sistema gera (I + 12 dígitos + 5 letras/números); o resto ganha um novo
+function uidDeItem(u) { u = String(u || ''); return /^I\d{12}[A-Z0-9]{5}$/.test(u) ? u : novoId('I'); }
 function ativoSim(v) { return String(v).toUpperCase() !== 'NÃO'; }
 function parseJson(t, padrao) {
   try { var v = JSON.parse(String(t || '')); return v == null ? padrao : v; } catch (e) { return padrao; }
@@ -693,7 +695,7 @@ function normalizarFormas(lista, total, exigirBandeira) {
     vazias[0].valor = resto;
     soma = dinheiro(total);
   }
-  if (Math.abs(soma - dinheiro(total)) > 0.01) throw new Error('As formas somam ' + brl(soma) + ', mas o valor é ' + brl(total) + '.');
+  if (Math.abs(soma - dinheiro(total)) > 0.009) throw new Error('As formas somam ' + brl(soma) + ', mas o valor é ' + brl(total) + '.');
   var metodos = itens.map(function (x) { return x.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
   var bandeiras = itens.map(function (x) { return x.bandeira; }).filter(function (x, i, l) { return x && l.indexOf(x) === i; }).join(' + ');
   var parcelas = Math.max.apply(null, itens.map(function (x) { return x.parcelas; }));
@@ -1228,7 +1230,7 @@ function calcularItensComanda(itens, cpf, codigo) {
   var valeAulaUsado = false;
   var usoPacote = {}; // sessões de pacote já usadas por outros itens desta comanda
   // combo/pacote vendido nesta comanda: cobre a sessão do mesmo serviço lançada nela (a cliente paga só o pacote)
-  var pacotesNaComanda = {};
+  var pacotesNaComanda = Object.create(null);
   itens.forEach(function (x) {
     var t = String(x.tipo || '');
     if (t === 'vale' || t === 'produto') return;
@@ -1247,8 +1249,10 @@ function calcularItensComanda(itens, cpf, codigo) {
     var data = dataValida(x.data, hojeTexto());
     // item ligado à agenda: "já pago" é decidido pelo atendimento (pago pela agenda, pacote ou cortesia), nunca pela tela
     var atend = x.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === String(x.atendimentoId); })[0] : null;
+    // o horário tem de ser da mesma pessoa da comanda (comanda "do balcão", sem CPF: só horário de quem também não tem CPF)
+    if (atend && normCpf(atend.cpf || '') !== normCpf(cpf || '')) throw new Error('O horário de ' + atend.nome + ' é de outra pessoa: abra a comanda dela pela agenda.');
     var pagoAntes = atend ? atend.pagamento !== 'no_dia' : false;
-    var it = { uid: String(x.uid || '') || novoId('I'), tipo: tipo, id: String(cat.id), nome: cat.nome, qtd: qtd, preco: dinheiro(cat.preco),
+    var it = { uid: uidDeItem(x.uid), tipo: tipo, id: String(cat.id), nome: cat.nome, qtd: qtd, preco: dinheiro(cat.preco),
       profissional: String(x.profissional || '').slice(0, 60), atendimentoId: atend ? String(atend.id) : '', data: data, pago: pagoAntes, promocao: '', cupom: '', vale: '',
       valeUsado: 0, obs: String(x.obs || '').replace(/\s+/g, ' ').trim().slice(0, 200) };
     if (it.pago) { it.valor = 0; it.total = 0; it.desconto = 0; return it; }
@@ -1341,7 +1345,7 @@ function itemValeVendido(x) {
   var dados = { tipo: tipo, valor: valor, planoId: plano ? plano.id : '', nome: String(v.nome || '').replace(/\s+/g, ' ').trim().slice(0, 80), whatsapp: soDigitos(v.whatsapp).slice(0, 13),
     email: email, mensagem: String(v.mensagem || '').trim().slice(0, 500), validadeDias: Math.min(Math.max(Number(v.validadeDias) || AJUSTES.valeValidadeDias, 30), 730),
     enviarEmail: !!v.enviarEmail, enviarWhats: !!v.enviarWhats && soDigitos(v.whatsapp).length >= 10 };
-  return { uid: String(x.uid || '') || novoId('I'), tipo: 'vale', id: 'vale', nome: 'Vale-presente · ' + (plano ? plano.nome : brl(valor)) + (dados.nome ? ' para ' + primeiroNome(dados.nome) : ''),
+  return { uid: uidDeItem(x.uid), tipo: 'vale', id: 'vale', nome: 'Vale-presente · ' + (plano ? plano.nome : brl(valor)) + (dados.nome ? ' para ' + primeiroNome(dados.nome) : ''),
     qtd: 1, preco: valor, valor: valor, total: valor, desconto: 0, profissional: '', atendimentoId: '', data: hojeTexto(), pago: false, promocao: '', cupom: '', vale: '',
     valeUsado: 0, obs: String(x.obs || '').trim().slice(0, 200), dadosVale: dados };
 }
@@ -1575,7 +1579,7 @@ function bancada_corrigirFormasComanda(d, m) {
     }).filter(function (p) { return p.valor > 0; });
     if (!novas.length) throw new Error('Informe como foi pago.');
     var soma = dinheiro(novas.reduce(function (t, x) { return t + x.valor; }, 0));
-    if (Math.abs(soma - totalReais) > 0.01) throw new Error('As formas somam ' + brl(soma) + ', mas foram pagos ' + brl(totalReais) + ' (sem contar o vale-presente).');
+    if (Math.abs(soma - totalReais) > 0.009) throw new Error('As formas somam ' + brl(soma) + ', mas foram pagos ' + brl(totalReais) + ' (sem contar o vale-presente).');
     var metodos = novas.map(function (x) { return x.metodo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
     var metodo = metodos.length === 1 ? metodos[0] : 'Misto';
     var parcelas = Math.max.apply(null, [1].concat(novas.map(function (x) { return x.parcelas; })));
@@ -1585,7 +1589,9 @@ function bancada_corrigirFormasComanda(d, m) {
     var obsPag = 'Comanda ' + c.id + (todas.length > 1 ? ' · ' + todas.map(function (p) { return p.metodo + (p.bandeira ? ' ' + p.bandeira : '') + ' ' + brl(p.valor); }).join(' + ') : '')
       + ' · Corrigido em ' + agoraTexto() + ' por ' + m.email + ' (antes: ' + antes + '): ' + motivo;
     lerAba('Pagamentos').filter(function (p) { return String(p.comanda) === String(c.id) && p.status === 'pago'; }).forEach(function (p) {
-      atualizarLinha('Pagamentos', p._linha, { metodo: metodo, parcelas: parcelas, bandeira: bandeiras, observacao: obsPag.slice(0, 500) });
+      // guarda as anotações que já estavam na venda (venda repetida de propósito, "Conferida", correções anteriores)
+      var antigas = String(p.observacao || '').split(' · ').filter(function (t) { return /^(venda repetida|Conferida|Corrigido em)/.test(t); });
+      atualizarLinha('Pagamentos', p._linha, { metodo: metodo, parcelas: parcelas, bandeira: bandeiras, observacao: [obsPag].concat(antigas).join(' · ').slice(0, 500) });
     });
     atualizarLinha('Comandas', c._linha, { pagamentos: JSON.stringify(todas),
       historico: anotarComanda(c, m.email, 'corrigiu a forma de pagamento: ' + antes + ' → ' + textoDivisao(novas) + ' (' + motivo + ')') });
@@ -1758,13 +1764,14 @@ function bancada_fecharComanda(d, m) {
     var pags = (d.pagamentos || []).map(function (p) {
       var metodo = METODOS_PAGAMENTO.indexOf(p.metodo) >= 0 ? p.metodo : '';
       if (!metodo) throw new Error('Forma de pagamento inválida.');
+      if (p.parceiro != null && typeof p.parceiro !== 'string') throw new Error('Permuta: diga com quem foi combinada.');
       var parceiro = metodo === 'Permuta' ? String(p.parceiro || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
       if (metodo === 'Permuta' && dinheiro(p.valor) > 0 && parceiro.length < 3) throw new Error('Permuta: diga com quem foi combinada (blogueiro, parceiro…).');
       return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
         codigo: metodo === 'Vale-presente' ? codigoLimpo(p.codigo) : '', bandeira: bandeiraDe(metodo, p.bandeira, true), parceiro: parceiro };
     }).filter(function (p) { return p.valor > 0; });
     var pago = dinheiro(pags.reduce(function (s, p) { return s + p.valor; }, 0));
-    if (Math.abs(pago - total) > 0.01) throw new Error('Os pagamentos somam ' + brl(pago) + ', mas a comanda é de ' + brl(total) + '.');
+    if (Math.abs(pago - total) > 0.009) throw new Error('Os pagamentos somam ' + brl(pago) + ', mas a comanda é de ' + brl(total) + '.');
     var vales = pags.filter(function (p) { return p.metodo === 'Vale-presente'; });
     if (vales.length > 1) throw new Error('Use um vale-presente por comanda.');
     var permutas = pags.filter(function (p) { return p.metodo === 'Permuta'; });
@@ -1795,21 +1802,21 @@ function bancada_fecharComanda(d, m) {
     if (repetidaComanda) obsPag += ' · venda repetida de propósito: ' + repetidaComanda;
     var hoje = hojeTexto();
     var valesCriados = [];
-    var usadosNaComanda = {};
+    var usadosNaComanda = Object.create(null);
     calc.forEach(function (i) { if (i.atendimentoId) usadosNaComanda[i.atendimentoId] = 1; });
     // a comissão desta comanda é sobre o que sobra depois da taxa da maquininha de cada parte paga
     var fatorComanda = fatorDePartes(pags, pags.reduce(function (s, p) { return s + numero(p.valor); }, 0));
     _fatoresComanda[String(cm.id)] = fatorComanda;
     // pacotes primeiro: a sessão do mesmo serviço vendida junto usa o crédito que o pacote acabou de criar
-    var creditosNaComanda = {};
-    var aulasLigadas = {};
+    var creditosNaComanda = Object.create(null);
+    var aulasLigadas = Object.create(null);
     var ordem = calc.map(function (x, i) { return i; }).sort(function (x, y) { return (calc[x].tipo === 'pacote' ? 0 : 1) - (calc[y].tipo === 'pacote' ? 0 : 1) || x - y; });
     try {
     ordem.forEach(function (idx) {
       var it = calc[idx];
       var a = it.atendimentoId ? lerAba('Atendimentos').filter(function (y) { return y.id === it.atendimentoId; })[0] : null;
       if (it.pacoteDaComanda) {
-        it.pacote = creditosNaComanda[it.pacoteDaComanda] || '';
+        it.pacote = typeof creditosNaComanda[it.pacoteDaComanda] === 'string' ? creditosNaComanda[it.pacoteDaComanda] : '';
         if (!it.pacote) throw new Error('O pacote de ' + it.nome + ' não foi registrado nesta comanda.');
       }
       if (it.pago) {

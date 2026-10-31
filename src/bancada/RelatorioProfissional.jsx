@@ -21,7 +21,7 @@ function Tabela({ titulo, nota, linhas, colunas, total, rotuloTotal }) {
         <table className={`rel-tabela${colunas[1]?.rotulo === 'Hora' ? ' rel-tabela--hora' : ''}`}>
           <thead><tr>{colunas.map((c) => <th key={c.rotulo} className={c.num ? 'num' : ''}>{c.rotulo}</th>)}</tr></thead>
           <tbody>
-            {linhas.map((l, i) => <tr key={i}>{colunas.map((c) => <td key={c.rotulo} className={c.num ? 'num' : ''}>{c.ver(l)}</td>)}</tr>)}
+            {linhas.map((l, i) => <tr key={i}>{colunas.map((c) => <td key={c.rotulo} data-rotulo={c.rotulo} className={c.num ? 'num' : ''}>{c.ver(l)}</td>)}</tr>)}
           </tbody>
           {total != null && (
             <tfoot><tr><td colSpan={colunas.length - 2}>{rotuloTotal}</td><td className="num"><strong>{real(total)}</strong></td><td /></tr></tfoot>

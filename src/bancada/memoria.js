@@ -89,6 +89,9 @@ export const guardarNaMemoria = (chave, valor) => {
 };
 
 // sair ou trocar de login: esquece tudo e apaga do navegador os dados pessoais (o catálogo fica)
+// preferências da agenda que guardam nome de profissional: saem junto ao sair
+const PREFERENCIAS_COM_NOMES = ['ambar_agenda_pessoa', 'ambar_semana_pessoa'];
+
 export function esquecerTudo() {
   dados.clear();
   emAndamento.clear();
@@ -102,7 +105,7 @@ export function esquecerTudo() {
   // computador compartilhado: nada de comissão, catálogo ou marca de sessão fica no navegador depois de sair
   try {
     const fixos = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && (k.startsWith(PREFIXO_FIXO) || k.startsWith('ambar_eu|'))) fixos.push(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && (k.startsWith(PREFIXO_FIXO) || k.startsWith('ambar_eu|') || PREFERENCIAS_COM_NOMES.includes(k))) fixos.push(k); }
     fixos.forEach((k) => localStorage.removeItem(k));
   } catch { /* sem armazenamento */ }
   cacheFotos.clear();

@@ -1854,6 +1854,21 @@
 .rel-tabela tbody tr:nth-child(even) td { background: #FCFAF3; }
 .rel-tabela .num { text-align: right; white-space: nowrap; font-family: inherit; }
 .rel-tabela tfoot td { padding-top: 8px; border-bottom: 0; border-top: 1.5px solid #2F3821; font-weight: 600; background: none; }
+/* celular (só na tela; a impressão continua em tabela): cada linha vira um cartão com o nome da coluna ao lado */
+@media screen and (max-width: 640px) {
+  .rel-tabela { min-width: 0; }
+  .rel-tabela thead { display: none; }
+  .rel-tabela, .rel-tabela tbody, .rel-tabela tfoot, .rel-tabela tr, .rel-tabela td { display: block; }
+  .rel-tabela tbody tr { padding: 6px 0; border-bottom: 1px solid #ECE6D2; }
+  .rel-tabela tbody tr:nth-child(even) { background: #FCFAF3; }
+  .rel-tabela tbody tr:nth-child(even) td { background: none; }
+  .rel-tabela td, .rel-tabela .num { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 2px 8px; border: 0; text-align: right; white-space: normal; }
+  .rel-tabela td::before { content: attr(data-rotulo); flex: none; color: #535647; font-size: 12.5px; text-align: left; }
+  .rel-tabela tfoot tr { display: flex; justify-content: space-between; border-top: 1.5px solid #2F3821; }
+  .rel-tabela tfoot td { border-top: 0; }
+  .rel-tabela tfoot td::before { content: none; }
+  .rel-tabela tfoot td:empty { display: none; }
+}
 .rel-obs { color: #7E3717; font-size: 12px; }
 .rel-sit { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .rel-sit--ok { background: #E3E8D2; color: #3F4A26; }

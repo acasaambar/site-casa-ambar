@@ -260,9 +260,9 @@ function bancada_enviarCampanha(d, m) {
   var nome = String(d.nome || assunto).slice(0, 80);
   var lista = publicoCampanha(d.filtro || {}).filter(function (p) { return p.email && p.aceitaEmail; });
   if (d.cpfs && d.cpfs.length) { var sel = {}; d.cpfs.forEach(function (c) { sel[normCpf(c)] = 1; }); lista = lista.filter(function (p) { return sel[p.cpf]; }); }
-  var cota = MailApp.getRemainingDailyQuota() - 10;
+  var cota = MailApp.getRemainingDailyQuota() - 40; // guarda e-mails para senhas, lembretes e vales do dia
   if (cota <= 0) throw new Error('A cota de e-mails de hoje acabou. Tente amanhã.');
-  var envia = lista.slice(0, Math.min(cota, 400));
+  var envia = lista.slice(0, Math.min(cota, 150)); // até 150 por vez: mais que isso pode passar dos 6 min do Google
   var botao = d.botaoTexto && /^https:\/\//.test(String(d.botaoUrl || '')) ? { texto: String(d.botaoTexto).slice(0, 40), url: String(d.botaoUrl) } : null;
   var enviados = 0;
   envia.forEach(function (p) {
@@ -412,6 +412,18 @@ function bancada_marcarLembrete(d, m) {
   if (!x) throw new Error('Não encontrado.');
   atualizarLinha(nomeAba, x._linha, { lembrete: 'WhatsApp ' + agoraTexto() });
   return true;
+}
+
+// Lembretes da véspera rodando sozinhos, todo dia, mesmo sem ninguém abrir a bancada (domingo e feriado inclusive).
+// Gatilho criado à mão pelo dono no editor do Apps Script: Acionadores → Adicionar → lembretesDiarios → Baseado em tempo → Diário → 9h às 10h.
+// Quem já recebeu não recebe de novo (cada lembrete fica anotado na linha do atendimento/reserva).
+function lembretesDiarios() {
+  novaExecucao(); aplicarAjustesSalvos();
+  if (AJUSTES.lembreteServicos === false && !AJUSTES.lembreteAulas) return;
+  PropertiesService.getScriptProperties().setProperty('LEMBRETES_ULTIMO', agoraTexto()); // antes de enviar: a tela não manda junto
+  var n = enviarLembretes(somarDias(hojeTexto(), 1));
+  if (n) registrar(null, 'lembretes automáticos (horário)', n + ' e-mails');
+  try { confirmarGravacoes(); } catch (e) { Logger.log('cache: ' + e.message); }
 }
 
 // a bancada chama ao abrir (no máximo a cada 2 horas): envia os lembretes de amanhã que faltam

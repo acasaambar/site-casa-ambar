@@ -52,7 +52,7 @@ async function chamar(acao, dados = {}) {
   try {
     json = await resp.json();
   } catch {
-    throw new Error('O sistema de reservas não respondeu. Tente de novo em instantes.');
+    throw new Error('O sistema não respondeu. Tente de novo em instantes.');
   }
   // resposta de outro pedido (já aconteceu na bancada: a lista de espera chegou no lugar do resumo do dia)
   const trocada = Boolean(json && json.rid && json.rid !== rid);

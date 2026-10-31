@@ -537,7 +537,9 @@ function Caixas() {
 export function MeusGanhos() {
   const [mes, setMes] = useState(mesAtual());
   const [relatorio, setRelatorio] = useState(false);
-  const { dados: g, erro, carregando } = useDados('meusGanhos', { mes });
+  const { dados: gTodos, erro, atual } = useDados('meusGanhos', { mes });
+  // Ao trocar o mês, nunca mostra os números do mês anterior enquanto carrega.
+  const g = atual ? gTodos : null;
   const nomeMes = mesTexto(mes).split(' ')[0].toLowerCase();
   return (
     <>
@@ -546,7 +548,7 @@ export function MeusGanhos() {
         Sua comissão de cada atendimento e venda.
       </Cabecalho>
       <Erro>{erro}</Erro>
-      {carregando && !g && <Esqueleto linhas={5} altura={26} />}
+      {!g && !erro && <Esqueleto linhas={5} altura={26} />}
       {g && (
         <>
           <section className="gs-kpis gs-kpis--hero" aria-label={`Ganhos de ${nomeMes}`}>

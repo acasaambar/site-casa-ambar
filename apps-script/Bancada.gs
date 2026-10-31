@@ -97,8 +97,8 @@ var PERMISSOES = {
   // estoque
   b_produtos: ['admin', 'recepcao'],
   b_salvarProduto: ['admin'],
-  b_movimentarEstoque: ['admin', 'recepcao'],
-  b_movimentos: ['admin', 'recepcao'],
+  b_movimentarEstoque: ['admin'],
+  b_movimentos: ['admin'],
   // financeiro e comissões
   b_financeiro: ['admin'],
   b_despesas: ['admin'],
@@ -122,13 +122,13 @@ var PERMISSOES = {
   b_pedirSubstituicao: ['professora'],
   b_cancelarPedido: ['admin', 'recepcao', 'professora'],
   // marketing
-  b_promocoes: ['admin', 'recepcao'],
+  b_promocoes: ['admin'],
   b_salvarPromocao: ['admin'],
   b_excluirPromocao: ['admin'],
-  b_publicoCampanha: ['admin', 'recepcao'],
+  b_publicoCampanha: ['admin'],
   b_enviarCampanha: ['admin'],
-  b_registrarCampanha: ['admin', 'recepcao'],
-  b_campanhas: ['admin', 'recepcao'],
+  b_registrarCampanha: ['admin'],
+  b_campanhas: ['admin'],
   b_lembretes: ['admin', 'recepcao'],
   b_enviarLembretes: ['admin', 'recepcao'],
   b_marcarLembrete: ['admin', 'recepcao'],
@@ -1015,7 +1015,7 @@ function guardarConfirmacaoRepetida(d) {
   _confirmaRepetida = { nsus: nsus, motivo: String(d.motivoRepetida || '').replace(/\s+/g, ' ').trim().slice(0, 120) };
 }
 
-function totalCobradoDaVenda(p) { return dinheiro(numero(p.valor) + numero(p.vale_usado)); }
+function totalCobradoDaVenda(p) { return dinheiro(numero(p.valor) + numero(p.vale_usado) + numero(p.permuta)); }
 
 // vendas pagas do mesmo cliente, mesmo item e mesmo valor no dia (dia = AAAA-MM-DD do recebimento)
 function vendasIguaisNoDia(cpf, itemId, total, dia, ignorar) {
@@ -1274,9 +1274,12 @@ function bancada_conferirVendas(d, m) {
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   try {
+    var primeira = null;
     nsus.forEach(function (n) {
       var pg = linhaPagamento(n);
       if (!pg || pg.status !== 'pago') throw new Error('Venda não encontrada ou não está paga.');
+      if (!primeira) primeira = pg;
+      else if (normCpf(pg.cpf) !== normCpf(primeira.cpf) || String(pg.plano_id) !== String(primeira.plano_id)) throw new Error('As vendas escolhidas não são do mesmo cliente e item.');
       if (String(pg.observacao || '').indexOf(MARCA_CONFERIDA) >= 0) return;
       atualizarLinha('Pagamentos', pg._linha, { observacao: String(MARCA_CONFERIDA + ' por ' + String(m.email).split('@')[0] + ' em ' + hojeTexto().split('-').reverse().join('/') + (motivo ? ': ' + motivo : '') + '. ' + (pg.observacao || '')).slice(0, 500) });
     });
@@ -1461,7 +1464,12 @@ function bancada_ajustarCredito(d, m) {
   var c = mapaCreditos()[String(d.creditoId)];
   if (!c) throw new Error('Crédito não encontrado.');
   var mud = {};
-  if (d.fim && /^\d{4}-\d{2}-\d{2}$/.test(d.fim)) mud.fim = d.fim;
+  if (d.fim && /^\d{4}-\d{2}-\d{2}$/.test(d.fim)) {
+    // a recepção prorroga no máximo 60 dias além do fim atual (mais do que isso, a administração)
+    var fimAtual = dataTexto(c.fim) || hojeTexto();
+    if (m.papel !== 'admin' && d.fim > somarDias(fimAtual > hojeTexto() ? fimAtual : hojeTexto(), 60)) throw new Error('A recepção prorroga no máximo 60 dias. Para mais, peça à administração.');
+    mud.fim = d.fim;
+  }
   if (d.ativo != null) mud.ativo = d.ativo ? 'SIM' : 'NÃO';
   atualizarLinha('Creditos', c._linha, mud);
   registrar(m, 'ajustou crédito', c.nome + ' · ' + c.descricao + ' · ' + JSON.stringify(mud));
