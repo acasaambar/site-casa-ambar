@@ -15,8 +15,10 @@ const adm = chamar('b_entrar', { email: 'contato@acasaambar.com.br', senha: 'amb
 chamar('b_salvarMembro', { token: adm, membro: { email: 'bia@acasaambar.com.br', nome: 'Bia Santos', papel: 'recepcao' } });
 chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'recep2026ok' });
 const rec = chamar('b_entrar', { email: 'bia@acasaambar.com.br', senha: 'recep2026ok' }).dados.token;
-chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Lia Esteticista', categorias: ['Estética facial', 'Estética corporal'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', comissao: 40 } });
-chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Mara Facial', categorias: ['Estética facial'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', comissao: 30 } });
+// turnos nos 7 dias: o teste roda em qualquer dia (no sábado e no domingo a casa fecha cedo ou não abre)
+const TODO_DIA = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((n) => [n, [['06:00', '23:00']]]));
+chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Lia Esteticista', categorias: ['Estética facial', 'Estética corporal'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', horarios: TODO_DIA, comissao: 40 } });
+chamar('b_salvarProfissional', { token: adm, profissional: { nome: 'Mara Facial', categorias: ['Estética facial'], dias: [0, 1, 2, 3, 4, 5, 6], inicio: '06:00', fim: '23:00', horarios: TODO_DIA, comissao: 30 } });
 chamar('b_salvarMembro', { token: adm, membro: { email: 'lia@gmail.com', nome: 'Lia Moura', papel: 'professora', professorNome: 'Lia Esteticista' } });
 chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'liamoura2026' });
 const lia = chamar('b_entrar', { email: 'lia@gmail.com', senha: 'liamoura2026' }).dados.token;
@@ -60,6 +62,13 @@ r = chamar('b_relatorioProfissional', { token: adm, mes, profissional: '' });
 ok(!r.ok, 'sem escolher a pessoa: recusa', r.erro);
 r = chamar('b_relatorioProfissional', { token: adm, mes: ctx.somarDias(hoje, -70).slice(0, 7), profissional: 'Mara Facial' });
 ok(r.ok && r.dados.resumo.atendimentos === 0 && r.dados.resumo.comissao === 0, 'mês sem movimento: relatório vazio, sem erro', r.erro);
+
+console.log('— pendentes de meses anteriores');
+marca('14:00', 'atendido', 'pago');
+r = chamar('b_relatorioProfissional', { token: adm, mes: ctx.somarDias(mes + '-01', 40).slice(0, 7), profissional: 'Lia Esteticista' });
+const pend = (r.dados && r.dados.anteriores) || [];
+ok(r.ok && pend.length === 1 && pend[0].cliente === 'Maria Souza' && pend[0].hora === '14:00' && pend[0].servico && pend[0].data === hoje && !pend[0].pago, 'pendente do mês anterior vem com cliente, serviço, hora e data', pend);
+ok(r.ok && r.dados.resumo.anterioresAPagar === pend[0].valor, 'total pendente = soma das linhas', r.dados && r.dados.resumo);
 
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);

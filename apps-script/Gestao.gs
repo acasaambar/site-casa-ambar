@@ -510,8 +510,12 @@ function bancada_relatorioProfissional(d, m) {
   var doMes = todas.filter(function (c) { var dt = dataTexto(c.data); return dt >= de && dt <= ate; });
   var anteriores = todas.filter(function (c) { return c.status === 'a_pagar' && dataTexto(c.data) < de; });
   var atend = {};
+  // pendentes de meses anteriores também mostram cliente, serviço e hora (antes saíam num parágrafo corrido)
+  var refsAnteriores = {}, atendAnteriores = {};
+  anteriores.forEach(function (c) { if (c.origem === 'atendimento') refsAnteriores[String(c.ref)] = 1; });
   lerAba('Atendimentos').forEach(function (a) {
     if (a.id && semAcento(a.profissional) === chave && dataTexto(a.data) >= de && dataTexto(a.data) <= ate) atend[String(a.id)] = a;
+    if (a.id && refsAnteriores[String(a.id)]) atendAnteriores[String(a.id)] = a;
   });
   // atendimentos do mês que não geram comissão (cancelado, falta) também entram na contagem
   var atendLista = Object.keys(atend).map(function (k) { return atend[k]; });
@@ -519,16 +523,18 @@ function bancada_relatorioProfissional(d, m) {
     var pago = c.status === 'pago';
     return { data: dataTexto(c.data), item: String(c.item), base: dinheiro(c.base), pct: numero(c.pct), valor: dinheiro(c.valor), pago: pago, pagoEm: pago ? String(c.pago_em || '').slice(0, 10) : '', origem: String(c.origem) };
   };
+  var comAtendimento = function (l, a) {
+    l.hora = a ? horaTexto(a.hora) : '';
+    l.cliente = a ? String(a.nome) : '';
+    l.servico = a ? String(a.servico) : l.item;
+    l.obs = a && a.titular ? 'no lugar de ' + a.titular : '';
+    return l;
+  };
   var atendimentos = [], aulas = [], outras = [];
   doMes.forEach(function (c) {
     var l = linha(c);
     if (c.origem === 'atendimento') {
-      var a = atend[String(c.ref)];
-      l.hora = a ? horaTexto(a.hora) : '';
-      l.cliente = a ? String(a.nome) : '';
-      l.servico = a ? String(a.servico) : l.item;
-      l.obs = a && a.titular ? 'no lugar de ' + a.titular : '';
-      atendimentos.push(l);
+      atendimentos.push(comAtendimento(l, atend[String(c.ref)]));
     } else if (c.origem === 'aula' || c.origem === 'aula_fixa') aulas.push(l);
     else outras.push(l);
   });
@@ -565,7 +571,10 @@ function bancada_relatorioProfissional(d, m) {
     atendimentos: atendimentos, aulas: aulas, outras: outras,
     totais: { atendimentos: soma(atendimentos, 'valor'), aulas: soma(aulas, 'valor'), outras: soma(outras, 'valor') },
     pagamentos: Object.keys(grupos).map(function (k) { return grupos[k]; }).sort(function (x, y) { return x.data.localeCompare(y.data); }),
-    anteriores: anteriores.map(linha).sort(porData),
+    anteriores: anteriores.map(function (c) {
+      var l = linha(c);
+      return c.origem === 'atendimento' ? comAtendimento(l, atendAnteriores[String(c.ref)]) : l;
+    }).sort(porData),
   };
 }
 

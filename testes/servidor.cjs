@@ -48,7 +48,9 @@ chamar('comprar', { token: toks['93541134780'], planoId: 'yoga-mensal-2x' });
 chamar('comprar', { token: toks['93541134780'], planoId: 'yoga-avulsa' });
 const pgs = m.ss.getSheetByName('Pagamentos').rows; pgs[pgs.length - 1][8] = '2026-10-16 10:00:00';
 // SERVICOS_TESTE
-['Lia Moura', 'Rafaela Costa', 'Dra. Paula Fisio'].forEach((nome, i) => chamar('b_salvarProfissional', { token: adm, profissional: { nome, categorias: i === 2 ? ['Fisioterapia'] : ['Estética facial', 'Estética corporal', 'Estética capilar'], dias: [1, 2, 3, 4, 5, 6], comissao: i === 2 ? 50 : 40, comissaoProduto: 10 } }));
+// turnos nos 7 dias: o simulador abre com agenda em qualquer dia (sábado e domingo inclusive)
+const TODO_DIA = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((n) => [n, [['06:00', '21:00']]]));
+['Lia Moura', 'Rafaela Costa', 'Dra. Paula Fisio'].forEach((nome, i) => chamar('b_salvarProfissional', { token: adm, profissional: { nome, categorias: i === 2 ? ['Fisioterapia'] : ['Estética facial', 'Estética corporal', 'Estética capilar'], dias: [0, 1, 2, 3, 4, 5, 6], horarios: TODO_DIA, comissao: i === 2 ? 50 : 40, comissaoProduto: 10 } }));
 const hojeS = ctx.hojeTexto();
 const amanha = ctx.somarDias(hojeS, 1);
 [[hojeS, '08:00', 'limpeza-pele', 'Lia Moura'], [hojeS, '10:00', 'drenagem', 'Lia Moura'], [hojeS, '14:00', 'microagulhamento-facial', 'Lia Moura'], [hojeS, '09:00', 'ritual-acalmar', 'Rafaela Costa'],
@@ -58,7 +60,7 @@ const amanha = ctx.somarDias(hojeS, 1);
   if (!r.ok) console.log('serviço', r.erro);
 });
 // GESTAO_TESTE
-['Lia Moura', 'Rafaela Costa', 'Dra. Paula Fisio'].forEach((nome, i) => chamar('b_salvarProfissional', { token: adm, profissional: { nome, categorias: i === 2 ? ['Fisioterapia'] : ['Estética facial', 'Estética corporal', 'Estética capilar'], dias: [1, 2, 3, 4, 5, 6], comissao: i === 2 ? 50 : 40, comissaoProduto: 10 } }));
+['Lia Moura', 'Rafaela Costa', 'Dra. Paula Fisio'].forEach((nome, i) => chamar('b_salvarProfissional', { token: adm, profissional: { nome, categorias: i === 2 ? ['Fisioterapia'] : ['Estética facial', 'Estética corporal', 'Estética capilar'], dias: [0, 1, 2, 3, 4, 5, 6], horarios: TODO_DIA, comissao: i === 2 ? 50 : 40, comissaoProduto: 10 } }));
 chamar('b_salvarMembro', { token: adm, membro: { email: 'lia@gmail.com', nome: 'Lia Moura', papel: 'professora', professorNome: 'Lia Moura' } });
 chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'liamoura2026' });
 [['Protetor solar FPS 50', 'Revenda (home care)', 'La Roche', true, 129, 64, 2, 6], ['Sérum vitamina C', 'Revenda (home care)', 'Adcos', true, 189, 95, 2, 1],

@@ -23,13 +23,33 @@ function Tabela({ titulo, nota, linhas, colunas, total, rotuloTotal }) {
           <tbody>
             {linhas.map((l, i) => <tr key={i}>{colunas.map((c) => <td key={c.rotulo} data-rotulo={c.rotulo} className={c.num ? 'num' : ''}>{c.ver(l)}</td>)}</tr>)}
           </tbody>
-          {total != null && (
-            <tfoot><tr><td colSpan={colunas.length - 2}>{rotuloTotal}</td><td className="num"><strong>{real(total)}</strong></td><td /></tr></tfoot>
-          )}
+          {total != null && (() => {
+            const i = colunas.findIndex((c) => c.rotulo === 'Comissão');
+            return (
+              <tfoot><tr>
+                <td colSpan={i}>{rotuloTotal}</td>
+                <td className="num"><strong>{real(total)}</strong></td>
+                {colunas.length - i - 1 > 0 && <td colSpan={colunas.length - i - 1} />}
+              </tr></tfoot>
+            );
+          })()}
         </table>
       </div>
     </section>
   );
+}
+
+// Pendentes de meses anteriores, agrupados por mês. Servidor antigo mandava só "serviço · cliente" no item.
+function pendentesPorMes(lista) {
+  const grupos = new Map();
+  lista.forEach((l) => {
+    const [serv, ...resto] = String(l.item || '').split(' · ');
+    const linha = { ...l, servico: l.servico || serv, cliente: l.cliente || resto.join(' · ') };
+    const m = String(l.data).slice(0, 7);
+    if (!grupos.has(m)) grupos.set(m, []);
+    grupos.get(m).push(linha);
+  });
+  return [...grupos].map(([mes, linhas]) => ({ mes, linhas, total: Math.round(linhas.reduce((t, x) => t + Number(x.valor || 0), 0) * 100) / 100 }));
 }
 
 // Relatório do mês de uma pessoa da equipe: uma folha para conferir as contas e imprimir ou salvar em PDF
@@ -115,6 +135,20 @@ export default function RelatorioProfissional({ mes, profissional, aoFechar }) {
 
           {!d.atendimentos.length && !d.aulas.length && !d.outras.length && <p className="rel-vazio">Nenhum atendimento, aula ou venda com comissão em {mesTexto(mes)}.</p>}
 
+          {pendentesPorMes(d.anteriores).map((g) => (
+            <Tabela key={g.mes} titulo={`Ainda a pagar de ${mesTexto(g.mes)}`} nota={`${plural(g.linhas.length, 'comissão pendente', 'comissões pendentes')} de mês anterior`}
+              linhas={g.linhas} total={g.total} rotuloTotal={`Total pendente de ${mesTexto(g.mes)}`}
+              colunas={[
+                { rotulo: 'Data', ver: (l) => dataCurta(l.data) },
+                { rotulo: 'Hora', ver: (l) => l.hora || '—' },
+                { rotulo: 'Cliente', ver: (l) => <>{l.cliente || '—'}{l.obs && <small className="rel-obs"> {l.obs}</small>}</> },
+                { rotulo: 'Serviço', ver: (l) => l.servico },
+                { rotulo: 'Base', num: true, ver: (l) => real(l.base) },
+                { rotulo: '%', num: true, ver: (l) => (l.origem === 'aula_fixa' ? 'por aula' : pct(l.pct)) },
+                { rotulo: 'Comissão', num: true, ver: (l) => <strong>{real(l.valor)}</strong> },
+              ]} />
+          ))}
+
           <div className="rel-fecho">
             <section className="rel-secao rel-secao--junto">
               <h3 className="rel-secao__titulo">Fechamento</h3>
@@ -137,7 +171,7 @@ export default function RelatorioProfissional({ mes, profissional, aoFechar }) {
                 </ul>
               )}
               {d.anteriores.length > 0 && (
-                <p className="rel-obs-fecho">Pendentes de antes de {mesTexto(mes)}: {d.anteriores.map((l) => `${dataCurta(l.data)} · ${l.item} (${real(l.valor)})`).join('; ')}.</p>
+                <p className="rel-obs-fecho">{plural(d.anteriores.length, 'comissão', 'comissões')} de meses anteriores ainda a pagar ({real(r.anterioresAPagar)}): a lista está acima, mês a mês.</p>
               )}
             </section>
           </div>

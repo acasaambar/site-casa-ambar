@@ -1886,7 +1886,7 @@
 .rel-contas__total dt, .rel-contas__total dd { color: #fff; font-weight: 700; }
 .rel-pagos { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .rel-pagos li { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; padding: 4px 0; border-bottom: 1px solid #ECE6D2; font-variant-numeric: tabular-nums; }
-.rel-obs-fecho { margin: 8px 0 0; font-size: 12.5px; color: #7E3717; }
+.rel-obs-fecho { margin: 10px 0 0; padding: 8px 12px; font-size: 13px; line-height: 1.45; color: #7E3717; background: #FBF3EA; border-left: 3px solid #A6845E; border-radius: 6px; }
 .rel-assina { margin-top: 30px; break-inside: avoid; }
 .rel-assina__data { margin: 0 0 34px; color: #535647; font-size: 13px; }
 .rel-assina__linhas { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }

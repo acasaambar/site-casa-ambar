@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const paraBuffer = (d) => (Array.isArray(d) ? Buffer.from(d.map((x) => x & 255)) : Buffer.from(String(d)));
 const vm = require('vm');
+const { noContexto } = require('./dia-util.cjs'); // testes sempre num dia útil
 function colIdx(l) { return l.charCodeAt(0) - 65; }
 class Range {
   constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
@@ -92,6 +93,7 @@ function criar(arquivos) {
     console, UrlFetchApp,
   };
   vm.createContext(ctx);
+  if (noContexto) vm.runInContext(noContexto, ctx);
   for (const a of arquivos) vm.runInContext(fs.readFileSync(a, 'utf8'), ctx, { filename: a });
   // o contrato dos planos (Contrato.gs) já vem ligado; os testes antigos compram plano sem assinar: ligam à mão quando querem testá-lo
   if (ctx.CONTRATO_PRONTO !== undefined) ctx.CONTRATO_PRONTO = false;

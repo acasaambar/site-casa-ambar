@@ -17,12 +17,14 @@ const comanda = (nome) => {
 };
 const caixa = () => chamar('b_caixa', { token: adm, data: hojeS }).dados;
 const comissoes = (ref) => ctx.lerAba('Comissoes').filter((c) => String(c.ref).indexOf(ref) === 0 && c.status !== 'cancelada');
-const valor = serv.preco;
+// valor da comanda: o preço do serviço, ou menos se houver promoção automática no dia
+let valor = serv.preco;
 
 console.log('— permuta total: conta como pago, mas não entra no caixa');
 const antes = caixa();
 let c1 = comanda('Blogueira Total');
-ok(c1 && c1.total === valor, 'comanda de ' + valor, c1 && c1.total);
+ok(c1 && c1.total > 0 && c1.total <= serv.preco, 'comanda com o preço do serviço', c1 && c1.total);
+if (c1) valor = c1.total;
 let r = chamar('b_fecharComanda', { token: rec, id: c1.id, pagamentos: [{ metodo: 'Permuta', valor }] });
 ok(!r.ok && /com quem/i.test(r.erro), 'sem dizer com quem é recusado', r.erro);
 r = chamar('b_fecharComanda', { token: rec, id: c1.id, pagamentos: [{ metodo: 'Permuta', valor, parceiro: 'ab' }] });
