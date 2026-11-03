@@ -498,13 +498,19 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
   const yoga = aula.modalidade === 'Yoga';
   const ocupados = aula.reservas.map((r) => r.tapete).filter(Boolean);
   const lotada = aula.ocupadosQtd >= aula.capacidade;
+  // aula que já terminou (ex.: lançar outubro): o aluno entra como presente e a venda paga vai para o dia da aula
+  const [agora] = useState(() => Date.now());
+  const passou = new Date(`${aula.data}T${aula.hora}:00-03:00`).getTime() + (aula.duracao || 60) * 60000 < agora;
+  const formas = passou ? FORMAS.map(([id, t, d]) => [id, t, id === 'avulsa' ? 'a venda entra no caixa do dia da aula' : id === 'pagar' ? 'fica a pagar; entra no caixa do dia em que receber' : id === 'wellhub' ? 'check-in feito no app' : d]) : FORMAS;
+  const [avisoFim, setAvisoFim] = useState('');
 
   async function confirmar() {
     setErro('');
     setEnviando(true);
     try {
-      await chamar('agendar', { aulaId: aula.id, cpf: aluno.cpf, tapete, forma, ...pg, encaixe });
-      aoAgendar();
+      const r = await chamar('agendar', { aulaId: aula.id, cpf: aluno.cpf, tapete, forma, ...pg, encaixe });
+      // lançou, mas a comissão desta aula não vai contar (sem valor da aula ou "contar a partir de" depois): mostra antes de fechar
+      if (r?.aviso) setAvisoFim(r.aviso); else aoAgendar();
     } catch (e) {
       setErro(e.message);
       if (e.codigo === 'SEM_CREDITO') setForma('pagar');
@@ -514,14 +520,25 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
   }
 
   return (
-    <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${aula.professor}`} titulo="Agendar aluno" aoFechar={aoFechar}>
-      {!aluno ? (
+    <Modal rotulo={`${aula.modalidade} · ${hora(aula.hora)} · ${aula.professor}`} titulo={passou ? 'Lançar aula que já passou' : 'Agendar aluno'} aoFechar={avisoFim ? aoAgendar : aoFechar}>
+      {avisoFim ? (
+        <div className="b-form">
+          <Aviso tom="ok">Aula lançada: {aluno?.nome} está como presente.</Aviso>
+          <Aviso tom="aviso">{avisoFim}</Aviso>
+          <button type="button" className="botao botao--cheio" onClick={aoAgendar}>Entendi</button>
+        </div>
+      ) : !aluno ? (
         <Passo titulo="Quem vai" acao={<Ajuda titulo="Sem cadastro?">Cadastre em Clientes → Novo cliente e volte aqui.</Ajuda>}>
           <BuscaAluno aoEscolher={setAluno} autoFocus excluir={aula.reservas.map((r) => r.cpf).filter(Boolean)} />
         </Passo>
       ) : (
         <div className="b-form">
           <ClienteEscolhido nome={aluno.nome} detalhe={`${aluno.plano || 'sem plano ativo'}${!aluno.ficha ? ' · sem ficha de saúde' : ''}`} aoTrocar={() => setAluno(null)} />
+          {passou && (
+            <Aviso tom="info" acao={<Ajuda titulo="Aula que já passou">Dá para lançar aulas de até 120 dias atrás. O aluno entra como presente e a aula conta na comissão e nos relatórios do mês dela. Se ele faltou, mude para falta depois. "Plano do aluno" só funciona se o plano valia no dia da aula (venda com a data certa em Vender).</Ajuda>}>
+              Esta aula já passou: o aluno entra como presente.
+            </Aviso>
+          )}
 
           {yoga && (
             <Passo titulo="Tapete">
@@ -542,7 +559,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
           <Passo titulo="Como será paga">
             <fieldset className="b-opcoes">
               <legend className="ag-vh">Como esta aula será paga</legend>
-              {FORMAS.map(([id, t, d]) => (
+              {formas.map(([id, t, d]) => (
                 <label key={id} className={forma === id ? 'ativo' : ''}>
                   <input type="radio" name="forma" checked={forma === id} onChange={() => setForma(id)} />
                   <span><strong>{t}</strong><small>{d}</small></span>
@@ -558,7 +575,7 @@ function Agendar({ aula, aoFechar, aoAgendar }) {
           )}
           <Erro>{erro}</Erro>
           <button type="button" className="botao botao--cheio" disabled={enviando || (yoga && !tapete) || (lotada && !encaixe) || (forma === 'avulsa' && faltaPagamento(pg))} onClick={confirmar}>
-            {enviando ? 'Agendando…' : yoga && !tapete ? 'Escolha o tapete' : 'Confirmar agendamento'}
+            {enviando ? (passou ? 'Lançando…' : 'Agendando…') : yoga && !tapete ? 'Escolha o tapete' : passou ? 'Lançar presença' : 'Confirmar agendamento'}
           </button>
         </div>
       )}

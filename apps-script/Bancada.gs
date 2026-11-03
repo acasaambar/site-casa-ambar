@@ -555,7 +555,11 @@ function bancada_agendar(d, m) {
   var de = String(d.aulaId).slice(0, 10);
   var aula = aulasDoPeriodo(de, 1, []).filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada (confira a grade e os bloqueios).');
-  if (inicio(aula).getTime() + AJUSTES.duracaoAulaMin * 60000 < Date.now() - 7 * 86400000) throw new Error('Esta aula é muito antiga.');
+  // aula que já passou (lançar o que aconteceu, ex.: outubro vindo do Avec): até o mesmo limite das vendas e atendimentos passados.
+  // O aluno entra como presente (check-in), para contar na comissão e nos relatórios; a recepção corrige para falta se for o caso.
+  var hojeAg = hojeTexto();
+  if (aula.data < somarDias(hojeAg, -DIAS_VENDA_PASSADA)) throw new Error('Dá para lançar aulas de até ' + DIAS_VENDA_PASSADA + ' dias atrás.');
+  var passada = inicio(aula).getTime() + AJUSTES.duracaoAulaMin * 60000 < Date.now();
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
   try {
@@ -587,21 +591,41 @@ function bancada_agendar(d, m) {
     } else if (forma === 'avulsa') {
       var avulsa = buscarPlano(aula.modalidade.toLowerCase() + '-avulsa');
       if (!avulsa) throw new Error('Não há aula avulsa de ' + aula.modalidade + ' no catálogo.');
-      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: aula.data, obs: 'aula ' + aula.id }, m);
+      // aula de dia passado paga na hora: a venda entra no caixa do dia da aula (como no atendimento passado)
+      var venda = registrarVenda(aluno, avulsa, { metodo: d.metodo, bandeira: d.bandeira, formas: d.formas, valor: d.valor, codigo: d.codigo, resto: d.resto, inicio: aula.data,
+        dataVenda: aula.data < hojeAg ? aula.data : '', obs: 'aula ' + aula.id }, m);
       creditoId = venda.creditoId; descricao = avulsa.nome + ' · ' + venda.metodo;
     } else {
       throw new Error('Forma inválida.');
     }
     var id = novoId('R');
-    aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'reservado', agoraTexto(), '', '',
+    var agora = agoraTexto();
+    aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, passada ? 'check-in' : 'reservado', agora, passada ? agora : '', '',
       creditoId, '', '']));
     SpreadsheetApp.flush();
-    registrar(m, 'agendou', aluno.nome + ' · ' + aula.id + ' · ' + descricao);
-    esperaResolvida('aula', aula.id, cpf);
-    return { id: id, forma: descricao };
   } finally {
     soltarTrava(trava);
   }
+  esquecerComissoesAulas();
+  registrar(m, passada ? 'lançou aula passada' : 'agendou', aluno.nome + ' · ' + aula.id + ' · ' + descricao);
+  esperaResolvida('aula', aula.id, cpf);
+  return { id: id, forma: descricao, passada: passada, aviso: passada ? avisoComissaoAula(aula) : '' };
+}
+
+// aula que já passou: avisa quando a comissão dela não vai contar (sem valor da aula cadastrado ou "contar a partir de" depois da aula)
+function avisoComissaoAula(aula) {
+  var quem = String(aula.professor || '').trim();
+  if (!quem) return '';
+  var br = function (iso) { var x = String(iso).split('-'); return x[2] + '/' + x[1] + '/' + x[0]; };
+  var p = listarProfessoras().filter(function (x) { return semAcento(x.nome) === semAcento(quem); })[0];
+  var onde = ' Acerte em Catálogo → Profissionais → ' + quem + '.';
+  var falta = !p || !p.ativo || !p.desde ? 'está sem o valor da aula cadastrado'
+    : aula.modalidade === 'Pilates' && !(p.pilatesPct > 0) ? 'está sem a % do Pilates'
+    : aula.modalidade === 'Yoga' && !(p.yogaPorAula > 0) ? 'está sem o valor por aula de Yoga' : '';
+  if (falta) return 'A presença foi lançada, mas a comissão desta aula ainda não conta: ' + quem + ' ' + falta + '.' + onde;
+  if (aula.data < p.desde) return 'A presença foi lançada, mas a comissão desta aula ainda não conta: o cadastro de ' + quem + ' conta aulas a partir de ' + br(p.desde) +
+    '. Mude "Contar aulas a partir de" para ' + br(aula.data) + ' ou antes.' + onde;
+  return '';
 }
 
 // Recebe a aula reservada para pagar depois: registra a venda da aula avulsa agora (entra no caixa de hoje)
