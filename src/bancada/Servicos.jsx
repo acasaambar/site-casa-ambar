@@ -10,6 +10,7 @@ import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioModal } from './Prontuario.jsx';
 import { HorarioSemanal, DiasEspeciais, horariosIniciais, resumoHorario } from './Horarios.jsx';
 import { Avatar, BlocoForm, Interruptor, Barra } from './CatalogoPecas.jsx';
+import { AulasDaPessoa, useGrade, resumoAulas } from './GradeAulas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
 import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
@@ -1454,6 +1455,7 @@ export function Profissionais() {
   const verComissao = pode(membro, 'admin'); // comissão é só da administração
   const { dados, erro, carregando, setDados } = useDados('catalogoServicos', {});
   const { dados: aulas, recarregar: recarregarAulas } = useDados('pagamentoAulas', {});
+  const { dados: grade } = useGrade();
   const [editar, setEditar] = useState(null);
   const [wellhub, setWellhub] = useState(null);
   const [wellhubSalvo, setWellhubSalvo] = useState(false);
@@ -1535,7 +1537,8 @@ export function Profissionais() {
                     {a && <Tag tom="ambar">{a.modalidades.length ? `Aulas de ${a.modalidades.join(' e ')}` : 'Aulas (fora da grade)'}</Tag>}
                   </span>
                   <span className="b-meta">
-                    <span>{p ? `${resumoHorario(p)}${Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}` : 'horários na Grade de aulas'}</span>
+                    {p && <span>{`${resumoHorario(p)}${Object.keys(p.especiais || {}).length ? ` · ${plural(Object.keys(p.especiais).length, 'dia especial', 'dias especiais')}` : ''}`}</span>}
+                    {a && <span>{resumoAulas(grade, nome) || 'nenhuma aula na grade'}</span>}
                     {comissao.map((t) => <span key={t}>{t}</span>)}
                   </span>
                 </div>
@@ -1583,8 +1586,14 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
   const txt = (v) => (v == null || v === 0 ? '' : String(v).replace('.', ','));
   const [au, setAu] = useState({ pilatesPct: txt(aula?.pilatesPct), wellhubPct: txt(aula?.wellhubPct), yogaPorAula: txt(aula?.yogaPorAula), desde: aula?.desde || hojeIso() });
   // Pilates e/ou Yoga: o que já está na Grade de aulas fica marcado (para tirar, tire as aulas da grade); o resto é escolha do cadastro
-  const daGrade = aula?.daGrade || [];
+  const [daGrade, setDaGrade] = useState(aula?.daGrade || []);
   const [mods, setMods] = useState(aula?.modalidades || []);
+  // aulas mudadas aqui mesmo (seção "Dias e horários"): a modalidade da aula nova entra marcada e travada
+  const gradeMudou = (minhas) => {
+    const ms = [...new Set(minhas.map((l) => l.modalidade))];
+    setDaGrade(ms);
+    setMods((l) => [...new Set([...l, ...ms])]);
+  };
   const pilates = mods.includes('Pilates');
   const yoga = mods.includes('Yoga');
   const alternar = (t) => setMods((l) => (l.includes(t) ? l.filter((x) => x !== t) : [...l, t]));
@@ -1697,7 +1706,11 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
                 </label>
               ))}
             </div>
-            {mods.some((t) => !daGrade.includes(t)) && <Aviso tom="info">As aulas só aparecem na agenda e no site quando o nome da pessoa estiver em quem dá a aula, na Grade de aulas (Catálogo → Grade de aulas).</Aviso>}
+            <div className="pf-aulas__grade">
+              <h4 className="pf-aulas__sub">Dias e horários das aulas</h4>
+              <AulasDaPessoa nome={nomeAula || f.nome.trim()} modalidades={mods} aoMudar={gradeMudou} />
+            </div>
+            <h4 className="pf-aulas__sub">Valor de cada aula</h4>
             <div className="pa-campos">
               {pilates && <label className="b-campo"><span className="rotulo">Pilates · % por aluno</span>
                 <input inputMode="decimal" value={au.pilatesPct} placeholder="Ex.: 40" onChange={(e) => setAu({ ...au, pilatesPct: e.target.value.replace(/[^\d,.]/g, '') })} /></label>}
@@ -1720,7 +1733,7 @@ function EditarProfissional({ p, aula, soAula, wellhubValor, categorias, servico
             </BotaoAcao>
           </BlocoForm>
         )}
-        {!temServico && daGrade.length > 0 && <Aviso tom="info">Esta pessoa aparece aqui porque dá aula na Grade de aulas. Para tirar, troque quem dá essas aulas na Grade (Catálogo → Grade de aulas).</Aviso>}
+        {!temServico && daGrade.length > 0 && <Aviso tom="info">Para apagar este cadastro, tire antes as aulas desta pessoa (em “Dias e horários das aulas”) ou passe para outra pessoa.</Aviso>}
       </div>
     </Modal>
   );

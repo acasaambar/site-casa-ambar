@@ -175,6 +175,18 @@ ok(g.length === 49, 'grade lida', g.length);
 r = chamar('b_salvarGrade', { token: adm, linhas: g.slice(0, 10) }); ok(r.ok && r.dados.length === 10, 'grade salva menor', r.dados && r.dados.length);
 ok(ctx.gerarAulas(undefined, 14).every(a => a.modalidade), 'sem aulas fantasmas de linhas vazias');
 chamar('b_salvarGrade', { token: adm, linhas: g });
+// a aula é identificada por dia + horário + modalidade: duas iguais viram uma só (recusa); a mesma pessoa não dá duas aulas na mesma hora
+const g0 = g.find((x) => x.ativo && x.professor);
+r = chamar('b_salvarGrade', { token: adm, linhas: [...g, { ...g0, capacidade: 3 }] });
+ok(!r.ok && /duas aulas de/i.test(r.erro), 'aula repetida (mesmo dia, horário e modalidade) é recusada', r.erro);
+const outraMod = g0.modalidade === 'Yoga' ? 'Pilates' : 'Yoga';
+const livre = !g.some((x) => x.dia === g0.dia && x.hora === g0.hora && x.modalidade === outraMod);
+r = chamar('b_salvarGrade', { token: adm, linhas: [...g, { ...g0, modalidade: outraMod }] });
+ok(!livre || (!r.ok && /já dá aula de/i.test(r.erro)), 'a mesma pessoa em duas aulas na mesma hora é recusada', r.erro);
+r = chamar('b_salvarGrade', { token: adm, linhas: [...g, { ...g0, modalidade: outraMod, ativo: false }] });
+ok(!livre || r.ok, 'aula pausada no mesmo horário pode (não está dando as duas)', r.erro);
+chamar('b_salvarGrade', { token: adm, linhas: g });
+ok(chamar('b_grade', { token: adm }).dados.length === 49, 'grade volta ao normal');
 r = chamar('b_salvarPlano', { token: adm, plano: { id: 'yoga-avulsa', modalidade: 'Yoga', tipo: 'avulsa', nome: 'Yoga · aula avulsa', preco: 65, validadeDias: 30 } });
 ok(r.ok && r.dados.find(p => p.id === 'yoga-avulsa').preco === 65, 'preço do plano alterado', r);
 r = chamar('b_salvarAjustes', { token: adm, ajustes: { cancelarAteHorasAntes: 3, wellhubAtivo: false } });

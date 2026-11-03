@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Esqueleto, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, Aviso, Secao, real, dataBR, hora, hojeIso, linkWhats, primeiro, plural, MESES, DIAS_LONGOS } from './ui.jsx';
+import { useDados, Esqueleto, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, Secao, real, dataBR, hora, hojeIso, linkWhats, primeiro, plural, MESES } from './ui.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { CatalogoServicos, Profissionais } from './Servicos.jsx';
+import { GradeSemanal } from './GradeAulas.jsx';
 import { Interruptor, BlocoForm, Barra } from './CatalogoPecas.jsx';
 import './css/catalogo.css';
 
@@ -28,7 +29,6 @@ export default function Grade() {
 
 // "2026-10-27" -> { dia: '27', mes: 'out' } (cartãozinho de data nas listas)
 const diaMes = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso)) ? { dia: String(iso).slice(8, 10), mes: MESES[Number(String(iso).slice(5, 7)) - 1] } : { dia: '·', mes: '' });
-const NOVA_AULA = () => ({ _k: Date.now(), dia: 1, hora: '07:00', modalidade: 'Yoga', professor: '', capacidade: 12, ativo: true });
 
 function Bloqueios() {
   const { chamar } = useBancada();
@@ -99,73 +99,6 @@ function Bloqueios() {
         </Modal>
       )}
     </div>
-  );
-}
-
-function GradeSemanal() {
-  const { chamar } = useBancada();
-  const { dados, erro, carregando } = useDados('grade', {});
-  const [linhas, setLinhas] = useState(null);
-  const [aviso, setAviso] = useState('');
-  const [erroS, setErroS] = useState('');
-  useEffect(() => { if (dados) setLinhas(dados.map((l, i) => ({ ...l, _k: i }))); }, [dados]);
-  if (carregando && !linhas) return <Esqueleto linhas={5} altura={52} />;
-  if (!linhas) return <Erro>{erro}</Erro>;
-  const mudar = (k, campo, v) => setLinhas((ls) => ls.map((l) => (l._k === k ? { ...l, [campo]: v } : l)));
-  const ordenadas = [...linhas].sort((a, b) => ((a.dia + 6) % 7) - ((b.dia + 6) % 7) || a.hora.localeCompare(b.hora) || a.modalidade.localeCompare(b.modalidade));
-  // um bloco por dia da semana, de segunda a domingo
-  const dias = [];
-  ordenadas.forEach((l) => {
-    const ult = dias[dias.length - 1];
-    if (ult && ult.dia === l.dia) ult.aulas.push(l); else dias.push({ dia: l.dia, aulas: [l] });
-  });
-  const ativas = linhas.filter((l) => l.ativo).length;
-  return (
-    <>
-      <Barra resumo={`${plural(ativas, 'aula ativa', 'aulas ativas')} por semana`} titulo="Grade de aulas" ajuda="Cada linha é uma aula que se repete toda semana. As mudanças valem para as próximas aulas; reservas já feitas continuam.">
-        <button type="button" className="botao botao--linha botao--p" onClick={() => setLinhas((ls) => [...ls, NOVA_AULA()])}>+ Adicionar horário</button>
-      </Barra>
-      {linhas.length === 0 && <Vazio titulo="Nenhuma aula na grade" acao={<button type="button" className="botao botao--cheio botao--p" onClick={() => setLinhas([NOVA_AULA()])}>+ Adicionar horário</button>} />}
-      <datalist id="cg-profs">{[...new Set(linhas.map((l) => l.professor).filter(Boolean))].sort().map((n) => <option key={n} value={n} />)}</datalist>
-      <div className="cg-grade">
-        {dias.length > 0 && (
-          <div className="cg-aula-cab" aria-hidden="true"><span>Dia</span><span>Horário</span><span>Modalidade</span><span>Profissional</span><span>Vagas</span><span>Situação</span><span /></div>
-        )}
-        {dias.map(({ dia, aulas }) => (
-          <section key={dia} className="cg-dia">
-            <h2 className="cg-dia__titulo">{DIAS_LONGOS[dia]}<span>{plural(aulas.filter((l) => l.ativo).length, 'aula', 'aulas')}</span></h2>
-            <div className="b-itens">
-              {aulas.map((l) => (
-                <div key={l._k} className={`cg-aula cg-aula--${l.modalidade === 'Pilates' ? 'pilates' : 'yoga'}${l.ativo ? '' : ' cg-aula--off'}`}>
-                  <label className="cg-f cg-f--dia"><span>Dia</span>
-                    <select value={l.dia} onChange={(e) => mudar(l._k, 'dia', Number(e.target.value))}>{DIAS_LONGOS.map((d, i) => <option key={i} value={i}>{d}</option>)}</select></label>
-                  <label className="cg-f cg-f--hora"><span>Horário</span>
-                    <input type="time" value={l.hora} onChange={(e) => mudar(l._k, 'hora', e.target.value)} /></label>
-                  <label className="cg-f cg-f--mod"><span>Modalidade</span>
-                    <select value={l.modalidade} onChange={(e) => mudar(l._k, 'modalidade', e.target.value)}><option>Yoga</option><option>Pilates</option></select></label>
-                  <label className="cg-f cg-f--prof"><span>Profissional</span>
-                    <input value={l.professor} list="cg-profs" onChange={(e) => mudar(l._k, 'professor', e.target.value)} /></label>
-                  <label className="cg-f cg-f--vagas"><span>Vagas</span>
-                    <input type="number" min={1} max={30} value={l.capacidade} onChange={(e) => mudar(l._k, 'capacidade', Number(e.target.value))} /></label>
-                  <Interruptor className="cg-f--ativa" checked={l.ativo} onChange={(e) => mudar(l._k, 'ativo', e.target.checked)} aria-label="Aula ativa">Ativa</Interruptor>
-                  <button type="button" className="botao botao--fantasma botao--p cg-perigo cg-f--remover" onClick={() => setLinhas((ls) => ls.filter((x) => x._k !== l._k))}>Remover</button>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-      <div className="b-salvar-fixo cg-salvar">
-        <div className="cg-salvar__msg">
-          {aviso && <Aviso tom="ok">{aviso}</Aviso>}
-          <Erro>{erroS}</Erro>
-        </div>
-        <BotaoAcao className="botao botao--cheio botao--p" acao={async () => {
-          setAviso(''); setErroS('');
-          try { await chamar('salvarGrade', { linhas }); setAviso('Grade salva. O site já mostra os novos horários.'); } catch (e) { setErroS(e.message); }
-        }}>Salvar grade</BotaoAcao>
-      </div>
-    </>
   );
 }
 

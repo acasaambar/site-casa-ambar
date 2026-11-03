@@ -1631,6 +1631,20 @@ function bancada_salvarGrade(d, m) {
     return [g.ativo === false ? 'NÃO' : 'SIM', g.modalidade, dia, h, String(g.professor || '').trim(), Math.max(1, Number(g.capacidade) || (g.modalidade === 'Yoga' ? 12 : 4))];
   });
   if (!linhas.length) throw new Error('A grade não pode ficar vazia.');
+  // a aula é identificada por dia + horário + modalidade (aula_id das reservas): duas iguais virariam uma só.
+  // E a mesma pessoa não dá duas aulas ativas na mesma hora.
+  var DIAS_NOME = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  var noDia = function (d) { return (d === 0 || d === 6 ? 'no ' : 'na ') + DIAS_NOME[d]; };
+  var vistas = {}, ocupada = {};
+  linhas.forEach(function (l) {
+    var k = l[2] + '|' + l[3] + '|' + l[1];
+    if (vistas[k]) throw new Error('Há duas aulas de ' + l[1] + ' ' + noDia(l[2]) + ' às ' + l[3] + '. Deixe só uma.');
+    vistas[k] = 1;
+    if (l[0] !== 'SIM' || !l[4]) return;
+    var kp = l[2] + '|' + l[3] + '|' + semAcento(l[4]);
+    if (ocupada[kp]) throw new Error(l[4] + ' já dá aula de ' + ocupada[kp] + ' ' + noDia(l[2]) + ' às ' + l[3] + '.');
+    ocupada[kp] = l[1];
+  });
   var s = aba('Grade');
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 15000);
