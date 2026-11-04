@@ -28,7 +28,7 @@ const diasAte = (iso) => Math.round((dataDeIso(iso) - new Date(new Date().toDate
 
 const MODALIDADES = {
   Yoga: { cor: 'yoga', detalhe: '12 tapetes · com Ana Paula e Hanna', forma: 'equilibrio' },
-  Pilates: { cor: 'pilates', detalhe: '4 aparelhos · com Kalliny e Sara', forma: 'presenca' },
+  Pilates: { cor: 'pilates', detalhe: '4 aparelhos · turmas pequenas', forma: 'presenca' },
 };
 
 export default function MeuPlano() {

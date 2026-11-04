@@ -57,8 +57,7 @@ export const GRADE = [
       modalidade: 'Pilates',
       dia,
       hora,
-      // manhãs com Kalliny, tardes com Sara
-      professor: Number(hora.slice(0, 2)) < 12 ? 'Kalliny' : 'Sara',
+      professor: 'Kalliny',
       capacidade: 4, // número de aparelhos de Pilates
     }))
   ),

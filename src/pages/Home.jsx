@@ -32,12 +32,18 @@ const EQUIPE = [
   { nome: 'Ana Paula', funcao: 'Yoga', foto: 'ana-paula', forma: 'equilibrio', cor: 'var(--oliva)' },
   { nome: 'Hanna', funcao: 'Yoga', foto: 'hanna', forma: 'sutileza', cor: 'var(--oliva)' },
   { nome: 'Kalliny', funcao: 'Pilates', foto: 'kalliny', forma: 'presenca', cor: 'var(--terracota)' },
-  { nome: 'Sara', funcao: 'Pilates', foto: 'sara', forma: 'equilibrio', cor: 'var(--terracota)' },
   { nome: 'Marylia', funcao: 'Estética', foto: 'marylia', forma: 'sutileza', cor: 'var(--caramelo-escuro)' },
   { nome: 'Cíntia', funcao: 'Fisioterapia dermatofuncional', foto: 'cintia', forma: 'presenca', cor: 'var(--caramelo-escuro)' },
   { nome: 'Bruno', funcao: 'Fisioterapia', foto: 'bruno', forma: 'sutileza', cor: 'var(--caramelo-escuro)' },
   { nome: 'Sarah', funcao: 'Recepção', foto: 'sarah', forma: 'presenca', cor: 'var(--verde)' },
   { nome: 'Jainara', funcao: 'Recepção', foto: 'jainara', forma: 'equilibrio', cor: 'var(--verde)' },
+];
+
+// faixa "Cuidado que permanece" (no lugar da foto da equipe, até chegar a nova): o que a casa garante em cada atendimento
+const PROMESSAS = [
+  { forma: 'presenca', titulo: 'Turmas pequenas', texto: 'Até 12 tapetes no Yoga e 4 aparelhos no Pilates: atenção de perto em cada aula.' },
+  { forma: 'sutileza', titulo: 'Mãos de quem sabe', texto: 'Estética e fisioterapia com profissionais habilitados, do primeiro ao último cuidado.' },
+  { forma: 'equilibrio', titulo: 'Tudo num só lugar', texto: 'Corpo e mente cuidados juntos, no seu ritmo, aqui na Aldeota.' },
 ];
 
 export default function Home() {
@@ -191,7 +197,7 @@ export default function Home() {
                   <p>6h · 7h · 8h · 9h</p>
                 </div>
                 <div>
-                  <span className="rotulo">Tarde · com Sara</span>
+                  <span className="rotulo">Tarde</span>
                   <p>16h · 17h · 18h · 19h</p>
                 </div>
               </div>
@@ -247,11 +253,16 @@ export default function Home() {
       <section className="secao secao--caramelo manifesto">
         <Sol tamanho={40} className="cor-creme" />
         <p className="display manifesto__texto revelar">Cuidado que<br />permanece</p>
-        <figure className="manifesto__foto revelar">
-          <img src={img('equipe.jpg')} srcSet={`${img('equipe-900.jpg')} 900w, ${img('equipe.jpg')} 1460w`} sizes="(max-width: 1100px) 92vw, 1000px"
-            width="1460" height="1070" alt="A equipe da Casa Âmbar reunida na entrada da casa" loading="lazy" decoding="async" />
-          <figcaption className="rotulo-espacado">A equipe da Casa Âmbar</figcaption>
-        </figure>
+        {/* no lugar da foto da equipe (até chegar a nova) */}
+        <ul className="manifesto__promessas">
+          {PROMESSAS.map(({ forma, titulo, texto }, i) => (
+            <li key={forma} className="promessa revelar" style={{ transitionDelay: `${i * 120}ms` }}>
+              <Forma nome={forma} tamanho={44} cor="var(--caramelo-claro)" className="promessa__forma" />
+              <strong className="display-p promessa__titulo">{titulo}</strong>
+              <p>{texto}</p>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* ---------- CUIDADOS ---------- */}
