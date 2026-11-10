@@ -311,6 +311,10 @@ function esquecerComissoesAulas() {
 // Gera (ou corrige) as comissões das aulas do período. Refeito no máximo a cada 5 min,
 // ou na hora quando muda presença, reserva ou o valor das professoras.
 function sincronizarComissoesAulas(de, ate) {
+  // sempre olha também os meses de antes (até o limite de lançar aula passada): aula lançada depois em outubro
+  // aparece mesmo com novembro aberto na tela (antes só o mês da tela era refeito e a aula ficava de fora)
+  var inicioJanela = somarDias(hojeTexto(), -DIAS_VENDA_PASSADA);
+  if (de > inicioJanela) de = inicioJanela;
   var cache = CacheService.getScriptCache();
   var chave = de + '_' + ate;
   if (cache.get('comissoes_aulas') === chave) return;

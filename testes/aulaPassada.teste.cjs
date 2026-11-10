@@ -52,5 +52,13 @@ const livre = Array.from({ length: futura.capacidade }, (_, i) => i + 1).find((n
 r = chamar('b_agendar', { token: adm, aulaId: futura.id, cpf: '71428793860', tapete: livre, forma: 'cortesia' });
 ok(r.ok && !r.dados.passada && reservaDe(r.dados.id).status === 'reservado', 'aula futura continua como reserva comum', r.ok ? reservaDe(r.dados.id).status : r.erro);
 
+console.log('— aula de um mês anterior lançada depois: a comissão entra mesmo com o mês atual aberto');
+const a5 = passada(40);
+r = chamar('b_agendar', { token: adm, aulaId: a5.id, cpf: '15350946056', tapete: 8, forma: 'cortesia' });
+ok(r.ok, 'lança aula de 40 dias atrás', r.erro);
+r = chamar('b_comissoes', { token: adm, mes: hoje.slice(0, 7) });
+const k5 = ctx.lerAba('Comissoes').find((c) => String(c.id) === 'Kaula:' + a5.id);
+ok(r.ok && k5 && k5.status === 'a_pagar' && Number(k5.valor) === 60, 'comissão da aula de ' + a5.data + ' gerada ao abrir o mês atual', k5);
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);
