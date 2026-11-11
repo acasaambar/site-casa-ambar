@@ -214,7 +214,7 @@ export function Footer() {
         <Link className="rodape__privacidade" to="/privacidade">Política de privacidade</Link>
         <span>Fortaleza · Ceará</span>
       </div>
-      <Assinatura className="assinatura--rodape" />
+      <Assinatura variante="rodape" />
     </footer>
   );
 }

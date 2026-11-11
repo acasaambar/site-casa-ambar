@@ -181,7 +181,7 @@ function Painel() {
             <a className="b-lateral__site" href="#/" target="_blank" rel="noreferrer"><Icone nome="externo" tamanho={16} />Ver site</a>
             <button type="button" className="b-lateral__sair" onClick={sair}><Icone nome="sair" tamanho={16} />Sair</button>
           </div>
-          <Assinatura className="assinatura--menu" />
+          <Assinatura variante="menu" />
         </div>
         <Selo tamanho={210} className="b-lateral__selo" />
       </aside>

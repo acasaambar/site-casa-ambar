@@ -15,7 +15,7 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 
 ## Assinatura do Fábio (FR Dev)
 
-O sistema leva a assinatura da **FR Dev**: selo FR Dev (quadrado com "FR" vazado e a barrinha verde-água `#2BC4AC`, SVG com as letras em contorno, sem fonte extra) + "Feito por **FR Dev** · Fábio Ranyeri" + e-mail clicável frnr.mv@icloud.com, pequena, no rodapé do site e no pé do menu da bancada (`src/components/Assinatura.jsx`, exporta `SeloFRDev`; estilos no fim de `src/styles.css`). No celular e no menu some o "Feito por". Guia geral, bloco HTML pronto e cores da logo em `assinatura.md`. Quando o Fábio pedir "assinatura" em qualquer projeto, aplique a mesma ideia adaptada ao design e à arquitetura daquele projeto.
+Rodapé do site: **pílula centralizada e clicável** "[selo] Feito por FR Dev | Quer um site assim? Fale com o Fábio →" (abre o e-mail frnr.mv@icloud.com com o assunto "Quero um site como o da Casa Âmbar"; no celular só "[selo] FR Dev | Fale com o Fábio →"). Pé do menu da bancada: selo + "FR Dev · Fábio Ranyeri" + e-mail. Selo e o nome "FR Dev" são SVG com as letras da logo em contorno (`src/components/Assinatura.jsx`: `SeloFRDev`, `PalavraFRDev`, `<Assinatura variante="rodape|menu" />`; estilos `.frdev*` no fim de `src/styles.css`). Guia, cores da logo e bloco HTML pronto em `assinatura.md`. Quando o Fábio pedir "assinatura" em qualquer projeto, aplique a mesma ideia adaptada ao design daquele projeto.
 
 ## Como o projeto funciona
 

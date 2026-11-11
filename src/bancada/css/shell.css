@@ -77,8 +77,8 @@
 .bancada .b-lateral__site:hover { background: rgba(233, 221, 197, 0.12); color: #FFF8E8; }
 .bancada .b-lateral__sair:hover { background: rgba(240, 183, 154, 0.14); color: #F7C9AE; border-color: rgba(240, 183, 154, 0.3); }
 .bancada .b-lateral__site:focus-visible, .bancada .b-lateral__sair:focus-visible { outline: 2px solid #D2B38A; outline-offset: 1px; }
-.bancada .b-lateral .assinatura--menu { margin-top: 2px; padding-top: 8px; gap: 8px; }
-.bancada .b-lateral .assinatura--menu .assinatura__selo { width: 22px; height: 22px; }
+.bancada .b-lateral .frdev--menu { margin-top: 2px; padding-top: 8px; gap: 8px; }
+.bancada .b-lateral .frdev--menu .frdev__selo { width: 22px; height: 22px; }
 .bancada .b-lateral__selo { right: -90px; bottom: 120px; z-index: 0; }
 
 /* telas baixas (notebook): tudo um pouco mais junto, o menu rola */

@@ -122,9 +122,7 @@ main:focus { outline: none; }
 /* ---------- rodapé ---------- */
 .rodape__item { padding: 10px 0; } /* 40 px de altura: toque confortável */
 .rodape__col { gap: 0; }
-/* a assinatura ficava com 4:1 de contraste; com a cor mais clara chega a 5:1 (continua pequena e discreta) */
-.assinatura--rodape { color: #D0C8B2; }
-.assinatura__txt a { display: inline-block; padding: 12px 0; margin: -12px 0; } /* área de toque de 40 px sem mudar o tamanho da assinatura */
+/* assinatura FR Dev: a pílula tem 38 px de altura (área de toque) e contraste de 5:1 no rodapé escuro */
 
 /* ---------- entrar, cadastro, senhas e confirmar ---------- */
 @media (prefers-reduced-motion: reduce) { .girando { animation: none; } }
