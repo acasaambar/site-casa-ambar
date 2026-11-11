@@ -99,6 +99,8 @@ function criar(arquivos) {
   if (ctx.CONTRATO_PRONTO !== undefined) ctx.CONTRATO_PRONTO = false;
   // a Política de Privacidade no cadastro (exigida no site) também fica desligada nos testes; repetida/privacidade.teste.cjs e o npm run simulador ligam
   if (ctx.PRIVACIDADE_OBRIGATORIA !== undefined) ctx.PRIVACIDADE_OBRIGATORIA = false;
+  // reserva pelo site só com 24 h de antecedência: os testes antigos reservam aulas de hoje; avisos.teste.cjs e o npm run simulador ligam
+  if (ctx.AJUSTES && ctx.AJUSTES.reservarAteHorasAntes !== undefined) ctx.AJUSTES.reservarAteHorasAntes = 0;
   // mudança na planilha feita fora de um pedido (o teste mexendo direto, como alguém editando à mão):
   // o cache das abas é esquecido, como no botão "Ler a planilha de novo" dos Ajustes
   const digital = () => JSON.stringify(Object.values(ss.sheets).map((sh) => sh.rows));

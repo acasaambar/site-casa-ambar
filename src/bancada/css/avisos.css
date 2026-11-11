@@ -1,0 +1,62 @@
+/* ============================================================
+   SINO DE AVISOS (reservas e cancelamentos feitos pelo site)
+   ============================================================ */
+.av-sino {
+  position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border-radius: 12px;
+  border: 1px solid rgba(233, 221, 197, 0.25); background: rgba(233, 221, 197, 0.08); color: inherit; font: 500 15px/1 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer;
+}
+.av-sino:hover { background: rgba(233, 221, 197, 0.16); }
+.av-sino__num {
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--b-terracota, #7E3717); color: #FFFDF6; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+/* no menu lateral: linha cheia, logo abaixo da busca (some abaixo de 900 px, como a busca) */
+.bancada .av-sino--lateral { flex: none; width: 100%; margin: -4px 0 12px; justify-content: flex-start; gap: 10px; padding: 9px 12px; color: #D9CFB7; background: rgba(233, 221, 197, 0.07); border-color: rgba(233, 221, 197, 0.16); }
+.bancada .av-sino--lateral:hover { background: rgba(233, 221, 197, 0.14); color: var(--b-areia, #F4EFDF); }
+.av-sino--lateral .av-sino__texto { flex: 1; text-align: left; }
+/* no topo do celular: só o sino com o número */
+.av-sino--cel { display: none; }
+.av-sino--cel .av-sino__texto { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.av-sino--cel .av-sino__num { position: absolute; top: -6px; right: -6px; }
+@media (max-width: 900px) {
+  .bancada .av-sino--lateral { display: none; }
+  .bancada .b-topo-cel .av-sino--cel {
+    display: inline-flex; flex: none; margin-left: 8px; width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 13px;
+    background: var(--b-linho, #FBF8EF); border: 1px solid rgba(47, 56, 33, 0.16); color: var(--b-tinta, #2F3821); box-shadow: var(--sombra-1);
+  }
+}
+
+/* aviso no canto quando chega reserva nova */
+.av-toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 90; display: flex; align-items: center; gap: 12px; max-width: min(460px, calc(100vw - 32px));
+  padding: 12px 12px 12px 14px; border-radius: 14px; background: var(--b-tinta, #2F3821); color: #F4EFDF; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.45);
+  animation: av-entra 0.25s ease-out;
+}
+.av-toast__icone { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(233, 221, 197, 0.16); }
+.av-toast__icone--cancelou { background: rgba(193, 98, 60, 0.35); }
+.av-toast__texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; line-height: 1.35; }
+.av-toast__texto strong { font-size: 15px; }
+.av-toast .botao--cheio { background: #F4EFDF; color: var(--b-tinta, #2F3821); border-color: #F4EFDF; }
+.av-toast__fechar { flex: none; width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; display: grid; place-items: center; }
+.av-toast__fechar:hover { background: rgba(233, 221, 197, 0.12); }
+@keyframes av-entra { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .av-toast { animation: none; } }
+@media (max-width: 720px) { .av-toast { left: 16px; right: 16px; bottom: 16px; max-width: none; } }
+
+/* lista na folha */
+.av-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.av-item {
+  display: grid; grid-template-columns: 4px 1fr auto; align-items: center; gap: 12px; padding: 12px 12px 12px 0; overflow: hidden;
+  border: 1px solid var(--b-linha, #D9D2B8); border-radius: 12px; background: #FFFDF6;
+}
+.av-item__marca { align-self: stretch; background: var(--b-oliva, #6F784D); }
+.av-item--cancelou .av-item__marca { background: var(--b-terracota, #7E3717); }
+.av-item--novo { background: #FBF3E6; border-color: #E2CFAE; }
+.av-item__corpo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.av-item__titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 15px; line-height: 1.35; color: var(--b-tinta, #2F3821); }
+.av-item__falta { color: var(--b-alerta-tinta, #7A2C10); font-weight: 600; }
+@media (max-width: 520px) {
+  .av-item { grid-template-columns: 4px 1fr; row-gap: 4px; }
+  .av-item__marca { grid-row: 1 / span 2; }
+  .av-item > .botao { grid-column: 2; justify-self: start; }
+}

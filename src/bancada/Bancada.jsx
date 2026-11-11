@@ -25,6 +25,7 @@ import Ajustes from './Ajustes.jsx';
 import Velocidade from './Velocidade.jsx';
 import { MinhasClientes, ClienteProfissional } from './Anamnese.jsx';
 import { Busca, BotaoBusca, useAtalhoBusca } from './Busca.jsx';
+import { useAvisos, BotaoAvisos, PainelAvisos } from './Avisos.jsx';
 import VendaRepetida from './VendaRepetida.jsx';
 import '@fontsource/ibm-plex-sans/400.css';
 import '@fontsource/ibm-plex-sans/500.css';
@@ -92,6 +93,7 @@ function Painel() {
   const { membro, sair, chamar, token } = useBancada();
   const [menu, setMenu] = useState(false);
   const [busca, setBusca] = useState(false);
+  const avisos = useAvisos();
   useAtalhoBusca(() => setBusca(true));
   const local = useLocation();
   const principal = useRef(null);
@@ -153,6 +155,7 @@ function Painel() {
           <button type="button" className="b-lateral__fechar" ref={botaoFechar} aria-label="Fechar menu" onClick={fecharMenu}><Icone nome="fechar" tamanho={20} /></button>
         </div>
         <BotaoBusca className="bg-botao--lateral" aoAbrir={() => setBusca(true)} />
+        <BotaoAvisos avisos={avisos} className="av-sino--lateral" />
         <nav className="b-menu" aria-label="Telas da bancada">
           {grupos.map(([g, l]) => (
             <div key={g} className="b-menu__grupo">
@@ -185,6 +188,7 @@ function Painel() {
       {menu && <button type="button" className="b-veu" aria-label="Fechar menu" tabIndex={-1} onClick={fecharMenu} />}
 
       {busca && <Busca aoFechar={() => setBusca(false)} />}
+      <PainelAvisos avisos={avisos} />
       <Atualizando />
       <div className="b-conteudo" inert={menu || undefined}>
         <header className="b-topo-cel">
@@ -194,6 +198,7 @@ function Painel() {
           <Logo variante="verde" largura={56} />
           <span className="b-topo-cel__nome">Bancada</span>
           <BotaoBusca className="bg-botao--cel" aoAbrir={() => setBusca(true)} />
+          <BotaoAvisos avisos={avisos} className="av-sino--cel" />
         </header>
         <main className="b-pagina" id="conteudo" ref={principal} tabIndex={-1}>
           <Routes>

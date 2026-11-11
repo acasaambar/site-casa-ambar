@@ -304,7 +304,7 @@ function salvarEmail(d) {
 
 // Regras que o site mostra (mudam pela bancada → Ajustes)
 function regrasPublicas() {
-  return { checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes, diasVisiveis: AJUSTES.diasVisiveis,
+  return { checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes, reservarAteHorasAntes: AJUSTES.reservarAteHorasAntes, diasVisiveis: AJUSTES.diasVisiveis,
     wellhubAtivo: AJUSTES.wellhub.ativo };
 }
 

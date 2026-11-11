@@ -10,6 +10,7 @@ import './css/catalogo.css';
 // [chave, texto, unidade]: o que o site e a bancada seguem
 const CAMPOS = [
   ['checkinAbreMinAntes', 'Check-in abre antes da aula', 'min'],
+  ['reservarAteHorasAntes', 'Reserva pelo site até', 'h antes'],
   ['cancelarAteHorasAntes', 'Cancelamento permitido até', 'h antes'],
   ['diasVisiveis', 'Dias de aulas que o site mostra', 'dias'],
   ['reservaPendenteMin', 'Tapete guardado durante o pagamento', 'min'],
@@ -59,7 +60,7 @@ function Regras() {
         <div className="cg-regras__col">
         <section className="b-cartao cg-regras__cartao">
           <Secao titulo="Aulas e reservas">
-            {['checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis', 'reservaPendenteMin'].map(numero)}
+            {['reservarAteHorasAntes', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis', 'reservaPendenteMin'].map(numero)}
           </Secao>
         </section>
         <section className="b-cartao cg-regras__cartao">

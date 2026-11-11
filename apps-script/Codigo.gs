@@ -45,6 +45,7 @@ var AJUSTES = {
   diasVisiveis: 7, // quantos dias aparecem na agenda
   checkinAbreMinAntes: 30, // check-in libera X minutos antes
   cancelarAteHorasAntes: 2, // cancelamento até X horas antes
+  reservarAteHorasAntes: 24, // pelo site, reserva só até X horas antes da aula (dentro disso, só a recepção marca)
   duracaoAulaMin: 60,
   validadeSessaoDias: 7, // o login da área do aluno vale no máximo 7 dias (depois, entra de novo)
   fuso: 'America/Fortaleza',
@@ -64,7 +65,7 @@ var AJUSTES = {
 };
 
 // Ajustes que a bancada pode mudar (ficam nas Propriedades do script)
-var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias', 'wellhubAtivo', 'wellhubReservasPorDia', 'wellhubPendentePodeReservar',
+var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias', 'wellhubAtivo', 'wellhubReservasPorDia', 'wellhubPendentePodeReservar',
   'lembreteServicos', 'lembreteAulas', 'comissaoLiquida'];
 AJUSTES.valeValidadeDias = 365;
 AJUSTES.lembreteServicos = true; // e-mail na véspera para quem tem serviço agendado
@@ -137,7 +138,7 @@ function aplicarAjustesSalvos() {
   _ajustesAplicados = true;
   var j = {};
   try { j = JSON.parse(PropertiesService.getScriptProperties().getProperty('AJUSTES_JSON') || '{}') || {}; } catch (e) { j = {}; }
-  ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias'].forEach(function (k) {
+  ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias'].forEach(function (k) {
     if (j[k] != null && !isNaN(Number(j[k]))) AJUSTES[k] = Number(j[k]);
   });
   if (j.wellhubAtivo != null) AJUSTES.wellhub.ativo = !!j.wellhubAtivo;
@@ -157,6 +158,8 @@ var ABAS = {
     'alerta',
     // aceite da Política de Privacidade no cadastro do site: versão do texto (igual a src/lib/privacidade.js) e data/hora
     'privacidade_versao', 'privacidade_em'],
+  // avisos para a equipe (sino da bancada): reserva e cancelamento feitos pelo site
+  Avisos: ['id', 'criado_em', 'tipo', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms', 'lembrete'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -735,7 +738,7 @@ function listarAulas(d) {
   var aluno = alunoDaSessao(d.token);
   var reservas = reservasAtivas();
   var espera = esperasDoAluno(aluno.cpf);
-  return gerarAulas().map(function (a) { var x = montarAula(a, reservas, normCpf(aluno.cpf)); x.naEspera = !!espera[a.id]; return x; });
+  return gerarAulas().map(function (a) { var x = montarAula(a, reservas, normCpf(aluno.cpf)); x.naEspera = !!espera[a.id]; x.foraDoPrazo = foraDoPrazoDoSite(a); return x; });
 }
 
 function detalharAula(d) {
@@ -744,17 +747,36 @@ function detalharAula(d) {
   if (!aula) throw new Error('Aula não encontrada.');
   var x = montarAula(aula, reservasAtivas(), normCpf(aluno.cpf));
   x.naEspera = !!esperasDoAluno(aluno.cpf)[aula.id];
+  x.foraDoPrazo = foraDoPrazoDoSite(aula);
   return x;
 }
 
 // ============================================================
 //  5) RESERVAS (com trava: dois alunos nunca ficam com o mesmo tapete)
 // ============================================================
-// quem estava na lista de espera e conseguiu reservar sai da lista
+function foraDoPrazoDoSite(aula) {
+  var horas = Number(AJUSTES.reservarAteHorasAntes) || 0;
+  return horas > 0 && inicio(aula).getTime() - Date.now() < horas * 3600000;
+}
+
+// quem estava na lista de espera e conseguiu reservar sai da lista; a equipe recebe o aviso no sino da bancada
 function reservar(d) {
   var r = reservarAula(d);
-  if (r && r.status === 'reservado') esperaResolvida('aula', r.aulaId, normCpf(alunoDaSessao(d.token).cpf));
+  if (r && r.status === 'reservado') {
+    var aluno = alunoDaSessao(d.token);
+    esperaResolvida('aula', r.aulaId, normCpf(aluno.cpf));
+    avisarEquipe('reserva', { aula_id: r.aulaId, data: r.data, hora: r.hora, modalidade: r.modalidade, professor: r.professor, cpf: aluno.cpf, nome: aluno.nome });
+  }
   return r;
+}
+
+// Avisos para a equipe (sino da bancada): reserva e cancelamento feitos pelo site. Nunca atrapalha a reserva.
+function avisarEquipe(tipo, r) {
+  try {
+    adicionarLinha('Avisos', { id: 'V' + Date.now() + ('00' + Math.floor(Math.random() * 1000)).slice(-3), criado_em: agoraTexto(), tipo: tipo, aula_id: String(r.aula_id || ''),
+      data: dataTexto(r.data), hora: horaTexto(r.hora), modalidade: String(r.modalidade || ''), professor: String(r.professor || ''),
+      cpf: soDigitos(r.cpf) ? normCpf(r.cpf) : '', nome: String(r.nome || '') });
+  } catch (e) { Logger.log('aviso para a equipe: ' + e.message); }
 }
 
 function reservarAula(d) {
@@ -762,6 +784,10 @@ function reservarAula(d) {
   var aula = gerarAulas().filter(function (a) { return a.id === d.aulaId; })[0];
   if (!aula) throw new Error('Aula não encontrada.');
   if (inicio(aula) < new Date()) throw new Error('Esta aula já começou.');
+  // pelo site, só com antecedência (a equipe precisa saber antes e combinar com quem dá a aula); dentro do prazo, a recepção marca
+  if (foraDoPrazoDoSite(aula)) {
+    throw erroCod('Pelo site, as aulas são reservadas com pelo menos ' + AJUSTES.reservarAteHorasAntes + ' horas de antecedência. Escolha uma aula mais adiante ou fale com a recepção pelo WhatsApp.', 'ANTECEDENCIA');
+  }
   if (!linhaAnamnese(normCpf(aluno.cpf))) throw new Error('Preencha sua ficha de saúde antes de reservar.');
 
   var cpf = normCpf(aluno.cpf);
@@ -859,6 +885,7 @@ function cancelar(d) {
   s.getRange(r._linha, coluna('Reservas', 'status')).setValue('cancelado');
   s.getRange(r._linha, coluna('Reservas', 'cancelada_em')).setValue(agoraTexto());
   SpreadsheetApp.flush();
+  if (r.status === 'reservado' || r.status === 'check-in') avisarEquipe('cancelou', r);
   avisarVagaAula(r.aula_id);
   return true;
 }
@@ -1552,6 +1579,7 @@ function concluirPagamento(pg, info) {
         atualizarLinha('Pagamentos', pg._linha, { observacao: 'O lugar foi ocupado antes da confirmação; o crédito ficou disponível.' });
       } else {
         atualizarLinha('Reservas', i + 1, { status: 'reservado', credito_id: creditoId, expira_ms: '' });
+        avisarEquipe('reserva', partesAula(r));
       }
       break;
     }
@@ -1799,7 +1827,7 @@ function abaSemDescartar(nome) {
   return s;
 }
 
-var FORMATO_TEXTO = { Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
+var FORMATO_TEXTO = { Avisos: 'A:I', Equipe: 'A:D', SessoesEquipe: 'A:B', Redefinicoes: 'A:D', Registro: 'A:D', Cupons: 'A:H', Vales: 'A:R',
   Servicos: 'A:D', Pacotes: 'A:C', Profissionais: 'A:F', Professoras: 'A:B', AnamnesesProf: 'A:B', Atendimentos: 'A:K', Produtos: 'A:F', MovEstoque: 'A:D', Comandas: 'A:G', Comissoes: 'A:F',
   Despesas: 'A:D', Caixa: 'A:E', Folgas: 'A:F', Promocoes: 'A:E', Campanhas: 'A:G', FichasEstetica: 'A:B', Evolucoes: 'A:G', Substituicoes: 'A:E', Espera: 'A:J', Contratos: 'A:H' };
 

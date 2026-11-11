@@ -7,6 +7,7 @@ import { Sol, Forma } from '../components/Marca.jsx';
 import { DIAS_CURTOS, MESES, apontarCampo, dataDeIso, formatarHora, horaFim, inicioDaAula } from '../lib/util.js';
 import { ENDERECO_VAZIO, faltaNoEndereco, campoFaltandoNoEndereco } from '../lib/clientes.js';
 import { EnderecoSite } from '../components/EnderecoSite.jsx';
+import { CONFIG } from '../config.js';
 
 export default function Aulas() {
   const { token, aluno, expirou } = useAuth();
@@ -110,13 +111,24 @@ function ItemAula({ aula, token, aoMudar }) {
   const livres = aula.capacidade - aula.ocupadosQtd;
   const passou = inicioDaAula(aula) < new Date();
   const lotada = livres <= 0;
+  // o servidor diz se a aula está dentro do prazo (Ajustes); sem a marca, a tela faz a mesma conta
+  const foraDoPrazo = aula.foraDoPrazo ?? (CONFIG.reservarAteHorasAntes > 0 && inicioDaAula(aula).getTime() - Date.now() < CONFIG.reservarAteHorasAntes * 3600e3);
   const yoga = aula.modalidade === 'Yoga';
   const unidade = yoga ? (livres === 1 ? 'tapete livre' : 'tapetes livres') : livres === 1 ? 'vaga' : 'vagas';
 
   let acao;
   if (aula.minhaReserva) acao = <Link to="/minhas-reservas" className="botao botao--pequeno botao--reservado">{yoga ? `Tapete ${aula.minhaReserva.tapete}` : 'Reservado'}</Link>;
   else if (passou) acao = <span className="selo-estado">Encerrada</span>;
-  else if (lotada) {
+  else if (foraDoPrazo) {
+    // pelo site, só com antecedência: a equipe precisa saber antes e combinar com quem dá a aula
+    const texto = `Olá! Quero fazer a aula de ${aula.modalidade} de ${DIAS_CURTOS[dataDeIso(aula.data).getDay()]} às ${formatarHora(aula.hora)}. Tem vaga?`;
+    acao = (
+      <div className="aula__espera">
+        <a className="botao botao--pequeno botao--linha" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer">Falar com a recepção</a>
+        <span className="aula__espera-aviso">Pelo site, só com {CONFIG.reservarAteHorasAntes} h de antecedência</span>
+      </div>
+    );
+  } else if (lotada) {
     // aula lotada: lista de espera (e-mail na hora em que abrir uma vaga)
     const espera = async () => {
       setOcupado(true);

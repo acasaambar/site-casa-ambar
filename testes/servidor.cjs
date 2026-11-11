@@ -8,6 +8,7 @@ const END_TESTE = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '
 const R = require('path').join(__dirname, '..', 'apps-script');
 const m = criar([R+'/Codigo.gs', R+'/Seguranca.gs', R+'/Vales.gs', R+'/Bancada.gs', R+'/Relatorios.gs', R+'/Servicos.gs', R+'/Gestao.gs', R+'/Clientes.gs', R+'/Marketing.gs', R+'/Substituicoes.gs', R+'/Espera.gs', R+'/Contrato.gs']);
 const { ctx, chamar, emails } = m;
+ctx.AJUSTES.reservarAteHorasAntes = 24; // como na Casa: reserva pelo site só com 24 h de antecedência
 ctx.CONTRATO_PRONTO = true; // simulador mostra o contrato dos planos como na Casa
 ctx.configurarPlanilha();
 // dados de exemplo
@@ -98,6 +99,17 @@ chamar('b_salvarFichaEstetica', { token: adm, atendimentoId: atHoje[0].id, ficha
 chamar('b_salvarEvolucao', { token: adm, atendimentoId: atHoje[0].id, anotacao: 'Primeira sessão. Pele respondeu bem ao vapor de ozônio; leve vermelhidão na testa.\nOrientado protetor solar a cada 3h.', fotos: [png, png] });
 module.exports = { m, adm, hojeS };
 if (require.main !== module) return;
+// avisos de exemplo para o sino da bancada: duas reservas pelo site (com mais de 24 h) e um cancelamento
+{
+  const daqui = (mod) => ctx.gerarAulas().find((a) => a.modalidade === mod && ctx.inicio(a).getTime() > Date.now() + 26 * 3600e3);
+  const reservaSite = (cpf, mod) => { const a = daqui(mod); return a && chamar('reservar', { token: toks[cpf], aulaId: a.id, tapete: mod === 'Yoga' ? 9 : undefined }); };
+  chamar('b_vender', { token: adm, itens: [{ planoId: 'pilates-avulsa' }, { planoId: 'yoga-avulsa' }, { planoId: 'yoga-avulsa' }], cpf: '11144477735', metodo: 'Pix', confirmarRepetida: [], motivoRepetida: 'exemplo' });
+  reservaSite('11144477735', 'Pilates');
+  const r = reservaSite('11144477735', 'Yoga');
+  if (r && r.ok && r.dados && r.dados.id) chamar('cancelar', { token: toks['11144477735'], reservaId: r.dados.id });
+  const r2 = reservaSite('11144477735', 'Yoga');
+  if (!r2 || !r2.ok) console.log('aviso de exemplo não entrou:', r2 && r2.erro);
+}
 ctx.PRIVACIDADE_OBRIGATORIA = true; // o simulador local pede o aceite da política no cadastro, como o site de verdade
 // TURNSTILE_SECRET=x npm run simulador → liga o "não sou robô" (o simulador aceita só a confirmação 'humano-ok')
 if (process.env.TURNSTILE_SECRET) m.props.TURNSTILE_SECRET = process.env.TURNSTILE_SECRET;

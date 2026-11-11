@@ -694,7 +694,7 @@ function ultimasVisitas() {
 //  e um código interno, para o financeiro não mudar. Ficha de saúde, estética, evolução, anamneses
 //  e fotos são sempre apagadas (inclusive os arquivos no Drive).
 // ============================================================
-var ABAS_COM_HISTORICO = ['Reservas', 'Pagamentos', 'Creditos', 'Atendimentos', 'Comandas', 'Vales', 'Contratos'];
+var ABAS_COM_HISTORICO = ['Reservas', 'Pagamentos', 'Creditos', 'Atendimentos', 'Comandas', 'Vales', 'Contratos', 'Avisos'];
 var NOME_EXCLUIDO = 'Cliente excluído';
 
 function lixeiraDrive(id) {

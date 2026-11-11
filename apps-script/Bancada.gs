@@ -16,6 +16,7 @@ var PERMISSOES = {
   b_presenca: ['admin', 'recepcao', 'professora'],
   b_ficha: ['admin', 'recepcao', 'professora'],
   b_agendar: ['admin', 'recepcao'],
+  b_avisos: ['admin', 'recepcao', 'professora'],
   b_cancelarReserva: ['admin', 'recepcao'],
   b_alunos: ['admin', 'recepcao'],
   b_aluno: ['admin', 'recepcao'],
@@ -1772,8 +1773,21 @@ function bancada_lerPlanilhaDeNovo(d, m) {
   return { ok: true };
 }
 
+// Sino da bancada: reservas e cancelamentos feitos pelo site nos últimos 14 dias (mais novos primeiro).
+// A profissional vê só os das aulas dela. "Visto" fica no navegador de cada pessoa (a tela compara com criado_em).
+function bancada_avisos(d, m) {
+  var limite = somarDias(hojeTexto(), -14);
+  var lista = lerAba('Avisos').filter(function (a) {
+    return a.id && String(a.criado_em).slice(0, 10) >= limite && (m.papel !== 'professora' || mesmaProfessora(a.professor, m));
+  }).map(function (a) {
+    return { id: String(a.id), em: String(a.criado_em), tipo: String(a.tipo), aulaId: String(a.aula_id), data: dataTexto(a.data), hora: horaTexto(a.hora),
+      modalidade: String(a.modalidade), professor: String(a.professor), nome: String(a.nome) };
+  }).sort(function (x, y) { return y.em.localeCompare(x.em) || y.id.localeCompare(x.id); }).slice(0, 80);
+  return { avisos: lista, agora: agoraTexto() };
+}
+
 function bancada_ajustes() {
-  return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes,
+  return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes, reservarAteHorasAntes: AJUSTES.reservarAteHorasAntes,
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
     wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
     lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, comissaoLiquida: AJUSTES.comissaoLiquida !== false, taxas: AJUSTES.taxas,
@@ -1783,7 +1797,7 @@ function bancada_ajustes() {
 
 function bancada_salvarAjustes(d, m) {
   var a = d.ajustes || {};
-  var limites = { diasVisiveis: [1, 60], checkinAbreMinAntes: [5, 240], cancelarAteHorasAntes: [0, 72], reservaPendenteMin: [5, 120], valeValidadeDias: [7, 730],
+  var limites = { diasVisiveis: [1, 60], checkinAbreMinAntes: [5, 240], cancelarAteHorasAntes: [0, 72], reservarAteHorasAntes: [0, 72], reservaPendenteMin: [5, 120], valeValidadeDias: [7, 730],
     wellhubReservasPorDia: [1, 5] };
   var salvar = {};
   AJUSTES_EDITAVEIS.forEach(function (k) {
