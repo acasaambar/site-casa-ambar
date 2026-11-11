@@ -13,9 +13,9 @@ No ar em **https://www.acasambar.com.br** (GitHub Pages) e bancada interna da eq
 - Quando ele precisar fazer algo fora do código (Google, GitHub, InfinitePay), dê o passo a passo numerado.
 - **Padrão de entrega (pedido expresso do Fábio)**: o nosso serviço entrega coisas **bonitas, organizadas e o mais funcionais possível**. Toda tela, relatório ou impressão nova nasce já com filtros claros, totais, estados vazios, celular conferido (390/820/1280 px) e visual no padrão da casa; nada de tabela crua despejada. Se a tela existente estiver feia ou confusa, melhore, não só encaixe.
 
-## Assinatura do Fábio
+## Assinatura do Fábio (FR Dev)
 
-O sistema leva a assinatura **"FR · Feito por Fábio Ranyeri · frnr.mv@icloud.com"** (selo, nome e e-mail clicável), pequena, no rodapé do site e no pé do menu da bancada (`src/components/Assinatura.jsx`). Guia geral e código de referência em `assinatura.md`. Quando o Fábio pedir "assinatura" em qualquer projeto, aplique a mesma ideia adaptada ao design e à arquitetura daquele projeto.
+O sistema leva a assinatura da **FR Dev**: selo FR Dev (quadrado com "FR" vazado e a barrinha verde-água `#2BC4AC`, SVG com as letras em contorno, sem fonte extra) + "Feito por **FR Dev** · Fábio Ranyeri" + e-mail clicável frnr.mv@icloud.com, pequena, no rodapé do site e no pé do menu da bancada (`src/components/Assinatura.jsx`, exporta `SeloFRDev`; estilos no fim de `src/styles.css`). No celular e no menu some o "Feito por". Guia geral, bloco HTML pronto e cores da logo em `assinatura.md`. Quando o Fábio pedir "assinatura" em qualquer projeto, aplique a mesma ideia adaptada ao design e à arquitetura daquele projeto.
 
 ## Como o projeto funciona
 
