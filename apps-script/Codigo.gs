@@ -44,8 +44,8 @@ function chaveInfinitePay() {
 var AJUSTES = {
   diasVisiveis: 7, // quantos dias aparecem na agenda
   checkinAbreMinAntes: 30, // check-in libera X minutos antes
-  cancelarAteHorasAntes: 2, // cancelamento até X horas antes
-  reservarAteHorasAntes: 24, // pelo site, reserva só até X horas antes da aula (dentro disso, só a recepção marca)
+  cancelarAteHorasAntes: 4, // pelo site, cancelamento até X horas antes (depois, só com a recepção)
+  reservarAteHorasAntes: 12, // pelo site, reserva só até X horas antes da aula (dentro disso, só a recepção marca)
   duracaoAulaMin: 60,
   validadeSessaoDias: 7, // o login da área do aluno vale no máximo 7 dias (depois, entra de novo)
   fuso: 'America/Fortaleza',
@@ -79,6 +79,9 @@ function colunaTaxa(primeira) { var c = []; for (var i = 0; i < 12; i++) c.push(
 // Tabela do app da InfinitePay (calculadora, plano "1 Dia Útil", vídeos de 26/10/2026: aba Maquininha e aba Link). Mudou a tabela? Troque os números e some 1 em TABELA_VERSAO:
 // quem salvou uma tabela de versão antiga volta a usar os números novos de débito, crédito e link (pix e prazos salvos ficam).
 var TABELA_VERSAO = 3;
+// prazos do site (reservar/cancelar) revistos pela Casa: quem salvou Ajustes com a regra antiga volta aos novos padrões
+// (12 h para reservar, 4 h para cancelar) até salvar de novo. Mudou os padrões de novo? some 1.
+var REGRAS_VERSAO = 2;
 function taxasPadrao() {
   return { versao: TABELA_VERSAO, pix: 0,
     // débito: Visa e Mastercard (mesma tabela) e Elo; a American Express não tem débito
@@ -138,7 +141,9 @@ function aplicarAjustesSalvos() {
   _ajustesAplicados = true;
   var j = {};
   try { j = JSON.parse(PropertiesService.getScriptProperties().getProperty('AJUSTES_JSON') || '{}') || {}; } catch (e) { j = {}; }
+  var regrasEmDia = Number(j.regrasVersao || 0) >= REGRAS_VERSAO;
   ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'reservarAteHorasAntes', 'reservaPendenteMin', 'valeValidadeDias'].forEach(function (k) {
+    if (!regrasEmDia && (k === 'cancelarAteHorasAntes' || k === 'reservarAteHorasAntes')) return;
     if (j[k] != null && !isNaN(Number(j[k]))) AJUSTES[k] = Number(j[k]);
   });
   if (j.wellhubAtivo != null) AJUSTES.wellhub.ativo = !!j.wellhubAtivo;
@@ -175,7 +180,9 @@ var ABAS = {
     // pagamento dividido em mais de uma forma (fora da comanda): JSON [{ metodo, valor, parcelas, bandeira }]; vazio = uma forma só (coluna metodo)
     'formas',
     // permuta (comanda): quanto desta linha a Casa assumiu (não entra no caixa) e com quem (blogueiro, parceiro…)
-    'permuta', 'permuta_com'],
+    'permuta', 'permuta_com',
+    // último retorno da conferência na InfinitePay (data, de onde veio, pago?, valor): mostra por que um pagamento do site não confirmou
+    'conferencia'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
   // ---- bancada interna ----
@@ -384,7 +391,7 @@ function doPost(e) {
     try {
       var previo = linhaPagamento(String(corpo.order_nsu));
       if (!previo) return responder(false, null, 'Não processado.');
-      if (previo.status !== 'pendente') return responder(true, { recebido: true });
+      if (!pagamentoDoSiteEmAberto(previo)) return responder(true, { recebido: true });
       processarPagamento(String(corpo.order_nsu), corpo.transaction_nsu, corpo.invoice_slug || corpo.slug, 'webhook');
       return responder(true, { recebido: true });
     } catch (err) {
@@ -880,7 +887,7 @@ function acharMinhaReserva(d) {
 function cancelar(d) {
   var r = acharMinhaReserva(d);
   var limite = inicio(r).getTime() - AJUSTES.cancelarAteHorasAntes * 3600000;
-  if (Date.now() > limite) throw new Error('Cancelamento só até ' + AJUSTES.cancelarAteHorasAntes + 'h antes da aula.');
+  if (Date.now() > limite) throw erroCod('Pelo site, o cancelamento vai até ' + AJUSTES.cancelarAteHorasAntes + ' h antes da aula. Agora, fale com a recepção pelo WhatsApp.', 'CANCELAMENTO_PRAZO');
   var s = aba('Reservas');
   s.getRange(r._linha, coluna('Reservas', 'status')).setValue('cancelado');
   s.getRange(r._linha, coluna('Reservas', 'cancelada_em')).setValue(agoraTexto());
@@ -1291,6 +1298,7 @@ var MODALIDADES_DO_SITE = ['Yoga', 'Pilates'];
 function meuPlano(d) {
   var aluno = alunoDaSessao(d.token);
   var cpf = normCpf(aluno.cpf);
+  try { reconferirPagamentosDoSite(cpf, 3); } catch (e) { Logger.log("reconferir (meu plano): " + e.message); }
   var reservas = reservasAtivas();
   var hoje = hojeTexto();
   // a área do aluno é só de Yoga e Pilates: combo e serviço (estética, fisioterapia) são da bancada e nunca aparecem aqui
@@ -1438,13 +1446,44 @@ function infinitepayCriarLink(item, aluno, orderNsu) {
 }
 
 function infinitepayConferir(orderNsu, transactionNsu, slug) {
-  var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/payment_check', {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({ handle: AJUSTES.infinitepayHandle, order_nsu: orderNsu, transaction_nsu: transactionNsu, slug: slug }),
-    muteHttpExceptions: true,
-  });
-  try { return JSON.parse(resp.getContentText()); } catch (e) { return {}; }
+  var cabecalhos = {};
+  var chave = chaveInfinitePay();
+  if (chave) cabecalhos['X-Api-Key'] = chave;
+  try {
+    var resp = UrlFetchApp.fetch('https://api.checkout.infinitepay.io/payment_check', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: cabecalhos,
+      payload: JSON.stringify({ handle: AJUSTES.infinitepayHandle, order_nsu: orderNsu, transaction_nsu: transactionNsu, slug: slug }),
+      muteHttpExceptions: true,
+    });
+    var j = {};
+    try { j = JSON.parse(resp.getContentText()) || {}; } catch (e) { j = { _texto: String(resp.getContentText()).slice(0, 120) }; }
+    j._http = resp.getResponseCode();
+    return j;
+  } catch (e) {
+    return { _erro: String(e.message || e).slice(0, 120) };
+  }
+}
+
+// pagamento do site que ainda pode ser confirmado (o Pix às vezes cai depois que o link "venceu" ou foi descartado)
+function pagamentoDoSiteEmAberto(pg) {
+  return !!pg && String(pg.origem || 'site') === 'site' && ['pendente', 'expirado', 'descartado'].indexOf(String(pg.status)) >= 0;
+}
+
+// resumo curto do que a InfinitePay respondeu (fica na coluna 'conferencia' para a equipe ver)
+function resumoConferencia(conf, origem) {
+  var c = conf || {};
+  var partes = [agoraTexto(), origem + ':'];
+  if (c._erro) partes.push('sem resposta (' + c._erro + ')');
+  else {
+    partes.push(c.paid === true ? 'pago' : 'não pago');
+    if (c.amount != null) partes.push('valor ' + c.amount);
+    if (c.capture_method) partes.push(String(c.capture_method));
+    if (c._http && c._http !== 200) partes.push('http ' + c._http);
+    if (c.message || c.error || c._texto) partes.push(String(c.message || c.error || c._texto).slice(0, 80));
+  }
+  return partes.join(' ').slice(0, 300);
 }
 
 // Chamado quando a aluna volta da InfinitePay para o site
@@ -1489,7 +1528,9 @@ function linhaPagamento(orderNsu) {
   return null;
 }
 
-// Confere na InfinitePay e, se aprovado, libera o crédito (e a reserva que estava aguardando)
+// Confere na InfinitePay e, se aprovado, libera o crédito (e a reserva que estava aguardando).
+// O Pix às vezes aparece como pago na InfinitePay alguns segundos depois do aviso: o aviso (webhook) e a volta ao site
+// tentam 3 vezes. O código da transação fica guardado na linha, para conferir de novo depois (reconferirPagamentosDoSite).
 function processarPagamento(orderNsu, transactionNsu, slug, origem) {
   var trava = LockService.getScriptLock();
   esperarTrava(trava, 20000);
@@ -1497,16 +1538,33 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     var pg = linhaPagamento(orderNsu);
     if (!pg) throw new Error('Pagamento ' + orderNsu + ' não encontrado.');
     if (pg.status === 'pago') return pg;
+    if (!pagamentoDoSiteEmAberto(pg)) return pg;
     if (!transactionNsu || !slug) return pg;
-
-    var conf = infinitepayConferir(orderNsu, transactionNsu, slug);
-    var esperado = Math.round(numero(pg.valor) * 100);
+    transactionNsu = String(transactionNsu).slice(0, 80);
+    slug = String(slug).slice(0, 80);
     var transacaoJaUsada = lerAba('Pagamentos').some(function (p) {
       return String(p.order_nsu) !== String(orderNsu) && p.status === 'pago' && String(p.transaction_nsu) === String(transactionNsu);
     });
-    if (!conf || conf.paid !== true || !(Number(conf.amount) >= esperado) || transacaoJaUsada) {
-      Logger.log('Pagamento não confirmado (' + origem + '): ' + JSON.stringify(conf));
+    if (transacaoJaUsada) {
+      atualizarLinha('Pagamentos', pg._linha, { conferencia: agoraTexto() + ' ' + origem + ': transação já usada em outro pagamento' });
       return pg;
+    }
+    var esperado = Math.round(numero(pg.valor) * 100);
+    var tentativas = origem === 'webhook' || origem === 'retorno' ? 3 : 1;
+    var conf = {};
+    for (var t = 0; t < tentativas; t++) {
+      if (t) Utilities.sleep(2500);
+      conf = infinitepayConferir(orderNsu, transactionNsu, slug);
+      if (conf && conf.paid === true && Number(conf.amount) >= esperado) break;
+    }
+    var ok = conf && conf.paid === true && Number(conf.amount) >= esperado;
+    if (!ok) {
+      Logger.log('Pagamento não confirmado (' + origem + '): ' + JSON.stringify(conf));
+      // guarda a transação para conferir de novo depois, e o que a InfinitePay respondeu
+      var guardar = { conferencia: resumoConferencia(conf, origem) };
+      if (!pg.transaction_nsu) { guardar.transaction_nsu = transactionNsu; guardar.slug = slug; }
+      atualizarLinha('Pagamentos', pg._linha, guardar);
+      return linhaPagamento(orderNsu);
     }
     var obs = '';
     var planoRegra = buscarPlano(pg.plano_id);
@@ -1524,11 +1582,33 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
       transaction_nsu: String(transactionNsu),
       slug: String(slug),
       observacao: obs,
+      conferencia: resumoConferencia(conf, origem),
+      reativarReserva: true,
     });
     return linhaPagamento(orderNsu);
   } finally {
     soltarTrava(trava);
   }
+}
+
+// Confere de novo os pagamentos do site que ficaram em aberto e já têm o código da transação
+// (o aviso chegou, mas a InfinitePay ainda não dizia "pago"). Roda no acionador diário, ao abrir o Hoje
+// da bancada (no máximo a cada 10 min) e quando a pessoa abre "Meu plano". Devolve quantos confirmou.
+function reconferirPagamentosDoSite(cpf, maximo) {
+  var limite = somarDias(hojeTexto(), -10);
+  var abertos = lerAba('Pagamentos').filter(function (p) {
+    if (!pagamentoDoSiteEmAberto(p) || !p.transaction_nsu || !p.slug) return false;
+    if (cpf && normCpf(p.cpf) !== normCpf(cpf)) return false;
+    return String(p.criado_em).slice(0, 10) >= limite;
+  }).slice(-(maximo || 10));
+  var confirmados = 0;
+  abertos.forEach(function (p) {
+    try {
+      var r = processarPagamento(String(p.order_nsu), String(p.transaction_nsu), String(p.slug), 'reconferência');
+      if (r && r.status === 'pago') confirmados++;
+    } catch (e) { Logger.log('reconferência ' + p.order_nsu + ': ' + e.message); }
+  });
+  return confirmados;
 }
 
 // Marca como pago, cria o crédito de aulas e libera a reserva que aguardava.
@@ -1548,6 +1628,7 @@ function concluirPagamento(pg, info) {
     status: 'pago', pago_em: info.pagoEm || agoraTexto(), metodo: info.metodo || '', parcelas: info.parcelas || 1,
     valor_pago: info.valor_pago != null ? info.valor_pago : numero(pg.valor), transaction_nsu: info.transaction_nsu || '', slug: info.slug || '',
     observacao: obs.filter(String).join(' ') || pg.observacao || '',
+    conferencia: info.conferencia || pg.conferencia || '',
   });
   // contrato assinado deste plano: a cópia por e-mail sai só agora que o pagamento foi confirmado
   try { enviarContratoPago(pg); } catch (e) { Logger.log('contrato pago: ' + e.message); }
@@ -1575,10 +1656,12 @@ function concluirPagamento(pg, info) {
       var ocupado = reservasAtivas().some(function (x) {
         return x.id !== r.id && x.aula_id === r.aula_id && r.tapete && Number(x.tapete) === Number(r.tapete);
       });
-      if (ocupado || r.status === 'cancelado') {
+      // reserva que venceu (20 min) ou foi descartada enquanto o pagamento não confirmava: volta, se o lugar continua livre
+      var podeVoltar = info.reativarReserva && r.status === 'cancelado' && !r.checkin_em;
+      if (ocupado || (r.status === 'cancelado' && !podeVoltar)) {
         atualizarLinha('Pagamentos', pg._linha, { observacao: 'O lugar foi ocupado antes da confirmação; o crédito ficou disponível.' });
       } else {
-        atualizarLinha('Reservas', i + 1, { status: 'reservado', credito_id: creditoId, expira_ms: '' });
+        atualizarLinha('Reservas', i + 1, { status: 'reservado', credito_id: creditoId, expira_ms: '', cancelada_em: '' });
         avisarEquipe('reserva', partesAula(r));
       }
       break;

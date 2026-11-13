@@ -344,7 +344,7 @@ async function demo(acao, d) {
       const r = reservas.find((y) => y.id === d.reservaId && y.cpf === a.cpf);
       if (!r) throw new Error('Reserva não encontrada.');
       const limite = inicioDaAula(r).getTime() - CONFIG.cancelarAteHorasAntes * 3600e3;
-      if (Date.now() > limite) throw new Error(`Cancelamento só até ${CONFIG.cancelarAteHorasAntes}h antes da aula.`);
+      if (Date.now() > limite) throw new Error(`Pelo site, o cancelamento vai até ${CONFIG.cancelarAteHorasAntes} h antes da aula. Agora, fale com a recepção pelo WhatsApp.`);
       r.status = 'cancelado';
       LS.gravar('ambar_demo_reservas', reservas);
       return true;

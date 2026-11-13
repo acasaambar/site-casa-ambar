@@ -419,6 +419,8 @@ function bancada_marcarLembrete(d, m) {
 // Quem já recebeu não recebe de novo (cada lembrete fica anotado na linha do atendimento/reserva).
 function lembretesDiarios() {
   novaExecucao(); aplicarAjustesSalvos();
+  // aproveita o acionador diário: confere de novo pagamentos do site que ficaram em aberto
+  try { reconferirPagamentosDoSite(null, 20); } catch (e) { Logger.log('reconferir (diário): ' + e.message); }
   if (AJUSTES.lembreteServicos === false && !AJUSTES.lembreteAulas) return;
   PropertiesService.getScriptProperties().setProperty('LEMBRETES_ULTIMO', agoraTexto()); // antes de enviar: a tela não manda junto
   var n = enviarLembretes(somarDias(hojeTexto(), 1));

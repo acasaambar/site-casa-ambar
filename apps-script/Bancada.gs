@@ -28,6 +28,9 @@ var PERMISSOES = {
   b_conferirVendas: ['admin'],
   b_simularPreco: ['admin', 'recepcao'],
   b_pagamentos: ['admin'],
+  // pagamento do site que não confirmou sozinho (o cliente mostra o comprovante): confirmar à mão ou descartar
+  b_confirmarPagamentoSite: ['admin', 'recepcao'],
+  b_descartarPagamentoSite: ['admin', 'recepcao'],
   b_estornar: ['admin'],
   b_marcarDevolvido: ['admin'],
   b_ajustarCredito: ['admin', 'recepcao'],
@@ -396,6 +399,16 @@ function formaDaReserva(r, creditos) {
 //  RESUMO DO DIA (tela inicial)
 // ============================================================
 function bancada_resumo(d, m) {
+  // pagamentos do site que ficaram em aberto e já têm o código da transação: confere de novo (no máximo a cada 10 min)
+  if (m.papel !== 'professora') {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      if (Date.now() - Number(props.getProperty('RECONFERIR_ULTIMO') || 0) > 10 * 60000) {
+        props.setProperty('RECONFERIR_ULTIMO', String(Date.now()));
+        reconferirPagamentosDoSite(null, 5);
+      }
+    } catch (e) { Logger.log('reconferir (hoje): ' + e.message); }
+  }
   var hoje = hojeTexto();
   var reservas = todasReservas();
   var aulas = aulasDoPeriodo(hoje, 1, reservas).filter(function (a) { return m.papel !== 'professora' || mesmaProfessora(a.professor, m); });
@@ -1005,7 +1018,86 @@ function pagamentoPublico(p) {
     status: p.status, criadoEm: String(p.criado_em || ''), pagoEm: String(p.pago_em || ''), metodo: String(p.metodo || ''), parcelas: p.parcelas,
     valorPago: numero(p.valor_pago), origem: String(p.origem || 'site'), observacao: String(p.observacao || ''), recibo: String(p.recibo || ''),
     registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado),
-    formas: partesDoPagamento(p) || [], permuta: numero(p.permuta), permutaCom: semAspaDeFormula(p.permuta_com) };
+    formas: partesDoPagamento(p) || [], permuta: numero(p.permuta), permutaCom: semAspaDeFormula(p.permuta_com),
+    conferencia: String(p.conferencia || ''), comTransacao: !!(p.transaction_nsu && p.slug), reservaId: String(p.reserva_id || ''), aulaId: String(p.aula_id || '') };
+}
+
+// ---------- pagamento do site que não confirmou sozinho ----------
+// O cliente pagou (mostra o comprovante, a recepção confere no app da InfinitePay), mas o aviso automático não chegou
+// ou a conferência falhou. Confirmar aqui faz o mesmo que a confirmação automática: marca pago, cria o crédito
+// e devolve a reserva que estava guardando o lugar (se o lugar continua livre).
+// "13/11/2026 14:12" para as anotações que a equipe lê
+function agoraLegivel() { var a = agoraTexto(); return a.slice(8, 10) + '/' + a.slice(5, 7) + '/' + a.slice(0, 4) + ' ' + a.slice(11, 16); }
+
+function pagamentoDoSiteParaMexer(orderNsu) {
+  var pg = linhaPagamento(String(orderNsu || ''));
+  if (!pg) throw new Error('Pagamento não encontrado.');
+  if (String(pg.origem || 'site') !== 'site') throw new Error('Este pagamento não é do site.');
+  if (pg.status === 'pago') throw new Error('Este pagamento já está confirmado.');
+  if (!pagamentoDoSiteEmAberto(pg)) throw new Error('Este pagamento não pode ser confirmado (' + pg.status + ').');
+  return pg;
+}
+
+function bancada_confirmarPagamentoSite(d, m) {
+  var pg = pagamentoDoSiteParaMexer(d.orderNsu);
+  // tem o código da transação? confere na InfinitePay primeiro (pode ter caído depois)
+  if (pg.transaction_nsu && pg.slug) {
+    var auto = processarPagamento(pg.order_nsu, String(pg.transaction_nsu), String(pg.slug), 'reconferência');
+    if (auto && auto.status === 'pago') return resultadoConfirmacaoSite(auto, 'automática');
+  }
+  var metodos = ['Pix', 'Cartão de crédito', 'Cartão de débito'];
+  var metodo = metodos.indexOf(d.metodo) >= 0 ? d.metodo : '';
+  if (!metodo) throw new Error('Escolha como foi pago.');
+  var parcelas = metodo === 'Cartão de crédito' ? Math.max(1, Math.min(12, Math.round(Number(d.parcelas) || 1))) : 1;
+  var pagoEm = momentoDaVenda(d.dataPagamento) || agoraTexto();
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  var final;
+  try {
+    pg = pagamentoDoSiteParaMexer(pg.order_nsu);
+    // a mesma aula/plano já lançado no balcão para esta pessoa no mesmo dia? (a tela mostra a venda e pede o motivo)
+    var repetida = conferirVendaRepetida(normCpf(pg.cpf), [{ id: pg.plano_id, nome: pg.descricao, total: dinheiro(numero(pg.valor) + numero(pg.vale_usado)) }],
+      pagoEm.slice(0, 10), m, { nsus: (function () { var o = {}; o[pg.order_nsu] = 1; return o; })() });
+    var nota = 'Confirmado à mão por ' + (String(m.nome || '').split(' ')[0] || m.email) + ' em ' + agoraLegivel() + ' (comprovante conferido).' + (repetida ? ' Repetida de propósito (' + repetida + ').' : '');
+    concluirPagamento(pg, { metodo: metodo, parcelas: parcelas, pagoEm: pagoEm, valor_pago: numero(pg.valor), observacao: nota, reativarReserva: true,
+      conferencia: (pg.conferencia ? String(pg.conferencia) + ' · ' : '') + agoraTexto() + ' confirmado à mão' });
+    atualizarLinha('Pagamentos', pg._linha, { registrado_por: m.email });
+    final = linhaPagamento(pg.order_nsu);
+  } finally {
+    soltarTrava(trava);
+  }
+  registrar(m, 'confirmou pagamento do site', pg.order_nsu + ' · ' + pg.nome + ' · ' + pg.descricao + ' · ' + brl(numero(pg.valor)) + ' · ' + metodo);
+  return resultadoConfirmacaoSite(final, 'manual');
+}
+
+function resultadoConfirmacaoSite(pg, como) {
+  var reserva = null;
+  if (pg.reserva_id) {
+    var r = lerAba('Reservas').filter(function (x) { return x.id === pg.reserva_id; })[0];
+    if (r) { partesAula(r); reserva = { data: r.data, hora: r.hora, modalidade: r.modalidade, status: r.status, tapete: r.tapete ? Number(r.tapete) : null }; }
+  }
+  return { status: pg.status, como: como, reserva: reserva, observacao: String(pg.observacao || ''), descricao: pg.descricao };
+}
+
+function bancada_descartarPagamentoSite(d, m) {
+  var trava = LockService.getScriptLock();
+  esperarTrava(trava, 20000);
+  var pg;
+  try {
+    pg = pagamentoDoSiteParaMexer(d.orderNsu);
+    if (pg.status === 'descartado') throw new Error('Este pagamento já está descartado.');
+    var motivo = String(d.motivo || '').trim().slice(0, 200);
+    atualizarLinha('Pagamentos', pg._linha, { status: 'descartado',
+      observacao: ('Descartado por ' + (String(m.nome || '').split(' ')[0] || m.email) + ' em ' + agoraLegivel() + (motivo ? ': ' + motivo : '') + '. ' + String(pg.observacao || '')).trim().slice(0, 500) });
+    if (pg.reserva_id) {
+      var r = lerAba('Reservas').filter(function (x) { return x.id === pg.reserva_id && x.status === 'pendente'; })[0];
+      if (r) atualizarLinha('Reservas', r._linha, { status: 'cancelado', cancelada_em: agoraTexto() });
+    }
+  } finally {
+    soltarTrava(trava);
+  }
+  registrar(m, 'descartou pagamento do site', pg.order_nsu + ' · ' + pg.nome + ' · ' + pg.descricao + ' · ' + brl(numero(pg.valor)));
+  return { ok: true };
 }
 
 // Data da venda escolhida no balcão (migração do Avec, venda esquecida): vazio ou hoje = agora.
@@ -1836,6 +1928,7 @@ function bancada_salvarAjustes(d, m) {
   var atual = {};
   try { atual = JSON.parse(props.getProperty('AJUSTES_JSON') || '{}') || {}; } catch (e) { atual = {}; }
   Object.keys(salvar).forEach(function (k) { atual[k] = salvar[k]; });
+  atual.regrasVersao = REGRAS_VERSAO; // a tela já mostrou os prazos em vigor: o que for salvo agora vale
   props.setProperty('AJUSTES_JSON', JSON.stringify(atual));
   _ajustesAplicados = false;
   aplicarAjustesSalvos();

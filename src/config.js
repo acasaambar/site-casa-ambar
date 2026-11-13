@@ -23,8 +23,8 @@ export const CONFIG = {
 
   // Regras das reservas
   checkinAbreMinAntes: 30, // check-in libera X minutos antes da aula
-  reservarAteHorasAntes: 24, // pelo site, reserva só até X horas antes da aula (o servidor manda o valor dos Ajustes)
-  cancelarAteHorasAntes: 2, // pode cancelar até X horas antes
+  reservarAteHorasAntes: 12, // pelo site, reserva só até X horas antes da aula (o servidor manda o valor dos Ajustes)
+  cancelarAteHorasAntes: 4, // pelo site, pode cancelar até X horas antes (depois, só com a recepção; o servidor manda o valor dos Ajustes)
   diasVisiveis: 7, // quantos dias aparecem na agenda
 };
 

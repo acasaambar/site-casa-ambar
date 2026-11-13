@@ -114,9 +114,15 @@ export default function MinhasReservas() {
                       <span className="bilhete__dica">
                         {podeCheckin ? 'Você já pode confirmar sua chegada.' : `Libera às ${formatarHora(new Date(abreCheckin).toTimeString().slice(0, 5))}`}
                       </span>
-                      {podeCancelar && (
+                      {podeCancelar ? (
                         <button type="button" className="link-cancelar" onClick={() => acao('cancelar', r)}>Cancelar reserva</button>
-                      )}
+                      ) : r.status === 'reservado' && agora < ini ? (
+                        // depois do prazo, cancelar só com a recepção (a equipe já combinou a aula com quem dá)
+                        <span className="bilhete__dica">
+                          Cancelamento pelo site até {CONFIG.cancelarAteHorasAntes} h antes.{' '}
+                          <a className="link-cancelar" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Olá! Preciso cancelar minha aula de ${r.modalidade} de ${dataExtensa(r.data)} às ${formatarHora(r.hora)}.`)}`} target="_blank" rel="noreferrer">Falar com a recepção</a>
+                        </span>
+                      ) : null}
                     </>
                   )}
                 </div>

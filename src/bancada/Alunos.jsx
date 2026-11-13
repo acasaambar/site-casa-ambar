@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import './css/clientes.css';
 import { useBancada, pode } from './sessao.jsx';
 import { lembrar, guardarNaMemoria } from './memoria.js';
-import { useDados, Alertas, CampoBandeira, faltaBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, Aviso, Ajuda, Secao, Esqueleto, Kpi, MenuMais, MESES, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
+import { Segmento, useDados, Alertas, CampoBandeira, faltaBandeira, LinhasDePagamento, LINHA_PAGAMENTO, resumoLinhas, Erro, Cabecalho, Tag, Modal, BotaoAcao, Vazio, Abas, BuscaAluno, STATUS_RESERVA, Aviso, Ajuda, Secao, Esqueleto, Kpi, MenuMais, MESES, cpfFmt, telFmt, dataBR, dataCurta, hora, real,
   linkWhats, primeiro, baixarCSV, hojeIso, somarDias, plural, numBR, useEsquecerPedidoDaRota, lembrarResultado, incluirNaListaDeClientes } from './ui.jsx';
 import { ComandaModal } from './Comandas.jsx';
 import { ProntuarioConteudo } from './Prontuario.jsx';
@@ -567,7 +567,7 @@ export function AlunoDetalhe() {
 
       {aba === 'aulas' && <AulasDoCliente reservas={a.reservas} />}
 
-      {aba === 'pagamentos' && <PagamentosDoCliente lista={a.pagamentos} />}
+      {aba === 'pagamentos' && <PagamentosDoCliente lista={a.pagamentos} aoMudar={recarregar} />}
 
       {aba === 'saude' && (
         <>
@@ -668,10 +668,23 @@ function AulasDoCliente({ reservas }) {
 }
 
 // ---------- pagamentos da pessoa: totais + lista ----------
-function PagamentosDoCliente({ lista }) {
+// pagamento do site que ficou em aberto (o aviso da InfinitePay não chegou ou não confirmou): a recepção confirma ou descarta
+const SITE_EM_ABERTO = ['pendente', 'expirado', 'descartado'];
+function PagamentosDoCliente({ lista, aoMudar }) {
+  const [confirmar, setConfirmar] = useState(null);
+  const [descartar, setDescartar] = useState(null);
   const pagos = (lista || []).filter((p) => p.status === 'pago');
   const total = pagos.reduce((t, p) => t + Number(p.valor || 0), 0);
   const pendentes = (lista || []).filter((p) => p.status === 'pendente').length;
+  const acoes = (p) => {
+    if (p.origem !== 'site' || !SITE_EM_ABERTO.includes(p.status)) return null;
+    return (
+      <>
+        <button type="button" className="botao botao--linha botao--p" onClick={() => setConfirmar(p)}>Confirmar recebimento</button>
+        {p.status !== 'descartado' && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setDescartar(p)}>Descartar</button>}
+      </>
+    );
+  };
   return (
     <div className="cl-pilha">
       {lista?.length > 0 && (
@@ -680,8 +693,105 @@ function PagamentosDoCliente({ lista }) {
           <Kpi rotulo="Pendentes" valor={pendentes} tom={pendentes ? 'aviso' : undefined} detalhe={pendentes ? 'aguardando pagamento' : 'nada em aberto'} />
         </div>
       )}
-      <ListaPagamentos lista={lista} semCliente />
+      <ListaPagamentos lista={lista} semCliente acoes={acoes} />
+      {confirmar && <ConfirmarPagamentoSite p={confirmar} lista={lista} aoFechar={() => setConfirmar(null)} aoConfirmar={() => { setConfirmar(null); aoMudar?.(); }} />}
+      {descartar && <DescartarPagamentoSite p={descartar} aoFechar={() => setDescartar(null)} aoDescartar={() => { setDescartar(null); aoMudar?.(); }} />}
     </div>
+  );
+}
+
+const diaDe = (p) => String(p.pagoEm || p.criadoEm || '').slice(0, 10);
+const distanciaDias = (a, b) => Math.abs((new Date(a + 'T12:00:00') - new Date(b + 'T12:00:00')) / 86400000);
+
+function ConfirmarPagamentoSite({ p, lista, aoFechar, aoConfirmar }) {
+  const { chamar } = useBancada();
+  const criado = diaDe(p);
+  const [metodo, setMetodo] = useState('Pix');
+  const [parcelas, setParcelas] = useState(1);
+  const [dia, setDia] = useState(criado || hojeIso());
+  const [erro, setErro] = useState('');
+  const [feito, setFeito] = useState(null);
+  // a mesma aula/plano já lançado (pago) para esta pessoa perto desse dia: provavelmente é o mesmo dinheiro
+  const parecidas = (lista || []).filter((x) => x.orderNsu !== p.orderNsu && x.status === 'pago' && x.planoId === p.planoId && distanciaDias(diaDe(x), criado) <= 3);
+  if (feito) {
+    const r = feito.reserva;
+    return (
+      <Modal titulo="Pagamento confirmado" rotulo={p.descricao} aoFechar={aoConfirmar}>
+        <div className="b-form cl-form">
+          <Aviso tom="ok" titulo={feito.como === 'automática' ? 'A InfinitePay confirmou o pagamento' : 'Recebimento confirmado'}>
+            {r && r.status === 'reservado'
+              ? <>A aula de {r.modalidade} de {dataBR(r.data)} às {hora(r.hora)}{r.tapete ? ` (tapete ${r.tapete})` : ''} voltou para a agenda.</>
+              : r
+                ? <>O lugar na aula de {dataBR(r.data)} às {hora(r.hora)} foi ocupado antes da confirmação. A aula ficou como crédito: agende pela Agenda → Aulas.</>
+                : <>O crédito já está disponível em Planos e pacotes.</>}
+          </Aviso>
+          <div className="cl-rodape"><button type="button" className="botao botao--cheio" onClick={aoConfirmar}>Pronto</button></div>
+        </div>
+      </Modal>
+    );
+  }
+  return (
+    <Modal titulo="Confirmar recebimento" rotulo={`${p.descricao} · ${real(p.valor)}`} aoFechar={aoFechar}>
+      <div className="b-form cl-form">
+        <p className="b-suave">Pagamento feito pelo site em {dataBR(criado)} que não confirmou sozinho. Confirme só depois de ver o valor no app da InfinitePay.</p>
+        {parecidas.length > 0 && (
+          <Aviso tom="alerta" titulo="Parece que já foi lançado">
+            {parecidas.map((x) => `${x.descricao} · ${real(x.valor)} · ${x.metodo || ''} ${x.origem || ''} em ${dataBR(diaDe(x))}`).join('; ')}.
+            {' '}Se essa venda é deste mesmo pagamento, não confirme: use <strong>Descartar</strong>.
+          </Aviso>
+        )}
+        {p.conferencia && <p className="b-suave cl-pag__obs">Última conferência automática: {p.conferencia}</p>}
+        <div className="b-campo">
+          <span className="rotulo">Como foi pago</span>
+          <Segmento rotulo="Como foi pago" itens={[['Pix', 'Pix'], ['Cartão de crédito', 'Crédito'], ['Cartão de débito', 'Débito']]} atual={metodo} aoMudar={setMetodo} />
+        </div>
+        {metodo === 'Cartão de crédito' && (
+          <label className="b-campo">
+            <span className="rotulo">Parcelas</span>
+            <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}x</option>)}
+            </select>
+          </label>
+        )}
+        <label className="b-campo">
+          <span className="rotulo">Dia em que o cliente pagou</span>
+          <input type="date" value={dia} max={hojeIso()} onChange={(e) => setDia(e.target.value)} />
+        </label>
+        <Erro>{erro}</Erro>
+        <div className="cl-rodape cl-rodape--linha">
+          <button type="button" className="botao botao--linha" onClick={aoFechar}>Voltar</button>
+          <BotaoAcao className="botao botao--cheio" acao={async () => {
+            setErro('');
+            try { setFeito(await chamar('confirmarPagamentoSite', { orderNsu: p.orderNsu, metodo, parcelas, dataPagamento: dia })); } catch (e) { setErro(e.message); }
+          }}>Confirmar e liberar a aula</BotaoAcao>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function DescartarPagamentoSite({ p, aoFechar, aoDescartar }) {
+  const { chamar } = useBancada();
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+  return (
+    <Modal titulo="Descartar pagamento do site" rotulo={`${p.descricao} · ${real(p.valor)}`} aoFechar={aoFechar}>
+      <div className="b-form cl-form">
+        <p className="b-suave">Use quando o cliente não pagou este link, ou quando o pagamento já foi lançado de outro jeito (balcão, comanda). Não entra no caixa e o lugar guardado na aula é liberado.</p>
+        <label className="b-campo">
+          <span className="rotulo">Motivo (opcional)</span>
+          <input value={motivo} maxLength={200} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: já lançado no balcão em 13/11" />
+        </label>
+        <Erro>{erro}</Erro>
+        <div className="cl-rodape cl-rodape--linha">
+          <button type="button" className="botao botao--linha" onClick={aoFechar}>Voltar</button>
+          <BotaoAcao className="botao botao--perigo-cheio" acao={async () => {
+            setErro('');
+            try { await chamar('descartarPagamentoSite', { orderNsu: p.orderNsu, motivo }); aoDescartar(); } catch (e) { setErro(e.message); }
+          }}>Descartar</BotaoAcao>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
