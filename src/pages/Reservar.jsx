@@ -285,6 +285,11 @@ export default function Reservar() {
             )}
             {semCredito.avulsa && (
               <>
+                {semCredito.avulsa.bonus && (
+                  <p className="selo-bonus selo-bonus--linha">
+                    {semCredito.avulsa.bonus.nome}: pagando esta aula você ganha {semCredito.avulsa.bonus.texto.replace(/^\+/, '+ ')} para usar em outro dia.
+                  </p>
+                )}
                 <CampoCodigo token={token} planoId={semCredito.avulsa.id} aplicado={desconto} aoAplicar={setDesconto} />
                 <button type="button" className="botao botao--cheio sem-credito__pagar" disabled={pagando} onClick={pagarAvulsa}>
                   {pagando

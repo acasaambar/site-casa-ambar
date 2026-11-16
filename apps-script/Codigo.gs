@@ -182,7 +182,9 @@ var ABAS = {
     // permuta (comanda): quanto desta linha a Casa assumiu (não entra no caixa) e com quem (blogueiro, parceiro…)
     'permuta', 'permuta_com',
     // último retorno da conferência na InfinitePay (data, de onde veio, pago?, valor): mostra por que um pagamento do site não confirmou
-    'conferencia'],
+    'conferencia',
+    // promoção "aulas de presente": quantas aulas a mais o crédito ganhou e de qual promoção
+    'bonus_aulas', 'bonus_promocao'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
   // ---- bancada interna ----
@@ -1186,8 +1188,10 @@ function condicaoPagamento(p) {
 
 function planoPublico(p) {
   var promo = melhorPromocao(p, hojeTexto(), 'site');
+  var bonus = bonusDaPromocao(p, hojeTexto(), 'site');
   return { id: p.id, modalidade: p.modalidade, tipo: p.tipo, nome: p.nome, aulasSemana: p.aulas_semana, aulasTotal: p.aulas_total, validadeDias: p.validade_dias, preco: p.preco, descricao: p.descricao, semJurosAte: semJurosAte(p),
-    promocao: promo ? { nome: promo.nome, texto: promo.texto, preco: dinheiro(p.preco - promo.desconto) } : null };
+    promocao: promo ? { nome: promo.nome, texto: promo.texto, preco: dinheiro(p.preco - promo.desconto) } : null,
+    bonus: bonus ? { nome: bonus.nome, texto: bonus.texto, aulas: bonus.aulas } : null };
 }
 
 // A recepção pode lançar um plano pago no balcão preenchendo só: cpf, plano_id e inicio.
@@ -1642,8 +1646,19 @@ function concluirPagamento(pg, info) {
   var inicioCred = info.inicio || hojeTexto();
   var creditoId = 'C' + String(pg.order_nsu).slice(1);
   if (!soDigitos(pg.cpf) || info.semCredito) { SpreadsheetApp.flush(); return ''; }
-  adicionarLinha('Creditos', { id: creditoId, cpf: normCpf(pg.cpf), nome: pg.nome, plano_id: plano.id, descricao: plano.nome, modalidade: plano.modalidade, tipo: plano.tipo,
-    aulas_semana: plano.aulas_semana, aulas_total: plano.aulas_total, inicio: inicioCred, fim: somarDias(inicioCred, plano.validade_dias - 1),
+  // promoção "aulas de presente": vale no dia em que a compra foi feita (link do site) ou recebida (balcão);
+  // cortesia e compra sem valor não ganham presente
+  var bonus = null;
+  var pagouAlgo = numero(pg.valor) + numero(pg.vale_usado) + numero(pg.permuta) > 0.009 && info.metodo !== 'Cortesia';
+  if (pagouAlgo && !Number(pg.bonus_aulas)) {
+    var diaBonus = String(String(pg.origem || 'site') === 'site' ? pg.criado_em : (info.pagoEm || pg.criado_em || agoraTexto())).slice(0, 10);
+    try { bonus = bonusDaPromocao(plano, diaBonus, String(pg.origem || 'site') === 'site' ? 'site' : 'bancada'); } catch (e) { Logger.log('bônus: ' + e.message); }
+    if (bonus) atualizarLinha('Pagamentos', pg._linha, { bonus_aulas: bonus.aulas, bonus_promocao: bonus.nome });
+  }
+  var extras = bonus ? bonus.aulas : 0;
+  adicionarLinha('Creditos', { id: creditoId, cpf: normCpf(pg.cpf), nome: pg.nome, plano_id: plano.id,
+    descricao: plano.nome + (extras ? ' + ' + extras + (extras === 1 ? ' aula' : ' aulas') + ' de presente' : ''), modalidade: plano.modalidade, tipo: plano.tipo,
+    aulas_semana: plano.aulas_semana, aulas_total: Number(plano.aulas_total) + extras, inicio: inicioCred, fim: somarDias(inicioCred, plano.validade_dias - 1),
     origem: (info.origemCredito || 'pagamento') + ' ' + pg.order_nsu, ativo: 'SIM' });
 
   // reserva que estava aguardando este pagamento

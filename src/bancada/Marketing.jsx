@@ -34,6 +34,7 @@ export default function Marketing() {
 //  PROMOÇÕES
 // ============================================================
 function textoDesconto(p) {
+  if (p.tipo === 'bonus') return [`+${p.valor}`, Number(p.valor) === 1 ? 'aula de presente' : 'aulas de presente'];
   if (p.tipo === 'percentual') return [`${String(p.valor).replace('.', ',')}%`, 'de desconto'];
   if (p.tipo === 'preco_fixo') return [real(p.valor).replace(',00', ''), 'preço fixo'];
   return [real(p.valor).replace(',00', ''), 'de desconto'];
@@ -79,7 +80,7 @@ function Promocoes({ admin }) {
                     <span className="b-meta">
                       <span>{p.de || p.ate ? `${p.de ? dataCurta(p.de) : '…'} a ${p.ate ? dataCurta(p.ate) : '…'}` : 'sem prazo'}</span>
                       <span>{p.onde === 'ambos' ? 'site e balcão' : p.onde === 'site' ? 'só no site' : 'só no balcão'}</span>
-                      <span>{plural(p.usos, 'uso', 'usos')} · {real(p.descontoTotal)} em descontos</span>
+                      <span>{plural(p.usos, 'uso', 'usos')} · {p.tipo === 'bonus' ? plural(p.aulasDadas || 0, 'aula dada', 'aulas dadas') : `${real(p.descontoTotal)} em descontos`}</span>
                     </span>
                   </div>
                 </div>
@@ -111,22 +112,27 @@ function EditarPromocao({ p, catalogo, aoFechar, aoSalvar }) {
     const it = catalogo?.itens.find((i) => i.id === id) || catalogo?.itens.find((i) => f.grupos.includes(i.grupo)) || catalogo?.itens[0];
     if (!it || !numBR(f.valor)) return '';
     const v = numBR(f.valor);
+    if (f.tipo === 'bonus') return `Ex.: quem compra ${it.nome} (${real(it.preco)}) leva ${v + 1} aulas no mesmo crédito: ${v === 1 ? 'a de presente fica' : `as ${v} de presente ficam`} para usar dentro da validade.`;
     const final = f.tipo === 'percentual' ? it.preco * (1 - v / 100) : f.tipo === 'preco_fixo' ? v : it.preco - v;
     return `Ex.: ${it.nome} de ${real(it.preco)} por ${real(Math.max(0, final))}`;
   })();
   return (
-    <Modal titulo={p.id ? p.nome : 'Nova promoção'} rotulo="Desconto automático, sem código" aoFechar={aoFechar} largo>
+    <Modal titulo={p.id ? p.nome : 'Nova promoção'} rotulo="Automática, sem código" aoFechar={aoFechar} largo>
       <div className="b-form">
         <label className="b-campo"><span className="rotulo">Nome</span><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} placeholder="Ex.: Terça da pele" /></label>
         <label className="b-campo"><span className="rotulo">Descrição (opcional)</span><input value={f.descricao} onChange={(e) => setF({ ...f, descricao: e.target.value })} /></label>
         <fieldset className="b-opcoes b-opcoes--linha mk-tipos">
-          <legend className="rotulo">Tipo de desconto</legend>
-          {[['percentual', 'Porcentagem', '% sobre o preço'], ['valor', 'Valor', 'R$ a menos'], ['preco_fixo', 'Preço fixo', 'para um item']].map(([id, t, d]) => (
+          <legend className="rotulo">Tipo de promoção</legend>
+          {[['percentual', 'Porcentagem', '% sobre o preço'], ['valor', 'Valor', 'R$ a menos'], ['preco_fixo', 'Preço fixo', 'para um item'], ['bonus', 'Aulas de presente', 'compra e ganha mais aulas']].map(([id, t, d]) => (
             <label key={id} className={f.tipo === id ? 'ativo' : ''}><input type="radio" checked={f.tipo === id} onChange={() => setF({ ...f, tipo: id })} /><span><strong>{t}</strong><small>{d}</small></span></label>
           ))}
         </fieldset>
-        <label className="b-campo"><span className="rotulo">{f.tipo === 'percentual' ? 'Desconto (%)' : f.tipo === 'valor' ? 'Desconto (R$)' : 'Preço na promoção (R$)'}</span>
-          <input inputMode="decimal" value={f.valor} onChange={(e) => setF({ ...f, valor: e.target.value.replace(/[^\d,.]/g, '') })} /></label>
+        <label className="b-campo"><span className="rotulo">{f.tipo === 'percentual' ? 'Desconto (%)' : f.tipo === 'valor' ? 'Desconto (R$)' : f.tipo === 'bonus' ? 'Quantas aulas de presente' : 'Preço na promoção (R$)'}</span>
+          <input inputMode={f.tipo === 'bonus' ? 'numeric' : 'decimal'} value={f.valor} placeholder={f.tipo === 'bonus' ? 'Ex.: 1 (compra 1, ganha 2)' : undefined}
+            onChange={(e) => setF({ ...f, valor: e.target.value.replace(f.tipo === 'bonus' ? /[^\d]/g : /[^\d,.]/g, '') })} /></label>
+        {f.tipo === 'bonus' && (
+          <Aviso tom="info">Vale para aula avulsa e pacotes (não para plano mensal ou trimestral). O preço não muda e soma com cupom ou outra promoção. Escolha abaixo para quais aulas vale.</Aviso>
+        )}
         {exemplo && <Aviso tom="info">{exemplo}</Aviso>}
         <fieldset className="b-opcoes">
           <legend className="rotulo">Vale para</legend>

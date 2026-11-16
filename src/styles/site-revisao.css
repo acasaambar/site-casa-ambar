@@ -174,3 +174,8 @@ main:focus { outline: none; }
 
 /* o logo agora vem dentro de <picture> (WebP + PNG de reserva): a moldura não cria caixa própria */
 picture { display: contents; }
+
+/* promoção "aulas de presente" (ex.: compra 1 aula e ganha outra) */
+.selo-bonus { display: inline-block; margin-top: 6px; padding: 4px 10px; border-radius: 999px; background: var(--caramelo-escuro, #7a5a33); color: #fffaf0;
+  font-size: 12px; letter-spacing: 0.04em; line-height: 1.4; }
+.selo-bonus--linha { display: block; border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; font-size: 13px; text-align: left; }

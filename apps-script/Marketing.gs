@@ -34,6 +34,7 @@ function grupoDoItem(it) {
 }
 
 function textoPromocao(p, preco) {
+  if (p.tipo === 'bonus') return '+' + p.valor + (p.valor === 1 ? ' aula' : ' aulas') + ' de presente';
   if (p.tipo === 'percentual') return p.valor + '% de desconto';
   if (p.tipo === 'preco_fixo') return 'por ' + brl(p.valor);
   return brl(p.valor) + ' de desconto';
@@ -46,14 +47,38 @@ function melhorPromocao(it, data, canal) {
   var g = grupoDoItem(it);
   var melhor = null;
   listarPromocoes().forEach(function (p) {
-    if (!p.ativo || (p.de && data < p.de) || (p.ate && data > p.ate)) return;
-    if (p.onde !== 'ambos' && p.onde !== canal) return;
-    if (p.dias.length && p.dias.indexOf(dia) < 0) return;
-    if ((p.itens.length || p.grupos.length) && p.itens.indexOf(String(it.id)) < 0 && p.grupos.indexOf(g) < 0) return;
+    if (p.tipo === 'bonus' || !promocaoValeParaItem(p, it, data, canal)) return;
     var preco = numero(it.preco);
     var desc = p.tipo === 'percentual' ? preco * p.valor / 100 : p.tipo === 'preco_fixo' ? preco - p.valor : p.valor;
     desc = Math.max(0, Math.min(preco, dinheiro(desc)));
     if (desc > 0 && (!melhor || desc > melhor.desconto)) melhor = { id: p.id, nome: p.nome, desconto: desc, texto: textoPromocao(p, preco) };
+  });
+  return melhor;
+}
+
+// a promoção está no ar para este item, nesta data e neste canal?
+function promocaoValeParaItem(p, it, data, canal) {
+  var dia = new Date(data + 'T12:00:00Z').getUTCDay();
+  var g = grupoDoItem(it);
+  if (!p.ativo || (p.de && data < p.de) || (p.ate && data > p.ate)) return false;
+  if (p.onde !== 'ambos' && p.onde !== canal) return false;
+  if (p.dias.length && p.dias.indexOf(dia) < 0) return false;
+  if ((p.itens.length || p.grupos.length) && p.itens.indexOf(String(it.id)) < 0 && p.grupos.indexOf(g) < 0) return false;
+  return true;
+}
+
+// "Aulas de presente" (ex.: compra 1 aula e ganha outra): o crédito vem com N aulas a mais.
+// Vale só para o que é contado por total (aula avulsa, pacote de aulas, pacote/sessão de serviço),
+// nunca para plano por semana (mensal/trimestral). Não disputa com o desconto: soma com ele.
+function itemAceitaBonus(it) {
+  return !!it && Number(it.aulas_semana || 0) === 0 && Number(it.aulas_total || 0) >= 1 && it.tipo !== 'produto' && it.tipo !== 'vale';
+}
+function bonusDaPromocao(it, data, canal) {
+  if (!itemAceitaBonus(it)) return null;
+  var melhor = null;
+  listarPromocoes().forEach(function (p) {
+    if (p.tipo !== 'bonus' || !(p.valor > 0) || !promocaoValeParaItem(p, it, data, canal)) return;
+    if (!melhor || p.valor > melhor.aulas) melhor = { aulas: Math.round(p.valor), nome: p.nome, texto: textoPromocao(p) };
   });
   return melhor;
 }
@@ -63,9 +88,12 @@ function bancada_promocoes() {
   var hoje = hojeTexto();
   var pagos = lerAba('Pagamentos').filter(function (p) { return p.status === 'pago' && p.promocao; });
   return listarPromocoes().map(function (p) {
-    var usos = pagos.filter(function (x) { return String(x.promocao) === p.nome; });
+    var usos = p.tipo === 'bonus'
+      ? lerAba('Pagamentos').filter(function (x) { return x.status === 'pago' && String(x.bonus_promocao) === p.nome; })
+      : pagos.filter(function (x) { return String(x.promocao) === p.nome; });
     p.usos = usos.length;
-    p.descontoTotal = dinheiro(usos.reduce(function (s, x) { return s + numero(x.desconto); }, 0));
+    p.descontoTotal = p.tipo === 'bonus' ? 0 : dinheiro(usos.reduce(function (s, x) { return s + numero(x.desconto); }, 0));
+    if (p.tipo === 'bonus') p.aulasDadas = usos.reduce(function (s, x) { return s + (Number(x.bonus_aulas) || 0); }, 0);
     p.situacao = !p.ativo ? 'pausada' : p.ate && p.ate < hoje ? 'encerrada' : p.de && p.de > hoje ? 'agendada' : 'no ar';
     return p;
   }).reverse();
@@ -75,8 +103,14 @@ function bancada_salvarPromocao(d, m) {
   var x = d.promocao || {};
   var nome = String(x.nome || '').trim();
   if (nome.length < 3) throw new Error('Dê um nome à promoção.');
-  var tipo = ['percentual', 'valor', 'preco_fixo'].indexOf(x.tipo) >= 0 ? x.tipo : 'percentual';
+  var tipo = ['percentual', 'valor', 'preco_fixo', 'bonus'].indexOf(x.tipo) >= 0 ? x.tipo : 'percentual';
   var valor = numero(x.valor);
+  if (tipo === 'bonus') {
+    if (!(valor >= 1 && valor <= 10) || Math.round(valor) !== valor) throw new Error('Quantas aulas de presente? De 1 a 10.');
+    if (!(x.itens || []).length && !(x.grupos || []).length) throw new Error('Escolha para quais aulas vale (ex.: Yoga, Pilates ou a aula avulsa).');
+    var naoAceita = (x.itens || []).map(function (id) { return buscarItemVenda(id); }).filter(function (it) { return it && !itemAceitaBonus(it); });
+    if (naoAceita.length) throw new Error('Aulas de presente valem para aula avulsa e pacotes. ' + naoAceita[0].nome + ' é plano por semana: tire da lista.');
+  }
   if (!(valor > 0) || (tipo === 'percentual' && valor > 100)) throw new Error('Informe o desconto.');
   if (tipo === 'preco_fixo' && (x.itens || []).length !== 1) throw new Error('Preço fixo vale para um item só. Escolha o item.');
   if (x.de && x.ate && x.ate < x.de) throw new Error('A data final é antes da inicial.');

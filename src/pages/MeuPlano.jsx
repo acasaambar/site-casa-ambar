@@ -231,6 +231,7 @@ export default function MeuPlano() {
                       <div>
                         <strong className="cardapio__item">Aula avulsa</strong>
                         <span className="cardapio__nota">Válida por {avulsa.validadeDias} dias · ideal para experimentar</span>
+                        {avulsa.bonus && <span className="selo-bonus">{avulsa.bonus.texto}</span>}
                       </div>
                       <span className="cardapio__pontos" aria-hidden="true" />
                       <button type="button" className="preco" onClick={() => setEscolhido(avulsa)}>
@@ -363,7 +364,10 @@ export default function MeuPlano() {
               </li>
               <li>
                 <span>Aulas</span>
-                <strong>{escolhido.aulasSemana > 0 ? `até ${escolhido.aulasSemana} por semana` : '1 aula'}</strong>
+                <strong>
+                  {escolhido.aulasSemana > 0 ? `até ${escolhido.aulasSemana} por semana` : `${escolhido.aulasTotal || 1} ${Number(escolhido.aulasTotal || 1) === 1 ? 'aula' : 'aulas'}`}
+                  {escolhido.bonus && escolhido.aulasSemana === 0 ? ` + ${escolhido.bonus.aulas} de presente` : ''}
+                </strong>
               </li>
               <li>
                 <span>Validade</span>
@@ -373,6 +377,9 @@ export default function MeuPlano() {
                 <span>Total</span>
                 <strong>{desconto ? (desconto.valorFinal > 0 ? real(desconto.valorFinal) : 'Grátis') : real(escolhido.promocao ? escolhido.promocao.preco : escolhido.preco)}</strong>
               </li>
+              {escolhido.bonus && (
+                <li className="compra__condicao"><span>Promoção</span><strong>{escolhido.bonus.nome} · {escolhido.bonus.texto}</strong></li>
+              )}
               {escolhido.promocao && !desconto && (
                 <li className="compra__condicao"><span>Promoção</span><strong>{escolhido.promocao.nome} · de {real(escolhido.preco)} por {real(escolhido.promocao.preco)}</strong></li>
               )}
