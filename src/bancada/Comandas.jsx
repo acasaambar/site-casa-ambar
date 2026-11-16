@@ -623,6 +623,7 @@ function MetaItem({ it, fechada }) {
   if (it.profissional) partes.push(`com ${it.profissional}`);
   if (it.pacote) partes.push(`sessão de ${it.pacoteDescricao || 'pacote'}`);
   if (it.promocao) partes.push(`promoção ${it.promocao}`);
+  if (it.bonus && it.tipo !== 'vale') partes.push(`${it.bonus.texto} (${it.bonus.nome})`);
   if (it.cupom) partes.push(`cupom ${it.cupom}`);
   if (it.vale && it.tipo !== 'vale') partes.push(`vale ${it.vale}`);
   if (it.valeCodigo) partes.push(`código ${it.valeCodigo}`);

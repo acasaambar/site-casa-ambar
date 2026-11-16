@@ -64,10 +64,18 @@ r = chamar('b_vender', { token: adm, cpf: '11144477735', planoId: 'yoga-avulsa',
 const cC = creditosDe('11144477735').find((c) => c.plano_id === 'yoga-avulsa');
 ok(r.ok && cC && Number(cC.aulas_total) === 1, 'cortesia não ganha presente', cC);
 
+console.log('— comanda');
+r = chamar('b_salvarComanda', { token: adm, comanda: { cpf: '52998224725', itens: [{ tipo: 'plano', id: 'pilates-avulsa', nome: 'Pilates · aula avulsa', qtd: 1 }] } });
+const cmB = r.dados;
+ok(r.ok && cmB.itens[0].bonus && /\+1 aula de presente/.test(cmB.itens[0].bonus.texto), 'a comanda mostra o presente no item (não precisa lançar nada)', r.erro || cmB.itens[0]);
+r = chamar('b_fecharComanda', { token: adm, id: cmB.id, pagamentos: [{ metodo: 'Pix', valor: cmB.total }] });
+const cCm = creditosDe('52998224725').find((c) => c.plano_id === 'pilates-avulsa');
+ok(r.ok && cCm && Number(cCm.aulas_total) === 2, 'ao fechar a comanda, o crédito vem com a aula de presente', r.erro || cCm);
+
 console.log('— relatório da promoção');
 r = chamar('b_promocoes', { token: adm });
 const pr = r.ok && r.dados.find((p) => p.nome === 'Compra 1 ganha 2');
-ok(pr && pr.usos === 2 && pr.aulasDadas === 2, 'conta 2 usos e 2 aulas dadas', pr);
+ok(pr && pr.usos === 3 && pr.aulasDadas === 3, 'conta 3 usos e 3 aulas dadas', pr);
 chamar('b_salvarPromocao', { token: adm, promocao: Object.assign({}, pr, { ativo: false }) });
 r = chamar('b_vender', { token: adm, cpf: '11144477735', planoId: 'pilates-avulsa', metodo: 'Pix', confirmarRepetida: [], motivoRepetida: 'outra aula' });
 const cP = creditosDe('11144477735').filter((c) => c.plano_id === 'pilates-avulsa').pop();

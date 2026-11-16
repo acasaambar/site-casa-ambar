@@ -1318,6 +1318,8 @@ function calcularItensComanda(itens, cpf, codigo) {
     }
     var unit = calc.valorFinal;
     it.promocao = calc.promocao || '';
+    // promoção "aulas de presente": entra sozinha ao fechar (concluirPagamento); aqui só avisa a recepção
+    it.bonus = calc.bonus ? { aulas: calc.bonus.aulas, nome: calc.bonus.nome, texto: calc.bonus.texto } : null;
     it.cupom = calc.cupom || '';
     it.vale = calc.vale || '';
     it.valeUsado = calc.valeUsado || 0;
