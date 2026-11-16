@@ -57,6 +57,7 @@ const cB = creditosDe('11144477735')[0];
 ok(r.ok && cB && Number(cB.aulas_total) === 2, 'venda no balcão também ganha a aula de presente', r.erro || cB);
 r = chamar('b_simularPreco', { token: adm, planoId: 'pilates-avulsa', cpf: '11144477735' });
 ok(r.ok && /\+1 aula de presente/.test(r.dados.mensagem), 'o Vender avisa a promoção', r.dados && r.dados.mensagem);
+ok(r.dados.bonus && r.dados.bonus.aulas === 1 && r.dados.aulas === 1 && r.dados.servico === false, 'a Nova venda recebe o presente e as aulas do item (mostra assim que escolhe)', r.dados);
 r = chamar('b_vender', { token: adm, cpf: '11144477735', planoId: 'yoga-mensal-1x', metodo: 'Pix' });
 const cM = creditosDe('11144477735').find((c) => c.plano_id === 'yoga-mensal-1x');
 ok(r.ok && cM && !/presente/.test(cM.descricao), 'plano mensal vendido no balcão não muda', cM);

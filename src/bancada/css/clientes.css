@@ -463,3 +463,11 @@ button.pt-foto:hover { transform: translateY(-2px); box-shadow: var(--sombra-2);
 .hj-tarefa { align-items: center; gap: 14px; padding: 12px 14px; }
 .hj-tarefa .hl__texto small { font-size: 14px; color: var(--b-suave); line-height: 1.35; }
 .hj-tarefa .hl__texto strong { font-size: 15px; }
+
+/* promoção do dia no item da Nova venda (aulas de presente / desconto) */
+.vd-promo { display: flex; gap: 10px; align-items: flex-start; margin: 2px 0 4px; padding: 10px 12px; border-radius: var(--r-m, 12px);
+  background: rgba(111, 120, 77, 0.12); border: 1px dashed rgba(111, 120, 77, 0.55); color: var(--b-tinta, #2F3821); font-size: 14px; line-height: 1.45; }
+.vd-extra .vd-promo { grid-column: 1 / -1; margin: 0; background: var(--b-papel, #F4EFDF); }
+.vd-promo__selo { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--b-terracota, #7E3717); color: #FBF8EF; font-size: 13px; }
+.vd-promo__texto { display: grid; gap: 4px; min-width: 0; }
+.vd-promo strong { font-weight: 600; }

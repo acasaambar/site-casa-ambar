@@ -1011,8 +1011,23 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   const [formas, setFormas] = useState(null); // pago em mais de uma forma: linhas { metodo, valor, parcelas, bandeira } (null = uma forma só)
   const plano = itens?.achar(planoId);
   const varios = extras.length > 0;
+  // promoção do dia de cada item escolhido (desconto ou aulas de presente), conferida no servidor assim que o item entra
+  const [promos, setPromos] = useState({});
+  const pedidas = useRef({});
+  const idsTexto = [planoId, ...extras.map((x) => x.planoId)].filter(Boolean).join(',');
+  const promoDe = (id) => (id ? promos[`${id}|${dataVenda}`] : null);
 
   useEffect(() => { setSimulado(null); setValor(''); }, [planoId]);
+  useEffect(() => {
+    idsTexto.split(',').filter(Boolean).forEach((id) => {
+      const k = `${id}|${dataVenda}`;
+      if (pedidas.current[k]) return;
+      pedidas.current[k] = true;
+      chamar('simularPreco', { planoId: id, data: dataVenda })
+        .then((r) => setPromos((m) => ({ ...m, [k]: r })))
+        .catch(() => { delete pedidas.current[k]; });
+    });
+  }, [idsTexto, dataVenda, chamar]);
 
   function mudarExtra(chave, mud) { setExtras((l) => l.map((x) => (x.chave === chave ? { ...x, ...mud } : x))); }
 
@@ -1047,7 +1062,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
   }
 
   // total da venda: cada item pelo valor combinado ou pelo preço (o servidor aplica as promoções do dia item a item)
-  const doItem = (item, v) => (metodo === 'Cortesia' ? 0 : v !== '' ? numBR(v) : item?.preco || 0);
+  const doItem = (item, v) => (metodo === 'Cortesia' ? 0 : v !== '' ? numBR(v) : promoDe(item?.id)?.valorFinal ?? item?.preco ?? 0);
   const linhas = [[plano, valor], ...extras.map((x) => [itens?.achar(x.planoId), x.valor])];
   const final = linhas.reduce((t, [it, v]) => t + (it ? doItem(it, v) : 0), 0);
   const cheio = linhas.reduce((t, [it]) => t + (it?.preco || 0), 0);
@@ -1088,6 +1103,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
               </label>
             )}
           </div>
+          {!simulado && <PromoDoItem r={promoDe(planoId)} cortesia={metodo === 'Cortesia'} combinado={valor !== ''} />}
           {extras.map((x, i) => (
             <div key={x.chave} className="vd-extra">
               <label className="b-campo">
@@ -1104,6 +1120,7 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
                 </label>
               )}
               <button type="button" className="botao botao--fantasma botao--p vd-extra__tirar" onClick={() => setExtras((l) => l.filter((y) => y.chave !== x.chave))}>Tirar</button>
+              <PromoDoItem r={promoDe(x.planoId)} cortesia={metodo === 'Cortesia'} combinado={x.valor !== ''} />
             </div>
           ))}
           {extras.length < 11 && (
@@ -1191,6 +1208,26 @@ export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+// Promoção do dia no item da venda: aulas de presente (o crédito já sai maior) e/ou desconto.
+// combinado: valor digitado à mão (o desconto da promoção não entra por cima dele)
+function PromoDoItem({ r, cortesia, combinado }) {
+  if (!r || cortesia || (!r.bonus && !r.promocao)) return null;
+  const unidade = r.servico ? ['sessão', 'sessões'] : ['aula', 'aulas'];
+  return (
+    <div className="vd-promo" role="status">
+      <span className="vd-promo__selo" aria-hidden="true">✦</span>
+      <div className="vd-promo__texto">
+        {r.bonus && (
+          <span><strong>{r.bonus.nome}</strong>: {r.bonus.texto}. Ao registrar, o crédito sai com {plural(r.aulas + r.bonus.aulas, ...unidade)} ({r.aulas} + {r.bonus.aulas} de presente).</span>
+        )}
+        {r.promocao && (
+          <span><strong>{r.promocao}</strong>: −{real(r.desconto)}{combinado ? ' (com o valor digitado à mão, o desconto não entra; apague o valor para usar a promoção)' : ', já no total'}.</span>
+        )}
+      </div>
+    </div>
   );
 }
 

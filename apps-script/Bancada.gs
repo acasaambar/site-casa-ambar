@@ -1232,8 +1232,11 @@ function registrarVenda(aluno, plano, o, membro) {
 function bancada_simularPreco(d) {
   var plano = buscarItemVenda(d.planoId);
   if (!plano) throw new Error('Plano não encontrado.');
-  var r = calcularPreco(plano, d.cpf ? normCpf(d.cpf) : '', d.codigo, { canal: 'bancada', data: d.data });
-  return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem, promocao: r.promocao, vale: r.vale, valeUsado: r.valeUsado };
+  var data = /^\d{4}-\d{2}-\d{2}$/.test(String(d.data || '')) ? String(d.data) : undefined;
+  var r = calcularPreco(plano, d.cpf ? normCpf(d.cpf) : '', d.codigo, { canal: 'bancada', data: data });
+  // bonus: promoção "aulas de presente" do dia; aulas = quantas aulas o item já tem (o crédito sai com aulas + bonus.aulas)
+  return { valorOriginal: r.valorOriginal, desconto: r.desconto, valorFinal: r.valorFinal, mensagem: r.mensagem, promocao: r.promocao, vale: r.vale, valeUsado: r.valeUsado,
+    bonus: r.bonus || null, aulas: Number(plano.aulas_total) || 0, servico: plano.modalidade === 'Serviço' };
 }
 
 // Venda no balcão com um ou vários itens (d.itens = [{ planoId, valor? }]; sem d.itens vale d.planoId/d.valor, como antes).
