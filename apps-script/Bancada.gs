@@ -1700,24 +1700,43 @@ function bancada_bloqueios() {
 }
 
 // bloqueia um dia inteiro, uma modalidade no dia ou uma aula. Cancela as reservas e devolve quem avisar.
+// d.ate (opcional): repete o mesmo bloqueio toda semana, no mesmo dia da semana, até essa data (no máximo 26 semanas)
 function bancada_bloquear(d, m) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.data))) throw new Error('Informe a data.');
+  if (d.data < hojeTexto()) throw new Error('Escolha hoje ou um dia que ainda vem.');
   var hora = d.hora ? horaTexto(d.hora) : '';
+  if (hora && !/^\d{2}:\d{2}$/.test(hora)) throw new Error('Horário inválido.');
   var mod = d.modalidade || '';
-  adicionarLinha('Bloqueios', { data: d.data, hora: hora, modalidade: mod, motivo: String(d.motivo || '').slice(0, 200) });
+  if (mod && ['Yoga', 'Pilates'].indexOf(mod) < 0) throw new Error('Modalidade inválida.');
+  var motivo = String(d.motivo || '').slice(0, 200);
+  var datas = [String(d.data)];
+  if (d.ate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.ate)) || d.ate < d.data) throw new Error('A data final da repetição tem que ser depois do primeiro dia.');
+    for (var n = 1; n < 27; n++) {
+      var dia = somarDias(d.data, 7 * n);
+      if (dia > d.ate) break;
+      datas.push(dia);
+    }
+    if (somarDias(d.data, 7 * 27) <= d.ate) throw new Error('A repetição vai até 26 semanas. Escolha uma data final mais perto.');
+  }
+  var ja = {};
+  lerAba('Bloqueios').forEach(function (b) { ja[dataTexto(b.data) + '|' + horaTexto(b.hora) + '|' + String(b.modalidade || '').toLowerCase()] = true; });
+  var novas = datas.filter(function (dt) { return !ja[dt + '|' + hora + '|' + mod.toLowerCase()]; });
+  if (!novas.length) throw new Error(datas.length > 1 ? 'Esses dias já estão bloqueados.' : 'Este dia já está bloqueado.');
+  adicionarLinhas('Bloqueios', novas.map(function (dt) { return { data: dt, hora: hora, modalidade: mod, motivo: motivo }; }));
   var alunos = mapaAlunos();
   var afetados = [];
   reservasAtivas().forEach(function (r) {
     partesAula(r);
-    if (r.data !== d.data) return;
+    if (novas.indexOf(r.data) < 0) return;
     if (hora && r.hora !== hora) return;
     if (mod && String(r.modalidade).toLowerCase() !== String(mod).toLowerCase()) return;
     atualizarLinha('Reservas', r._linha, { status: 'cancelado', cancelada_em: agoraTexto() });
     var a = alunos[normCpf(r.cpf)] || {};
-    afetados.push({ nome: r.nome, whatsapp: String(a.whatsapp || ''), aula: r.modalidade + ' ' + r.hora });
+    afetados.push({ nome: r.nome, whatsapp: String(a.whatsapp || ''), aula: r.modalidade + ' ' + r.hora, data: r.data });
   });
-  registrar(m, 'bloqueou', d.data + ' ' + (hora || 'dia todo') + ' ' + (mod || 'todas') + ' · ' + (d.motivo || '') + ' · ' + afetados.length + ' reservas canceladas');
-  return { afetados: afetados };
+  registrar(m, 'bloqueou', novas.join(', ') + ' ' + (hora || 'dia todo') + ' ' + (mod || 'todas') + ' · ' + motivo + ' · ' + afetados.length + ' reservas canceladas');
+  return { afetados: afetados, dias: novas };
 }
 
 function bancada_desbloquear(d, m) {
@@ -1886,6 +1905,7 @@ function bancada_ajustes() {
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
     wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
     lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, comissaoLiquida: AJUSTES.comissaoLiquida !== false, taxas: AJUSTES.taxas,
+    siteAviso: AJUSTES.siteAviso, siteSemReserva: AJUSTES.siteSemReserva,
     ultimosLembretes: PropertiesService.getScriptProperties().getProperty('LEMBRETES_ULTIMO') || '',
     emailsRestantes: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } })() };
 }
@@ -1927,6 +1947,12 @@ function bancada_salvarAjustes(d, m) {
     });
     salvar.taxas = nova;
   }
+  if (a.siteAviso && typeof a.siteAviso === 'object') {
+    var av = normalizarAvisoSite(a.siteAviso);
+    if (av.ativo && av.texto.length < 3) throw new Error('Escreva o aviso do site (pelo menos 3 letras) ou desligue.');
+    salvar.siteAviso = av;
+  }
+  if (a.siteSemReserva && typeof a.siteSemReserva === 'object') salvar.siteSemReserva = normalizarSemReserva(a.siteSemReserva);
   var props = PropertiesService.getScriptProperties();
   var atual = {};
   try { atual = JSON.parse(props.getProperty('AJUSTES_JSON') || '{}') || {}; } catch (e) { atual = {}; }

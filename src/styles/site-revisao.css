@@ -179,3 +179,12 @@ picture { display: contents; }
 .selo-bonus { display: inline-block; margin-top: 6px; padding: 4px 10px; border-radius: 999px; background: var(--caramelo-escuro, #7a5a33); color: #fffaf0;
   font-size: 12px; letter-spacing: 0.04em; line-height: 1.4; }
 .selo-bonus--linha { display: block; border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; font-size: 13px; text-align: left; }
+
+/* faixa de aviso no topo do site (Ajustes → Site) */
+.aviso-site { position: relative; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 52px 10px 16px; background: var(--terracota, #7E3717); color: #FBF8EF; text-align: center; }
+.aviso-site__texto { margin: 0; font-size: 14px; line-height: 1.45; letter-spacing: 0.02em; max-width: 820px; }
+.aviso-site__fechar { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: transparent; color: inherit; font-size: 22px; line-height: 1; cursor: pointer; }
+.aviso-site__fechar:hover { background: rgba(251, 248, 239, 0.14); }
+.aviso-site__fechar:focus-visible { outline: 2px solid #FBF8EF; outline-offset: 2px; }

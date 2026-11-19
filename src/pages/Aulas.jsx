@@ -119,13 +119,22 @@ function ItemAula({ aula, token, aoMudar }) {
   let acao;
   if (aula.minhaReserva) acao = <Link to="/minhas-reservas" className="botao botao--pequeno botao--reservado">{yoga ? `Tapete ${aula.minhaReserva.tapete}` : 'Reservado'}</Link>;
   else if (passou) acao = <span className="selo-estado">Encerrada</span>;
-  else if (foraDoPrazo) {
+  else if (aula.soRecepcao) {
+    // Ajustes → Site: neste dia da semana esta modalidade só é marcada pela recepção
+    const texto = `Olá! Quero fazer a aula de ${aula.modalidade} de ${DIAS_CURTOS[dataDeIso(aula.data).getDay()]} às ${formatarHora(aula.hora)}. Tem vaga?`;
+    acao = (
+      <div className="aula__espera">
+        <a className="botao botao--pequeno botao--linha" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer">Falar com a recepção</a>
+        <span className="aula__espera-aviso">Neste dia, só pela recepção</span>
+      </div>
+    );
+  } else if (foraDoPrazo) {
     // pelo site, só com antecedência: a equipe precisa saber antes e combinar com quem dá a aula
     const texto = `Olá! Quero fazer a aula de ${aula.modalidade} de ${DIAS_CURTOS[dataDeIso(aula.data).getDay()]} às ${formatarHora(aula.hora)}. Tem vaga?`;
     acao = (
       <div className="aula__espera">
         <a className="botao botao--pequeno botao--linha" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer">Falar com a recepção</a>
-        <span className="aula__espera-aviso">Pelo site, só com {CONFIG.reservarAteHorasAntes} h de antecedência</span>
+        <span className="aula__espera-aviso">Pelo site, só com {aula.prazoHoras ?? CONFIG.reservarAteHorasAntes} h de antecedência</span>
       </div>
     );
   } else if (lotada) {

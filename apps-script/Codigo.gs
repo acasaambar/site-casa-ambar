@@ -70,6 +70,9 @@ var AJUSTES_EDITAVEIS = ['diasVisiveis', 'checkinAbreMinAntes', 'cancelarAteHora
 AJUSTES.valeValidadeDias = 365;
 AJUSTES.lembreteServicos = true; // e-mail na véspera para quem tem serviço agendado
 AJUSTES.lembreteAulas = false; // e-mail na véspera para quem reservou aula
+// Ajustes → Site: faixa de aviso no topo do site e dias em que cada modalidade só é reservada pela recepção
+AJUSTES.siteAviso = { ativo: false, texto: '', ate: '' };
+AJUSTES.siteSemReserva = { Yoga: [], Pilates: [] }; // dias da semana (0 = domingo … 6 = sábado)
 // taxas da maquininha e do link (% de cada venda), para o resultado líquido no Financeiro (Ajustes)
 // Tabela da InfinitePay da Casa (maquininha e link). Cada coluna de crédito/link tem 12 posições: 1x a 12x (null = ainda não informada).
 //   debito: por grupo de bandeira (vm = Visa e Mastercard, elo, amex) · credito: por grupo e por parcela · link: por parcela (vale para qualquer bandeira)
@@ -153,6 +156,37 @@ function aplicarAjustesSalvos() {
   if (j.lembreteAulas != null) AJUSTES.lembreteAulas = !!j.lembreteAulas;
   if (j.taxas && typeof j.taxas === 'object') AJUSTES.taxas = normalizarTaxas(j.taxas);
   if (j.comissaoLiquida != null) AJUSTES.comissaoLiquida = !!j.comissaoLiquida;
+  if (j.siteAviso && typeof j.siteAviso === 'object') AJUSTES.siteAviso = normalizarAvisoSite(j.siteAviso);
+  if (j.siteSemReserva && typeof j.siteSemReserva === 'object') AJUSTES.siteSemReserva = normalizarSemReserva(j.siteSemReserva);
+}
+
+// aviso do topo do site: até 200 letras, "ate" = último dia em que aparece (vazio = até desligar)
+function normalizarAvisoSite(a) {
+  a = a || {};
+  var ate = /^\d{4}-\d{2}-\d{2}$/.test(String(a.ate || '')) ? String(a.ate) : '';
+  return { ativo: !!a.ativo, texto: String(a.texto || '').replace(/\s+/g, ' ').trim().slice(0, 200), ate: ate };
+}
+function normalizarSemReserva(s) {
+  var r = {};
+  ['Yoga', 'Pilates'].forEach(function (m) {
+    var l = Array.isArray(s && s[m]) ? s[m] : [];
+    r[m] = l.map(Number).filter(function (d, i, t) { return d >= 0 && d <= 6 && d === Math.floor(d) && t.indexOf(d) === i; }).sort();
+  });
+  return r;
+}
+// o aviso que o site mostra agora (null = nenhum)
+function avisoDoSite() {
+  var a = AJUSTES.siteAviso || {};
+  if (!a.ativo || !a.texto) return null;
+  if (a.ate && a.ate < hojeTexto()) return null;
+  return { texto: a.texto, ate: a.ate || '' };
+}
+// aula que, pelo site, não se reserva (Ajustes → Site → "Reservas pelo site"): a pessoa fala com a recepção
+function soPelaRecepcao(aula) {
+  var dias = (AJUSTES.siteSemReserva || {})[aula.modalidade] || [];
+  if (!dias.length) return false;
+  var semana = new Date(aula.data + 'T12:00:00-03:00').getUTCDay();
+  return dias.indexOf(semana) >= 0;
 }
 
 var ABAS = {
@@ -747,7 +781,7 @@ function listarAulas(d) {
   var aluno = alunoDaSessao(d.token);
   var reservas = reservasAtivas();
   var espera = esperasDoAluno(aluno.cpf);
-  return gerarAulas().map(function (a) { var x = montarAula(a, reservas, normCpf(aluno.cpf)); x.naEspera = !!espera[a.id]; x.foraDoPrazo = foraDoPrazoDoSite(a); return x; });
+  return gerarAulas().map(function (a) { var x = montarAula(a, reservas, normCpf(aluno.cpf)); x.naEspera = !!espera[a.id]; x.foraDoPrazo = foraDoPrazoDoSite(a); x.soRecepcao = soPelaRecepcao(a); x.prazoHoras = AJUSTES.reservarAteHorasAntes; return x; });
 }
 
 function detalharAula(d) {
@@ -757,6 +791,8 @@ function detalharAula(d) {
   var x = montarAula(aula, reservasAtivas(), normCpf(aluno.cpf));
   x.naEspera = !!esperasDoAluno(aluno.cpf)[aula.id];
   x.foraDoPrazo = foraDoPrazoDoSite(aula);
+  x.soRecepcao = soPelaRecepcao(aula);
+  x.prazoHoras = AJUSTES.reservarAteHorasAntes;
   return x;
 }
 
@@ -794,6 +830,9 @@ function reservarAula(d) {
   if (!aula) throw new Error('Aula não encontrada.');
   if (inicio(aula) < new Date()) throw new Error('Esta aula já começou.');
   // pelo site, só com antecedência (a equipe precisa saber antes e combinar com quem dá a aula); dentro do prazo, a recepção marca
+  if (soPelaRecepcao(aula)) {
+    throw erroCod('As aulas de ' + aula.modalidade + ' deste dia são reservadas só pela recepção. Fale com a gente pelo WhatsApp.', 'SO_RECEPCAO');
+  }
   if (foraDoPrazoDoSite(aula)) {
     throw erroCod('Pelo site, as aulas são reservadas com pelo menos ' + AJUSTES.reservarAteHorasAntes + ' horas de antecedência. Escolha uma aula mais adiante ou fale com a recepção pelo WhatsApp.', 'ANTECEDENCIA');
   }

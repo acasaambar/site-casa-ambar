@@ -454,7 +454,7 @@ async function demo(acao, d) {
       return true;
     }
     case 'regras':
-      return { checkinAbreMinAntes: CONFIG.checkinAbreMinAntes, cancelarAteHorasAntes: CONFIG.cancelarAteHorasAntes, diasVisiveis: CONFIG.diasVisiveis, wellhubAtivo: true };
+      return { checkinAbreMinAntes: CONFIG.checkinAbreMinAntes, cancelarAteHorasAntes: CONFIG.cancelarAteHorasAntes, diasVisiveis: CONFIG.diasVisiveis, wellhubAtivo: true, aviso: null, semReserva: { Yoga: [], Pilates: [] } };
     case 'verConfirmacao':
     case 'responderConfirmacao':
       throw new Error('A confirmação de horário funciona só no sistema real.');

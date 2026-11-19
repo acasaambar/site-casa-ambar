@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useBancada, pode } from './sessao.jsx';
-import { useDados, Esqueleto, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, Secao, real, dataBR, hora, hojeIso, linkWhats, primeiro, plural, MESES } from './ui.jsx';
+import { useDados, Esqueleto, Erro, Cabecalho, Abas, Modal, BotaoAcao, Vazio, Tag, Secao, real, dataBR, dataCurta, hora, hojeIso, somarDias, linkWhats, primeiro, plural, MESES, DIAS_LONGOS } from './ui.jsx';
 import { IconeWhatsapp } from '../components/Marca.jsx';
 import { CatalogoServicos, Profissionais } from './Servicos.jsx';
 import { GradeSemanal } from './GradeAulas.jsx';
@@ -11,7 +12,8 @@ export default function Grade() {
   const { membro } = useBancada();
   const admin = pode(membro, 'admin');
   // a administração começa no que mais usa; a recepção só vê feriados e bloqueios
-  const [aba, setAba] = useState(admin ? 'servicos' : 'bloqueios');
+  const local = useLocation();
+  const [aba, setAba] = useState(local.state?.aba && (admin || local.state.aba === 'bloqueios') ? local.state.aba : admin ? 'servicos' : 'bloqueios');
   const itens = [['bloqueios', 'Feriados e bloqueios']];
   if (admin) itens.push(['grade', 'Grade de aulas'], ['planos', 'Planos de aula'], ['servicos', 'Serviços e pacotes'], ['profissionais', 'Profissionais']);
   return (
@@ -28,21 +30,26 @@ export default function Grade() {
 }
 
 // "2026-10-27" -> { dia: '27', mes: 'out' } (cartãozinho de data nas listas)
+const diaDaSemana = (iso) => new Date(`${iso}T12:00:00`).getDay();
 const diaMes = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(String(iso)) ? { dia: String(iso).slice(8, 10), mes: MESES[Number(String(iso).slice(5, 7)) - 1] } : { dia: '·', mes: '' });
 
 function Bloqueios() {
   const { chamar } = useBancada();
   const { dados, erro, carregando, recarregar } = useDados('bloqueios', {});
-  const [f, setF] = useState({ data: hojeIso(), modalidade: '', hora: '', motivo: '' });
+  const [f, setF] = useState({ data: hojeIso(), modalidade: '', hora: '', motivo: '', repetir: false, ate: '' });
   const [afetados, setAfetados] = useState(null);
   const [erroForm, setErroForm] = useState('');
+  // repetir toda semana: as datas que serão bloqueadas (no máximo 26 semanas)
+  const datasRepetidas = [];
+  if (f.repetir && f.ate && f.ate >= f.data) for (let n = 0; n < 27; n++) { const d = somarDias(f.data, 7 * n); if (d > f.ate) break; datasRepetidas.push(d); }
+  const qtdSemanas = f.repetir ? datasRepetidas.length : 1;
   return (
     <div className="b-duas b-duas--larga cg-duas">
       <section className="b-cartao">
-        <Secao titulo="Bloquear dia ou aula" ajuda="A aula some da agenda do site. Quem já tinha reservado é cancelado e aparece aqui para você avisar.">
+        <Secao titulo="Bloquear dia ou aula" ajuda="A aula some da agenda do site e da bancada nesse dia. Quem já tinha reservado é cancelado e aparece aqui para você avisar. Para a aula continuar, mas só a recepção marcar, use Ajustes → Site → Reservas pelo site.">
           <div className="b-form">
             <div className="b-linha2">
-              <label className="b-campo"><span className="rotulo">Data</span><input type="date" value={f.data} onChange={(e) => setF({ ...f, data: e.target.value })} /></label>
+              <label className="b-campo"><span className="rotulo">Data</span><input type="date" value={f.data} min={hojeIso()} onChange={(e) => setF({ ...f, data: e.target.value || hojeIso() })} /></label>
               <label className="b-campo"><span className="rotulo">Modalidade</span>
                 <select value={f.modalidade} onChange={(e) => setF({ ...f, modalidade: e.target.value })}><option value="">Todas (dia inteiro)</option><option>Yoga</option><option>Pilates</option></select></label>
             </div>
@@ -50,11 +57,22 @@ function Bloqueios() {
               <label className="b-campo"><span className="rotulo">Horário (opcional)</span><input type="time" value={f.hora} onChange={(e) => setF({ ...f, hora: e.target.value })} /></label>
               <label className="b-campo"><span className="rotulo">Motivo</span><input value={f.motivo} onChange={(e) => setF({ ...f, motivo: e.target.value })} placeholder="Ex.: feriado" /></label>
             </div>
+            <Interruptor checked={f.repetir} onChange={(e) => setF({ ...f, repetir: e.target.checked, ate: e.target.checked ? f.ate || somarDias(f.data, 28) : '' })}
+              detalhe={`Ex.: toda ${DIAS_LONGOS[diaDaSemana(f.data)].toLowerCase()} até uma data`}>Repetir toda semana</Interruptor>
+            {f.repetir && (
+              <label className="b-campo"><span className="rotulo">Repetir até</span>
+                <input type="date" value={f.ate} min={f.data} max={somarDias(f.data, 26 * 7)} onChange={(e) => setF({ ...f, ate: e.target.value })} />
+                {qtdSemanas > 0 && <small className="cl-dica">{plural(qtdSemanas, 'dia bloqueado', 'dias bloqueados')}: {datasRepetidas.map(dataCurta).join(', ')}</small>}
+              </label>
+            )}
             <Erro>{erroForm}</Erro>
-            <BotaoAcao className="botao botao--cheio" confirmar="Bloquear? Reservas nesse período serão canceladas." acao={async () => {
+            <BotaoAcao className="botao botao--cheio" disabled={f.repetir && !f.ate} confirmar={`Bloquear ${qtdSemanas > 1 ? plural(qtdSemanas, 'dia', 'dias') : 'este dia'}? As reservas desses horários serão canceladas.`} acao={async () => {
               setErroForm('');
-              try { const r = await chamar('bloquear', f); setAfetados(r.afetados); recarregar(); } catch (e) { setErroForm(e.message); }
-            }}>Bloquear</BotaoAcao>
+              try {
+                const r = await chamar('bloquear', { data: f.data, modalidade: f.modalidade, hora: f.hora, motivo: f.motivo, ate: f.repetir ? f.ate : '' });
+                setAfetados(r.afetados); recarregar();
+              } catch (e) { setErroForm(e.message); }
+            }}>{qtdSemanas > 1 ? `Bloquear ${plural(qtdSemanas, 'dia', 'dias')}` : 'Bloquear'}</BotaoAcao>
           </div>
         </Secao>
       </section>
@@ -88,9 +106,9 @@ function Bloqueios() {
             <ul className="cg-lista">
               {afetados.map((a, i) => (
                 <li key={i} className="cg-linha">
-                  <div className="cg-linha__corpo"><strong className="cg-linha__titulo">{a.nome}</strong><span className="b-suave">{a.aula}</span></div>
+                  <div className="cg-linha__corpo"><strong className="cg-linha__titulo">{a.nome}</strong><span className="b-suave">{a.aula}{a.data ? ` · ${dataCurta(a.data)}` : ''}</span></div>
                   {a.whatsapp && <a className="botao botao--linha botao--p com-icone" target="_blank" rel="noreferrer"
-                    href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! A aula de ${a.aula} do dia ${dataBR(f.data)} na Casa Âmbar foi cancelada${f.motivo ? ' (' + f.motivo + ')' : ''}. Sua aula não foi descontada. Quer remarcar?`)}>
+                    href={linkWhats(a.whatsapp, `Olá, ${primeiro(a.nome)}! A aula de ${a.aula} do dia ${dataBR(a.data || f.data)} na Casa Âmbar foi cancelada${f.motivo ? ' (' + f.motivo + ')' : ''}. Sua aula não foi descontada. Quer remarcar?`)}>
                     <IconeWhatsapp tamanho={14} /> Avisar</a>}
                 </li>
               ))}

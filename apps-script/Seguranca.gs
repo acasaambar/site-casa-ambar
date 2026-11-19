@@ -305,7 +305,7 @@ function salvarEmail(d) {
 // Regras que o site mostra (mudam pela bancada → Ajustes)
 function regrasPublicas() {
   return { checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes, reservarAteHorasAntes: AJUSTES.reservarAteHorasAntes, diasVisiveis: AJUSTES.diasVisiveis,
-    wellhubAtivo: AJUSTES.wellhub.ativo };
+    wellhubAtivo: AJUSTES.wellhub.ativo, aviso: avisoDoSite(), semReserva: AJUSTES.siteSemReserva };
 }
 
 // ---------------- e-mail com a cara da Casa Âmbar ----------------

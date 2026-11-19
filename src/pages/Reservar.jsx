@@ -143,6 +143,24 @@ export default function Reservar() {
   }
 
   // pelo site, só com antecedência (Ajustes → "Reserva pelo site até"): dentro do prazo, a recepção marca pelo WhatsApp
+  // Ajustes → Site: neste dia da semana esta modalidade só é marcada pela recepção
+  if (aula.soRecepcao && !aula.minhaReserva && !feito) {
+    const texto = `Olá! Quero fazer a aula de ${aula.modalidade} de ${dataExtensa(aula.data)} às ${formatarHora(aula.hora)}. Tem vaga?`;
+    return (
+      <main className="app">
+        <div className="largura app__corpo">
+          <div className="vazio-estado">
+            <Forma nome="presenca" tamanho={70} cor="var(--terracota)" />
+            <p>As aulas de {aula.modalidade} deste dia são reservadas só pela recepção.</p>
+            <p>Fale com a gente pelo WhatsApp: a recepção confere a vaga e já marca para você.</p>
+            <a className="botao" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer">Falar com a recepção</a>
+            <Link className="botao botao--linha" to="/aulas">Ver outras aulas</Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (aula.foraDoPrazo && !aula.minhaReserva && !feito) {
     const texto = `Olá! Quero fazer a aula de ${aula.modalidade} de ${dataExtensa(aula.data)} às ${formatarHora(aula.hora)}. Tem vaga?`;
     return (
@@ -150,7 +168,7 @@ export default function Reservar() {
         <div className="largura app__corpo">
           <div className="vazio-estado">
             <Forma nome="presenca" tamanho={70} cor="var(--terracota)" />
-            <p>Pelo site, as aulas são reservadas com pelo menos {CONFIG.reservarAteHorasAntes} horas de antecedência.</p>
+            <p>Pelo site, as aulas são reservadas com pelo menos {aula.prazoHoras ?? CONFIG.reservarAteHorasAntes} horas de antecedência.</p>
             <p>Para esta aula, fale com a recepção: ela confere a vaga com quem dá a aula.</p>
             <a className="botao" href={`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noreferrer">Falar com a recepção</a>
             <Link className="botao botao--linha" to="/aulas">Ver outras aulas</Link>

@@ -13,6 +13,7 @@ import FichaSaude from './pages/FichaSaude.jsx';
 import MeuPlano from './pages/MeuPlano.jsx';
 import Pagamento from './pages/Pagamento.jsx';
 import WhatsFlutuante from './components/WhatsFlutuante.jsx';
+import AvisoSite from './components/AvisoSite.jsx';
 import { EsqueciSenha, NovaSenha, Descadastrar } from './pages/Senha.jsx';
 import Confirmar from './pages/Confirmar.jsx';
 import Privacidade from './pages/Privacidade.jsx';
@@ -53,7 +54,7 @@ export default function App() {
     <AuthProvider>
       <HashRouter>
         <TopoAoNavegar />
-        <SoNoSite><Header /></SoNoSite>
+        <SoNoSite><AvisoSite /><Header /></SoNoSite>
         <Paginas>
         <Routes>
           <Route path="/" element={<Home />} />

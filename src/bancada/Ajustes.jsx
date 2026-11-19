@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useBancada } from './sessao.jsx';
-import { useDados, Esqueleto, Erro, Cabecalho, Abas, BotaoAcao, Tag, Aviso, Secao, Vazio, BANDEIRAS, real, numBR, plural, hojeIso, dataBR } from './ui.jsx';
+import { useDados, Esqueleto, Erro, Cabecalho, Abas, BotaoAcao, Tag, Aviso, Secao, Vazio, BANDEIRAS, real, numBR, plural, hojeIso, dataBR, DIAS, DIAS_LONGOS } from './ui.jsx';
 import { FORMAS_TAXA, taxaPct, aPartirDoCobrado, aPartirDoLiquido, prazoDias, somarDiasUteis } from './taxas.js';
 import { PainelVelocidade } from './Velocidade.jsx';
 import { Interruptor, Barra } from './CatalogoPecas.jsx';
 import './css/catalogo.css';
+import './css/grade-aulas.css';
 
 // [chave, texto, unidade]: o que o site e a bancada seguem
 const CAMPOS = [
@@ -21,11 +22,12 @@ const CAMPO = Object.fromEntries(CAMPOS.map((c) => [c[0], c]));
 
 export default function Ajustes() {
   const local = useLocation();
-  const [aba, setAba] = useState(local.state?.aba || 'regras');
+  const [aba, setAba] = useState(local.state?.aba || 'site');
   return (
     <>
-      <Cabecalho titulo="Ajustes">Regras do site e da bancada, taxas e registro</Cabecalho>
-      <Abas atual={aba} aoMudar={setAba} itens={[['regras', 'Regras'], ['taxas', 'Taxas da maquininha'], ['calculadora', 'Calculadora de taxas'], ['registro', 'Registro de ações'], ['velocidade', 'Velocidade']]} />
+      <Cabecalho titulo="Ajustes">Site, regras da bancada, taxas e registro</Cabecalho>
+      <Abas atual={aba} aoMudar={setAba} itens={[['site', 'Site'], ['regras', 'Regras'], ['taxas', 'Taxas da maquininha'], ['calculadora', 'Calculadora de taxas'], ['registro', 'Registro de ações'], ['velocidade', 'Velocidade']]} />
+      {aba === 'site' && <Site />}
       {aba === 'regras' && <Regras />}
       {aba === 'taxas' && <Taxas />}
       {aba === 'calculadora' && <CalculadoraTaxas />}
@@ -58,11 +60,6 @@ function Regras() {
     <>
       <div className="cg-regras">
         <div className="cg-regras__col">
-        <section className="b-cartao cg-regras__cartao">
-          <Secao titulo="Aulas e reservas">
-            {['reservarAteHorasAntes', 'checkinAbreMinAntes', 'cancelarAteHorasAntes', 'diasVisiveis', 'reservaPendenteMin'].map(numero)}
-          </Secao>
-        </section>
         <section className="b-cartao cg-regras__cartao">
           <Secao titulo="Lembretes por e-mail" ajuda="Enviados na véspera, para quem tem horário marcado.">
             {chave('lembreteServicos', 'Véspera dos serviços')}
@@ -103,10 +100,163 @@ function Regras() {
         <BotaoAcao className="botao botao--cheio" acao={async () => {
           setAviso(''); setErroS('');
           try {
-            const r = await chamar('salvarAjustes', { ajustes: Object.fromEntries(CAMPOS.map(([k]) => [k, Number(f[k])]).concat([['wellhubAtivo', !!f.wellhubAtivo], ['wellhubPendentePodeReservar', !!f.wellhubPendentePodeReservar], ['lembreteServicos', !!f.lembreteServicos], ['lembreteAulas', !!f.lembreteAulas]])) });
-            setDados(r); setAviso('Salvo. O site já segue as regras novas.');
+            const r = await chamar('salvarAjustes', { ajustes: Object.fromEntries(['valeValidadeDias', 'wellhubReservasPorDia'].map((k) => [k, Number(f[k])]).concat([['wellhubAtivo', !!f.wellhubAtivo], ['wellhubPendentePodeReservar', !!f.wellhubPendentePodeReservar], ['lembreteServicos', !!f.lembreteServicos], ['lembreteAulas', !!f.lembreteAulas]])) });
+            setDados(r); setAviso('Salvo.');
           } catch (e) { setErroS(e.message); }
         }}>Salvar regras</BotaoAcao>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
+//  SITE: o que o público vê e pode fazer pelo site
+// ============================================================
+const PRAZOS_SITE = ['reservarAteHorasAntes', 'cancelarAteHorasAntes', 'checkinAbreMinAntes', 'diasVisiveis', 'reservaPendenteMin'];
+const SEMANA = [1, 2, 3, 4, 5, 6, 0]; // seg … dom
+const MODS = ['Yoga', 'Pilates'];
+
+function Site() {
+  const { chamar } = useBancada();
+  const navegar = useNavigate();
+  const { dados, erro, carregando, setDados } = useDados('ajustes', {});
+  const { dados: grade } = useDados('grade', {});
+  const [f, setF] = useState(null);
+  const [ok, setOk] = useState('');
+  const [erroS, setErroS] = useState('');
+  useEffect(() => {
+    if (!dados) return;
+    setF({ ...dados, siteAviso: { ativo: false, texto: '', ate: '', ...(dados.siteAviso || {}) }, siteSemReserva: { Yoga: [], Pilates: [], ...(dados.siteSemReserva || {}) } });
+  }, [dados]);
+  if (carregando && !f) return <Esqueleto linhas={6} altura={48} />;
+  if (!f) return <Erro>{erro}</Erro>;
+
+  const av = f.siteAviso;
+  const mudarAviso = (mud) => { setF({ ...f, siteAviso: { ...av, ...mud } }); setOk(''); };
+  const fechados = f.siteSemReserva;
+  const alternar = (m, d) => {
+    const l = fechados[m] || [];
+    setF({ ...f, siteSemReserva: { ...fechados, [m]: l.includes(d) ? l.filter((x) => x !== d) : [...l, d] } });
+    setOk('');
+  };
+  const todos = (m, fechar) => { setF({ ...f, siteSemReserva: { ...fechados, [m]: fechar ? [...SEMANA] : [] } }); setOk(''); };
+  const aulasNoDia = (m, d) => (grade || []).filter((g) => g.ativo && g.modalidade === m && g.dia === d).length;
+  const numero = (k) => {
+    const [, t, u] = CAMPO[k];
+    return (
+      <label key={k} className="cg-regra">
+        <span className="cg-regra__txt">{t}</span>
+        <span className="cg-regra__valor"><input type="number" value={f[k]} onChange={(e) => { setF({ ...f, [k]: e.target.value }); setOk(''); }} /><small>{u}</small></span>
+      </label>
+    );
+  };
+  const vencido = av.ate && av.ate < hojeIso();
+  const noAr = av.ativo && av.texto.trim().length >= 3 && !vencido;
+  const fechadosTexto = MODS.filter((m) => (fechados[m] || []).length).map((m) => (fechados[m].length === 7 ? `${m}: todos os dias` : `${m}: ${SEMANA.filter((d) => fechados[m].includes(d)).map((d) => DIAS[d]).join(', ')}`));
+  const atalho = (titulo, linha, para, estado) => (
+    <button type="button" className="st-atalho" onClick={() => navegar(para, estado ? { state: estado } : undefined)}>
+      <strong>{titulo}</strong><span>{linha}</span><span className="st-atalho__seta" aria-hidden="true">→</span>
+    </button>
+  );
+
+  return (
+    <>
+      <div className="st-resumo" aria-live="polite">
+        <span className={`st-resumo__item${noAr ? ' st-resumo__item--on' : ''}`}><strong>Aviso no topo</strong>{noAr ? (av.ate ? `no ar até ${dataBR(av.ate)}` : 'no ar') : 'desligado'}</span>
+        <span className={`st-resumo__item${fechadosTexto.length ? ' st-resumo__item--alerta' : ' st-resumo__item--on'}`}><strong>Reservas pelo site</strong>{fechadosTexto.length ? `só recepção · ${fechadosTexto.join(' · ')}` : 'abertas em todos os dias'}</span>
+        <span className="st-resumo__item"><strong>Prazos</strong>reserva {f.reservarAteHorasAntes} h antes · cancela até {f.cancelarAteHorasAntes} h antes</span>
+      </div>
+
+      <div className="cg-regras">
+        <div className="cg-regras__col">
+          <section className="b-cartao cg-regras__cartao">
+            <Secao titulo="Reservas pelo site" ajuda="Dia desmarcado: as aulas daquela modalidade continuam aparecendo no site, mas com o botão &quot;Falar com a recepção&quot; (WhatsApp). A recepção continua marcando pela bancada normalmente. Para tirar a aula de um dia específico (feriado, folga), use Bloquear um dia ou aula.">
+              <p className="st-legenda"><span className="st-legenda__ok">✓ reserva pelo site</span><span className="st-legenda__nao">✕ só pela recepção</span><span>toque no dia para trocar</span></p>
+              {MODS.map((m) => {
+                const l = fechados[m] || [];
+                return (
+                  <div key={m} className="st-mod">
+                    <div className="st-mod__topo">
+                      <strong className={`st-mod__nome st-mod__nome--${m.toLowerCase()}`}>{m}</strong>
+                      <span className="b-suave">{l.length === 0 ? 'todos os dias pelo site' : l.length === 7 ? 'só pela recepção' : `${plural(7 - l.length, 'dia', 'dias')} pelo site`}</span>
+                      <button type="button" className="botao botao--fantasma botao--p" onClick={() => todos(m, l.length < 7)}>{l.length < 7 ? 'Pausar tudo' : 'Abrir tudo'}</button>
+                    </div>
+                    <div className="st-dias" role="group" aria-label={`Dias em que ${m} pode ser reservado pelo site`}>
+                      {SEMANA.map((d) => {
+                        const aberto = !l.includes(d);
+                        const n = aulasNoDia(m, d);
+                        return (
+                          <button key={d} type="button" className={`st-dia${aberto ? '' : ' st-dia--fechado'}${n ? '' : ' st-dia--sem'}`} aria-pressed={aberto} onClick={() => alternar(m, d)}
+                            aria-label={`${DIAS_LONGOS[d]}: ${aberto ? 'reserva pelo site' : 'só pela recepção'}${grade ? ` (${plural(n, 'aula', 'aulas')} na grade)` : ''}`}>
+                            <span className="st-dia__nome">{DIAS[d]}</span>
+                            <span className="st-dia__marca" aria-hidden="true">{aberto ? '✓' : '✕'}</span>
+                            {grade && <small className="st-dia__n">{n ? plural(n, 'aula', 'aulas') : 'sem aula'}</small>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </Secao>
+          </section>
+          <section className="b-cartao cg-regras__cartao">
+            <Secao titulo="Prazos do site">
+              {PRAZOS_SITE.map(numero)}
+            </Secao>
+          </section>
+        </div>
+        <div className="cg-regras__col">
+          <section className="b-cartao cg-regras__cartao">
+            <Secao titulo="Aviso no topo do site" ajuda="Uma faixa no alto de todas as páginas do site e da área do aluno. Bom para feriado, aula cancelada, horário especial. Quem fecha a faixa não a vê de novo até o texto mudar.">
+              <Interruptor checked={!!av.ativo} onChange={(e) => mudarAviso({ ativo: e.target.checked })}>Mostrar o aviso no site</Interruptor>
+              <label className="b-campo">
+                <span className="rotulo">Texto do aviso</span>
+                <textarea rows={3} maxLength={200} value={av.texto} placeholder="Ex.: Sábado, 22/11, não teremos aula de Yoga. Bom descanso!" onChange={(e) => mudarAviso({ texto: e.target.value })} />
+                <small className="cl-dica st-conta">{av.texto.length}/200</small>
+              </label>
+              <label className="b-campo">
+                <span className="rotulo">Mostrar até (opcional)</span>
+                <input type="date" value={av.ate} min={hojeIso()} onChange={(e) => mudarAviso({ ate: e.target.value })} />
+                <small className="cl-dica">{av.ate ? `Some sozinho depois de ${dataBR(av.ate)}.` : 'Vazio: fica até você desligar.'}</small>
+              </label>
+              {vencido && <Aviso tom="aviso">A data já passou: o aviso não aparece. Mude a data ou deixe em branco.</Aviso>}
+              <div className="st-previa" aria-hidden={!av.texto}>
+                <span className="rotulo">Como fica no site</span>
+                <div className={`st-previa__faixa${noAr ? '' : ' st-previa__faixa--off'}`}>{av.texto.trim() || 'Escreva o aviso acima'}</div>
+              </div>
+            </Secao>
+          </section>
+          <section className="b-cartao cg-regras__cartao">
+            <Secao titulo="Mais do site">
+              <div className="st-atalhos">
+                {atalho('Bloquear um dia ou aula', 'Feriado, folga, aula cancelada (some do site)', '/bancada/grade', { aba: 'bloqueios' })}
+                {atalho('Grade de aulas', 'Dias, horários, vagas e pausar uma aula fixa', '/bancada/grade', { aba: 'grade' })}
+                {atalho('Planos e preços', 'O que aparece em Meu plano no site', '/bancada/grade', { aba: 'planos' })}
+                {atalho('Promoções e cupons', 'Descontos e aulas de presente do site', '/bancada/marketing', { aba: 'promocoes' })}
+                <a className="st-atalho" href={`${import.meta.env.BASE_URL}#/`} target="_blank" rel="noreferrer">
+                  <strong>Ver o site</strong><span>Abre numa aba nova</span><span className="st-atalho__seta" aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </Secao>
+          </section>
+        </div>
+      </div>
+      <div className="b-salvar-fixo cg-salvar">
+        <div className="cg-salvar__msg">
+          {ok && <Aviso tom="ok">{ok}</Aviso>}
+          <Erro>{erroS}</Erro>
+        </div>
+        <BotaoAcao className="botao botao--cheio" acao={async () => {
+          setOk(''); setErroS('');
+          try {
+            const ajustes = Object.fromEntries(PRAZOS_SITE.map((k) => [k, Number(f[k])]));
+            ajustes.siteAviso = { ativo: !!av.ativo, texto: av.texto, ate: av.ate || '' };
+            ajustes.siteSemReserva = fechados;
+            const r = await chamar('salvarAjustes', { ajustes });
+            setDados(r); setOk('Salvo. O site já mostra as mudanças (quem está com o site aberto vê em até 5 minutos).');
+          } catch (e) { setErroS(e.message); }
+        }}>Salvar o site</BotaoAcao>
       </div>
     </>
   );

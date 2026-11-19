@@ -378,3 +378,48 @@ ul.b-itens { list-style: none; margin: 0; padding: 0; }
 
 .cg-mais-itens { display: flex; align-items: center; justify-content: space-between; gap: var(--e-3); flex-wrap: wrap; padding: var(--e-2) 2px; font-size: 14px; }
 
+
+/* ===== Ajustes → Site ===== */
+.st-resumo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-2); margin-bottom: var(--e-3); }
+.st-resumo__item { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--r-m, 12px); background: var(--b-linho); border: 1px solid var(--b-linha); font-size: 14px; color: var(--b-suave); min-width: 0; }
+.st-resumo__item strong { color: var(--b-tinta); font-size: 15px; font-weight: 600; }
+.st-resumo__item--on { border-left: 4px solid var(--b-oliva, #6F784D); }
+.st-resumo__item--alerta { border-left: 4px solid var(--b-terracota, #7E3717); }
+.st-mod { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; border-top: 1px solid var(--b-linha); }
+.st-mod:first-of-type { border-top: 0; padding-top: 0; }
+.st-mod__topo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.st-mod__topo .botao { margin-left: auto; }
+.st-mod__nome { font-weight: 600; font-size: 16px; }
+.st-dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.st-dia { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 8px 2px; border-radius: 12px; cursor: pointer;
+  border: 1px solid rgba(111, 120, 77, 0.45); background: rgba(111, 120, 77, 0.12); color: var(--b-tinta); font: inherit; }
+.st-dia__nome { font-weight: 600; font-size: 15px; text-transform: capitalize; }
+.st-dia__estado { font-size: 13px; color: var(--b-oliva, #6F784D); font-weight: 600; }
+.st-dia__n { font-size: 13px; color: var(--b-suave); }
+.st-dia--fechado { border-color: rgba(126, 55, 23, 0.55); background: rgba(126, 55, 23, 0.08); }
+.st-dia--fechado .st-dia__estado { color: var(--b-terracota, #7E3717); }
+.st-dia--sem { opacity: 0.62; }
+.st-dia:focus-visible { outline: 2px solid var(--b-foco, #2F3821); outline-offset: 2px; }
+.st-conta { text-align: right; }
+.st-previa { display: flex; flex-direction: column; gap: 6px; }
+.st-previa__faixa { padding: 10px 14px; border-radius: 10px; background: #7E3717; color: #FBF8EF; font-size: 14px; text-align: center; line-height: 1.45; }
+.st-previa__faixa--off { background: var(--b-linho); color: var(--b-suave); border: 1px dashed var(--b-linha); }
+.st-atalhos { display: flex; flex-direction: column; gap: 6px; }
+.st-atalho { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px 40px 12px 14px; border-radius: 12px; border: 1px solid var(--b-linha);
+  background: var(--b-linho); color: var(--b-tinta); text-align: left; font: inherit; cursor: pointer; text-decoration: none; min-height: 44px; }
+.st-atalho:hover { border-color: var(--b-oliva, #6F784D); }
+.st-atalho strong { font-weight: 600; font-size: 15px; }
+.st-atalho span { font-size: 14px; color: var(--b-suave); }
+.st-atalho .st-atalho__seta { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 18px; color: var(--b-oliva, #6F784D); }
+@media (max-width: 860px) { .st-resumo { grid-template-columns: 1fr; } }
+@media (max-width: 480px) {
+  .st-dias { gap: 4px; }
+  .st-dia { min-height: 58px; padding: 6px 0; border-radius: 10px; }
+  .st-dia__nome { font-size: 14px; }
+  .st-dia__n { display: none; }
+}
+.st-legenda { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 14px; color: var(--b-suave); }
+.st-legenda__ok { color: var(--b-oliva, #6F784D); font-weight: 600; }
+.st-legenda__nao { color: var(--b-terracota, #7E3717); font-weight: 600; }
+.st-dia__marca { display: block; font-size: 15px; font-weight: 700; color: var(--b-oliva, #6F784D); }
+.st-dia--fechado .st-dia__marca { color: var(--b-terracota, #7E3717); }

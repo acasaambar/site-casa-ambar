@@ -1,0 +1,85 @@
+// Ajustes → Site (nov/2026, pedido da dona: "bloquear as aulas de Yoga no sábado, inclusive as reservas no site"): aviso no topo, dias só pela recepção e bloqueio semanal
+const { criar } = require('./simulador.cjs');
+const R = require('path').join(__dirname, '..', 'apps-script');
+const m = criar([R + '/Codigo.gs', R + '/Seguranca.gs', R + '/Vales.gs', R + '/Bancada.gs', R + '/Relatorios.gs', R + '/Servicos.gs', R + '/Gestao.gs', R + '/Clientes.gs', R + '/Marketing.gs', R + '/Substituicoes.gs', R + '/Espera.gs', R + '/Contrato.gs']);
+const { ctx, chamar, emails } = m;
+let falhas = 0;
+const ok = (c, msg, extra) => { if (!c) { falhas++; console.log('  ✗', msg, extra !== undefined ? JSON.stringify(extra).slice(0, 600) : ''); } else console.log('  ✓', msg); };
+const linkDe = (e) => (e.body.match(/t=([a-f0-9]+)/) || [])[1];
+const END = { cep: '60150-160', endereco: 'Rua Eduardo Salgado', numero: '448', bairro: 'Aldeota', cidade: 'Fortaleza', uf: 'CE' };
+ctx.configurarPlanilha();
+ctx.autorizarEmails(); chamar('novaSenha', { t: linkDe(emails.at(-1)), senha: 'ambar2026adm' });
+const adm = chamar('b_entrar', { email: 'contato@acasaambar.com.br', senha: 'ambar2026adm' }).dados.token;
+const ficha = { emergencia_nome: 'Mãe', emergencia_telefone: '85999998888', parq_1: 'nao', parq_2: 'nao', parq_3: 'nao', parq_4: 'nao', parq_5: 'nao', parq_6: 'nao', parq_7: 'nao', declaracao: true, consentimento: true, data_nascimento: '1990-05-12' };
+const aluna = (cpf, nome, email) => {
+  chamar('cadastrar', { endereco: END, cpf, nome, whatsapp: '8599' + cpf.slice(-7), email, senha: 'abc12345' });
+  const t = chamar('entrar', { cpf, senha: 'abc12345' }).dados.token;
+  chamar('salvarAnamnese', { token: t, ficha });
+  return t;
+};
+const ana = aluna('52998224725', 'Ana Souza', 'ana@gmail.com');
+aluna('11144477735', 'Bia Lima', 'bia@gmail.com');
+const creditosDe = (cpf) => ctx.lerAba('Creditos').filter((c) => String(c.cpf) === cpf);
+
+let r;
+
+console.log('— aviso no topo do site');
+r = chamar('regras', {});
+ok(r.ok && r.dados.aviso === null, 'sem aviso por padrão', r.dados);
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { siteAviso: { ativo: true, texto: 'x' } } });
+ok(!r.ok && /aviso/.test(r.erro), 'aviso ligado sem texto é recusado', r.erro);
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { siteAviso: { ativo: true, texto: '  Sábado   sem Yoga.  <b>oi</b>  ', ate: '' } } });
+ok(r.ok && r.dados.siteAviso.texto === 'Sábado sem Yoga. <b>oi</b>', 'aviso salvo (espaços limpos; o site mostra como texto)', r.dados && r.dados.siteAviso);
+r = chamar('regras', {});
+ok(r.dados.aviso && r.dados.aviso.texto.startsWith('Sábado'), 'o site recebe o aviso', r.dados.aviso);
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { siteAviso: { ativo: true, texto: 'Aviso velho', ate: '2020-01-01' } } });
+ok(r.ok && chamar('regras', {}).dados.aviso === null, 'aviso com data que passou some sozinho');
+chamar('b_salvarAjustes', { token: adm, ajustes: { siteAviso: { ativo: true, texto: 'A'.repeat(300) } } });
+ok(chamar('regras', {}).dados.aviso.texto.length === 200, 'aviso cortado em 200 letras');
+chamar('b_salvarAjustes', { token: adm, ajustes: { siteAviso: { ativo: false, texto: 'guardado' } } });
+ok(chamar('regras', {}).dados.aviso === null, 'aviso desligado não aparece');
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { reservarAteHorasAntes: 0 } });
+ok(r.ok && r.dados.siteAviso.texto === 'guardado', 'salvar outro ajuste não apaga o aviso', r.dados && r.dados.siteAviso);
+
+console.log('— reservas pelo site: dias só pela recepção');
+const aulas = chamar('aulas', { token: ana }).dados;
+const yoga = aulas.find((a) => a.modalidade === 'Yoga' && ctx.inicio(a) > new Date(Date.now() + 3 * 3600e3));
+const diaY = new Date(yoga.data + 'T12:00:00-03:00').getUTCDay();
+ok(yoga && yoga.soRecepcao === false && typeof yoga.prazoHoras === 'number', 'aula vem com soRecepcao e prazo', yoga);
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { siteSemReserva: { Yoga: [diaY, diaY, 9, -1, 'x'], Pilates: 'nada' } } });
+ok(r.ok && JSON.stringify(r.dados.siteSemReserva) === JSON.stringify({ Yoga: [diaY], Pilates: [] }), 'dias limpos (sem repetidos nem inválidos)', r.dados && r.dados.siteSemReserva);
+const depois = chamar('aulas', { token: ana }).dados;
+ok(depois.filter((a) => a.modalidade === 'Yoga' && new Date(a.data + 'T12:00:00-03:00').getUTCDay() === diaY).every((a) => a.soRecepcao), 'Yoga daquele dia vem como só recepção');
+ok(depois.filter((a) => a.modalidade === 'Pilates').every((a) => !a.soRecepcao), 'Pilates continua pelo site');
+ok(depois.some((a) => a.id === yoga.id), 'a aula continua aparecendo no site');
+r = chamar('aula', { token: ana, aulaId: yoga.id });
+ok(r.ok && r.dados.soRecepcao === true, 'a página da aula também sabe', r.dados && r.dados.soRecepcao);
+r = chamar('reservar', { token: ana, aulaId: yoga.id, tapete: 3, pagarAvulsa: true });
+ok(!r.ok && r.codigo === 'SO_RECEPCAO', 'o site recusa a reserva', r);
+r = chamar('b_agendar', { token: adm, aulaId: yoga.id, cpf: '52998224725', tapete: 5, forma: 'pagar' });
+ok(r.ok, 'a recepção continua marcando pela bancada', r.erro);
+ok(JSON.stringify(chamar('regras', {}).dados.semReserva.Yoga) === JSON.stringify([diaY]), 'regras públicas trazem os dias');
+chamar('b_salvarAjustes', { token: adm, ajustes: { siteSemReserva: { Yoga: [], Pilates: [] } } });
+ok(chamar('aulas', { token: ana }).dados.every((a) => !a.soRecepcao), 'abrir de novo libera o site');
+
+console.log('— bloqueio repetido toda semana');
+const pil = depois.filter((a) => a.modalidade === 'Pilates' && ctx.inicio(a) > new Date(Date.now() + 3 * 3600e3))[0];
+chamar('reservar', { token: ana, aulaId: pil.id, pagarAvulsa: true });
+const somar = (iso, n) => new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10) + n)).toISOString().slice(0, 10);
+r = chamar('b_bloquear', { token: adm, data: pil.data, modalidade: 'Pilates', motivo: 'Folga', ate: somar(pil.data, 21) });
+ok(r.ok && r.dados.dias.length === 4 && r.dados.dias[3] === somar(pil.data, 21), 'bloqueia 4 semanas seguidas', r.erro || r.dados);
+ok(r.dados.afetados.length >= 1 && r.dados.afetados[0].data === pil.data, 'quem já tinha reservado vem com o dia', r.dados.afetados);
+const bl = chamar('b_bloqueios', { token: adm }).dados.filter((b) => b.modalidade === 'Pilates');
+ok(bl.length === 4, 'quatro bloqueios na lista', bl.length);
+ok(!ctx.gerarAulas(pil.data, 1).some((a) => a.modalidade === 'Pilates'), 'Pilates some do dia bloqueado');
+r = chamar('b_bloquear', { token: adm, data: pil.data, modalidade: 'Pilates', ate: somar(pil.data, 7) });
+ok(!r.ok && /já estão bloqueados/.test(r.erro), 'não repete bloqueio que já existe', r.erro);
+r = chamar('b_bloquear', { token: adm, data: pil.data, ate: somar(pil.data, 7 * 30) });
+ok(!r.ok && /26 semanas/.test(r.erro), 'repetição limitada a 26 semanas', r.erro);
+r = chamar('b_bloquear', { token: adm, data: '2020-01-01' });
+ok(!r.ok, 'não bloqueia dia que passou', r.erro);
+r = chamar('b_bloquear', { token: adm, data: somar(pil.data, 1), modalidade: 'Natação' });
+ok(!r.ok && /Modalidade/.test(r.erro), 'modalidade inválida é recusada', r.erro);
+
+console.log(falhas ? `\n${falhas} FALHA(S)` : '\nTUDO CERTO');
+process.exit(falhas ? 1 : 0);
