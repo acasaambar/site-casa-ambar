@@ -552,3 +552,11 @@
 .bancada .ag-bloco--lado .ag-bloco__tipo { display: none; }
 .bancada .ag-bloco--lado strong, .bancada .ag-bloco--lado .ag-bloco__info { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bancada .ag-bloco--lado .ag-bloco__pg { display: none; }
+
+/* coluna estreita: selo com o nome curto ("Fisio"), nunca cortado no meio */
+.bancada .ag-cab__nome { container-type: inline-size; }
+.ag-area__curto { display: none; }
+@container (max-width: 120px) {
+  .ag-area__longo { display: none; }
+  .ag-area__curto { display: inline; }
+}

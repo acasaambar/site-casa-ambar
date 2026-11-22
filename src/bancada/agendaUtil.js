@@ -55,6 +55,8 @@ export const obsDaEquipe = (obs) => String(obs || '').replace(/^(Reagendado de [
 // ============================================================
 const minutos = (h) => { const [a, b] = String(h || '0:0').split(':').map(Number); return (a || 0) * 60 + (b || 0); };
 const AREAS = { estetica: 'Estética', fisio: 'Fisioterapia', pilates: 'Pilates', yoga: 'Yoga' };
+// nome curto para coluna estreita (o selo não fica cortado)
+export const AREA_CURTA = { estetica: 'Estética', fisio: 'Fisio', pilates: 'Pilates', yoga: 'Yoga' };
 
 // o que a pessoa faz, na ordem da agenda: [['fisio', 'Fisioterapia'], ['pilates', 'Pilates']]
 export function areasDaPessoa(categorias = [], modalidades = []) {

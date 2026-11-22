@@ -14,7 +14,7 @@ import { AulasDaPessoa, useGrade, resumoAulas } from './GradeAulas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
 import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
-import { COR_CATEGORIA, obsDaEquipe, prefixoDeReagendado, areasDaPessoa, faixasLadoALado, conferirDia, resumoDoDia } from './agendaUtil.js';
+import { COR_CATEGORIA, obsDaEquipe, prefixoDeReagendado, areasDaPessoa, AREA_CURTA, faixasLadoALado, conferirDia, resumoDoDia } from './agendaUtil.js';
 import { DiaLista, Pessoas } from './AgendaCelular.jsx';
 
 // Cor de cada área de cuidado (tons da marca): mora em agendaUtil.js (a lista do celular também usa)
@@ -399,7 +399,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                   <span className="ag-cab__nome">
                     <strong>{c.nome}</strong>
                     <span className="ag-cab__areas">
-                      {c.areas.map(([g, t]) => <span key={g} className={`ag-area ag-area--${g}`} title={t}><i aria-hidden="true" /><span>{t}</span></span>)}
+                      {c.areas.map(([g, t]) => <span key={g} className={`ag-area ag-area--${g}`} title={t}><i aria-hidden="true" /><span className="ag-area__longo">{t}</span><span className="ag-area__curto" aria-hidden="true">{AREA_CURTA[g]}</span></span>)}
                     </span>
                   </span>
                 </div>
