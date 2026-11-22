@@ -14,7 +14,7 @@ import { AulasDaPessoa, useGrade, resumoAulas } from './GradeAulas.jsx';
 import { TrocaProfissional, PedirSubstituicao } from './Trocas.jsx';
 import { lembrar } from './memoria.js';
 import { horariosLivres, segundosAgoraFortaleza } from './horariosLivres.js';
-import { COR_CATEGORIA, obsDaEquipe, prefixoDeReagendado } from './agendaUtil.js';
+import { COR_CATEGORIA, obsDaEquipe, prefixoDeReagendado, areasDaPessoa, faixasLadoALado, conferirDia, resumoDoDia } from './agendaUtil.js';
 import { DiaLista, Pessoas } from './AgendaCelular.jsx';
 
 // Cor de cada área de cuidado (tons da marca): mora em agendaUtil.js (a lista do celular também usa)
@@ -86,27 +86,47 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
   const fns = useRef({});
 
   const lista = useMemo(() => dados?.atendimentos || [], [dados]);
-  const folgas = dados?.folgas || [];
+  const folgas = useMemo(() => dados?.folgas || [], [dados]);
 
   // colunas: quem atende serviços + professoras com aula no dia
   const colunas = useMemo(() => {
     const cols = [];
-    (dados?.equipe || []).forEach((e) => cols.push({ nome: e.nome, tipo: 'servico', grupo: grupoDe(e.categorias), detalhe: e.categorias.join(', ') || 'Serviços', turnos: e.turnos.map(([a, b]) => [min(a), min(b)]) }));
-    lista.forEach((a) => { if (!cols.some((c) => c.nome === a.profissional)) cols.push({ nome: a.profissional, tipo: 'servico', grupo: grupoDe([a.categoria]), detalhe: a.categoria, turnos: null }); });
+    (dados?.equipe || []).forEach((e) => cols.push({ nome: e.nome, tipo: 'servico', grupo: grupoDe(e.categorias), detalhe: e.categorias.join(', ') || 'Serviços', turnos: e.turnos.map(([a, b]) => [min(a), min(b)]), cats: e.categorias }));
+    lista.forEach((a) => { if (!cols.some((c) => c.nome === a.profissional)) cols.push({ nome: a.profissional, tipo: 'servico', grupo: grupoDe([a.categoria]), detalhe: a.categoria, turnos: null, cats: [a.categoria] }); });
     const prof = {};
     aulas.forEach((a) => { (prof[a.professor] = prof[a.professor] || new Set()).add(a.modalidade); });
     Object.entries(prof).forEach(([nome, mods]) => {
       const m = [...mods];
       const ja = cols.find((c) => c.nome === nome);
-      if (ja) { ja.aulas = true; ja.detalhe = `${ja.detalhe} · aulas de ${m.join(' e ')}`; return; } // atende serviços e dá aula: tudo na mesma coluna
-      cols.push({ nome, tipo: 'aula', grupo: m.includes('Pilates') ? 'pilates' : 'yoga', detalhe: m.join(' e '), turnos: null, aulas: true });
+      if (ja) { ja.aulas = true; ja.mods = m; ja.detalhe = `${ja.detalhe} · aulas de ${m.join(' e ')}`; return; } // atende serviços e dá aula: tudo na mesma coluna
+      cols.push({ nome, tipo: 'aula', grupo: m.includes('Pilates') ? 'pilates' : 'yoga', detalhe: m.join(' e '), turnos: null, aulas: true, mods: m });
     });
+    cols.forEach((c) => { c.areas = areasDaPessoa(c.cats || [], c.mods || []); });
     const ordem = GRUPOS.map(([g]) => g);
     // a profissional vê só a própria coluna (as colegas apareceriam vazias, como se estivessem livres)
     return cols.filter((c) => balcao || ehDela(c.nome, membro))
       .sort((a, b) => ordem.indexOf(a.grupo) - ordem.indexOf(b.grupo) || a.nome.localeCompare(b.nome));
   }, [dados, lista, aulas, balcao, membro]);
   const mostradas = balcao ? colunas.filter((c) => !ocultos.includes(c.grupo)) : colunas;
+  // o que vale conferir no dia (a mesma pessoa em dois lugares, gente marcada em horário bloqueado, aula sem quem dá)
+  const conferir = useMemo(() => conferirDia({ lista, aulas, folgas }).filter((x) => (x.pessoa ? balcao || ehDela(x.pessoa, membro) : balcao)), [lista, aulas, folgas, balcao, membro]);
+  const [verConferir, setVerConferir] = useState(false);
+  const comAviso = useMemo(() => new Set(conferir.map((x) => x.pessoa).filter(Boolean)), [conferir]);
+  // atendimentos e aulas que se cruzam na mesma coluna ficam lado a lado (nada fica escondido por baixo)
+  const faixas = useMemo(() => {
+    const r = {};
+    colunas.forEach((c) => Object.assign(r, faixasLadoALado([
+      ...aulas.filter((a) => a.professor === c.nome).map((a) => ({ id: `aula:${a.id}`, ini: min(a.hora), fim: min(a.hora) + (a.duracao || 60) })),
+      ...lista.filter((a) => a.profissional === c.nome).map((a) => ({ id: `at:${a.id}`, ini: min(a.hora), fim: min(a.hora) + Math.max(a.duracao, 20) })),
+    ])));
+    return r;
+  }, [colunas, aulas, lista]);
+  const estreito = (chave) => (faixas[chave]?.faixas > 1 ? ' ag-bloco--lado' : '');
+  const lado = (chave) => {
+    const f = faixas[chave];
+    if (!f || f.faixas < 2) return {};
+    return { left: `calc(4px + (100% - 8px) * ${f.faixa} / ${f.faixas})`, width: `calc((100% - 8px) / ${f.faixas} - 3px)`, right: 'auto' };
+  };
 
   // faixa de horas: das 6h às 20h, ou mais se alguém começa antes / termina depois
   const [INI, FIM] = useMemo(() => {
@@ -326,6 +346,30 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
         <Vazio titulo="Nada na sua agenda neste dia" forma="presenca">Escolha outro dia acima.</Vazio>
       ))}
 
+      {!celular && colunas.length > 0 && <ResumoDia lista={lista} aulas={aulas} pessoas={colunas.length} agoraMin={ehHoje ? minutoAgora : null} />}
+      {conferir.length > 0 && (
+        <div className="ag-conferir" role="status">
+          <div className="ag-conferir__topo">
+            <span className="ag-conferir__selo" aria-hidden="true">!</span>
+            <span className="ag-conferir__txt">
+              <strong>{plural(conferir.length, 'ponto para conferir', 'pontos para conferir')}</strong>
+              {!verConferir && <span>{conferir[0].texto}</span>}
+            </span>
+            <button type="button" className="botao botao--linha botao--p" aria-expanded={verConferir} onClick={() => setVerConferir((v) => !v)}>{verConferir ? 'Esconder' : conferir.length > 1 ? 'Ver todos' : 'Ver'}</button>
+          </div>
+          {verConferir && (
+            <ul className="ag-conferir__lista">
+              {conferir.map((x) => (
+                <li key={x.id}>
+                  <span>{x.texto}</span>
+                  {x.alvo.atendimento && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setAberto(x.alvo.atendimento)}>Abrir atendimento</button>}
+                  {!x.alvo.atendimento && x.alvo.aula && <button type="button" className="botao botao--fantasma botao--p" onClick={() => aoAbrirAula?.(x.alvo.aula)}>Abrir aula</button>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {celular && colunas.length > 0 && (<>
         {balcao && colunas.length > 1 && (
           <Pessoas colunas={colunas} pessoa={colunas.some((c) => c.nome === pessoa) ? pessoa : ''} aoEscolher={aoEscolherPessoa}
@@ -345,12 +389,19 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
               const nAulas = aulas.filter((a) => a.professor === c.nome).length;
               const total = nAtend + nAulas;
               return (
-                <div key={c.nome} className={`ag-cab ag-cab--${c.grupo}`} title={`${c.nome} · ${c.detalhe}`}>
+                <div key={c.nome} className={`ag-cab ag-cab--${c.grupo}${c.areas.length > 1 ? ' ag-cab--varias' : ''}`} title={`${c.nome} · ${c.detalhe}`}
+                  style={c.areas.length > 1 ? { '--g2': `var(--area-${c.areas[c.areas.length - 1][0]})` } : undefined}>
                   <span className="ag-cab__av">
                     <span className="ag-cab__foto" aria-hidden="true">{iniciais(c.nome)}</span>
+                    {comAviso.has(c.nome) && <i className="ag-cab__aviso" title="Tem algo para conferir neste dia" aria-label="Tem algo para conferir">!</i>}
                     {total > 0 && <span className="ag-cab__n" title={[nAtend ? plural(nAtend, 'atendimento', 'atendimentos') : '', nAulas ? plural(nAulas, 'aula', 'aulas') : ''].filter(Boolean).join(' · ')}>{total}</span>}
                   </span>
-                  <span className="ag-cab__nome"><strong>{c.nome}</strong><small>{c.detalhe}</small></span>
+                  <span className="ag-cab__nome">
+                    <strong>{c.nome}</strong>
+                    <span className="ag-cab__areas">
+                      {c.areas.map(([g, t]) => <span key={g} className={`ag-area ag-area--${g}`} title={t}><i aria-hidden="true" /><span>{t}</span></span>)}
+                    </span>
+                  </span>
                 </div>
               );
             })}
@@ -360,6 +411,7 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                 const m = INI + i * SLOT;
                 return <span key={m} className={m % 60 ? 'meia' : ''} style={{ top: i * ALT }}>{hhmm(m)}</span>;
               })}
+              {ehHoje && minutoAgora > INI && minutoAgora < FIM && <b className="ag-horas__agora" style={{ top: y(minutoAgora) }}>{hhmm(minutoAgora)}</b>}
             </div>
 
             {mostradas.map((c) => (
@@ -387,19 +439,21 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
                 {aulas.filter((a) => a.professor === c.nome).map((a) => {
                   const dur = a.duracao || 60;
                   return (
-                    <button key={a.id} type="button" className={`ag-bloco ag-bloco--aula ag-bloco--${a.modalidade.toLowerCase()}`}
-                      style={{ top: y(min(a.hora)) + 2, height: dur * PX - 4 }} onClick={() => aoAbrirAula?.(a)}>
+                    <button key={a.id} type="button" className={`ag-bloco ag-bloco--aula ag-bloco--${a.modalidade.toLowerCase()}${a.ocupadosQtd >= a.capacidade ? ' ag-bloco--lotada' : ''}${estreito(`aula:${a.id}`)}`}
+                      style={{ top: y(min(a.hora)) + 2, height: dur * PX - 4, ...lado(`aula:${a.id}`) }} onClick={() => aoAbrirAula?.(a)}
+                      title={`Aula de ${a.modalidade} · ${hora(a.hora)} · ${a.ocupadosQtd} de ${a.capacidade} ${a.capacidade === 1 ? 'lugar' : 'lugares'}`}>
                       <span className="ag-bloco__hora">{hora(a.hora)}–{hora(hhmm(min(a.hora) + dur))}</span>
-                      <strong>{a.modalidade}</strong>
-                      <span className="ag-bloco__info">{a.ocupadosQtd} de {a.capacidade} {a.capacidade === 1 ? 'lugar' : 'lugares'}</span>
+                      <strong><i className="ag-bloco__tipo" aria-hidden="true">Aula</i>{a.modalidade}</strong>
+                      <span className="ag-bloco__info">{a.ocupadosQtd >= a.capacidade ? 'Lotada' : `${a.ocupadosQtd} de ${a.capacidade} ${a.capacidade === 1 ? 'lugar' : 'lugares'}`}</span>
+                      {dur >= 45 && a.capacidade > 0 && <span className="ag-lotacao" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.round((a.ocupadosQtd / a.capacidade) * 100))}%` }} /></span>}
                       {a.titular && <span className="ag-bloco__info ag-bloco__troca">cobrindo {primeiro(a.titular)}</span>}
                     </button>
                   );
                 })}
                 {lista.filter((a) => a.profissional === c.nome).map((a) => (
                   <button key={a.id} type="button" onClick={() => { if (!arrastou.current) setAberto(a); }} onPointerDown={(e) => comecarArrasto(e, a)}
-                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}${a.duracao < 30 ? ' ag-bloco--curto' : ''}${a.duracao >= 90 ? ' ag-bloco--longo' : ''}`}
-                    style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30) }} title={`${a.nome} · ${a.servico}`}>
+                    className={`ag-bloco s-bloco--${COR_CATEGORIA[a.categoria] || 'facial'} ag-bloco--${a.status}${podeMover(a) ? ' ag-bloco--movel' : ''}${arrasto?.a.id === a.id ? ' ag-bloco--saindo' : ''}${pedeRemarcar(a) ? ' ag-bloco--remarcar' : ''}${a.duracao < 30 ? ' ag-bloco--curto' : ''}${a.duracao >= 90 ? ' ag-bloco--longo' : ''}${estreito(`at:${a.id}`)}`}
+                    style={{ top: y(min(a.hora)) + 2, height: Math.max(a.duracao * PX - 4, 30), ...lado(`at:${a.id}`) }} title={`${a.nome} · ${a.servico}`}>
                     <span className="ag-bloco__hora" title={`${hora(a.hora)}–${hora(fimDe(a))}`}>{a.duracao < 30 ? hora(a.hora) : `${hora(a.hora)}–${hora(fimDe(a))}`}{pedeRemarcar(a) ? ' · quer remarcar' : ''}</span>
                     <strong>{a.alertas?.length > 0 && <i className="ag-bloco__alerta" title={a.alertas.join(' · ')} aria-label="Atenção: ver alertas">!</i>}{obsDaEquipe(a.obs) && <i className="ag-bloco__nota" title={obsDaEquipe(a.obs)} aria-label="Tem observação">✎</i>}{a.nome}</strong>
                     {a.duracao >= 40 && <span className="ag-bloco__info">{a.servico}</span>}
@@ -452,6 +506,39 @@ export function AgendaServicos({ dia, dados, erro, recarregar, aplicar, slot, ao
       {mover && <MoverAtendimento m={mover} aoFechar={() => setMover(null)} aoMover={(r) => { setMover(null); aplicar(r); }} />}
       {imprimindo && <ImpressaoDia dia={dia} colunas={colunas} lista={lista} aulas={aulas} folgas={folgas} />}
     </>
+  );
+}
+
+// faixa com os números do dia, em cima da grade (computador e iPad)
+function ResumoDia({ lista, aulas, pessoas, agoraMin }) {
+  const r = resumoDoDia({ lista, aulas }, agoraMin ?? 0);
+  const pct = r.lugares ? Math.round((r.ocupados / r.lugares) * 100) : 0;
+  const p = r.proximo;
+  const estados = [r.confirmados ? `${r.confirmados} ${r.confirmados === 1 ? 'confirmado' : 'confirmados'}` : '', r.atendidos ? `${r.atendidos} ${r.atendidos === 1 ? 'atendido' : 'atendidos'}` : '', r.faltas ? plural(r.faltas, 'falta', 'faltas') : ''].filter(Boolean).join(' · ');
+  return (
+    <div className="ag-resumo" aria-label="Resumo do dia">
+      <div className="ag-resumo__item ag-resumo__item--atend">
+        <span className="ag-resumo__rot">Atendimentos</span>
+        <strong>{r.atendimentos}</strong>
+        <small>{estados || (r.atendimentos ? 'nenhum confirmado ainda' : 'nenhum marcado')}</small>
+      </div>
+      <div className="ag-resumo__item ag-resumo__item--aulas">
+        <span className="ag-resumo__rot">Aulas</span>
+        <strong>{r.aulas}</strong>
+        <small>{r.aulas ? `${r.ocupados} de ${r.lugares} lugares ocupados` : 'sem aula neste dia'}</small>
+        {r.aulas > 0 && <span className="ag-lotacao ag-lotacao--larga" aria-hidden="true"><i style={{ width: `${pct}%` }} /></span>}
+      </div>
+      <div className="ag-resumo__item ag-resumo__item--equipe">
+        <span className="ag-resumo__rot">Na agenda</span>
+        <strong>{pessoas}</strong>
+        <small>{pessoas === 1 ? 'pessoa trabalhando' : 'pessoas trabalhando'}</small>
+      </div>
+      <div className="ag-resumo__item ag-resumo__item--prox">
+        <span className="ag-resumo__rot">{agoraMin == null ? 'Primeiro horário' : 'Próximo agora'}</span>
+        <strong>{p ? hora(p.hora) : '—'}</strong>
+        <small>{p ? `${p.texto}${p.quem ? ` · ${primeiro(String(p.quem).replace(/^(dra?\.?|prof\.?)\s+/i, ''))}` : ''}` : agoraMin == null ? 'nada marcado' : 'nada mais hoje'}</small>
+      </div>
+    </div>
   );
 }
 
