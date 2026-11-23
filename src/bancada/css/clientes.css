@@ -471,3 +471,6 @@ button.pt-foto:hover { transform: translateY(-2px); box-shadow: var(--sombra-2);
 .vd-promo__selo { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--b-terracota, #7E3717); color: #FBF8EF; font-size: 13px; }
 .vd-promo__texto { display: grid; gap: 4px; min-width: 0; }
 .vd-promo strong { font-weight: 600; }
+
+/* pagamento do site em aberto que parece já lançado no balcão */
+.cl-pag__dica { flex-basis: 100%; font-size: 13px; font-weight: 600; color: var(--b-terracota, #7E3717); text-align: right; }

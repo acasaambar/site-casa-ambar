@@ -108,6 +108,20 @@ const tProf = (() => { chamar('b_salvarMembro', { token: adm, membro: { email: '
 r = chamar('b_confirmarPagamentoSite', { token: tProf, orderNsu: pg4.order_nsu, metodo: 'Pix' });
 ok(!r.ok, 'profissional não confirma pagamento');
 
+console.log('— descartado pela equipe não volta sozinho (caso Raquel: lançado no balcão pelo comprovante)');
+ok(String(pagRow(pg4.order_nsu).descartado_por) === 'bia@acasaambar.com.br', 'guarda quem descartou', pagRow(pg4.order_nsu).descartado_por);
+r = webhook(pg4.order_nsu, 'pix-4', 6300);
+ok(r.ok && pagRow(pg4.order_nsu).status === 'descartado', 'aviso de pago depois do descarte NÃO vira venda sozinho', pagRow(pg4.order_nsu).status);
+ok(!ctx.lerAba('Creditos').some((c) => String(c.origem).includes(pg4.order_nsu)), 'nenhuma aula em dobro foi criada');
+ok(/depois do descarte/.test(pagRow(pg4.order_nsu).conferencia), 'fica anotado para conferir', pagRow(pg4.order_nsu).conferencia);
+ctx.atualizarLinha('Pagamentos', pagRow(pg4.order_nsu)._linha, { transaction_nsu: 'pix-4', slug: 'slug-pix-4' });
+ok(ctx.reconferirPagamentosDoSite(null, 20) === 0 && pagRow(pg4.order_nsu).status === 'descartado', 'a reconferência automática também não mexe');
+r = chamar('b_aluno', { token: adm, cpf: String(pagRow(pg4.order_nsu).cpf) });
+const p4 = r.ok && r.dados.pagamentos.find((p) => p.orderNsu === pg4.order_nsu);
+ok(p4 && p4.descartadoPelaEquipe === true, 'a ficha sabe que foi a equipe que descartou', p4);
+r = chamar('b_confirmarPagamentoSite', { token: rec, orderNsu: pg4.order_nsu, metodo: 'Pix', dataPagamento: ctx.hojeTexto() });
+ok(r.ok && pagRow(pg4.order_nsu).status === 'pago' && !String(pagRow(pg4.order_nsu).descartado_por), 'se a equipe errou o descarte, confirmar à mão ainda funciona', r.erro || pagRow(pg4.order_nsu));
+
 console.log('— cancelar pelo site só até 4 h antes');
 const a5 = yogaLonge(4);
 r = chamar('reservar', { token: joana, aulaId: a5.id, tapete: 7, pagarAvulsa: true });

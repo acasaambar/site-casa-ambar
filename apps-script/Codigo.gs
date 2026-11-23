@@ -218,7 +218,9 @@ var ABAS = {
     // último retorno da conferência na InfinitePay (data, de onde veio, pago?, valor): mostra por que um pagamento do site não confirmou
     'conferencia',
     // promoção "aulas de presente": quantas aulas a mais o crédito ganhou e de qual promoção
-    'bonus_aulas', 'bonus_promocao'],
+    'bonus_aulas', 'bonus_promocao',
+    // pagamento do site descartado pela equipe (já lançado no balcão ou não pago): e-mail de quem descartou. Não volta sozinho a pago
+    'descartado_por'],
   // Créditos de aula de cada aluno (vêm de pagamentos ou são lançados à mão pela recepção)
   Creditos: ['id', 'cpf', 'nome', 'plano_id', 'descricao', 'modalidade', 'tipo', 'aulas_semana', 'aulas_total', 'inicio', 'fim', 'origem', 'ativo'],
   // ---- bancada interna ----
@@ -427,7 +429,13 @@ function doPost(e) {
     try {
       var previo = linhaPagamento(String(corpo.order_nsu));
       if (!previo) return responder(false, null, 'Não processado.');
-      if (!pagamentoDoSiteEmAberto(previo)) return responder(true, { recebido: true });
+      if (!pagamentoDoSiteEmAberto(previo)) {
+        // a InfinitePay avisou de um pagamento que a equipe já descartou: fica anotado para conferir (não vira venda sozinho)
+        if (String(previo.descartado_por || '').trim() && previo.status === 'descartado') {
+          atualizarLinha('Pagamentos', previo._linha, { conferencia: (agoraTexto() + ' webhook: a InfinitePay avisou pagamento deste pedido depois do descarte. Confira se não está em dobro.').slice(0, 300) });
+        }
+        return responder(true, { recebido: true });
+      }
       processarPagamento(String(corpo.order_nsu), corpo.transaction_nsu, corpo.invoice_slug || corpo.slug, 'webhook');
       return responder(true, { recebido: true });
     } catch (err) {
@@ -1510,8 +1518,11 @@ function infinitepayConferir(orderNsu, transactionNsu, slug) {
 }
 
 // pagamento do site que ainda pode ser confirmado (o Pix às vezes cai depois que o link "venceu" ou foi descartado)
-function pagamentoDoSiteEmAberto(pg) {
-  return !!pg && String(pg.origem || 'site') === 'site' && ['pendente', 'expirado', 'descartado'].indexOf(String(pg.status)) >= 0;
+// descartado pela equipe (descartado_por) não volta sozinho: a recepção já resolveu (ex.: lançou no balcão pelo comprovante);
+// só a confirmação à mão (incluirDescartePelaEquipe) mexe nele de novo
+function pagamentoDoSiteEmAberto(pg, incluirDescartePelaEquipe) {
+  if (!pg || String(pg.origem || 'site') !== 'site' || ['pendente', 'expirado', 'descartado'].indexOf(String(pg.status)) < 0) return false;
+  return !!incluirDescartePelaEquipe || !String(pg.descartado_por || '').trim();
 }
 
 // resumo curto do que a InfinitePay respondeu (fica na coluna 'conferencia' para a equipe ver)

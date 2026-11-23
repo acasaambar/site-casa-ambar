@@ -676,10 +676,14 @@ function PagamentosDoCliente({ lista, aoMudar }) {
   const pagos = (lista || []).filter((p) => p.status === 'pago');
   const total = pagos.reduce((t, p) => t + Number(p.valor || 0), 0);
   const pendentes = (lista || []).filter((p) => p.status === 'pendente').length;
+  // pagamento do site em aberto com a mesma aula/plano já pago perto desse dia: provavelmente a recepção lançou pelo comprovante
+  const jaLancado = (p) => (lista || []).some((x) => x.orderNsu !== p.orderNsu && x.status === 'pago' && x.planoId === p.planoId && distanciaDias(diaDe(x), diaDe(p)) <= 3);
   const acoes = (p) => {
     if (p.origem !== 'site' || !SITE_EM_ABERTO.includes(p.status)) return null;
+    if (p.status === 'descartado' && p.descartadoPelaEquipe) return null;
     return (
       <>
+        {p.status !== 'descartado' && jaLancado(p) && <span className="cl-pag__dica">Já lançado no balcão? Descarte este.</span>}
         <button type="button" className="botao botao--linha botao--p" onClick={() => setConfirmar(p)}>Confirmar recebimento</button>
         {p.status !== 'descartado' && <button type="button" className="botao botao--fantasma botao--p" onClick={() => setDescartar(p)}>Descartar</button>}
       </>
@@ -1298,6 +1302,11 @@ export function ListaPagamentos({ lista, acoes, aoAbrir, semCliente }) {
                   {(p.cupom || p.vale) ? <span>{p.cupom ? 'cupom ' + p.cupom : 'vale ' + p.vale} · −{real(p.desconto)}</span> : null}
                 </span>
                 {p.observacao && <span className={`cl-pag__obs ${/^DEVOLVER/.test(p.observacao) ? 'b-alerta-txt' : 'b-suave'}`}>{p.observacao}</span>}
+                {p.origem === 'site' && p.status !== 'pago' && p.status !== 'estornado' && p.status !== 'excluido' && (
+                  <span className="cl-pag__obs b-suave">
+                    {p.conferencia ? `InfinitePay: ${p.conferencia}` : p.status === 'descartado' ? 'Sem aviso da InfinitePay.' : 'Ainda sem aviso da InfinitePay (a pessoa não voltou ao site depois de pagar, ou o Pix não caiu).'}
+                  </span>
+                )}
               </span>
               <span className="cl-pag__valor">
                 <strong className={p.status === 'excluido' ? 'b-riscado' : undefined}>{real(p.valor)}</strong>

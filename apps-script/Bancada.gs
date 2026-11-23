@@ -1019,7 +1019,8 @@ function pagamentoPublico(p) {
     valorPago: numero(p.valor_pago), origem: String(p.origem || 'site'), observacao: String(p.observacao || ''), recibo: String(p.recibo || ''),
     registradoPor: String(p.registrado_por || ''), bandeira: String(p.bandeira || ''), comanda: String(p.comanda || ''), valeUsado: numero(p.vale_usado),
     formas: partesDoPagamento(p) || [], permuta: numero(p.permuta), permutaCom: semAspaDeFormula(p.permuta_com),
-    conferencia: String(p.conferencia || ''), comTransacao: !!(p.transaction_nsu && p.slug), reservaId: String(p.reserva_id || ''), aulaId: String(p.aula_id || '') };
+    conferencia: String(p.conferencia || ''), comTransacao: !!(p.transaction_nsu && p.slug), reservaId: String(p.reserva_id || ''), aulaId: String(p.aula_id || ''),
+    descartadoPelaEquipe: !!String(p.descartado_por || '').trim() };
 }
 
 // ---------- pagamento do site que não confirmou sozinho ----------
@@ -1034,12 +1035,14 @@ function pagamentoDoSiteParaMexer(orderNsu) {
   if (!pg) throw new Error('Pagamento não encontrado.');
   if (String(pg.origem || 'site') !== 'site') throw new Error('Este pagamento não é do site.');
   if (pg.status === 'pago') throw new Error('Este pagamento já está confirmado.');
-  if (!pagamentoDoSiteEmAberto(pg)) throw new Error('Este pagamento não pode ser confirmado (' + pg.status + ').');
+  if (!pagamentoDoSiteEmAberto(pg, true)) throw new Error('Este pagamento não pode ser confirmado (' + pg.status + ').');
   return pg;
 }
 
 function bancada_confirmarPagamentoSite(d, m) {
   var pg = pagamentoDoSiteParaMexer(d.orderNsu);
+  // a equipe tinha descartado e agora confirma à mão: o descarte deixa de valer
+  if (String(pg.descartado_por || '').trim()) { atualizarLinha('Pagamentos', pg._linha, { descartado_por: '' }); pg = pagamentoDoSiteParaMexer(pg.order_nsu); }
   // tem o código da transação? confere na InfinitePay primeiro (pode ter caído depois)
   if (pg.transaction_nsu && pg.slug) {
     var auto = processarPagamento(pg.order_nsu, String(pg.transaction_nsu), String(pg.slug), 'reconferência');
@@ -1087,7 +1090,7 @@ function bancada_descartarPagamentoSite(d, m) {
     pg = pagamentoDoSiteParaMexer(d.orderNsu);
     if (pg.status === 'descartado') throw new Error('Este pagamento já está descartado.');
     var motivo = String(d.motivo || '').trim().slice(0, 200);
-    atualizarLinha('Pagamentos', pg._linha, { status: 'descartado',
+    atualizarLinha('Pagamentos', pg._linha, { status: 'descartado', descartado_por: m.email,
       observacao: ('Descartado por ' + (String(m.nome || '').split(' ')[0] || m.email) + ' em ' + agoraLegivel() + (motivo ? ': ' + motivo : '') + '. ' + String(pg.observacao || '')).trim().slice(0, 500) });
     if (pg.reserva_id) {
       var r = lerAba('Reservas').filter(function (x) { return x.id === pg.reserva_id && x.status === 'pendente'; })[0];
