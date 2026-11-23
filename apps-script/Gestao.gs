@@ -754,22 +754,37 @@ function partesRecebidas(pags) {
   var comandas = {};
   pags.forEach(function (p) {
     if (p.comanda) { comandas[String(p.comanda)] = 1; return; }
+    // dia e origem decidem a tabela de taxas (Rede no balcão a partir de AJUSTES.redeDesde; site e link: InfinitePay)
+    var dia = String(p.pago_em || p.criado_em || '').slice(0, 10);
+    var site = String(p.origem || 'site') === 'site';
     var div = partesDoPagamento(p);
-    if (div) { div.forEach(function (x) { partes.push(x); }); return; }
+    if (div) { div.forEach(function (x) { x.dia = dia; x.site = site; partes.push(x); }); return; }
     // pagamento pelo site (checkout da InfinitePay): cartão é cobrado como link
     var metodo = String(p.metodo || 'não informado');
     if (metodo === 'Cartão' && String(p.origem || 'site') !== 'balcão') metodo = 'Link InfinitePay';
-    partes.push({ metodo: metodo, bandeira: String(p.bandeira || ''), parcelas: Number(p.parcelas) || 1, valor: numero(p.valor) });
+    partes.push({ metodo: metodo, bandeira: String(p.bandeira || ''), parcelas: Number(p.parcelas) || 1, valor: numero(p.valor), dia: dia, site: site });
   });
   if (Object.keys(comandas).length) {
     lerAba('Comandas').forEach(function (c) {
       if (!comandas[String(c.id)]) return;
+      var dia = String(c.fechada_em || c.aberta_em || '').slice(0, 10);
       parseJson(c.pagamentos, []).forEach(function (x) {
-        if (entraNoCaixa(x.metodo)) partes.push({ metodo: x.metodo, bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor) });
+        if (entraNoCaixa(x.metodo)) partes.push({ metodo: x.metodo, bandeira: String(x.bandeira || ''), parcelas: Number(x.parcelas) || 1, valor: numero(x.valor), dia: dia, site: false });
       });
     });
   }
   return partes;
+}
+
+// Qual tabela de taxas vale para um pedaço recebido: a da Rede para débito, crédito e Pix do balcão (e da comanda)
+// feitos a partir de AJUSTES.redeDesde; o resto (site, link, vendas antes da troca) segue a tabela da InfinitePay.
+// Pedaço sem dia (comanda sendo fechada agora) = hoje.
+var FORMAS_DA_REDE = { 'Cartão de débito': 1, 'Cartão de crédito': 1, 'Cartão': 1, 'Pix': 1 };
+function tabelaDaParte(x) {
+  var desde = AJUSTES.redeDesde;
+  if (!desde || !x || x.site || !FORMAS_DA_REDE[x.metodo]) return AJUSTES.taxas || {};
+  var dia = /^\d{4}-\d{2}-\d{2}$/.test(String(x.dia || '')) ? String(x.dia) : hojeTexto();
+  return dia >= desde ? (AJUSTES.taxasRede || {}) : (AJUSTES.taxas || {});
 }
 
 // grupo de bandeira da tabela de taxas: vm (Visa e Mastercard, também para as bandeiras sem linha própria), elo ou amex
@@ -791,7 +806,7 @@ function taxaDaColuna(col, parcelas) {
 
 // taxa (%) estimada da maquininha/link para um pedaço recebido (Ajustes → Taxas da maquininha); falta = a tabela não tem esse valor
 function taxaPctDaParte(x) {
-  var t = AJUSTES.taxas || {};
+  var t = tabelaDaParte(x);
   var g = grupoDaBandeira(x.bandeira);
   if (x.metodo === 'Pix') return { pct: numero(t.pix), falta: false };
   if (x.metodo === 'Cartão de débito') {
@@ -874,7 +889,7 @@ function somarDiasUteis(dataISO, n) {
 
 // dia previsto para o dinheiro cair na conta (Pix e dinheiro: no dia)
 function diaQueCai(x, dataVenda) {
-  var t = AJUSTES.taxas || {};
+  var t = tabelaDaParte({ metodo: x.metodo, dia: dataVenda, site: x.site });
   var k = x.metodo === 'Pix' ? 'pix' : x.metodo === 'Cartão de débito' ? 'debito' : x.metodo === 'Link InfinitePay' ? 'link' : x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão' ? 'credito' : '';
   if (!k) return '';
   return somarDiasUteis(dataVenda, numero(t.prazos && t.prazos[k]));
@@ -909,7 +924,7 @@ function conferirPorForma(pags, data) {
     var f = x.metodo === 'Cartão' ? 'Cartão de crédito' : x.metodo;
     if (!r[f]) return;
     r[f].valor = dinheiro(r[f].valor + x.valor);
-    r[f].taxa = dinheiro(r[f].taxa + taxaDaParte({ metodo: f, bandeira: x.bandeira, parcelas: x.parcelas, valor: x.valor }));
+    r[f].taxa = dinheiro(r[f].taxa + taxaDaParte({ metodo: f, bandeira: x.bandeira, parcelas: x.parcelas, valor: x.valor, dia: x.dia, site: x.site }));
     if (x.bandeira) r[f].bandeiras[x.bandeira] = dinheiro((r[f].bandeiras[x.bandeira] || 0) + x.valor);
   });
   return FORMAS_MAQUININHA.map(function (f) {

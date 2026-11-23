@@ -1907,7 +1907,7 @@ function bancada_ajustes() {
   return { diasVisiveis: AJUSTES.diasVisiveis, checkinAbreMinAntes: AJUSTES.checkinAbreMinAntes, cancelarAteHorasAntes: AJUSTES.cancelarAteHorasAntes, reservarAteHorasAntes: AJUSTES.reservarAteHorasAntes,
     reservaPendenteMin: AJUSTES.reservaPendenteMin, valeValidadeDias: AJUSTES.valeValidadeDias, wellhubAtivo: AJUSTES.wellhub.ativo,
     wellhubReservasPorDia: AJUSTES.wellhub.reservasPorDia, wellhubPendentePodeReservar: AJUSTES.wellhub.pendentePodeReservar !== false, pagamentoComChave: !!chaveInfinitePay(), versao: VERSAO,
-    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, comissaoLiquida: AJUSTES.comissaoLiquida !== false, taxas: AJUSTES.taxas,
+    lembreteServicos: AJUSTES.lembreteServicos !== false, lembreteAulas: !!AJUSTES.lembreteAulas, comissaoLiquida: AJUSTES.comissaoLiquida !== false, taxas: AJUSTES.taxas, taxasRede: AJUSTES.taxasRede, redeDesde: AJUSTES.redeDesde || '',
     siteAviso: AJUSTES.siteAviso, siteSemReserva: AJUSTES.siteSemReserva,
     ultimosLembretes: PropertiesService.getScriptProperties().getProperty('LEMBRETES_ULTIMO') || '',
     emailsRestantes: (function () { try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; } })() };
@@ -1926,21 +1926,22 @@ function bancada_salvarAjustes(d, m) {
     salvar[k] = n;
   });
   // taxas da maquininha e do link: % de 0 a 30, com até 2 casas; cada coluna de crédito/link tem as parcelas 1x a 12x (vazio = ainda não informada)
-  if (a.taxas && typeof a.taxas === 'object') {
-    var conferirTaxa = function (v, vazioOk) {
-      if (v === null || v === undefined || v === '') { if (vazioOk) return null; return 0; }
-      var n = Number(String(v).replace(',', '.'));
-      if (isNaN(n) || n < 0 || n > 30) throw new Error('Taxa fora do limite (0 a 30%).');
-      return Math.round(n * 100) / 100;
-    };
-    var coluna = function (v) {
-      if (!Array.isArray(v) || v.length > 12) throw new Error('A tabela de parcelas vai de 1x a 12x.');
-      var c = []; for (var i = 0; i < 12; i++) c.push(conferirTaxa(v[i], true));
-      return c;
-    };
-    var ta = a.taxas, nova = { versao: TABELA_VERSAO, pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: coluna(ta.link), prazos: {} };
-    ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
-      var n = Number((ta.prazos || AJUSTES.taxas.prazos || {})[k]);
+  // taxas = InfinitePay (site, link e balcão antes da troca); taxasRede = maquininha da Rede (balcão a partir de redeDesde; sem link)
+  var conferirTaxa = function (v, vazioOk) {
+    if (v === null || v === undefined || v === '') { if (vazioOk) return null; return 0; }
+    var n = Number(String(v).replace(',', '.'));
+    if (isNaN(n) || n < 0 || n > 30) throw new Error('Taxa fora do limite (0 a 30%).');
+    return Math.round(n * 100) / 100;
+  };
+  var coluna = function (v) {
+    if (!Array.isArray(v) || v.length > 12) throw new Error('A tabela de parcelas vai de 1x a 12x.');
+    var c = []; for (var i = 0; i < 12; i++) c.push(conferirTaxa(v[i], true));
+    return c;
+  };
+  var tabelaSalva = function (ta, versao, atual, comLink) {
+    var nova = { versao: versao, pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: comLink ? coluna(ta.link) : null, prazos: {} };
+    (comLink ? ['pix', 'debito', 'credito', 'link'] : ['pix', 'debito', 'credito']).forEach(function (k) {
+      var n = Number((ta.prazos || (atual && atual.prazos) || {})[k]);
       if (isNaN(n) || n < 0 || n > 60) throw new Error('O prazo de recebimento vai de 0 a 60 dias.');
       nova.prazos[k] = Math.round(n);
     });
@@ -1948,7 +1949,14 @@ function bancada_salvarAjustes(d, m) {
       nova.debito[g] = conferirTaxa((ta.debito || {})[g], true);
       nova.credito[g] = coluna((ta.credito || {})[g]);
     });
-    salvar.taxas = nova;
+    return nova;
+  };
+  if (a.taxas && typeof a.taxas === 'object') salvar.taxas = tabelaSalva(a.taxas, TABELA_VERSAO, AJUSTES.taxas, true);
+  if (a.taxasRede && typeof a.taxasRede === 'object') salvar.taxasRede = tabelaSalva(a.taxasRede, REDE_TABELA_VERSAO, AJUSTES.taxasRede, false);
+  if (a.redeDesde != null) {
+    var rd = String(a.redeDesde || '');
+    if (rd && !/^\d{4}-\d{2}-\d{2}$/.test(rd)) throw new Error('Data de início da Rede inválida.');
+    salvar.redeDesde = rd;
   }
   if (a.siteAviso && typeof a.siteAviso === 'object') {
     var av = normalizarAvisoSite(a.siteAviso);

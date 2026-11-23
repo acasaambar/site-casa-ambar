@@ -108,11 +108,26 @@ function colunaDe(v, padrao) {
   for (var i = 0; i < 12; i++) c.push(v && v.length > i ? numeroTaxa(v[i]) : (padrao ? padrao[i] : null));
   return c;
 }
+// Maquininha da Rede (Itaú), proposta fechada pela Casa em nov/2026 ("taxas da maquineta com antecipação").
+// Vale para o balcão (débito, crédito e Pix) a partir de AJUSTES.redeDesde; o site e o link continuam com a tabela da InfinitePay.
+// Mudou a tabela da Rede? Troque os números e some 1 em REDE_TABELA_VERSAO.
+var REDE_TABELA_VERSAO = 1;
+function taxasPadraoRede() {
+  var eloAmex = [4.38, 5.52, 6.33, 7.14, 7.95, 8.76, 9.85, 10.66, 11.47, 12.28, 13.09, 13.9];
+  return { versao: REDE_TABELA_VERSAO, pix: 0,
+    debito: { vm: 0.99, elo: 1.79, amex: null },
+    credito: { vm: [3.58, 4.72, 5.53, 6.34, 7.15, 7.96, 9.05, 9.86, 10.67, 11.48, 12.29, 13.1], elo: eloAmex.slice(), amex: eloAmex.slice() },
+    link: null,
+    // com antecipação: a confirmar com a Rede (editável em Ajustes → Taxas da maquininha → Rede)
+    prazos: { pix: 0, debito: 1, credito: 1 } };
+}
+function normalizarTaxasRede(j) { return normalizarTaxas(j, taxasPadraoRede, REDE_TABELA_VERSAO); }
+
 // aceita o formato novo e o antigo (pix, debito, credito1, credito2a6, credito7a12, link: um número cada)
-function normalizarTaxas(j) {
-  var t = taxasPadrao();
+function normalizarTaxas(j, padrao, versao) {
+  var t = (padrao || taxasPadrao)();
   if (!j || typeof j !== 'object') return t;
-  var antiga = Number(j.versao) !== TABELA_VERSAO; // tabela salva antes dos números do app: débito e crédito vêm do padrão novo
+  var antiga = Number(j.versao) !== (versao || TABELA_VERSAO); // tabela salva antes dos números do app: débito e crédito vêm do padrão novo
   if (j.pix != null) t.pix = numeroTaxa(j.pix) || 0;
   if (antiga) { /* débito e crédito: padrão novo */ }
   else if (typeof j.debito === 'number' || typeof j.debito === 'string') {
@@ -130,12 +145,14 @@ function normalizarTaxas(j) {
   if (j.prazos && typeof j.prazos === 'object') ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
     var n = Number(j.prazos[k]); if (j.prazos[k] !== '' && j.prazos[k] != null && !isNaN(n) && n >= 0 && n <= 60) t.prazos[k] = Math.round(n);
   });
-  if (antiga) { /* link: padrão novo */ }
+  if (antiga || !t.link) { /* link: padrão novo (a Rede não tem link) */ }
   else if (Array.isArray(j.link)) t.link = colunaDe(j.link, t.link);
   else if (typeof j.link === 'number' || typeof j.link === 'string') { var l = numeroTaxa(j.link); t.link = colunaTaxa(l).map(function (_, i) { return l; }); }
   return t;
 }
 AJUSTES.taxas = taxasPadrao();
+AJUSTES.taxasRede = taxasPadraoRede();
+AJUSTES.redeDesde = ''; // AAAA-MM-DD: a partir desse dia o débito, o crédito e o Pix do balcão usam a tabela da Rede (vazio = ainda não trocou)
 // a comissão das profissionais é sobre o valor que sobra depois da taxa da maquininha (regra da Casa, out/2026)
 AJUSTES.comissaoLiquida = true;
 var _ajustesAplicados = false;
@@ -155,6 +172,8 @@ function aplicarAjustesSalvos() {
   if (j.lembreteServicos != null) AJUSTES.lembreteServicos = !!j.lembreteServicos;
   if (j.lembreteAulas != null) AJUSTES.lembreteAulas = !!j.lembreteAulas;
   if (j.taxas && typeof j.taxas === 'object') AJUSTES.taxas = normalizarTaxas(j.taxas);
+  if (j.taxasRede && typeof j.taxasRede === 'object') AJUSTES.taxasRede = normalizarTaxasRede(j.taxasRede);
+  if (j.redeDesde != null) AJUSTES.redeDesde = /^\d{4}-\d{2}-\d{2}$/.test(String(j.redeDesde)) ? String(j.redeDesde) : '';
   if (j.comissaoLiquida != null) AJUSTES.comissaoLiquida = !!j.comissaoLiquida;
   if (j.siteAviso && typeof j.siteAviso === 'object') AJUSTES.siteAviso = normalizarAvisoSite(j.siteAviso);
   if (j.siteSemReserva && typeof j.siteSemReserva === 'object') AJUSTES.siteSemReserva = normalizarSemReserva(j.siteSemReserva);
