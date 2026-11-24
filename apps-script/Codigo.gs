@@ -118,10 +118,17 @@ function taxasPadraoRede() {
     debito: { vm: 0.99, elo: 1.79, amex: null },
     credito: { vm: [3.58, 4.72, 5.53, 6.34, 7.15, 7.96, 9.05, 9.86, 10.67, 11.48, 12.29, 13.1], elo: eloAmex.slice(), amex: eloAmex.slice() },
     link: null,
+    // link de pagamento da Rede: a taxa do crédito (bandeira e parcelas) + este acréscimo (a Rede informou +1 ponto em cada um)
+    linkAcrescimo: 1,
     // com antecipação: a confirmar com a Rede (editável em Ajustes → Taxas da maquininha → Rede)
-    prazos: { pix: 0, debito: 1, credito: 1 } };
+    prazos: { pix: 0, debito: 1, credito: 1, link: 1 } };
 }
-function normalizarTaxasRede(j) { return normalizarTaxas(j, taxasPadraoRede, REDE_TABELA_VERSAO); }
+function normalizarTaxasRede(j) {
+  var t = normalizarTaxas(j, taxasPadraoRede, REDE_TABELA_VERSAO);
+  var a = j && j.linkAcrescimo != null && j.linkAcrescimo !== '' ? Number(String(j.linkAcrescimo).replace(',', '.')) : NaN;
+  if (!isNaN(a) && a >= 0 && a <= 10) t.linkAcrescimo = Math.round(a * 100) / 100;
+  return t;
+}
 
 // aceita o formato novo e o antigo (pix, debito, credito1, credito2a6, credito7a12, link: um número cada)
 function normalizarTaxas(j, padrao, versao) {
@@ -217,7 +224,9 @@ var ABAS = {
     // aceite da Política de Privacidade no cadastro do site: versão do texto (igual a src/lib/privacidade.js) e data/hora
     'privacidade_versao', 'privacidade_em'],
   // avisos para a equipe (sino da bancada): reserva e cancelamento feitos pelo site
-  Avisos: ['id', 'criado_em', 'tipo', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome'],
+  Avisos: ['id', 'criado_em', 'tipo', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome',
+    // pagamento pelo site (tipos pagando, compra, conferir): o que foi comprado, o valor e o pedido (a bancada mostra a situação ao vivo)
+    'descricao', 'valor', 'order_nsu'],
   Reservas: ['id', 'aula_id', 'data', 'hora', 'modalidade', 'professor', 'cpf', 'nome', 'tapete', 'status', 'criada_em', 'checkin_em', 'cancelada_em', 'credito_id', 'pagamento_nsu', 'expira_ms', 'lembrete'],
   Sessoes: ['token', 'cpf', 'criada_em', 'expira_em'],
   Bloqueios: ['data', 'hora', 'modalidade', 'motivo'],
@@ -842,14 +851,34 @@ function reservar(d) {
   return r;
 }
 
-// Avisos para a equipe (sino da bancada): reserva e cancelamento feitos pelo site. Nunca atrapalha a reserva.
+// Avisos para a equipe (sino da bancada), sempre feitos pelo site. Nunca atrapalham a reserva nem o pagamento.
+//   reserva / cancelou: reserva confirmada ou cancelada
+//   pagando: a pessoa começou a pagar (aula avulsa ou plano). Nasce ANTES da InfinitePay responder, para a equipe saber
+//            de toda compra mesmo que a confirmação nunca chegue; a bancada mostra a situação ao vivo (aguardando, pago, não confirmado)
+//   compra:  plano comprado e confirmado pelo site
+//   conferir: a pessoa voltou do pagamento (ou a InfinitePay avisou), mas a conferência não disse "pago": olhar o comprovante
 function avisarEquipe(tipo, r) {
   try {
     adicionarLinha('Avisos', { id: 'V' + Date.now() + ('00' + Math.floor(Math.random() * 1000)).slice(-3), criado_em: agoraTexto(), tipo: tipo, aula_id: String(r.aula_id || ''),
-      data: dataTexto(r.data), hora: horaTexto(r.hora), modalidade: String(r.modalidade || ''), professor: String(r.professor || ''),
-      cpf: soDigitos(r.cpf) ? normCpf(r.cpf) : '', nome: String(r.nome || '') });
+      data: r.data ? dataTexto(r.data) : '', hora: r.hora ? horaTexto(r.hora) : '', modalidade: String(r.modalidade || ''), professor: String(r.professor || ''),
+      cpf: soDigitos(r.cpf) ? normCpf(r.cpf) : '', nome: String(r.nome || ''),
+      descricao: String(r.descricao || '').slice(0, 120), valor: r.valor != null && r.valor !== '' ? numero(r.valor) : '', order_nsu: String(r.order_nsu || '') });
   } catch (e) { Logger.log('aviso para a equipe: ' + e.message); }
 }
+
+// "a pessoa diz que pagou e a InfinitePay não confirmou": um aviso só por pedido
+function avisarConferir(pg, origem) {
+  try {
+    if (!pg || String(pg.origem || 'site') !== 'site' || pg.status === 'pago' || pg.descartado_por) return;
+    var ja = lerAba('Avisos').some(function (a) { return a.tipo === 'conferir' && String(a.order_nsu) === String(pg.order_nsu); });
+    if (ja) return;
+    var res = pg.reserva_id ? lerAba('Reservas').filter(function (x) { return x.id === pg.reserva_id; })[0] : null;
+    var aula = pg.aula_id ? partesAula({ aula_id: pg.aula_id }) : {};
+    avisarEquipe('conferir', { aula_id: pg.aula_id, data: aula.data, hora: aula.hora, modalidade: res ? res.modalidade : modalidadeDoId(pg.aula_id), professor: res ? res.professor : '',
+      cpf: pg.cpf, nome: pg.nome, descricao: (pg.descricao || '') + (origem ? ' · ' + origem : ''), valor: pg.valor, order_nsu: pg.order_nsu });
+  } catch (e) { Logger.log('aviso conferir: ' + e.message); }
+}
+function modalidadeDoId(aulaId) { var m = String(aulaId || '').split('_')[2] || ''; return m ? m.charAt(0).toUpperCase() + m.slice(1) : ''; }
 
 function reservarAula(d) {
   var aluno = alunoDaSessao(d.token);
@@ -920,6 +949,9 @@ function reservarAula(d) {
       aba('Reservas').appendRow(linhaSegura([id, aula.id, aula.data, aula.hora, aula.modalidade, aula.professor, cpf, aluno.nome, tapete, 'pendente', agoraTexto(), '', '',
         '', pg.order_nsu, Date.now() + AJUSTES.reservaPendenteMin * 60000]));
       SpreadsheetApp.flush();
+      // a equipe fica sabendo já agora, antes de a InfinitePay confirmar (a confirmação pode não chegar)
+      avisarEquipe('pagando', { aula_id: aula.id, data: aula.data, hora: aula.hora, modalidade: aula.modalidade, professor: aula.professor, cpf: cpf, nome: aluno.nome,
+        descricao: avulsa.nome + (tapete ? ' · tapete ' + tapete : ''), valor: pg.valor, order_nsu: pg.order_nsu });
       return { pagamento: pg };
     }
 
@@ -1444,6 +1476,8 @@ function comprar(d) {
     var aceite = exigirFichaEContrato(aluno, plano);
     var pg = criarPagamento(aluno, plano, {}, d.codigo);
     if (aceite && !aceite.order_nsu && pg.order_nsu) atualizarLinha('Contratos', aceite._linha, { order_nsu: pg.order_nsu });
+    // compra pelo site: aviso já no começo do pagamento (desconto de 100% já sai como compra concluída)
+    if (!pg.pago) avisarEquipe('pagando', { cpf: aluno.cpf, nome: aluno.nome, descricao: plano.nome, valor: pg.valor, order_nsu: pg.order_nsu });
     return pg;
   } finally {
     soltarTrava(trava);
@@ -1566,6 +1600,8 @@ function confirmarPagamento(d) {
   if (!pg || normCpf(pg.cpf) !== normCpf(aluno.cpf)) throw new Error('Pagamento não encontrado.');
   if (pg.status !== 'pago' && d.transactionNsu && d.slug) processarPagamento(pg.order_nsu, d.transactionNsu, d.slug, 'retorno');
   pg = linhaPagamento(pg.order_nsu);
+  // voltou da InfinitePay (ou abriu a página de pagamento) e ainda não está pago: a equipe confere
+  if (pg.status !== 'pago' && d.transactionNsu) avisarConferir(pg, 'voltou do pagamento sem confirmação');
   var reserva = null;
   if (pg.reserva_id) {
     var r = reservasAtivas().filter(function (x) { return x.id === pg.reserva_id; })[0];
@@ -1633,6 +1669,8 @@ function processarPagamento(orderNsu, transactionNsu, slug, origem) {
     var ok = conf && conf.paid === true && Number(conf.amount) >= esperado;
     if (!ok) {
       Logger.log('Pagamento não confirmado (' + origem + '): ' + JSON.stringify(conf));
+      // a InfinitePay avisou ou a pessoa voltou do pagamento, mas a conferência não disse "pago": a equipe confere o comprovante
+      if (origem === 'webhook' || origem === 'retorno') avisarConferir(pg, origem === 'webhook' ? 'a InfinitePay avisou, mas não confirmou' : 'voltou do pagamento sem confirmação');
       // guarda a transação para conferir de novo depois, e o que a InfinitePay respondeu
       var guardar = { conferencia: resumoConferencia(conf, origem) };
       if (!pg.transaction_nsu) { guardar.transaction_nsu = transactionNsu; guardar.slug = slug; }
@@ -1744,12 +1782,15 @@ function concluirPagamento(pg, info) {
       var podeVoltar = info.reativarReserva && r.status === 'cancelado' && !r.checkin_em;
       if (ocupado || (r.status === 'cancelado' && !podeVoltar)) {
         atualizarLinha('Pagamentos', pg._linha, { observacao: 'O lugar foi ocupado antes da confirmação; o crédito ficou disponível.' });
+        if (String(pg.origem || 'site') === 'site') avisarEquipe('compra', { cpf: pg.cpf, nome: pg.nome, descricao: pg.descricao + ' · pago, mas o lugar foi ocupado: ficou como crédito', valor: pg.valor, order_nsu: pg.order_nsu });
       } else {
         atualizarLinha('Reservas', i + 1, { status: 'reservado', credito_id: creditoId, expira_ms: '', cancelada_em: '' });
         avisarEquipe('reserva', partesAula(r));
       }
       break;
     }
+  } else if (String(pg.origem || 'site') === 'site') {
+    avisarEquipe('compra', { cpf: pg.cpf, nome: pg.nome, descricao: pg.descricao, valor: pg.valor, order_nsu: pg.order_nsu });
   }
   SpreadsheetApp.flush();
   return creditoId;

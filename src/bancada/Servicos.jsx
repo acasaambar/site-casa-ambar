@@ -27,7 +27,7 @@ const STATUS = {
   cancelado: ['Cancelado', 'apagado'],
 };
 const PAGAMENTO = { no_dia: 'paga no dia', pacote: 'pacote', pago: 'pago', cortesia: 'cortesia' };
-const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay'];
+const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link Rede', 'Link InfinitePay'];
 
 // pediu para remarcar pelo link do lembrete e ainda não foi remarcado
 const pedeRemarcar = (a) => a.resposta === 'remarcar' && (a.status === 'agendado' || a.status === 'confirmado');

@@ -65,10 +65,28 @@ ok(pixOntem && pixOntem.taxa === 0, 'Pix de ontem (antes da troca) sem taxa', pi
 ok(pixHoje && pixHoje.taxa === 0.89, 'Pix de hoje no balcão com a taxa da Rede', pixHoje);
 ok(ctx.diaQueCai({ metodo: 'Cartão de crédito' }, hoje) === ctx.somarDiasUteis(hoje, 2) && ctx.diaQueCai({ metodo: 'Cartão de crédito' }, ontem) === ctx.somarDiasUteis(ontem, 1), 'prazo: Rede depois da troca, InfinitePay antes');
 
+console.log('— link de pagamento da Rede: crédito + 1 ponto em cada parcela');
+ok(ctx.AJUSTES.taxasRede.linkAcrescimo === 1, 'acréscimo padrão do link: 1%');
+ok(parte('Link Rede', 'Visa', 1, { dia: hoje }) === 4.58 && parte('Link Rede', 'Elo', 12, { dia: hoje }) === 14.9 && parte('Link Rede', 'Mastercard', 7, { dia: hoje }) === 10.05, 'Link Rede: Visa 1x 4,58% · Elo 12x 14,9% · Master 7x 10,05%');
+ok(parte('Link Rede', '', 1, { dia: ontem }) === 4.58, 'Link Rede usa a tabela da Rede mesmo antes da data da troca');
+ok(ctx.diaQueCai({ metodo: 'Link Rede' }, hoje) === ctx.somarDiasUteis(hoje, Number(ctx.AJUSTES.taxasRede.prazos.link) || 0), 'prazo do Link Rede vem da tabela da Rede');
+r = vender({ metodo: 'Link Rede', bandeira: 'Visa', parcelas: 3, confirmarRepetida: [], motivoRepetida: 'teste' });
+ok(r.ok, 'Vender aceita "Link Rede" com parcelas', r.erro);
+r = chamar('b_pagamentos', { token: adm, de: hoje, ate: hoje });
+const linkHoje = (r.dados.lista || r.dados).find((p) => p.metodo === 'Link Rede');
+ok(linkHoje && linkHoje.taxa === 6.53 && linkHoje.parcelas == 3, 'Vendas: Link Rede 3x Visa com 6,53% (5,53 + 1)', linkHoje);
+r = vender({ metodo: 'Link Rede', parcelas: 1, confirmarRepetida: [], motivoRepetida: 'teste' });
+ok(r.ok, 'no link a bandeira é opcional (pode ser Pix)', r.erro);
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { taxasRede: { ...ctx.AJUSTES.taxasRede, linkAcrescimo: 1.5 } } });
+ok(r.ok && ctx.AJUSTES.taxasRede.linkAcrescimo === 1.5 && parte('Link Rede', 'Visa', 1, { dia: hoje }) === 5.08, 'acréscimo editável em Ajustes (1,5%)', r.erro);
+r = chamar('b_salvarAjustes', { token: adm, ajustes: { taxasRede: { ...ctx.AJUSTES.taxasRede, linkAcrescimo: 40 } } });
+ok(!r.ok, 'acréscimo fora do limite (0 a 10%) é recusado');
+chamar('b_salvarAjustes', { token: adm, ajustes: { taxasRede: { ...ctx.AJUSTES.taxasRede, linkAcrescimo: 1 } } });
+
 console.log('— a calculadora da tela dá a mesma taxa que o servidor (Rede)');
 import(require('url').pathToFileURL(require('path').join(__dirname, '..', 'src', 'bancada', 'taxas.js')).href).then((tela) => {
   let n = 0, dif = 0;
-  [['pix', 'Pix'], ['debito', 'Cartão de débito'], ['credito', 'Cartão de crédito']].forEach(([f, metodo]) => ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', ''].forEach((b) => [1, 2, 6, 7, 12].forEach((p) => {
+  [['pix', 'Pix'], ['debito', 'Cartão de débito'], ['credito', 'Cartão de crédito'], ['link', 'Link Rede']].forEach(([f, metodo]) => ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', ''].forEach((b) => [1, 2, 6, 7, 12].forEach((p) => {
     const a = tela.taxaPct(ctx.AJUSTES.taxasRede, f, b, p), z = ctx.taxaPctDaParte({ metodo, bandeira: b, parcelas: p, valor: 100, dia: hoje });
     n++; if (a.pct !== z.pct || a.falta !== z.falta) { dif++; if (dif < 4) console.log('   diferença', f, b, p, a, z); }
   })));

@@ -1180,7 +1180,7 @@ function conferirVendaRepetida(cpf, itens, dia, membro, ignorar) {
 
 // Venda registrada pela recepção (já recebida: Pix, dinheiro, cartão na maquininha...)
 function registrarVenda(aluno, plano, o, membro) {
-  var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay'];
+  var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Cortesia', 'Vale-presente', 'Link InfinitePay', 'Link Rede'];
   var metodo = metodos.indexOf(o.metodo) >= 0 ? o.metodo : '';
   if (!metodo) throw new Error('Escolha como foi pago.');
   if (!plano) throw new Error('Item de venda não encontrado.');
@@ -1492,13 +1492,13 @@ function bancada_corrigirVenda(d, m) {
   var pg, mud = {};
   try {
     pg = vendaQueDaParaMexer(d, m);
-    var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Cortesia'];
+    var metodos = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Link Rede', 'Cortesia'];
     var metodo = metodos.indexOf(d.metodo) >= 0 ? d.metodo : '';
     if (!metodo) throw new Error('Escolha como foi pago.');
     var valor = metodo === 'Cortesia' ? 0 : numero(d.valor);
     if (isNaN(valor) || valor < 0) throw new Error('Valor inválido.');
     valor = dinheiro(valor);
-    var parcelas = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(12, Math.max(1, Math.round(Number(d.parcelas) || 1))) : 1;
+    var parcelas = metodo === 'Cartão de crédito' || ehLink(metodo) ? Math.min(12, Math.max(1, Math.round(Number(d.parcelas) || 1))) : 1;
     var antes = textoDaVenda(pg);
     mud = { metodo: metodo, bandeira: bandeiraDe(metodo, d.bandeira, true), parcelas: parcelas, valor: valor, valor_pago: valor, formas: '' };
     // dividida em mais de uma forma: as partes têm que fechar com o valor da venda
@@ -1896,9 +1896,35 @@ function bancada_avisos(d, m) {
   var limite = somarDias(hojeTexto(), -14);
   var lista = lerAba('Avisos').filter(function (a) {
     return a.id && String(a.criado_em).slice(0, 10) >= limite && (m.papel !== 'professora' || mesmaProfessora(a.professor, m));
-  }).map(function (a) {
-    return { id: String(a.id), em: String(a.criado_em), tipo: String(a.tipo), aulaId: String(a.aula_id), data: dataTexto(a.data), hora: horaTexto(a.hora),
-      modalidade: String(a.modalidade), professor: String(a.professor), nome: String(a.nome) };
+  });
+  // situação ao vivo dos pagamentos do site (aviso "pagando"/"conferir"): lê só as linhas dos pedidos avisados
+  var pedidos = {};
+  lista.forEach(function (a) { if (a.order_nsu) pedidos[String(a.order_nsu)] = null; });
+  if (Object.keys(pedidos).length) {
+    var v = valoresAba('Pagamentos'), k = indiceColunas(v[0]);
+    for (var i = 1; i < v.length; i++) {
+      var nsu = String(v[i][k.order_nsu]);
+      if (!(nsu in pedidos)) continue;
+      var st = String(v[i][k.status] || '');
+      pedidos[nsu] = st === 'pago' ? 'pago' : st === 'pendente' ? 'aguardando' : (k.descartado_por != null && v[i][k.descartado_por]) ? 'descartado'
+        : st === 'estornado' || st === 'excluido' ? st : 'nao_confirmado';
+    }
+  }
+  var veCpf = m.papel === 'admin' || m.papel === 'recepcao';
+  lista = lista.map(function (a) {
+    var tipo = String(a.tipo), nsu = String(a.order_nsu || '');
+    var r = { id: String(a.id), em: String(a.criado_em), tipo: tipo, aulaId: String(a.aula_id), data: a.data ? dataTexto(a.data) : '', hora: a.hora ? horaTexto(a.hora) : '',
+      modalidade: String(a.modalidade), professor: String(a.professor), nome: String(a.nome),
+      descricao: semAspaDeFormula(String(a.descricao || '')), valor: a.valor === '' || a.valor == null ? null : numero(a.valor) };
+    if (nsu) { r.pedido = nsu; r.situacao = pedidos[nsu] || 'nao_confirmado'; }
+    if (veCpf && soDigitos(a.cpf)) r.cpf = normCpf(a.cpf);
+    return r;
+  });
+  var comConferir = {};
+  lista.forEach(function (a) { if (a.tipo === 'conferir') comConferir[a.pedido] = true; });
+  lista = lista.filter(function (a) {
+    // "pagando" some quando foi pago (o aviso de reserva/compra confirmada já está na lista) ou quando virou "conferir"
+    return !(a.tipo === 'pagando' && (a.situacao === 'pago' || comConferir[a.pedido]));
   }).sort(function (x, y) { return y.em.localeCompare(x.em) || y.id.localeCompare(x.id); }).slice(0, 80);
   return { avisos: lista, agora: agoraTexto() };
 }
@@ -1940,8 +1966,17 @@ function bancada_salvarAjustes(d, m) {
   };
   var tabelaSalva = function (ta, versao, atual, comLink) {
     var nova = { versao: versao, pix: conferirTaxa(ta.pix, false), debito: {}, credito: {}, link: comLink ? coluna(ta.link) : null, prazos: {} };
-    (comLink ? ['pix', 'debito', 'credito', 'link'] : ['pix', 'debito', 'credito']).forEach(function (k) {
-      var n = Number((ta.prazos || (atual && atual.prazos) || {})[k]);
+    if (!comLink) {
+      // Rede: o link é a taxa do crédito + um acréscimo (0 a 10 pontos)
+      var ac = ta.linkAcrescimo == null || ta.linkAcrescimo === '' ? numero(atual && atual.linkAcrescimo) : Number(String(ta.linkAcrescimo).replace(',', '.'));
+      if (isNaN(ac) || ac < 0 || ac > 10) throw new Error('O acréscimo do link vai de 0 a 10%.');
+      nova.linkAcrescimo = Math.round(ac * 100) / 100;
+    }
+    ['pix', 'debito', 'credito', 'link'].forEach(function (k) {
+      var v = (ta.prazos || {})[k];
+      if (v == null || v === '') v = ((atual && atual.prazos) || {})[k];
+      if (v == null || v === '') v = k === 'pix' ? 0 : 1; // prazo que ainda não existia (link da Rede): 1 dia útil
+      var n = Number(v);
       if (isNaN(n) || n < 0 || n > 60) throw new Error('O prazo de recebimento vai de 0 a 60 dias.');
       nova.prazos[k] = Math.round(n);
     });

@@ -405,7 +405,8 @@ export function AlunoDetalhe() {
   const { chamar, membro, token } = useBancada();
   const { dados: a, erro, carregando, recarregar, setDados } = useDados('aluno', { cpf });
   const [excluir, setExcluir] = useState(false);
-  const [aba, setAba] = useState('resumo');
+  // o sino de avisos abre direto em Pagamentos (pagamento do site para conferir)
+  const [aba, setAba] = useState(() => (local.state?.aba === 'pagamentos' ? 'pagamentos' : 'resumo'));
   const [editar, setEditar] = useState(false);
   const [vender, setVender] = useState(false);
   const [vale, setVale] = useState(false);
@@ -992,7 +993,7 @@ function EditarAluno({ a, aoFechar, aoSalvar }) {
   );
 }
 
-const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Cortesia'];
+const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link Rede', 'Link InfinitePay', 'Cortesia'];
 
 // Venda feita no balcão (dinheiro, Pix, maquininha...). Usada também em Vendas.
 export function VenderModal({ aluno: inicial, aoFechar, aoVender }) {

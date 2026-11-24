@@ -10,7 +10,9 @@
 var CATEGORIAS_PRODUTO = ['Revenda (home care)', 'Insumo de cabine', 'Descartáveis', 'Limpeza e copa', 'Outros'];
 var CATEGORIAS_DESPESA = ['Aluguel e condomínio', 'Água, luz e internet', 'Salários e pró-labore', 'Comissões', 'Produtos e insumos', 'Marketing',
   'Manutenção', 'Impostos e taxas', 'Sistemas e assinaturas', 'Outros'];
-var METODOS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Vale-presente', 'Permuta'];
+var METODOS_PAGAMENTO = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Vale-presente', 'Permuta', 'Link Rede'];
+// link de pagamento: o da InfinitePay (site e link antigo) e o da Rede (a partir da troca de maquininha)
+function ehLink(metodo) { return metodo === 'Link InfinitePay' || metodo === 'Link Rede'; }
 // formas que contam como pago na comanda mas não são dinheiro recebido agora (não entram no caixa nem na maquininha)
 // Permuta: a Casa assume o pagamento em troca de divulgação (blogueiro, parceiro…); a comissão segue sobre o valor cheio
 function entraNoCaixa(metodo) { return metodo !== 'Vale-presente' && metodo !== 'Permuta'; }
@@ -21,7 +23,7 @@ var BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipercard', '
 function ehCartao(metodo) { return metodo === 'Cartão de crédito' || metodo === 'Cartão de débito'; }
 // no Link InfinitePay a bandeira é opcional (o link também aceita Pix)
 function bandeiraDe(metodo, bandeira, obrigatoria) {
-  if (!ehCartao(metodo) && metodo !== 'Link InfinitePay') return '';
+  if (!ehCartao(metodo) && !ehLink(metodo)) return '';
   var b = String(bandeira || '').trim();
   if (BANDEIRAS.indexOf(b) >= 0) return b;
   if ((obrigatoria && ehCartao(metodo)) || b) throw new Error('Escolha a bandeira do cartão (' + metodo.toLowerCase() + ').');
@@ -677,7 +679,7 @@ function bancada_excluirDespesa(d, m) {
 }
 
 // ---------- pagamento dividido em mais de uma forma ----------
-var FORMAS_DIVIDIDAS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay'];
+var FORMAS_DIVIDIDAS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay', 'Link Rede'];
 
 // "1.200,50" e "99.90" (a tela manda como foi digitado)
 function valorBR(v) {
@@ -695,7 +697,7 @@ function normalizarFormas(lista, total, exigirBandeira) {
     var vazio = x.valor === '' || x.valor == null;
     var valor = vazio ? null : dinheiro(valorBR(x.valor));
     if (valor != null && (isNaN(valor) || valor <= 0)) throw new Error('Cada parte precisa ter um valor maior que zero.');
-    var parcelas = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Math.round(Number(x.parcelas) || 1), 1), 12) : 1;
+    var parcelas = metodo === 'Cartão de crédito' || ehLink(metodo) ? Math.min(Math.max(Math.round(Number(x.parcelas) || 1), 1), 12) : 1;
     return { metodo: metodo, valor: valor, parcelas: parcelas, bandeira: bandeiraDe(metodo, x.bandeira, !!exigirBandeira) };
   });
   if (!itens.length) throw new Error('Informe como foi pago.');
@@ -781,6 +783,7 @@ function partesRecebidas(pags) {
 // Pedaço sem dia (comanda sendo fechada agora) = hoje.
 var FORMAS_DA_REDE = { 'Cartão de débito': 1, 'Cartão de crédito': 1, 'Cartão': 1, 'Pix': 1 };
 function tabelaDaParte(x) {
+  if (x && x.metodo === 'Link Rede') return AJUSTES.taxasRede || {};
   var desde = AJUSTES.redeDesde;
   if (!desde || !x || x.site || !FORMAS_DA_REDE[x.metodo]) return AJUSTES.taxas || {};
   var dia = /^\d{4}-\d{2}-\d{2}$/.test(String(x.dia || '')) ? String(x.dia) : hojeTexto();
@@ -814,6 +817,11 @@ function taxaPctDaParte(x) {
     return d == null ? { pct: 0, falta: true } : { pct: numero(d), falta: false };
   }
   if (x.metodo === 'Link InfinitePay') return taxaDaColuna(t.link, x.parcelas);
+  // link da Rede: a taxa do crédito da mesma bandeira e parcelas + o acréscimo do link
+  if (x.metodo === 'Link Rede') {
+    var lr = taxaDaColuna(t.credito && t.credito[g], x.parcelas);
+    return { pct: Math.round((lr.pct + numero(t.linkAcrescimo)) * 100) / 100, falta: lr.falta };
+  }
   if (x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão') {
     return taxaDaColuna(t.credito && t.credito[g], x.parcelas);
   }
@@ -890,12 +898,12 @@ function somarDiasUteis(dataISO, n) {
 // dia previsto para o dinheiro cair na conta (Pix e dinheiro: no dia)
 function diaQueCai(x, dataVenda) {
   var t = tabelaDaParte({ metodo: x.metodo, dia: dataVenda, site: x.site });
-  var k = x.metodo === 'Pix' ? 'pix' : x.metodo === 'Cartão de débito' ? 'debito' : x.metodo === 'Link InfinitePay' ? 'link' : x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão' ? 'credito' : '';
+  var k = x.metodo === 'Pix' ? 'pix' : x.metodo === 'Cartão de débito' ? 'debito' : ehLink(x.metodo) ? 'link' : x.metodo === 'Cartão de crédito' || x.metodo === 'Cartão' ? 'credito' : '';
   if (!k) return '';
   return somarDiasUteis(dataVenda, numero(t.prazos && t.prazos[k]));
 }
 
-var FORMAS_MAQUININHA = ['Pix', 'Cartão de débito', 'Cartão de crédito', 'Link InfinitePay'];
+var FORMAS_MAQUININHA = ['Pix', 'Cartão de débito', 'Cartão de crédito', 'Link InfinitePay', 'Link Rede'];
 
 // o que ainda vai cair na conta (líquido, depois da taxa), por dia previsto: vendas dos últimos dias no Pix, cartão e link
 function aCairNaConta(hoje) {
@@ -993,7 +1001,7 @@ function bancada_financeiro(d) {
     if (!t) return;
     taxas = dinheiro(taxas + t);
     taxasPorForma[x.metodo] = dinheiro((taxasPorForma[x.metodo] || 0) + t);
-    var rotulo = (x.metodo === 'Link InfinitePay' ? 'Link' : x.metodo === 'Cartão de débito' ? 'Débito' : 'Crédito') + (x.bandeira ? ' ' + x.bandeira : '');
+    var rotulo = (x.metodo === 'Link Rede' ? 'Link Rede' : x.metodo === 'Link InfinitePay' ? 'Link' : x.metodo === 'Cartão de débito' ? 'Débito' : 'Crédito') + (x.bandeira ? ' ' + x.bandeira : '');
     taxasPorBandeira[rotulo] = dinheiro((taxasPorBandeira[rotulo] || 0) + t);
   });
   var taxasConfiguradas = true;
@@ -1604,7 +1612,7 @@ function bancada_corrigirFormasComanda(d, m) {
     var novas = (d.pagamentos || []).map(function (p) {
       var metodo = FORMAS_DIVIDIDAS.indexOf(p.metodo) >= 0 ? p.metodo : '';
       if (!metodo) throw new Error('Forma de pagamento inválida (vale-presente não entra aqui).');
-      return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
+      return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || ehLink(metodo) ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
         codigo: '', bandeira: bandeiraDe(metodo, p.bandeira, true) };
     }).filter(function (p) { return p.valor > 0; });
     if (!novas.length) throw new Error('Informe como foi pago.');
@@ -1797,7 +1805,7 @@ function bancada_fecharComanda(d, m) {
       if (p.parceiro != null && typeof p.parceiro !== 'string') throw new Error('Permuta: diga com quem foi combinada.');
       var parceiro = metodo === 'Permuta' ? String(p.parceiro || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
       if (metodo === 'Permuta' && dinheiro(p.valor) > 0 && parceiro.length < 3) throw new Error('Permuta: diga com quem foi combinada (blogueiro, parceiro…).');
-      return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
+      return { metodo: metodo, valor: dinheiro(p.valor), parcelas: metodo === 'Cartão de crédito' || ehLink(metodo) ? Math.min(Math.max(Number(p.parcelas) || 1, 1), 12) : 1,
         codigo: metodo === 'Vale-presente' ? codigoLimpo(p.codigo) : '', bandeira: bandeiraDe(metodo, p.bandeira, true), parceiro: parceiro };
     }).filter(function (p) { return p.valor > 0; });
     var pago = dinheiro(pags.reduce(function (s, p) { return s + p.valor; }, 0));

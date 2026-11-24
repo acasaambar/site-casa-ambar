@@ -275,6 +275,7 @@ const comoTexto = (tx) => ({
   debito: Object.fromEntries(GRUPOS.map(([g]) => [g, pctTxt(tx?.debito?.[g])])),
   credito: Object.fromEntries(GRUPOS.map(([g]) => [g, colunaTxt(tx?.credito?.[g])])),
   link: colunaTxt(tx?.link),
+  linkAcrescimo: pctTxt(tx?.linkAcrescimo ?? 1),
   prazos: Object.fromEntries(PRAZOS.map(([k]) => [k, String(tx?.prazos?.[k] ?? 0)])),
 });
 // completa as parcelas em branco entre duas informadas (ex.: 2x e 12x), em passos iguais
@@ -294,7 +295,8 @@ const faltando = (t, comLink = true) => {
 const paraSalvar = (t, comLink) => ({
   pix: pctNum(t.pix) ?? 0, debito: Object.fromEntries(GRUPOS.map(([g]) => [g, pctNum(t.debito[g])])),
   credito: Object.fromEntries(GRUPOS.map(([g]) => [g, colunaNum(t.credito[g])])), link: comLink ? colunaNum(t.link) : null,
-  prazos: Object.fromEntries(PRAZOS.filter(([k]) => comLink || k !== 'link').map(([k]) => [k, Number(t.prazos[k]) || 0])),
+  ...(comLink ? {} : { linkAcrescimo: pctNum(t.linkAcrescimo) ?? 0 }),
+  prazos: Object.fromEntries(PRAZOS.map(([k]) => [k, Number(t.prazos[k]) || 0])),
 });
 // duas tabelas: a maquininha da Rede (balcão a partir de redeDesde) e a InfinitePay (site, link e vendas antes da troca)
 const TABELAS = [['rede', 'Rede · balcão'], ['infinite', 'InfinitePay · site e link']];
@@ -405,6 +407,14 @@ function Taxas() {
         </Secao>
       </section>
 
+      {rede && (
+        <section className="b-cartao tx-cartao">
+          <Secao titulo="Link de pagamento · Rede" ajuda='Forma "Link Rede" nas vendas, na agenda e na comanda. A Rede cobra a mesma taxa do crédito (bandeira e parcelas) com um acréscimo.'>
+            <label className="tx-campo"><span>Acréscimo sobre o crédito<small> (ex.: crédito à vista Visa {pctTxt(pctNum(t.credito.vm[0]))}% → link {pctTxt(Math.round(((pctNum(t.credito.vm[0]) || 0) + (pctNum(t.linkAcrescimo) || 0)) * 100) / 100)}%)</small></span>
+              <CampoPct valor={t.linkAcrescimo} rotulo="Acréscimo do link da Rede" aoMudar={(v) => setT({ ...t, linkAcrescimo: v })} vazio="0" /></label>
+          </Secao>
+        </section>
+      )}
       {!rede && <section className="b-cartao tx-cartao">
         <Secao titulo="Link da InfinitePay e pagamento pelo site" ajuda="Vale para qualquer bandeira. O cartão pago pelo site entra aqui."
           acoes={<button type="button" className="botao botao--linha botao--p" onClick={() => setT({ ...t, link: completarMeio(t.link) })}>Completar o meio da tabela</button>}>
@@ -419,7 +429,7 @@ function Taxas() {
       <div className="tx-linha">
         <section className="b-cartao tx-cartao">
           <Secao titulo={`Prazo de recebimento · ${nomeMaq}`} ajuda='Dias úteis até o dinheiro cair na conta. Aparece no Caixa, no Financeiro ("a cair na conta") e na calculadora.'>
-            {PRAZOS.filter(([k]) => !rede || k !== 'link').map(([k, nome]) => (
+            {PRAZOS.map(([k, nome]) => (rede && k === 'link' ? ['link', 'Link Rede'] : [k, nome])).map(([k, nome]) => (
               <label key={k} className="tx-campo"><span>{nome}</span>
                 <span className="tx-pct"><input inputMode="numeric" value={t.prazos[k]} aria-label={`Prazo de ${nome}`} onChange={(e) => setT({ ...t, prazos: { ...t.prazos, [k]: e.target.value.replace(/\D/g, '').slice(0, 2) } })} /><small className="tx-dias">dias</small></span></label>
             ))}
@@ -471,10 +481,10 @@ function CalculadoraTaxas() {
   if (carregando && !dados) return <Esqueleto linhas={6} altura={48} />;
   if (!dados) return <Erro>{erro}</Erro>;
   // link só existe na InfinitePay; na Rede, a calculadora mostra débito, crédito e Pix da maquininha
-  const ehRede = maq === 'rede' && forma !== 'link';
+  const ehRede = maq === 'rede';
   const taxas = ehRede ? dados.taxasRede : dados.taxas;
   const valor = numBR(texto) || 0;
-  const usaBandeira = forma === 'debito' || forma === 'credito';
+  const usaBandeira = forma === 'debito' || forma === 'credito' || (forma === 'link' && ehRede);
   const usaParcelas = forma === 'credito' || forma === 'link';
   const calcular = (n) => {
     const t = taxaPct(taxas, forma, bandeira, n);
@@ -494,13 +504,13 @@ function CalculadoraTaxas() {
           <div className="tx-calc">
             <div className="tx-calc__campos">
               <div className="tx-seg" role="group" aria-label="Maquininha">
-                {[['rede', 'Rede (balcão)'], ['infinite', 'InfinitePay (link e site)']].map(([id, nome]) => (
+                {[['rede', 'Rede (maquininha e link)'], ['infinite', 'InfinitePay (site e link antigo)']].map(([id, nome]) => (
                   <button key={id} type="button" className={maq === id ? 'tx-seg--ativo' : ''} aria-pressed={maq === id}
-                    onClick={() => { setMaq(id); if (id === 'rede' && forma === 'link') setForma('credito'); }}>{nome}</button>
+                    onClick={() => setMaq(id)}>{nome}</button>
                 ))}
               </div>
               <div className="tx-seg" role="group" aria-label="Forma de pagamento">
-                {FORMAS_TAXA.filter(([id]) => maq !== 'rede' || id !== 'link').map(([id, nome]) => <button key={id} type="button" className={forma === id ? 'tx-seg--ativo' : ''} aria-pressed={forma === id} onClick={() => setForma(id)}>{nome}</button>)}
+                {FORMAS_TAXA.map(([id, nome]) => <button key={id} type="button" className={forma === id ? 'tx-seg--ativo' : ''} aria-pressed={forma === id} onClick={() => setForma(id)}>{nome}</button>)}
               </div>
               <div className="tx-seg" role="group" aria-label="O que você sabe">
                 <button type="button" className={modo === 'cobrei' ? 'tx-seg--ativo' : ''} aria-pressed={modo === 'cobrei'} onClick={() => setModo('cobrei')}>Quanto cai se eu cobrar…</button>

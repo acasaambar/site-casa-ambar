@@ -345,7 +345,7 @@ function CorrigirVenda({ p, aoSalvar }) {
   // dividida em mais de uma forma: linhas { metodo, valor, parcelas, bandeira } (null = uma forma só)
   const [formas, setFormas] = useState(() => (p.formas?.length > 1 ? p.formas.map((x) => ({ ...LINHA_PAGAMENTO, metodo: x.metodo, valor: String(x.valor).replace('.', ','), parcelas: x.parcelas || 1, bandeira: x.bandeira || '' })) : null));
   const cortesia = metodo === 'Cortesia';
-  const parcela = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay';
+  const parcela = metodo === 'Cartão de crédito' || metodo === 'Link InfinitePay' || metodo === 'Link Rede';
   const valorNum = cortesia ? 0 : numBR(valor);
   const valorRuim = !cortesia && (valor.trim() === '' || isNaN(valorNum) || valorNum < 0);
   const somaFormas = resumoLinhas(formas || [], valorNum);
@@ -392,7 +392,7 @@ function CorrigirVenda({ p, aoSalvar }) {
       <Erro>{erro}</Erro>
       <BotaoAcao className="botao botao--cheio" disabled={valorRuim || formasRuins || motivo.trim().length < 3 || (!formas && ehCartao(metodo) && faltaBandeira(metodo, bandeira))} acao={async () => {
         setErro('');
-        try { await chamar('corrigirVenda', { orderNsu: p.orderNsu, metodo: formas ? formas[0].metodo : metodo, bandeira: ehCartao(metodo) || metodo === 'Link InfinitePay' ? bandeira : '', parcelas: parcela ? parcelas : 1, valor: valorNum, formas: formas ? formas.map((l) => ({ ...l, valor: numBR(l.valor) })) : undefined, dataVenda, obs, motivo }); aoSalvar(); } catch (e) { setErro(e.message); }
+        try { await chamar('corrigirVenda', { orderNsu: p.orderNsu, metodo: formas ? formas[0].metodo : metodo, bandeira: ehCartao(metodo) || metodo === 'Link InfinitePay' || metodo === 'Link Rede' ? bandeira : '', parcelas: parcela ? parcelas : 1, valor: valorNum, formas: formas ? formas.map((l) => ({ ...l, valor: numBR(l.valor) })) : undefined, dataVenda, obs, motivo }); aoSalvar(); } catch (e) { setErro(e.message); }
       }}>Salvar correção</BotaoAcao>
     </div>
   );

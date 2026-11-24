@@ -26,7 +26,12 @@ export function taxaPct(taxas, forma, bandeira, parcelas) {
     const d = t.debito && t.debito[g] != null ? t.debito[g] : t.debito ? t.debito.vm : null;
     return d == null ? { pct: 0, falta: true } : { pct: Number(d), falta: false };
   }
-  if (forma === 'link') return daColuna(t.link, parcelas);
+  if (forma === 'link') {
+    if (t.link) return daColuna(t.link, parcelas);
+    // Rede: o link é a taxa do crédito da bandeira + o acréscimo do link (igual a taxaPctDaParte com 'Link Rede')
+    const c = daColuna(t.credito && t.credito[g], parcelas);
+    return { pct: Math.round((c.pct + (Number(t.linkAcrescimo) || 0)) * 100) / 100, falta: c.falta };
+  }
   if (forma === 'credito') return daColuna(t.credito && t.credito[g], parcelas);
   return { pct: 0, falta: false };
 }

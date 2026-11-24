@@ -55,8 +55,16 @@
 .av-item__corpo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .av-item__titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 15px; line-height: 1.35; color: var(--b-tinta, #2F3821); }
 .av-item__falta { color: var(--b-alerta-tinta, #7A2C10); font-weight: 600; }
+.av-item--pagando .av-item__marca { background: var(--b-caramelo, #A6845E); }
+.av-item--compra .av-item__marca { background: var(--b-oliva, #6F784D); }
+.av-item--atencao .av-item__marca { background: var(--b-terracota, #7E3717); }
+.av-item--atencao { border-color: #E2B7A2; }
+.av-item__dica { font-size: 14px; line-height: 1.4; color: var(--b-alerta-tinta, #7A2C10); }
+.av-item__dica--calma { color: var(--b-suave, #535647); }
+.av-item__acoes { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.av-toast__icone--conferir, .av-toast__icone--pagando { background: rgba(166, 132, 94, 0.4); }
 @media (max-width: 520px) {
   .av-item { grid-template-columns: 4px 1fr; row-gap: 4px; }
   .av-item__marca { grid-row: 1 / span 2; }
-  .av-item > .botao { grid-column: 2; justify-self: start; }
+  .av-item > .av-item__acoes { grid-column: 2; flex-direction: row; flex-wrap: wrap; justify-self: start; }
 }

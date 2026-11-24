@@ -109,6 +109,10 @@ if (require.main !== module) return;
   if (r && r.ok && r.dados && r.dados.id) chamar('cancelar', { token: toks['11144477735'], reservaId: r.dados.id });
   const r2 = reservaSite('11144477735', 'Yoga');
   if (!r2 || !r2.ok) console.log('aviso de exemplo não entrou:', r2 && r2.erro);
+  // pagamento do site que voltou sem confirmação da InfinitePay (aviso "conferir")
+  const a3 = ctx.gerarAulas().filter((a) => a.modalidade === 'Yoga' && ctx.inicio(a).getTime() > Date.now() + 26 * 3600e3)[3];
+  const r3 = a3 && chamar('reservar', { token: toks['93541134780'], aulaId: a3.id, tapete: 4, pagarAvulsa: true });
+  if (r3 && r3.ok && r3.dados.pagamento) chamar('confirmarPagamento', { token: toks['93541134780'], orderNsu: r3.dados.pagamento.order_nsu, transactionNsu: 'falso-exemplo', slug: 'slug-exemplo' });
 }
 ctx.PRIVACIDADE_OBRIGATORIA = true; // o simulador local pede o aceite da política no cadastro, como o site de verdade
 // TURNSTILE_SECRET=x npm run simulador → liga o "não sou robô" (o simulador aceita só a confirmação 'humano-ok')

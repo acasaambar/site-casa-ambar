@@ -10,7 +10,8 @@ export const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'American Express', 'Hipe
 export const ehCartao = (m) => m === 'Cartão de crédito' || m === 'Cartão de débito';
 export const faltaBandeira = (metodo, bandeira) => ehCartao(metodo) && !bandeira;
 // no link da InfinitePay a bandeira é opcional (o link também aceita Pix)
-export const pedeBandeira = (m) => ehCartao(m) || m === 'Link InfinitePay';
+export const ehLink = (m) => m === 'Link InfinitePay' || m === 'Link Rede';
+export const pedeBandeira = (m) => ehCartao(m) || ehLink(m);
 
 export function CampoBandeira({ metodo, valor, aoMudar, className = 'b-campo' }) {
   if (!pedeBandeira(metodo)) return null;
@@ -148,7 +149,7 @@ export function CamposPagamento({ metodos, p, aoMudar, rotulo = 'Recebido por', 
           <select value={p.resto} onChange={(e) => mudar({ resto: e.target.value })}>{formasResto.map((m) => <option key={m}>{m}</option>)}</select></label>
       )}
       {!(vale && cobreTudo) && <CampoBandeira metodo={vale ? p.resto : p.metodo} valor={p.bandeira} aoMudar={(b) => mudar({ bandeira: b })} />}
-      {parcelas && !(vale && cobreTudo) && ['Cartão de crédito', 'Link InfinitePay'].includes(vale ? p.resto : p.metodo) && (
+      {parcelas && !(vale && cobreTudo) && ['Cartão de crédito', 'Link InfinitePay', 'Link Rede'].includes(vale ? p.resto : p.metodo) && (
         <label className="b-campo"><span className="rotulo">Parcelas</span>
           <select value={p.parcelas || 1} onChange={(e) => mudar({ parcelas: Number(e.target.value) })}>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}x</option>)}</select></label>
       )}
@@ -228,7 +229,7 @@ export const segundaDe = (iso) => somarDias(iso, -((diaSemana(iso) + 6) % 7));
 // cliente sem CPF tem um código interno de 15 dígitos (começa com 9)
 export const semCpf = (c) => String(c || '').replace(/\D/g, '').length > 11;
 export const cpfFmt = (c) => (semCpf(c) ? 'sem CPF' : mascaraCPF(c || ''));
-export const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link InfinitePay'];
+export const METODOS = ['Pix', 'Dinheiro', 'Cartão de crédito', 'Cartão de débito', 'Link Rede', 'Link InfinitePay'];
 export const MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 export const mesTexto = (m) => { const [a, n] = String(m).split('-'); return `${MESES_LONGOS[Number(n) - 1]} ${a}`; };
 export const somarMes = (m, n) => { const [a, x] = String(m).split('-').map(Number); const d = new Date(a, x - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
