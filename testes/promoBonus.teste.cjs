@@ -82,5 +82,17 @@ r = chamar('b_vender', { token: adm, cpf: '11144477735', planoId: 'pilates-avuls
 const cP = creditosDe('11144477735').filter((c) => c.plano_id === 'pilates-avulsa').pop();
 ok(cP && Number(cP.aulas_total) === 1, 'promoção pausada: volta a ser 1 aula', cP);
 
+console.log('— dias da semana (planilha em português guarda "1,4" como o número 1,4)');
+ok(JSON.stringify(ctx.diasDaPromocao(1.4)) === '[1,4]' && JSON.stringify(ctx.diasDaPromocao('1,4')) === '[1,4]' && JSON.stringify(ctx.diasDaPromocao('0.6')) === '[0,6]', 'dois dias lidos como número voltam a ser dois dias');
+ok(JSON.stringify(ctx.diasDaPromocao('1,2,3')) === '[1,2,3]' && JSON.stringify(ctx.diasDaPromocao(3)) === '[3]' && JSON.stringify(ctx.diasDaPromocao('')) === '[]' && JSON.stringify(ctx.diasDaPromocao('1 4')) === '[1,4]', 'três dias, um dia, nenhum e separado por espaço');
+const hojeDia = new Date(ctx.hojeTexto() + 'T12:00:00Z').getUTCDay(), outroDia = (hojeDia + 3) % 7;
+r = chamar('b_salvarPromocao', { token: adm, promocao: Object.assign({}, pr, { ativo: true, dias: [outroDia, hojeDia] }) });
+const linhaPr = ctx.lerAba('Promocoes').find((p) => p.nome === 'Compra 1 ganha 2');
+ok(r.ok && /^\d \d$/.test(String(linhaPr.dias)), 'dois dias são gravados com espaço (a planilha não vira número)', linhaPr.dias);
+ctx.atualizarLinha('Promocoes', linhaPr._linha, { dias: Number(Math.min(hojeDia, outroDia) + '.' + Math.max(hojeDia, outroDia)) });
+ctx.novaExecucao(); ctx._promocoes = null;
+const bon = ctx.bonusDaPromocao(ctx.buscarPlano('pilates-avulsa'), ctx.hojeTexto(), 'bancada');
+ok(bon && bon.aulas === 1, 'promoção antiga com os dias gravados como número volta a valer no dia marcado', bon);
+
 console.log(falhas ? '\n' + falhas + ' FALHA(S)' : '\nTUDO CERTO');
 process.exit(falhas ? 1 : 0);

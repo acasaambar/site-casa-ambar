@@ -17,8 +17,16 @@ var DIAS_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 
 function promocaoPublica(p) {
   var lista = function (v) { return String(v || '').split(',').map(function (x) { return x.trim(); }).filter(String); };
   return { id: String(p.id), ativo: ativoSim(p.ativo), nome: String(p.nome), descricao: String(p.descricao || ''), tipo: String(p.tipo || 'percentual'),
-    valor: numero(p.valor), itens: lista(p.itens), grupos: lista(p.categorias), dias: lista(p.dias).map(Number).filter(function (n) { return n >= 0 && n <= 6; }),
+    valor: numero(p.valor), itens: lista(p.itens), grupos: lista(p.categorias), dias: diasDaPromocao(p.dias),
     de: p.de ? dataTexto(p.de) : '', ate: p.ate ? dataTexto(p.ate) : '', onde: String(p.onde || 'ambos'), criadoEm: String(p.criado_em || '') };
+}
+
+// dias da semana (0 = domingo … 6 = sábado). Dois dias gravados como "1,4" a planilha em português
+// guarda como o número 1,4: lido de volta vira "1.4". Cada algarismo é um dia, com vírgula, ponto ou espaço entre eles.
+function diasDaPromocao(v) {
+  var vistos = {};
+  return String(v == null ? '' : v).split(/[^\d]+/).filter(function (x) { return /^[0-6]$/.test(x); }).map(Number)
+    .filter(function (n) { if (vistos[n]) return false; vistos[n] = 1; return true; });
 }
 
 var _promocoes = null;
@@ -118,7 +126,8 @@ function bancada_salvarPromocao(d, m) {
   if (outras.length) throw new Error('Já existe uma promoção com este nome.');
   var linha = { ativo: x.ativo === false ? 'NÃO' : 'SIM', nome: nome, descricao: String(x.descricao || '').slice(0, 200), tipo: tipo, valor: valor,
     itens: (x.itens || []).map(String).join(','), categorias: (x.grupos || []).map(String).join(','),
-    dias: (x.dias || []).map(Number).filter(function (n) { return n >= 0 && n <= 6; }).join(','),
+    // separados por espaço: "1,4" a planilha em português transformaria no número 1,4
+    dias: diasDaPromocao((x.dias || []).map(Number).filter(function (n) { return n >= 0 && n <= 6; }).sort().join(' ')).join(' '),
     de: /^\d{4}-\d{2}-\d{2}$/.test(String(x.de)) ? x.de : '', ate: /^\d{4}-\d{2}-\d{2}$/.test(String(x.ate)) ? x.ate : '',
     onde: ['bancada', 'site', 'ambos'].indexOf(x.onde) >= 0 ? x.onde : 'ambos' };
   var ex = x.id ? lerAba('Promocoes').filter(function (p) { return String(p.id) === String(x.id); })[0] : null;
